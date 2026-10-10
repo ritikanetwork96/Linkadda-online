@@ -39,20 +39,6 @@
   window.handleFkMediaImgError = function(img, prodTitle) {
     if (!img) return;
 
-    // If this is a gallery thumbnail and it fails to load, hide this broken thumbnail item
-    const thumbItem = img.closest('.fk-thumb-item');
-    if (thumbItem) {
-      thumbItem.style.display = 'none';
-      const container = thumbItem.parentElement;
-      if (container) {
-        const remainingVisible = container.querySelectorAll('.fk-thumb-item:not([style*="display: none"])');
-        if (remainingVisible.length <= 1) {
-          container.style.display = 'none';
-        }
-      }
-      return;
-    }
-
     if (!img._triedLocal) {
       img._triedLocal = true;
       const cleanFn = String(img.src || '').split('/').pop().split('?')[0];
@@ -62,7 +48,12 @@
       }
     }
 
-    // Never inject random Telegram photos from other packs. Use clean branded VIP placeholder.
+    const thumbItem = img.closest('.fk-thumb-item');
+    if (thumbItem) {
+      thumbItem.style.display = 'none';
+      return;
+    }
+
     img.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='480' height='270' viewBox='0 0 480 270'%3E%3Crect width='100%25' height='100%25' fill='%2313121f'/%3E%3Ccircle cx='240' cy='120' r='32' fill='%23ff2a8d' opacity='0.25'/%3E%3Cpolygon points='234,106 254,120 234,134' fill='%23ff2a8d'/%3E%3Ctext x='50%25' y='180' fill='%23ffffff' font-family='sans-serif' font-size='14' font-weight='700' text-anchor='middle'%3ELINKADDA VIP%3C/text%3E%3C/svg%3E";
   };
 
@@ -71,7 +62,7 @@
     vidEl._failed = true;
     const parent = vidEl.parentElement;
     if (!parent) return;
-    const safeImg = (fallbackUrl && !fallbackUrl.includes('photo_')) ? fallbackUrl : "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='480' height='270' viewBox='0 0 480 270'%3E%3Crect width='100%25' height='100%25' fill='%2313121f'/%3E%3Ccircle cx='240' cy='120' r='32' fill='%23ff2a8d' opacity='0.25'/%3E%3Cpolygon points='234,106 254,120 234,134' fill='%23ff2a8d'/%3E%3Ctext x='50%25' y='180' fill='%23ffffff' font-family='sans-serif' font-size='14' font-weight='700' text-anchor='middle'%3ELINKADDA VIP%3C/text%3E%3C/svg%3E";
+    const safeImg = fallbackUrl || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='480' height='270' viewBox='0 0 480 270'%3E%3Crect width='100%25' height='100%25' fill='%2313121f'/%3E%3Ccircle cx='240' cy='120' r='32' fill='%23ff2a8d' opacity='0.25'/%3E%3Cpolygon points='234,106 254,120 234,134' fill='%23ff2a8d'/%3E%3Ctext x='50%25' y='180' fill='%23ffffff' font-family='sans-serif' font-size='14' font-weight='700' text-anchor='middle'%3ELINKADDA VIP%3C/text%3E%3C/svg%3E";
     const img = document.createElement('img');
     img.src = safeImg;
     img.alt = prodTitle || 'VIP Preview';
@@ -575,50 +566,50 @@
     const thumbs = document.getElementById('fkPvGalleryThumbs');
     if (!stage || !thumbs) return;
 
-    let images = [];
-    let videos = [];
-
-    // Prioritize explicit admin images array; do not resurrect old deleted images from legacy fields
-    if (Array.isArray(prod.images) && prod.images.length) {
-      images = [...prod.images.filter(Boolean)];
-    } else {
-      if (Array.isArray(prod.media) && prod.media.length) {
-        prod.media.forEach((m) => {
-          const val = typeof m === 'string' ? m : (m && m.url ? m.url : '');
-          if (!val) return;
-          if (/\.(mp4|webm|mov|m4v)$/i.test(val) || (m && m.type === 'video')) videos.push(val);
-          else images.push(val);
-        });
+    const parseMediaList = (val) => {
+      if (!val) return [];
+      if (Array.isArray(val)) return val.filter(Boolean);
+      if (typeof val === 'string') {
+        const trimmed = val.trim();
+        if (!trimmed) return [];
+        if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+          try {
+            const arr = JSON.parse(trimmed);
+            if (Array.isArray(arr)) return arr.filter(Boolean);
+          } catch (_) {}
+        }
+        return trimmed.split(/[\n,]+/).map(s => s.trim()).filter(Boolean);
       }
-      if (Array.isArray(prod.galleryImages) && prod.galleryImages.length) images.push(...prod.galleryImages.filter(Boolean));
-      if (prod.image) images.push(prod.image);
+      return [];
+    };
+
+    let rawImages = [];
+    let rawVideos = [];
+
+    // 1. Collect all images across all possible fields (images, galleryImages, image, thumbnail, media)
+    if (prod.images) rawImages.push(...parseMediaList(prod.images));
+    if (prod.galleryImages) rawImages.push(...parseMediaList(prod.galleryImages));
+    if (prod.image) rawImages.push(prod.image);
+    if (prod.thumbnail) rawImages.push(prod.thumbnail);
+
+    if (Array.isArray(prod.media)) {
+      prod.media.forEach((m) => {
+        const val = typeof m === 'string' ? m : (m && m.url ? m.url : '');
+        if (!val) return;
+        if (/\.(mp4|webm|mov|m4v)$/i.test(val) || (m && m.type === 'video')) rawVideos.push(val);
+        else rawImages.push(val);
+      });
     }
 
-    // Prioritize explicit admin videos array
-    if (Array.isArray(prod.videos)) {
-      videos = [...prod.videos.filter(Boolean)];
-    } else if (prod.video) {
-      videos.push(prod.video);
-    }
+    // 2. Collect all videos
+    if (prod.videos) rawVideos.push(...parseMediaList(prod.videos));
+    if (prod.video) rawVideos.push(prod.video);
 
     const SUPABASE_CDN_ROOT = 'https://dsleaglxbedljdxrikdn.supabase.co/storage/v1/object/public/linkadda-media';
-    images = [...new Set(images)].map((u) => {
+
+    const normalizeUrl = (u) => {
       let str = String(u || '').trim();
-      if (str.includes('rustfs-mi5c.srv1942099.hstgr.cloud') || (str.includes('supabase.co') && !str.includes('dsleaglxbedljdxrikdn'))) {
-        const pathPart = str.split('/linkadda-media/').pop() || str.split('/public/').pop() || str.split('/').pop();
-        return `${SUPABASE_CDN_ROOT}/${pathPart.replace(/^\/+/, '')}`;
-      }
-      if (str.startsWith('products/') || str.startsWith('categories/')) {
-        return `${SUPABASE_CDN_ROOT}/${str}`;
-      }
-      return str;
-    }).filter(Boolean);
-
-    // Filter out unassigned generic Telegram photo dumps (photo_XX_2026-06-15_...) completely
-    images = images.filter(u => !/^photo_\d+_2026-06-15_/.test(String(u || '').split('/').pop().split('?')[0]));
-
-    videos = [...new Set(videos)].map((v) => {
-      let str = String(v || '').trim();
+      if (!str) return '';
       if (str.includes('rustfs-mi5c.srv1942099.hstgr.cloud') || (str.includes('supabase.co') && !str.includes('dsleaglxbedljdxrikdn'))) {
         const pathPart = str.split('/linkadda-media/').pop() || str.split('/public/').pop() || str.split('/').pop();
         return `${SUPABASE_CDN_ROOT}/${pathPart.replace(/^\/+/, '')}`;
@@ -626,10 +617,17 @@
       if (str.startsWith('products/') || str.startsWith('categories/') || str.startsWith('videos/')) {
         return `${SUPABASE_CDN_ROOT}/${str}`;
       }
+      const fn = str.split('/').pop().split('?')[0];
+      if (!str.startsWith('http') && (/^photo_\d+|^category\d+|^prod_/.test(fn))) {
+        return 'images/' + fn;
+      }
       return str;
-    }).filter(Boolean);
+    };
 
-    const fallbackPoster = images[0] || (prod.image && !prod.image.includes('photo_') ? (typeof resolveMediaSource === 'function' ? resolveMediaSource(prod.image) : prod.image) : '') || '';
+    let images = [...new Set(rawImages.map(normalizeUrl).filter(Boolean))];
+    let videos = [...new Set(rawVideos.map(normalizeUrl).filter(Boolean))];
+
+    const fallbackPoster = images[0] || (prod.image ? normalizeUrl(prod.image) : '') || '';
     const prodTitleSafe = String(prod.title || prod.name || 'Pack').replace(/'/g, "\\'");
 
     const mediaList = [];
@@ -676,13 +674,14 @@
     window.__fkActiveMediaList = mediaList;
     setStage(0);
 
-    thumbs.innerHTML = mediaList.length > 1 ? mediaList.map((m, idx) => `
+    // Always render thumbnail strip whenever media exists
+    thumbs.innerHTML = mediaList.map((m, idx) => `
       <div class="fk-thumb-item ${idx === 0 ? 'active' : ''}" data-idx="${idx}">
         ${m.type === 'vid'
           ? '<div style="width:100%;height:100%;background:#090a12;display:flex;align-items:center;justify-content:center;color:#e11d48;"><i class="fa-solid fa-play"></i></div>'
           : `<img src="${m.url}" alt="Thumb" loading="lazy" onerror="window.handleFkMediaImgError ? window.handleFkMediaImgError(this, '${prodTitleSafe}') : null;" />`}
       </div>
-    `).join('') : '';
+    `).join('');
 
     thumbs.onclick = (e) => {
       const thumb = e.target.closest('.fk-thumb-item');
