@@ -174,6 +174,7 @@ function syncWebsiteCache() {
       timestamp: Date.now(),
     };
     localStorage.setItem('linkadda_cached_live_data', JSON.stringify(liveCache));
+    localStorage.setItem('linkadda_cached_live_data_v5', JSON.stringify(liveCache));
     localStorage.setItem('linkadda_cached_live_data_v4', JSON.stringify(liveCache));
     if (STORE.payment) {
       localStorage.setItem('linkadda_payment_payment', JSON.stringify(STORE.payment));

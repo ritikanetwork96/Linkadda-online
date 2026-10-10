@@ -9,12 +9,11 @@ let rafId = 0;
 // High-quality fallback SVG data URI for broken images
 const FALLBACK_SVG = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="300" height="200" viewBox="0 0 300 200"><rect width="100%" height="100%" fill="%2314141e"/><g fill="none" stroke="%237c3aed" stroke-width="2"><rect x="90" y="50" width="120" height="100" rx="16"/><circle cx="130" cy="85" r="12"/><path d="M100 135 l25-25 20 20 25-30 20 35"/></g><text x="50%" y="175" fill="%238b8baa" font-family="sans-serif" font-size="12" text-anchor="middle" font-weight="600">Linkadda Media</text></svg>';
 
-// Known local bundled image assets
+// Known local bundled image assets (categories and payment badges only)
 const LOCAL_ASSETS_LIST = [
-  "binance.png","category1.jpg","category10.jpg","category11.jpg","category12.jpg","category13.jpg","category14.jpg","category15.jpg","category16.jpg","category17.jpg","category18.jpg","category19.jpg","category2.jpg","category20.jpg","category21.jpg","category22.jpg","category23.jpg","category3.png","category4.jpg","category5.jpg","category6.jpg","category7.jpg","category8.jpg","category9.jpg","paypal.svg","paypal.png","upi.svg","gpay.svg","phonepe.svg","paytm.svg","photo_10_2026-06-15_18-29-58.jpg","photo_10_2026-06-15_18-30-46.jpg","photo_11_2026-06-15_18-29-58.jpg","photo_11_2026-06-15_18-30-46.jpg","photo_12_2026-06-15_18-29-58.jpg","photo_12_2026-06-15_18-30-46.jpg","photo_13_2026-06-15_18-29-58.jpg","photo_13_2026-06-15_18-30-46.jpg","photo_14_2026-06-15_18-29-58.jpg","photo_14_2026-06-15_18-30-46.jpg","photo_15_2026-06-15_18-29-58.jpg","photo_15_2026-06-15_18-30-46.jpg","photo_16_2026-06-15_18-29-58.jpg","photo_16_2026-06-15_18-30-46.jpg","photo_17_2026-06-15_18-29-58.jpg","photo_17_2026-06-15_18-30-46.jpg","photo_18_2026-06-15_18-29-58.jpg","photo_18_2026-06-15_18-30-46.jpg","photo_19_2026-06-15_18-29-58.jpg","photo_19_2026-06-15_18-30-46.jpg","photo_1_2026-06-15_18-29-57.jpg","photo_1_2026-06-15_18-30-46.jpg","photo_20_2026-06-15_18-29-58.jpg","photo_20_2026-06-15_18-30-46.jpg","photo_21_2026-06-15_18-29-58.jpg","photo_21_2026-06-15_18-30-46.jpg","photo_22_2026-06-15_18-29-58.jpg","photo_22_2026-06-15_18-30-46.jpg","photo_23_2026-06-15_18-29-58.jpg","photo_23_2026-06-15_18-30-46.jpg","photo_24_2026-06-15_18-29-58.jpg","photo_24_2026-06-15_18-30-46.jpg","photo_25_2026-06-15_18-29-58.jpg","photo_25_2026-06-15_18-30-46.jpg","photo_26_2026-06-15_18-29-58.jpg","photo_26_2026-06-15_18-30-46.jpg","photo_27_2026-06-15_18-29-58.jpg","photo_27_2026-06-15_18-30-46.jpg","photo_28_2026-06-15_18-29-58.jpg","photo_28_2026-06-15_18-30-46.jpg","photo_29_2026-06-15_18-29-58.jpg","photo_29_2026-06-15_18-30-46.jpg","photo_2_2026-06-15_18-29-57.jpg","photo_2_2026-06-15_18-30-46.jpg","photo_30_2026-06-15_18-29-58.jpg","photo_30_2026-06-15_18-30-46.jpg","photo_31_2026-06-15_18-29-58.jpg","photo_31_2026-06-15_18-30-46.jpg","photo_32_2026-06-15_18-29-58.jpg","photo_32_2026-06-15_18-30-47.jpg","photo_33_2026-06-15_18-29-58.jpg","photo_33_2026-06-15_18-30-47.jpg","photo_34_2026-06-15_18-29-58.jpg","photo_34_2026-06-15_18-30-47.jpg","photo_35_2026-06-15_18-29-58.jpg","photo_35_2026-06-15_18-30-47.jpg","photo_36_2026-06-15_18-29-58.jpg","photo_36_2026-06-15_18-30-47.jpg","photo_37_2026-06-15_18-29-58.jpg","photo_37_2026-06-15_18-30-47.jpg","photo_38_2026-06-15_18-29-58.jpg","photo_38_2026-06-15_18-30-47.jpg","photo_39_2026-06-15_18-29-58.jpg","photo_39_2026-06-15_18-30-47.jpg","photo_3_2026-06-15_18-29-57.jpg","photo_3_2026-06-15_18-30-46.jpg","photo_40_2026-06-15_18-29-58.jpg","photo_40_2026-06-15_18-30-47.jpg","photo_41_2026-06-15_18-29-58.jpg","photo_42_2026-06-15_18-29-58.jpg","photo_43_2026-06-15_18-29-58.jpg","photo_44_2026-06-15_18-29-58.jpg","photo_45_2026-06-15_18-29-58.jpg","photo_46_2026-06-15_18-29-58.jpg","photo_47_2026-06-15_18-29-58.jpg","photo_48_2026-06-15_18-29-58.jpg","photo_49_2026-06-15_18-29-58.jpg","photo_4_2026-06-15_18-29-57.jpg","photo_4_2026-06-15_18-30-46.jpg","photo_50_2026-06-15_18-29-58.jpg","photo_51_2026-06-15_18-29-58.jpg","photo_52_2026-06-15_18-29-58.jpg","photo_5_2026-06-15_18-29-57.jpg","photo_5_2026-06-15_18-30-46.jpg","photo_6_2026-06-15_18-29-57.jpg","photo_6_2026-06-15_18-30-46.jpg","photo_7_2026-06-15_18-29-57.jpg","photo_7_2026-06-15_18-30-46.jpg","photo_8_2026-06-15_18-29-57.jpg","photo_8_2026-06-15_18-30-46.jpg","photo_9_2026-06-15_18-29-57.jpg","photo_9_2026-06-15_18-30-46.jpg"
+  "binance.png","category1.jpg","category10.jpg","category11.jpg","category12.jpg","category13.jpg","category14.jpg","category15.jpg","category16.jpg","category17.jpg","category18.jpg","category19.jpg","category2.jpg","category20.jpg","category21.jpg","category22.jpg","category23.jpg","category3.png","category4.jpg","category5.jpg","category6.jpg","category7.jpg","category8.jpg","category9.jpg","paypal.svg","paypal.png","upi.svg","gpay.svg","phonepe.svg","paytm.svg"
 ];
 const LOCAL_ASSETS = new Set(LOCAL_ASSETS_LIST);
-const PRODUCT_PHOTOS = LOCAL_ASSETS_LIST.filter(f => f.startsWith('photo_'));
 const CATEGORY_PHOTOS = LOCAL_ASSETS_LIST.filter(f => f.startsWith('category'));
 
 function stripQuery(value) {
@@ -78,8 +77,8 @@ function getLocalFallback(value, el = null) {
   if (LOCAL_ASSETS.has(name)) {
     return `images/${name}`;
   }
-  // Match by photo number or category number prefix if timestamp differs
-  const match = name.match(/^(photo_\d+)/i) || name.match(/^(category\d+)/i);
+  // Match by category number prefix if timestamp differs
+  const match = name.match(/^(category\d+)/i);
   if (match) {
     const prefix = match[1].toLowerCase();
     for (const asset of LOCAL_ASSETS) {
@@ -98,22 +97,6 @@ function getLocalFallback(value, el = null) {
   if (lower.includes('phonepe')) return 'images/phonepe.svg';
   if (lower.includes('paytm')) return 'images/paytm.svg';
 
-  // Smart deterministic fallback for generated upload filenames:
-  if (el) {
-    const card = el.closest('.pcard, .category-card, .fk-card');
-    const title = card?.querySelector('.pcard-title, .fk-card-title, h3, .pcard-pill')?.textContent?.trim() || el.alt || '';
-    if (title) {
-      let hash = 0;
-      for (let i = 0; i < title.length; i++) hash = (hash << 5) - hash + title.charCodeAt(i);
-      const absHash = Math.abs(hash);
-      const isCat = lower.includes('category') || card?.classList?.contains('category-card');
-      const pool = isCat ? CATEGORY_PHOTOS : PRODUCT_PHOTOS;
-      if (pool.length > 0) {
-        return `images/${pool[absHash % pool.length]}`;
-      }
-    }
-  }
-
   return '';
 }
 
@@ -121,7 +104,6 @@ function initPreseededTable() {
   LOCAL_ASSETS_LIST.forEach((file) => {
     let folder = 'images';
     if (file.startsWith('category')) folder = 'categories';
-    else if (file.startsWith('photo_')) folder = 'products';
     else if (file.includes('binance') || file.includes('paypal') || file.includes('logo')) folder = 'logos';
 
     const supabaseUrl = `${STORAGE_BASE}/${folder}/${file}`;
@@ -262,35 +244,32 @@ function updateImage(el) {
         return;
       }
 
-      // 4. Deterministic pool fallback for products
-      const card = this.closest('.fk-card, .pcard, .category-card');
-      const seedKey = card?.dataset?.productId || card?.dataset?.fbId || this.alt || this.dataset?.fallback || currentSrc;
-      let hash = 0;
-      for (let i = 0; i < seedKey.length; i++) hash = (hash << 5) - hash + seedKey.charCodeAt(i);
-      const photoIdx = (Math.abs(hash) + retries * 3) % PRODUCT_PHOTOS.length;
-      const poolFallback = `images/${PRODUCT_PHOTOS[photoIdx]}`;
-      if (!currentSrc.endsWith(poolFallback)) {
-        this.src = poolFallback;
+      // 4. If thumbnail, hide broken item
+      const thumbItem = this.closest('.fk-thumb-item');
+      if (thumbItem) {
+        thumbItem.style.display = 'none';
         return;
       }
 
-      // 5. Fallback SVG
+      // 5. Fallback SVG (never inject random collage photos)
       if (!this.src.startsWith('data:image')) {
         this.src = FALLBACK_SVG;
       }
     });
   }
 
-  // If the src is a bare filename like "photo_41_..." or relative without "images/", fix it
+  // If the src is a bare filename or relative without "images/", fix it
   if (!/^(https?:)?\/\//i.test(current) && !current.startsWith('data:') && !current.startsWith('blob:')) {
+    const fn = current.split('/').pop().split('?')[0];
+    if (fn.startsWith('photo_')) {
+      el.setAttribute('src', FALLBACK_SVG);
+      return;
+    }
     if (!current.startsWith('images/') && !current.startsWith('/images/')) {
-      const fn = current.split('/').pop().split('?')[0];
-      const local = getLocalFallback(fn, el) || `images/${fn}`;
+      const local = getLocalFallback(fn, el) || (LOCAL_ASSETS.has(fn) ? `images/${fn}` : FALLBACK_SVG);
       el.setAttribute('src', local);
       return;
     }
-    // If it's already a local bundled image (starts with images/ or /images/), preserve it!
-    // Never rewrite local bundled images to remote URLs.
     return;
   }
 

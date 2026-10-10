@@ -45,11 +45,11 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
   </noscript>
   <link rel="icon" type="image/svg+xml" href="favicon.svg" />
-  <link rel="stylesheet" href="style.css?v=20261009_perf1" />
-  <link rel="stylesheet" href="linkadda-store.css?v=20261009_perf1" />
-  <link rel="stylesheet" href="auth-modal.css?v=20261009_perf1" />
-  <link rel="stylesheet" href="mobile-app.css?v=20261009_perf1" />
-  <script src="preload.js?v=20261009_perf1" charset="UTF-8"></script>
+  <link rel="stylesheet" href="style.css?v=20261010_fix1" />
+  <link rel="stylesheet" href="linkadda-store.css?v=20261010_fix1" />
+  <link rel="stylesheet" href="auth-modal.css?v=20261010_fix1" />
+  <link rel="stylesheet" href="mobile-app.css?v=20261010_fix1" />
+  <script src="preload.js?v=20261010_fix1" charset="UTF-8"></script>
   <style id="critical-hero-toast-fix">
     /* Hero Title: White top line, neon glowing gradient for second line */
     .hero-title,
@@ -2039,18 +2039,9 @@
   window.handleCardImgError = function(img) {
     if (!img) return;
     const fallback = img.dataset.fallback || '';
-    if (fallback && img.src !== fallback && !img._triedLocal) {
+    if (fallback && img.src !== fallback && !img._triedLocal && !fallback.includes('photo_')) {
       img._triedLocal = true;
       img.src = fallback;
-    } else if (!img._triedPool) {
-      img._triedPool = true;
-      const card = img.closest ? img.closest('.fk-card, .pcard') : null;
-      const seed = card?.dataset?.productId || card?.dataset?.fbId || img.alt || '';
-      let hash = 0;
-      for (let i = 0; i < seed.length; i++) hash = (hash << 5) - hash + seed.charCodeAt(i);
-      const photoNum = (Math.abs(hash) % 52) + 1;
-      const photoSuffix = photoNum < 10 ? '18-29-57' : '18-29-58';
-      img.src = `images/photo_${photoNum}_2026-06-15_${photoSuffix}.jpg`;
     } else if (!img._failedSvg) {
       img._failedSvg = true;
       img.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400' viewBox='0 0 400 400'%3E%3Crect width='100%25' height='100%25' fill='%2313121f'/%3E%3Ccircle cx='200' cy='160' r='36' fill='%23ff2a8d' opacity='0.25'/%3E%3Cpolygon points='194,146 214,160 194,174' fill='%23ff2a8d'/%3E%3Ctext x='50%25' y='230' fill='%23ffffff' font-family='sans-serif' font-size='14' font-weight='700' text-anchor='middle'%3ELINKADDA VIP%3C/text%3E%3C/svg%3E";
@@ -2064,29 +2055,15 @@
     if (!slide) return;
     const card = vid.closest('.pcard, .fk-card');
     const existingImg = card ? card.querySelector('img.pcard-img') : null;
-    const fallbackImg = existingImg ? existingImg.src : '';
-    if (fallbackImg) {
-      const img = document.createElement('img');
-      img.src = fallbackImg;
-      img.alt = 'Media Preview';
-      img.className = 'pcard-img';
-      img.loading = 'lazy';
-      img.draggable = false;
-      vid.replaceWith(img);
-    } else {
-      const img = document.createElement('img');
-      const seed = card?.dataset?.productId || card?.dataset?.fbId || '1';
-      let hash = 0;
-      for (let i = 0; i < seed.length; i++) hash = ((hash << 5) - hash) + seed.charCodeAt(i);
-      const photoNum = (Math.abs(hash) % 52) + 1;
-      img.src = `images/photo_${photoNum}_2026-06-15_18-29-58.jpg`;
-      img.alt = 'Media Preview';
-      img.className = 'pcard-img';
-      img.loading = 'lazy';
-      img.draggable = false;
-      img.onerror = function() { window.handleCardImgError(this); };
-      vid.replaceWith(img);
-    }
+    const fallbackImg = (existingImg && !existingImg.src.includes('photo_')) ? existingImg.src : '';
+    const img = document.createElement('img');
+    img.src = fallbackImg || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400' viewBox='0 0 400 400'%3E%3Crect width='100%25' height='100%25' fill='%2313121f'/%3E%3Ccircle cx='200' cy='160' r='36' fill='%23ff2a8d' opacity='0.25'/%3E%3Cpolygon points='194,146 214,160 194,174' fill='%23ff2a8d'/%3E%3Ctext x='50%25' y='230' fill='%23ffffff' font-family='sans-serif' font-size='14' font-weight='700' text-anchor='middle'%3ELINKADDA VIP%3C/text%3E%3C/svg%3E";
+    img.alt = 'Media Preview';
+    img.className = 'pcard-img';
+    img.loading = 'lazy';
+    img.draggable = false;
+    img.onerror = function() { window.handleCardImgError(this); };
+    vid.replaceWith(img);
   };
 
   // -- BUILD SLIDESHOW --
@@ -2174,6 +2151,9 @@
       // Fallback only if product has NO explicit images array
       rawList = [...new Set([cat.image, cat.imageUrl, cat.thumbnail, cat.cover, cat.photo, ...gallery, ...mediaArr].map(u => String(u || '').trim()).filter(Boolean))];
     }
+
+    // Filter out unassigned generic Telegram photo dumps (photo_XX_2026-06-15_...) completely
+    rawList = rawList.filter(u => !/^photo_\d+_2026-06-15_/.test(String(u || '').split('/').pop().split('?')[0]));
 
     // Only if product has no images at all, check its assigned category
     if (!rawList.length && cat.category && liveCollections.categories) {
@@ -4039,12 +4019,16 @@
   try {
     const preCatalog = window.__preloadedCatalog || {};
     const rawAdmin = localStorage.getItem('linkadda_cached_live_data');
+    const rawV5 = localStorage.getItem('linkadda_cached_live_data_v5');
     const rawV4 = localStorage.getItem('linkadda_cached_live_data_v4');
     let localData = null;
     try {
       const pAdmin = rawAdmin ? JSON.parse(rawAdmin) : null;
+      const pV5 = rawV5 ? JSON.parse(rawV5) : null;
       const pV4 = rawV4 ? JSON.parse(rawV4) : null;
-      if (pAdmin && pAdmin.products && Object.keys(pAdmin.products).length > 0) {
+      if (pV5 && pV5.products && Object.keys(pV5.products).length > 0) {
+        localData = pV5;
+      } else if (pAdmin && pAdmin.products && Object.keys(pAdmin.products).length > 0) {
         localData = pAdmin;
       } else if (pV4 && pV4.products && Object.keys(pV4.products).length > 0) {
         localData = pV4;
@@ -4096,7 +4080,7 @@
         banner: liveCollections.banner,
         timestamp: Date.now()
       });
-      localStorage.setItem('linkadda_cached_live_data_v4', payload);
+      localStorage.setItem('linkadda_cached_live_data_v5', payload);
       localStorage.setItem('linkadda_cached_live_data', payload);
     } catch (_) {}
   }
@@ -4122,7 +4106,7 @@
 
   // Instant cross-tab sync: updates storefront in 0ms when admin saves changes in another tab
   window.addEventListener('storage', (e) => {
-    if ((e.key === 'linkadda_cached_live_data' || e.key === 'linkadda_cached_live_data_v4') && e.newValue) {
+    if ((e.key === 'linkadda_cached_live_data' || e.key === 'linkadda_cached_live_data_v5' || e.key === 'linkadda_cached_live_data_v4') && e.newValue) {
       try {
         const parsed = JSON.parse(e.newValue);
         if (parsed.categories && typeof parsed.categories === 'object') liveCollections.categories = parsed.categories;
@@ -6181,9 +6165,9 @@
     </main>
   </div>
 
-  <script type="module" src="media-resolver.js"></script>
-  <script src="live-ticker.js?v=20261009_slow1"></script>
-  <script src="linkadda-store.js?v=13"></script>
-  <script type="module" src="auth-modal.js?v=20260916m"></script>
+  <script type="module" src="media-resolver.js?v=20261010_fix1"></script>
+  <script src="live-ticker.js?v=20261010_fix1"></script>
+  <script src="linkadda-store.js?v=20261010_fix1"></script>
+  <script type="module" src="auth-modal.js?v=20261010_fix1"></script>
 </body>
 </html>

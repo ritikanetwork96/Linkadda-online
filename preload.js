@@ -50,6 +50,9 @@ window.__preloadedCatalog={"products":{"indian-desi-pack-11":{"views":8,"image":
       rawList = [...new Set([cat.image, cat.imageUrl, cat.thumbnail, cat.cover, cat.photo, ...gallery, ...mediaArr].map(u => String(u || '').trim()).filter(Boolean))];
     }
 
+    // Filter out unassigned generic Telegram photo dumps (photo_XX_2026-06-15_...) completely
+    rawList = rawList.filter(u => !/^photo_\d+_2026-06-15_/.test(String(u || '').split('/').pop().split('?')[0]));
+
     let rawVideos = [];
     if (Array.isArray(cat.videos)) {
       rawVideos = cat.videos.map(u => String(u || '').trim()).filter(Boolean);
@@ -117,7 +120,7 @@ window.__preloadedCatalog={"products":{"indian-desi-pack-11":{"views":8,"image":
     }
     const cleanUrl = esc(imgUrl);
     const fn = String(imgUrl || '').split('/').pop().split('?')[0];
-    const localFallback = 'images/' + fn;
+    const localFallback = fn.startsWith('photo_') ? '' : ('images/' + fn);
     const placeholderSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400' viewBox='0 0 400 400'%3E%3Crect width='100%25' height='100%25' fill='%2313121f'/%3E%3C/svg%3E";
     if (isSecondary) {
       return '<img src="' + placeholderSvg + '" data-src="' + cleanUrl + '" alt="' + esc(title) + '" loading="lazy" decoding="async" fetchpriority="low" draggable="false" class="fk-card-img fk-card-img-lazy" data-fallback="' + esc(localFallback) + '" onload="this.classList.add(\'is-loaded\'); var m=this.closest(\'.fk-card-media\'); if(m) m.classList.add(\'is-media-loaded\');" onerror="window.handleCardImgError ? window.handleCardImgError(this) : null;" />';
@@ -265,7 +268,7 @@ window.__preloadedCatalog={"products":{"indian-desi-pack-11":{"views":8,"image":
 
       let catData = window.__preloadedCatalog || {};
       try {
-        const cached = localStorage.getItem('linkadda_cached_live_data_v4') || localStorage.getItem('linkadda_cached_live_data');
+        const cached = localStorage.getItem('linkadda_cached_live_data_v5') || localStorage.getItem('linkadda_cached_live_data_v4') || localStorage.getItem('linkadda_cached_live_data');
         if (cached) {
           const parsed = JSON.parse(cached);
           if (parsed && parsed.products && Object.keys(parsed.products).length) {

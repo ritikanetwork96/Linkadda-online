@@ -783,7 +783,9 @@ function normalizeProductMedia(record = {}) {
     const rawGallery = (Array.isArray(record.galleryImages) ? record.galleryImages : normalizeEditorList(record.galleryImages || '')).map((u) => String(u || '').trim()).filter(Boolean);
     allImages = [...new Set([rawImage, ...rawGallery].filter(Boolean))];
   }
-  const mainImage = String(record.image || allImages[0] || '').trim();
+  // Filter out unassigned generic Telegram photo dumps completely
+  allImages = allImages.filter(u => !/^photo_\d+_2026-06-15_/.test(String(u || '').split('/').pop().split('?')[0]));
+  const mainImage = String((record.image && allImages.includes(record.image)) ? record.image : (allImages[0] || '')).trim();
   const galleryImages = allImages.filter((u) => u !== mainImage);
 
   let allVideos = [];
@@ -4418,11 +4420,11 @@ async function uploadRecordMedia(form, node, next) {
     if (next.image) {
       next.thumbnail = next.image;
       const gallery = Array.isArray(next.galleryImages) ? next.galleryImages.filter(Boolean) : [];
-      next.images = [...new Set([next.image, ...gallery])];
+      next.images = [...new Set([next.image, ...gallery])].filter(u => !/^photo_\d+_2026-06-15_/.test(String(u || '').split('/').pop().split('?')[0]));
     } else if (Array.isArray(next.galleryImages) && next.galleryImages.length) {
       next.image = next.galleryImages[0];
       next.thumbnail = next.image;
-      next.images = [...new Set(next.galleryImages.filter(Boolean))];
+      next.images = [...new Set(next.galleryImages.filter(Boolean))].filter(u => !/^photo_\d+_2026-06-15_/.test(String(u || '').split('/').pop().split('?')[0]));
     }
     return next;
   } catch (error) {
