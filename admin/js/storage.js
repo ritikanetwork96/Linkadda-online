@@ -135,43 +135,56 @@ export async function deletePublicAsset(path) {
  * Compress an image in the browser using canvas for instant fast uploads & storage
  */
 async function compressImage(file, maxDimension = 1400, quality = 0.85) {
-  if (file.type === 'image/svg+xml' || file.type === 'image/gif') {
-    return file; // SVGs and GIFs shouldn't be flattened with canvas
+  if (file.type === 'image/svg+xml' || file.type === 'image/gif' || file.size <= 800 * 1024) {
+    return file; // SVGs, GIFs, and lightweight images (<800KB) upload immediately without overhead
   }
   return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(file), 2500); // 2.5s maximum safeguard
     const reader = new FileReader();
     reader.onload = (e) => {
       const img = new Image();
       img.onload = () => {
-        let { width, height } = img;
-        if (width > maxDimension || height > maxDimension) {
-          if (width > height) {
-            height = Math.round((height * maxDimension) / width);
-            width = maxDimension;
-          } else {
-            width = Math.round((width * maxDimension) / height);
-            height = maxDimension;
+        try {
+          let { width, height } = img;
+          if (width > maxDimension || height > maxDimension) {
+            if (width > height) {
+              height = Math.round((height * maxDimension) / width);
+              width = maxDimension;
+            } else {
+              width = Math.round((width * maxDimension) / height);
+              height = maxDimension;
+            }
           }
-        }
-        const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0, width, height);
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
 
-        const mime = file.type === 'image/png' && width <= 500 && height <= 500 ? 'image/png' : 'image/webp';
-        canvas.toBlob((blob) => {
-          if (blob && blob.size < file.size) {
-            resolve(new File([blob], file.name.replace(/\.[^.]+$/, mime === 'image/webp' ? '.webp' : '.png'), { type: mime }));
-          } else {
-            resolve(file);
-          }
-        }, mime, quality);
+          const mime = file.type === 'image/png' && width <= 500 && height <= 500 ? 'image/png' : 'image/webp';
+          canvas.toBlob((blob) => {
+            clearTimeout(timer);
+            if (blob && blob.size < file.size) {
+              resolve(new File([blob], file.name.replace(/\.[^.]+$/, mime === 'image/webp' ? '.webp' : '.png'), { type: mime }));
+            } else {
+              resolve(file);
+            }
+          }, mime, quality);
+        } catch (_) {
+          clearTimeout(timer);
+          resolve(file);
+        }
       };
-      img.onerror = () => resolve(file);
+      img.onerror = () => {
+        clearTimeout(timer);
+        resolve(file);
+      };
       img.src = e.target.result;
     };
-    reader.onerror = () => resolve(file);
+    reader.onerror = () => {
+      clearTimeout(timer);
+      resolve(file);
+    };
     reader.readAsDataURL(file);
   });
 }

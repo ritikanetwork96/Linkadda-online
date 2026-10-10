@@ -783,8 +783,6 @@ function normalizeProductMedia(record = {}) {
     const rawGallery = (Array.isArray(record.galleryImages) ? record.galleryImages : normalizeEditorList(record.galleryImages || '')).map((u) => String(u || '').trim()).filter(Boolean);
     allImages = [...new Set([rawImage, ...rawGallery].filter(Boolean))];
   }
-  // Filter out unassigned generic Telegram photo dumps completely
-  allImages = allImages.filter(u => !/^photo_\d+_2026-06-15_/.test(String(u || '').split('/').pop().split('?')[0]));
   const mainImage = String((record.image && allImages.includes(record.image)) ? record.image : (allImages[0] || '')).trim();
   const galleryImages = allImages.filter((u) => u !== mainImage);
 
@@ -886,12 +884,25 @@ function renderMediaStudio(record = {}) {
           <div class="media-studio-stats">
             <span class="media-stat-chip img-chip" data-role="stat-imgs"><i data-lucide="image" style="width:14px;height:14px;"></i> <strong>${imgCount}</strong> Images</span>
             <span class="media-stat-chip vid-chip" data-role="stat-vids"><i data-lucide="video" style="width:14px;height:14px;"></i> <strong>${vidCount}</strong> Videos</span>
-            <span class="media-stat-chip total-chip"><i data-lucide="layers" style="width:14px;height:14px;"></i> <strong>${totalCount}</strong> Total Media</span>
+            <span class="media-stat-chip total-chip" data-role="stat-total"><i data-lucide="layers" style="width:14px;height:14px;"></i> <strong>${totalCount}</strong> Total Media</span>
           </div>
           <div class="media-studio-actions">
-            <button type="button" class="btn media-btn-upload" data-role="media-upload-trigger"><i data-lucide="upload-cloud"></i> Upload Files (Images/Videos)</button>
+            <button type="button" class="btn media-btn-upload" data-role="media-upload-trigger"><i data-lucide="upload-cloud"></i> <span>Upload Files (Images/Videos)</span></button>
             <button type="button" class="btn btn-ghost" data-role="media-url-toggle"><i data-lucide="link"></i> Add via URL</button>
             <input type="file" class="sr-only" accept="image/*,video/*" multiple data-role="media-multi-file-input" />
+          </div>
+        </div>
+
+        <!-- Realtime Upload Progress Bar -->
+        <div class="media-upload-progress-box" data-role="media-upload-progress-box" style="display: none;">
+          <div class="media-upload-progress-header">
+            <span class="media-upload-progress-text" data-role="media-upload-progress-text">
+              <i data-lucide="loader-2" class="spin" style="width:15px;height:15px;color:#06b6d4;"></i> Uploading...
+            </span>
+            <span class="media-upload-progress-pct" data-role="media-upload-progress-pct">0%</span>
+          </div>
+          <div class="media-upload-progress-track">
+            <div class="media-upload-progress-fill" data-role="media-upload-progress-fill" style="width: 0%;"></div>
           </div>
         </div>
 
@@ -1817,11 +1828,9 @@ function updateProductEditorPreview(form, activeIdx = null) {
   if (window.lucide) lucide.createIcons();
 }
 
-async function uploadEditorFile(file, folder, stateEl, source = 'product-editor') {
-  const progress = stateEl;
-  if (progress) progress.textContent = `Uploading ${file.name}...`;
+async function uploadEditorFile(file, folder, onProgress, source = 'product-editor') {
   const result = await uploadAsset(file, folder, (value) => {
-    if (progress) progress.textContent = `Uploading ${file.name}... ${value}%`;
+    if (typeof onProgress === 'function') onProgress(value);
   });
   const mediaType = file.type.startsWith('video/') ? 'video' : 'image';
   try {
@@ -1829,7 +1838,6 @@ async function uploadEditorFile(file, folder, stateEl, source = 'product-editor'
   } catch (recErr) {
     console.warn('Non-fatal media record log error:', recErr);
   }
-  if (progress) progress.textContent = `Uploaded ${file.name}`;
   return result.publicUrl;
 }
 
@@ -1925,8 +1933,10 @@ function attachProductEditorBehaviors(form) {
     // Update Stats chips
     const statImgs = form.querySelector('[data-role="stat-imgs"] strong');
     const statVids = form.querySelector('[data-role="stat-vids"] strong');
+    const statTotal = form.querySelector('[data-role="stat-total"] strong');
     if (statImgs) statImgs.textContent = String(imgList.length);
     if (statVids) statVids.textContent = String(vidList.length);
+    if (statTotal) statTotal.textContent = String(items.length);
 
     // Re-render Media Studio Grid
     if (mediaGrid) {
@@ -2052,20 +2062,49 @@ function attachProductEditorBehaviors(form) {
     }
   });
 
-  // File Upload change
+  // File Upload change with realtime progress & spinner
   multiFileInput?.addEventListener('change', async (event) => {
     const files = [...(event.target.files || [])];
     if (!files.length) return;
     event.target.value = '';
 
+    const progressBox = form.querySelector('[data-role="media-upload-progress-box"]');
+    const progressText = form.querySelector('[data-role="media-upload-progress-text"]');
+    const progressPct = form.querySelector('[data-role="media-upload-progress-pct"]');
+    const progressFill = form.querySelector('[data-role="media-upload-progress-fill"]');
+    const uploadBtn = form.querySelector('[data-role="media-upload-trigger"]');
+    const originalBtnHtml = uploadBtn ? uploadBtn.innerHTML : '';
+
     try {
+      if (uploadBtn) {
+        uploadBtn.disabled = true;
+        uploadBtn.innerHTML = '<i data-lucide="loader-2" class="spin"></i> <span>Uploading...</span>';
+      }
+      if (progressBox) progressBox.style.display = 'block';
+      if (progressPct) progressPct.textContent = '0%';
+      if (progressFill) progressFill.style.width = '0%';
+      if (window.lucide) lucide.createIcons();
+
       setBusy(true, `Uploading ${files.length} media file${files.length > 1 ? 's' : ''}...`);
       const newItems = [];
-      for (const file of files) {
+      for (let idx = 0; idx < files.length; idx++) {
+        const file = files[idx];
         const isVid = file.type.startsWith('video/') || /\.(mp4|webm|mov|m4v)$/i.test(file.name);
         const folder = isVid ? mediaFolderForNode('products', 'video') : mediaFolderForNode('products', 'gallery');
+
+        const onFileProgress = (pct) => {
+          const overall = Math.round(((idx + (pct / 100)) / files.length) * 100);
+          if (progressText) {
+            progressText.innerHTML = `<i data-lucide="loader-2" class="spin" style="width:14px;height:14px;color:#06b6d4;"></i> Uploading ${idx + 1} of ${files.length} (${escapeHtml(file.name)})...`;
+          }
+          if (progressPct) progressPct.textContent = `${overall}%`;
+          if (progressFill) progressFill.style.width = `${overall}%`;
+          if (uploadBtn) uploadBtn.innerHTML = `<i data-lucide="loader-2" class="spin"></i> <span>${overall}%</span>`;
+          if (window.lucide) lucide.createIcons();
+        };
+
         try {
-          const url = await uploadEditorFile(file, folder, stateEl, 'product-editor');
+          const url = await uploadEditorFile(file, folder, onFileProgress, 'product-editor');
           if (url) {
             newItems.push({
               url,
@@ -2087,7 +2126,13 @@ function attachProductEditorBehaviors(form) {
       if (stateEl) stateEl.textContent = error?.message || 'Media upload failed';
       showToast(error?.message || 'Media upload failed', 'danger');
     } finally {
+      if (progressBox) progressBox.style.display = 'none';
+      if (uploadBtn) {
+        uploadBtn.disabled = false;
+        uploadBtn.innerHTML = originalBtnHtml;
+      }
       setBusy(false, 'Ready.');
+      if (window.lucide) lucide.createIcons();
     }
   });
 
@@ -2400,8 +2445,8 @@ function openProductEditor(record, schema) {
     <div class="product-editor-modal">
       <div class="panel-head product-editor-head">
         <div class="product-editor-head-left">
-          <button class="btn btn-ghost modal-close-btn" data-close-modal type="button" aria-label="Close modal" title="Back / Close">
-            <i data-lucide="arrow-left"></i>
+          <button class="btn modal-close-btn" data-close-modal type="button" aria-label="Back / Close" title="Back / Close">
+            <i data-lucide="arrow-left" style="width: 20px; height: 20px; stroke: #fff; stroke-width: 2.2;"></i>
           </button>
           <div class="product-editor-head-title">
             <h2 class="section-title">${escapeHtml(isEdit ? (record.title || 'Edit Product') : 'Create New Product')}</h2>
@@ -4437,11 +4482,11 @@ async function uploadRecordMedia(form, node, next) {
     if (next.image) {
       next.thumbnail = next.image;
       const gallery = Array.isArray(next.galleryImages) ? next.galleryImages.filter(Boolean) : [];
-      next.images = [...new Set([next.image, ...gallery])].filter(u => !/^photo_\d+_2026-06-15_/.test(String(u || '').split('/').pop().split('?')[0]));
+      next.images = [...new Set([next.image, ...gallery])];
     } else if (Array.isArray(next.galleryImages) && next.galleryImages.length) {
       next.image = next.galleryImages[0];
       next.thumbnail = next.image;
-      next.images = [...new Set(next.galleryImages.filter(Boolean))].filter(u => !/^photo_\d+_2026-06-15_/.test(String(u || '').split('/').pop().split('?')[0]));
+      next.images = [...new Set(next.galleryImages.filter(Boolean))];
     }
     return next;
   } catch (error) {
@@ -10684,96 +10729,119 @@ function attachGlobalHandlers() {
       return;
     }
     if (form.id === 'recordForm') {
-      const node = form.dataset.node;
-      const id = form.dataset.id;
-      const schema = collectionSchemas[node];
-      const existingItems = listCollection(node);
-      const existingRecord = id ? getItem(node, id) || {} : {};
-      const beforeRefs = recordAssetRefs(existingRecord);
-      let next = sanitizeRecordFromForm(form, schema.fields, id ? getItem(node, id) || {} : {});
-      if (node === 'products') {
-        const prodData = getProductEditorRecord(form);
-        const nonDeletedCount = existingItems.filter(p => p.status !== 'deleted').length;
-        const fallbackOrder = !id ? (nonDeletedCount + 1) : (Number(existingRecord.displayOrder) > 0 ? Number(existingRecord.displayOrder) : 1);
-        const resolvedOrder = Number(prodData.displayOrder) > 0 ? Number(prodData.displayOrder) : fallbackOrder;
-        next = {
-          ...next,
-          ...prodData,
-          displayOrder: resolvedOrder,
-          image: prodData.image || '',
-          thumbnail: prodData.image || '',
-          imageUrl: prodData.image || '',
-          images: Array.isArray(prodData.images) ? prodData.images : [],
-          galleryImages: Array.isArray(prodData.galleryImages) ? prodData.galleryImages : [],
-          video: prodData.video || '',
-          videoUrl: prodData.video || '',
-          videos: Array.isArray(prodData.videos) ? prodData.videos : [],
-          tiers: Array.isArray(prodData.tiers) ? prodData.tiers : [],
-        };
-        delete next.photo;
-        delete next.cover;
-        delete next.media;
-        delete next.mediaUrls;
-        delete next.slides;
-        delete next.thumbnails;
+      const saveBtn = document.querySelector('[data-role="save-product"]') || form.querySelector('[type="submit"]');
+      const originalSaveHtml = saveBtn ? saveBtn.innerHTML : '';
+      if (saveBtn) {
+        saveBtn.disabled = true;
+        saveBtn.innerHTML = '<i data-lucide="loader-2" class="spin" style="width:16px;height:16px;"></i> <span>Saving...</span>';
+        if (window.lucide) lucide.createIcons();
       }
-      if (node === 'categories') {
-        const nonDeletedCats = existingItems.filter(c => c.status !== 'deleted').length;
-        const fallbackCatOrder = !id ? (nonDeletedCats + 1) : (Number(existingRecord.displayOrder) > 0 ? Number(existingRecord.displayOrder) : 1);
-        next.displayOrder = Number(next.displayOrder) > 0 ? Number(next.displayOrder) : fallbackCatOrder;
-      }
-      const duplicate = existingItems.find((item) => item.slug && item.slug === next.slug && item.id !== id);
-      if (duplicate) {
-        showToast('Duplicate slug detected', 'warning');
-        return;
-      }
-      if (node === 'products' || node === 'categories') {
-        next = await uploadRecordMedia(form, node, next);
-      }
-      if (!next.id) {
-        next.id = id || `prod_${Date.now().toString(36)}_${Math.random().toString(36).substr(2, 4)}`;
-      }
+
       try {
-        if (id) await updateRecord(node, id, next);
-        else await createRecord(node, next);
-        const afterRefs = recordAssetRefs(next);
-        const removedRefs = beforeRefs.filter((refValue) => !afterRefs.includes(normalizeAssetValue(refValue)));
-        if (removedRefs.length) {
-          setTimeout(() => {
-            removedRefs.forEach((refValue) => {
-              deleteMediaIfUnused(refValue, { node, id }).catch(() => {});
-            });
-          }, 0);
-        }
-        showToast(`${schema.label} saved`, 'success');
-        closeModal();
-        renderView(ui.data || {});
-      } catch (error) {
-        // Resilient fallback for products via backend admin token
+        const node = form.dataset.node;
+        const id = form.dataset.id;
+        const schema = collectionSchemas[node];
+        const existingItems = listCollection(node);
+        const existingRecord = id ? getItem(node, id) || {} : {};
+        const beforeRefs = recordAssetRefs(existingRecord);
+        let next = sanitizeRecordFromForm(form, schema.fields, id ? getItem(node, id) || {} : {});
         if (node === 'products') {
-          try {
-            const adminHeaders = await getAdminTokenHeader();
-            const apiRes = await fetch('/api/seller/products', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', ...adminHeaders },
-              body: JSON.stringify({ action: 'admin_save', product: next }),
-            });
-            if (apiRes.ok) {
-              const resJson = await apiRes.json();
-              const savedProd = resJson.product || next;
-              if (!ui.data) ui.data = {};
-              if (!ui.data.products) ui.data.products = {};
-              ui.data.products[savedProd.id] = savedProd;
-              showToast(`${schema.label} saved successfully!`, 'success');
-              closeModal();
-              renderView(ui.data || {});
-              return;
-            }
-          } catch (_) {}
+          const prodData = getProductEditorRecord(form);
+          const nonDeletedCount = existingItems.filter(p => p.status !== 'deleted').length;
+          const fallbackOrder = !id ? (nonDeletedCount + 1) : (Number(existingRecord.displayOrder) > 0 ? Number(existingRecord.displayOrder) : 1);
+          const resolvedOrder = Number(prodData.displayOrder) > 0 ? Number(prodData.displayOrder) : fallbackOrder;
+          next = {
+            ...next,
+            ...prodData,
+            displayOrder: resolvedOrder,
+            image: prodData.image || '',
+            thumbnail: prodData.image || '',
+            imageUrl: prodData.image || '',
+            images: Array.isArray(prodData.images) ? prodData.images : [],
+            galleryImages: Array.isArray(prodData.galleryImages) ? prodData.galleryImages : [],
+            video: prodData.video || '',
+            videoUrl: prodData.video || '',
+            videos: Array.isArray(prodData.videos) ? prodData.videos : [],
+            tiers: Array.isArray(prodData.tiers) ? prodData.tiers : [],
+          };
+          delete next.photo;
+          delete next.cover;
+          delete next.media;
+          delete next.mediaUrls;
+          delete next.slides;
+          delete next.thumbnails;
         }
-        showToast(error?.message || `Failed to save ${schema.label.toLowerCase()}`, 'danger');
-        return;
+        if (node === 'categories') {
+          const nonDeletedCats = existingItems.filter(c => c.status !== 'deleted').length;
+          const fallbackCatOrder = !id ? (nonDeletedCats + 1) : (Number(existingRecord.displayOrder) > 0 ? Number(existingRecord.displayOrder) : 1);
+          next.displayOrder = Number(next.displayOrder) > 0 ? Number(next.displayOrder) : fallbackCatOrder;
+        }
+        const duplicate = existingItems.find((item) => item.slug && item.slug === next.slug && item.id !== id);
+        if (duplicate) {
+          showToast('Duplicate slug detected', 'warning');
+          if (saveBtn) {
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = originalSaveHtml;
+            if (window.lucide) lucide.createIcons();
+          }
+          return;
+        }
+        if (node === 'products' || node === 'categories') {
+          next = await uploadRecordMedia(form, node, next);
+        }
+        if (!next.id) {
+          next.id = id || `prod_${Date.now().toString(36)}_${Math.random().toString(36).substr(2, 4)}`;
+        }
+
+        try {
+          if (id) await updateRecord(node, id, next);
+          else await createRecord(node, next);
+          const afterRefs = recordAssetRefs(next);
+          const removedRefs = beforeRefs.filter((refValue) => !afterRefs.includes(normalizeAssetValue(refValue)));
+          if (removedRefs.length) {
+            setTimeout(() => {
+              removedRefs.forEach((refValue) => {
+                deleteMediaIfUnused(refValue, { node, id }).catch(() => {});
+              });
+            }, 0);
+          }
+          showToast(`${schema.label} saved`, 'success');
+          closeModal();
+          renderView(ui.data || {});
+          return;
+        } catch (error) {
+          // Resilient fallback for products via backend admin token
+          if (node === 'products') {
+            try {
+              const adminHeaders = await getAdminTokenHeader();
+              const apiRes = await fetch('/api/seller/products', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', ...adminHeaders },
+                body: JSON.stringify({ action: 'admin_save', product: next }),
+              });
+              if (apiRes.ok) {
+                const resJson = await apiRes.json();
+                const savedProd = resJson.product || next;
+                if (!ui.data) ui.data = {};
+                if (!ui.data.products) ui.data.products = {};
+                ui.data.products[savedProd.id] = savedProd;
+                showToast(`${schema.label} saved successfully!`, 'success');
+                closeModal();
+                renderView(ui.data || {});
+                return;
+              }
+            } catch (_) {}
+          }
+          showToast(error?.message || `Failed to save ${schema.label.toLowerCase()}`, 'danger');
+        }
+      } finally {
+        if (saveBtn) {
+          saveBtn.disabled = false;
+          saveBtn.innerHTML = originalSaveHtml;
+          if (window.lucide) lucide.createIcons();
+        }
       }
+      return;
     }
     if (form.id === 'singleForm') {
       const node = form.dataset.node;

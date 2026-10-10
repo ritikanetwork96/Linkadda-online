@@ -9133,23 +9133,77 @@ button {
 }
 
 .modal-close-btn {
-  width: 36px;
-  height: 36px;
-  padding: 0;
-  border-radius: 10px;
-  display: grid;
-  place-items: center;
-  color: var(--muted);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.04);
-  transition: all 0.18s ease;
-  cursor: pointer;
-  flex-shrink: 0;
+  width: 40px !important;
+  height: 40px !important;
+  min-width: 40px !important;
+  padding: 0 !important;
+  border-radius: 10px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  color: #ffffff !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+  transition: all 0.18s ease !important;
+  cursor: pointer !important;
+  flex-shrink: 0 !important;
+}
+.modal-close-btn svg {
+  width: 20px !important;
+  height: 20px !important;
+  stroke: #ffffff !important;
+  stroke-width: 2.2 !important;
+  display: block !important;
 }
 .modal-close-btn:hover {
-  color: #ffffff;
-  background: rgba(239, 68, 68, 0.2);
-  border-color: #ef4444;
+  color: #ffffff !important;
+  background: rgba(239, 68, 68, 0.25) !important;
+  border-color: #ef4444 !important;
+  transform: translateX(-2px) !important;
+}
+
+/* Media Upload Progress Styles */
+.media-upload-progress-box {
+  background: rgba(99, 102, 241, 0.08);
+  border: 1px solid rgba(99, 102, 241, 0.35);
+  border-radius: 12px;
+  padding: 12px 16px;
+  margin-top: 10px;
+  margin-bottom: 12px;
+}
+.media-upload-progress-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #818cf8;
+}
+.media-upload-progress-text {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.media-upload-progress-pct {
+  font-family: monospace;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #a5b4fc;
+}
+.media-upload-progress-track {
+  width: 100%;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 9999px;
+  overflow: hidden;
+}
+.media-upload-progress-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #6366f1, #06b6d4, #10b981);
+  border-radius: 9999px;
+  transition: width 0.15s ease-out;
 }
 
 /* Product Editor Form & Layout */
