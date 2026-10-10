@@ -56,7 +56,7 @@
     if (!img._triedLocal) {
       img._triedLocal = true;
       const cleanFn = String(img.src || '').split('/').pop().split('?')[0];
-      if (cleanFn && /^category\d+\.jpg$|^prod_/.test(cleanFn)) {
+      if (cleanFn && (/^category\d+\.jpg$|^prod_|^photo_/.test(cleanFn))) {
         img.src = 'images/' + cleanFn;
         return;
       }

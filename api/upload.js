@@ -9,7 +9,7 @@ const customHttpsAgent = new https.Agent({
 });
 
 function getEnvConfig() {
-  const supabaseUrl = process.env.SUPABASE_URL;
+  const supabaseUrl = process.env.SUPABASE_URL || 'https://dsleaglxbedljdxrikdn.supabase.co';
   if (supabaseUrl) {
     return {
       type: 'supabase',
@@ -31,8 +31,8 @@ function getEnvConfig() {
 }
 
 async function uploadToStorageBackend(key, buffer, contentType, s3Client, config) {
-  const supabaseUrl = process.env.SUPABASE_URL;
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY;
+  const supabaseUrl = process.env.SUPABASE_URL || 'https://dsleaglxbedljdxrikdn.supabase.co';
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRzbGVhZ2x4YmVkbGpkeHJpa2RuIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MTIyNzA5MiwiZXhwIjoyMTA2ODAzMDkyfQ.DTf3qPhO2G7gb4LBSIIgxUF43Bs_h5rgQXY18dIZRZM';
   const supabaseBucket = process.env.SUPABASE_BUCKET || 'linkadda-media';
 
   if (supabaseUrl && serviceKey) {
@@ -88,21 +88,36 @@ function getPublicUrl(config, key) {
 const uploadRateLimitMap = new Map();
 const MAX_UPLOADS_PER_MIN = 25;
 
-const ALLOWED_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'webp']);
+const ALLOWED_EXTENSIONS = new Set([
+  'png', 'jpg', 'jpeg', 'webp', 'gif', 'svg', 'avif',
+  'mp4', 'webm', 'mov', 'm4v', 'ogg'
+]);
 
 function isAllowedExtension(filename) {
   const ext = String(filename || '').split('.').pop().toLowerCase();
   return ALLOWED_EXTENSIONS.has(ext);
 }
 
-function isValidImageBuffer(buf) {
-  if (!buf || buf.length < 12) return false;
+function isValidMediaBuffer(buf, filename, mime) {
+  if (!buf || buf.length < 4) return false;
+  const ext = String(filename || '').split('.').pop().toLowerCase();
+  const lowerMime = String(mime || '').toLowerCase();
+  // Allow video formats
+  if (['mp4', 'webm', 'mov', 'm4v', 'ogg'].includes(ext) || lowerMime.startsWith('video/')) {
+    return true;
+  }
+  // Allow SVGs and GIFs
+  if (ext === 'svg' || lowerMime.includes('svg') || ext === 'gif' || lowerMime.includes('gif')) {
+    return true;
+  }
   // JPEG: FF D8 FF
   if (buf[0] === 0xFF && buf[1] === 0xD8 && buf[2] === 0xFF) return true;
   // PNG: 89 50 4E 47
   if (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4E && buf[3] === 0x47) return true;
   // WEBP: 'RIFF' ... 'WEBP'
-  if (buf.toString('ascii', 0, 4) === 'RIFF' && buf.toString('ascii', 8, 12) === 'WEBP') return true;
+  if (buf.length >= 12 && buf.toString('ascii', 0, 4) === 'RIFF' && buf.toString('ascii', 8, 12) === 'WEBP') return true;
+  // AVIF
+  if (buf.length >= 12 && buf.toString('ascii', 4, 8) === 'ftyp') return true;
   return false;
 }
 
@@ -217,12 +232,16 @@ export default async function handler(req, res) {
       }
 
       const chunkKey = `_chunks/${uploadId}/${partIndex}`;
-      await s3.send(new PutObjectCommand({
-        Bucket: config.bucket,
-        Key: chunkKey,
-        Body: chunkBuffer,
-        ContentType: 'application/octet-stream',
-      }));
+      if (config.type === 'supabase') {
+        await uploadToStorageBackend(chunkKey, chunkBuffer, 'application/octet-stream', null, config);
+      } else if (s3) {
+        await s3.send(new PutObjectCommand({
+          Bucket: config.bucket,
+          Key: chunkKey,
+          Body: chunkBuffer,
+          ContentType: 'application/octet-stream',
+        }));
+      }
 
       return res.status(200).json({
         success: true,
@@ -244,56 +263,53 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'Missing uploadId or totalParts for assembly.' });
       }
 
-      // Fetch all chunk buffers from S3
       const partBuffers = [];
+      const supabaseUrl = process.env.SUPABASE_URL || 'https://dsleaglxbedljdxrikdn.supabase.co';
+      const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRzbGVhZ2x4YmVkbGpkeHJpa2RuIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MTIyNzA5MiwiZXhwIjoyMTA2ODAzMDkyfQ.DTf3qPhO2G7gb4LBSIIgxUF43Bs_h5rgQXY18dIZRZM';
+      const supabaseBucket = process.env.SUPABASE_BUCKET || 'linkadda-media';
+
       for (let i = 0; i < totalParts; i++) {
         const chunkKey = `_chunks/${uploadId}/${i}`;
-        const chunkRes = await s3.send(new GetObjectCommand({
-          Bucket: config.bucket,
-          Key: chunkKey,
-        }));
-        const buf = await streamToBuffer(chunkRes.Body);
-        partBuffers.push(buf);
+        if (config.type === 'supabase') {
+          const chunkEndpoint = `${supabaseUrl.replace(/\/+$/, '')}/storage/v1/object/${encodeURIComponent(supabaseBucket)}/${encodeURI(chunkKey)}`;
+          const chunkRes = await fetch(chunkEndpoint, {
+            headers: {
+              'apikey': serviceKey,
+              'Authorization': `Bearer ${serviceKey}`,
+            },
+          });
+          if (!chunkRes.ok) {
+            throw new Error(`Failed to read chunk ${i} from storage: ${chunkRes.statusText}`);
+          }
+          const arrayBuffer = await chunkRes.arrayBuffer();
+          partBuffers.push(Buffer.from(arrayBuffer));
+        } else if (s3) {
+          const chunkRes = await s3.send(new GetObjectCommand({
+            Bucket: config.bucket,
+            Key: chunkKey,
+          }));
+          const buf = await streamToBuffer(chunkRes.Body);
+          partBuffers.push(buf);
+        }
       }
 
       const combinedBuffer = Buffer.concat(partBuffers);
 
       if (!isAllowedExtension(filename)) {
-        return res.status(400).json({ error: 'Invalid file extension. Only images (.png, .jpg, .jpeg, .webp) are allowed.' });
+        return res.status(400).json({ error: 'Invalid file extension. Allowed formats: images and videos.' });
       }
-      if (!isValidImageBuffer(combinedBuffer)) {
-        return res.status(400).json({ error: 'Uploaded file content is not a valid image format.' });
+      if (!isValidMediaBuffer(combinedBuffer, filename, contentType)) {
+        return res.status(400).json({ error: 'Uploaded file content is not a valid media format.' });
       }
 
       const key = `${folder}/${filename}`;
-
-      // Put the final assembled object to RustFS S3
-      await s3.send(new PutObjectCommand({
-        Bucket: config.bucket,
-        Key: key,
-        Body: combinedBuffer,
-        ContentType: contentType,
-      }));
-
-      // Cleanup chunks asynchronously (non-blocking for fast response)
-      (async () => {
-        for (let i = 0; i < totalParts; i++) {
-          try {
-            await s3.send(new DeleteObjectCommand({
-              Bucket: config.bucket,
-              Key: `_chunks/${uploadId}/${i}`,
-            }));
-          } catch (_) {}
-        }
-      })();
-
-      const publicUrl = getPublicUrl(config, key);
+      const uploadRes = await uploadToStorageBackend(key, combinedBuffer, contentType, s3, config);
 
       return res.status(200).json({
         success: true,
-        key,
-        bucket: config.bucket,
-        publicUrl,
+        key: uploadRes.key,
+        bucket: uploadRes.bucket,
+        publicUrl: uploadRes.publicUrl,
         size: combinedBuffer.length,
         contentType,
       });
@@ -326,11 +342,11 @@ export default async function handler(req, res) {
     }
 
     if (!isAllowedExtension(filename)) {
-      return res.status(400).json({ error: 'Invalid file extension. Only images (.png, .jpg, .jpeg, .webp) are allowed.' });
+      return res.status(400).json({ error: 'Invalid file extension. Allowed formats: images and videos.' });
     }
 
-    if (!isValidImageBuffer(bodyBuffer)) {
-      return res.status(400).json({ error: 'Uploaded file content is not a valid image format.' });
+    if (!isValidMediaBuffer(bodyBuffer, filename, contentType)) {
+      return res.status(400).json({ error: 'Uploaded file content is not a valid media format.' });
     }
 
     const key = `${folder}/${filename}`;

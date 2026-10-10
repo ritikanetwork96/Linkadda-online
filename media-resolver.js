@@ -97,6 +97,11 @@ function getLocalFallback(value, el = null) {
   if (lower.includes('phonepe')) return 'images/phonepe.svg';
   if (lower.includes('paytm')) return 'images/paytm.svg';
 
+  // Photo asset match
+  if (name.startsWith('photo_') && name.endsWith('.jpg')) {
+    return `images/${name}`;
+  }
+
   return '';
 }
 
@@ -261,12 +266,8 @@ function updateImage(el) {
   // If the src is a bare filename or relative without "images/", fix it
   if (!/^(https?:)?\/\//i.test(current) && !current.startsWith('data:') && !current.startsWith('blob:')) {
     const fn = current.split('/').pop().split('?')[0];
-    if (fn.startsWith('photo_')) {
-      el.setAttribute('src', FALLBACK_SVG);
-      return;
-    }
     if (!current.startsWith('images/') && !current.startsWith('/images/')) {
-      const local = getLocalFallback(fn, el) || (LOCAL_ASSETS.has(fn) ? `images/${fn}` : FALLBACK_SVG);
+      const local = getLocalFallback(fn, el) || (LOCAL_ASSETS.has(fn) || fn.startsWith('photo_') ? `images/${fn}` : FALLBACK_SVG);
       el.setAttribute('src', local);
       return;
     }

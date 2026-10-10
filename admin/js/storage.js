@@ -219,12 +219,43 @@ export async function uploadAsset(file, folder = 'products', onProgress) {
 
   if (typeof onProgress === 'function') onProgress(15);
 
+  // ━━ 1. PRIMARY: DIRECT SUPABASE STORAGE UPLOAD (Instant, handles images & videos up to 50MB, no Vercel limit) ━━
+  try {
+    if (typeof onProgress === 'function') onProgress(30);
+    const endpoint = `${SUPABASE_CONFIG.url}/storage/v1/object/${encodeURIComponent(SUPABASE_CONFIG.bucket)}/${encodeURI(path)}`;
+    const supaRes = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        apikey: SUPABASE_CONFIG.serviceKey,
+        Authorization: `Bearer ${SUPABASE_CONFIG.serviceKey}`,
+        'x-upsert': 'true',
+        'Content-Type': fileToUpload.type || file.type || 'application/octet-stream',
+      },
+      body: fileToUpload,
+    });
+
+    if (supaRes.ok) {
+      const publicUrl = `${SUPABASE_CONFIG.url}/storage/v1/object/public/${encodeURIComponent(SUPABASE_CONFIG.bucket)}/${encodeURI(path)}`;
+      if (typeof onProgress === 'function') onProgress(100);
+      return {
+        path,
+        publicUrl,
+        rustfsUrl: publicUrl,
+        dataUrl: '',
+      };
+    } else {
+      console.warn(`Direct Supabase upload returned status ${supaRes.status}: ${supaRes.statusText}`);
+    }
+  } catch (supaErr) {
+    console.warn('Direct Supabase upload network error, trying /api/upload fallback:', supaErr);
+  }
+
   const CHUNK_THRESHOLD = 2.5 * 1024 * 1024; // 2.5 MB
 
-  // ━━ A. DIRECT UPLOAD FOR SMALL ASSETS (<= 2.5 MB) & QR/LOGOS ━━
+  // ━━ 2. FALLBACK A: DIRECT UPLOAD VIA /api/upload (<= 2.5 MB) & QR/LOGOS ━━
   if (fileToUpload.size <= CHUNK_THRESHOLD || folder === 'qrcodes' || folder === 'logos') {
     const dataUrl = await readFileAsDataUrl(fileToUpload);
-    if (typeof onProgress === 'function') onProgress(40);
+    if (typeof onProgress === 'function') onProgress(60);
 
     let uploadOk = false;
     let data = null;
@@ -252,7 +283,6 @@ export async function uploadAsset(file, folder = 'products', onProgress) {
       console.warn('Direct upload fetch error:', networkErr);
     }
 
-    // 1. Success via /api/upload
     if (uploadOk && data && (data.publicUrl || data.key)) {
       if (typeof onProgress === 'function') onProgress(100);
       return {
@@ -263,7 +293,7 @@ export async function uploadAsset(file, folder = 'products', onProgress) {
       };
     }
 
-    // 2. Seamless Fallback for QR codes, logos, and direct images (e.g. 405 Method Not Allowed on static hosting)
+    // Offline / local fallback for QR codes, logos, and small images
     if (folder === 'qrcodes' || folder === 'logos' || fileToUpload.size <= CHUNK_THRESHOLD) {
       if (typeof onProgress === 'function') onProgress(100);
       return {
@@ -274,11 +304,11 @@ export async function uploadAsset(file, folder = 'products', onProgress) {
       };
     }
 
-    throw new Error('Upload failed with status 405: Method Not Allowed. Please check API server.');
+    throw new Error('Upload failed. Please check network and storage configuration.');
   }
 
-  // ━━ B. CHUNKED UPLOAD FOR LARGE FILES (> 2.5 MB up to 150 MB) ━━
-  const CHUNK_SIZE = 2 * 1024 * 1024; // 2 MB per slice (safely below Vercel's 4.5MB ceiling)
+  // ━━ 3. FALLBACK B: CHUNKED UPLOAD VIA /api/upload FOR LARGE FILES (> 2.5 MB) ━━
+  const CHUNK_SIZE = 2 * 1024 * 1024; // 2 MB per slice
   const totalParts = Math.ceil(fileToUpload.size / CHUNK_SIZE);
   const uploadId = `up_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 
@@ -331,6 +361,30 @@ export async function uploadAsset(file, folder = 'products', onProgress) {
   });
 
   if (!assembleRes.ok) {
+    try {
+      const endpoint = `${SUPABASE_CONFIG.url}/storage/v1/object/${encodeURIComponent(SUPABASE_CONFIG.bucket)}/${encodeURI(path)}`;
+      const supaRes = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          apikey: SUPABASE_CONFIG.serviceKey,
+          Authorization: `Bearer ${SUPABASE_CONFIG.serviceKey}`,
+          'x-upsert': 'true',
+          'Content-Type': fileToUpload.type || file.type || 'application/octet-stream',
+        },
+        body: fileToUpload,
+      });
+      if (supaRes.ok) {
+        const publicUrl = `${SUPABASE_CONFIG.url}/storage/v1/object/public/${encodeURIComponent(SUPABASE_CONFIG.bucket)}/${encodeURI(path)}`;
+        if (typeof onProgress === 'function') onProgress(100);
+        return {
+          path,
+          publicUrl,
+          rustfsUrl: publicUrl,
+          dataUrl: '',
+        };
+      }
+    } catch (_) {}
+
     let errMsg = 'Failed to assemble uploaded media parts.';
     try {
       const errJson = await assembleRes.json();

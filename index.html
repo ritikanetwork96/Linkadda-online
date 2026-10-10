@@ -2145,31 +2145,49 @@
 
     let rawList = [];
     if (primary.length > 0) {
-      // Prioritize explicit admin images array — do NOT append stale deleted images from legacy fields
+      // Prioritize explicit admin images array
       rawList = primary;
     } else {
       // Fallback only if product has NO explicit images array
       rawList = [...new Set([cat.image, cat.imageUrl, cat.thumbnail, cat.cover, cat.photo, ...gallery, ...mediaArr].map(u => String(u || '').trim()).filter(Boolean))];
     }
 
-    // Filter out unassigned generic Telegram photo dumps (photo_XX_2026-06-15_...) completely
-    rawList = rawList.filter(u => !/^photo_\d+_2026-06-15_/.test(String(u || '').split('/').pop().split('?')[0]));
+    // Filter out dead Hostinger gallery URLs that never existed on Supabase
+    rawList = rawList.filter(u => !/\/products\/gallery\/178[89]/.test(String(u || '')));
 
-    // Only if product has no images at all, check its assigned category
-    if (!rawList.length && cat.category && liveCollections.categories) {
-      const catKey = String(cat.category).trim().toLowerCase();
-      const matchedCategory = Object.values(liveCollections.categories).find(c => 
-        String(c.id || '').toLowerCase() === catKey || 
-        String(c.slug || '').toLowerCase() === catKey || 
-        String(c.title || '').toLowerCase() === catKey
-      );
-      if (matchedCategory) {
-        if (Array.isArray(matchedCategory.images) && matchedCategory.images.length) {
-          rawList = matchedCategory.images.filter(Boolean);
-        } else if (matchedCategory.image) {
-          rawList = [matchedCategory.image];
+    // Only if product has no images at all, check its assigned category or title keywords
+    if (!rawList.length) {
+      let matchedCover = '';
+      if (cat.category && liveCollections.categories) {
+        const catKey = String(cat.category).trim().toLowerCase();
+        const matchedCategory = Object.values(liveCollections.categories).find(c => 
+          String(c.id || '').toLowerCase() === catKey || 
+          String(c.slug || '').toLowerCase() === catKey || 
+          String(c.title || '').toLowerCase() === catKey
+        );
+        if (matchedCategory) {
+          if (Array.isArray(matchedCategory.images) && matchedCategory.images.length) {
+            matchedCover = matchedCategory.images[0];
+          } else if (matchedCategory.image) {
+            matchedCover = matchedCategory.image;
+          }
         }
       }
+      if (!matchedCover) {
+        const titleLower = String(cat.title || cat.badge || '').toLowerCase();
+        if (titleLower.includes('indian') || titleLower.includes('punjabi') || titleLower.includes('mallu') || titleLower.includes('tamil') || titleLower.includes('desi')) {
+          matchedCover = 'images/category1.jpg';
+        } else if (titleLower.includes('jav') || titleLower.includes('japan')) {
+          matchedCover = 'images/category2.jpg';
+        } else if (titleLower.includes('asian') || titleLower.includes('chinese') || titleLower.includes('korean')) {
+          matchedCover = 'images/category3.png';
+        } else if (titleLower.includes('vip') || titleLower.includes('premium')) {
+          matchedCover = 'images/category5.jpg';
+        } else {
+          matchedCover = 'images/category1.jpg';
+        }
+      }
+      if (matchedCover) rawList = [matchedCover];
     }
 
     const SUPABASE_CDN_ROOT = 'https://dsleaglxbedljdxrikdn.supabase.co/storage/v1/object/public/linkadda-media';
@@ -2188,6 +2206,9 @@
       }
       if (clean.startsWith('images/') || clean.startsWith('/images/')) {
         return clean.startsWith('/') ? clean.substring(1) : clean;
+      }
+      if (/^photo_\d+/.test(clean)) {
+        return `images/${clean}`;
       }
       if (clean.startsWith('products/') || clean.startsWith('categories/')) {
         return `${SUPABASE_CDN_ROOT}/${clean}`;
