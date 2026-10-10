@@ -254,14 +254,7 @@ function updateImage(el) {
         return;
       }
 
-      // 4. If thumbnail, hide broken item
-      const thumbItem = this.closest('.fk-thumb-item');
-      if (thumbItem) {
-        thumbItem.style.display = 'none';
-        return;
-      }
-
-      // 5. Fallback SVG (never inject random collage photos)
+      // 4. Fallback SVG (never inject random collage photos)
       if (!this.src.startsWith('data:image')) {
         this.src = FALLBACK_SVG;
       }
