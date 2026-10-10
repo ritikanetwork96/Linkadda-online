@@ -1824,7 +1824,11 @@ async function uploadEditorFile(file, folder, stateEl, source = 'product-editor'
     if (progress) progress.textContent = `Uploading ${file.name}... ${value}%`;
   });
   const mediaType = file.type.startsWith('video/') ? 'video' : 'image';
-  await saveUploadedMediaRecord(file, result, folder, mediaType, source, `${folder}:${file.name}`);
+  try {
+    await saveUploadedMediaRecord(file, result, folder, mediaType, source, `${folder}:${file.name}`);
+  } catch (recErr) {
+    console.warn('Non-fatal media record log error:', recErr);
+  }
   if (progress) progress.textContent = `Uploaded ${file.name}`;
   return result.publicUrl;
 }
@@ -2060,16 +2064,25 @@ function attachProductEditorBehaviors(form) {
       for (const file of files) {
         const isVid = file.type.startsWith('video/') || /\.(mp4|webm|mov|m4v)$/i.test(file.name);
         const folder = isVid ? mediaFolderForNode('products', 'video') : mediaFolderForNode('products', 'gallery');
-        const url = await uploadEditorFile(file, folder, stateEl, 'product-editor');
-        newItems.push({
-          url,
-          type: isVid ? 'video' : 'image',
-          isMainImage: false,
-          isMainVideo: false,
-        });
+        try {
+          const url = await uploadEditorFile(file, folder, stateEl, 'product-editor');
+          if (url) {
+            newItems.push({
+              url,
+              type: isVid ? 'video' : 'image',
+              isMainImage: false,
+              isMainVideo: false,
+            });
+          }
+        } catch (itemErr) {
+          console.error(`Failed to upload ${file.name}:`, itemErr);
+          showToast(`Failed to upload ${file.name}: ${itemErr?.message || 'Upload error'}`, 'warning');
+        }
       }
-      addMediaItems(newItems);
-      showToast(`Uploaded ${files.length} media item${files.length > 1 ? 's' : ''}!`, 'success');
+      if (newItems.length > 0) {
+        addMediaItems(newItems);
+        showToast(`Uploaded ${newItems.length} media item${newItems.length > 1 ? 's' : ''}!`, 'success');
+      }
     } catch (error) {
       if (stateEl) stateEl.textContent = error?.message || 'Media upload failed';
       showToast(error?.message || 'Media upload failed', 'danger');
@@ -4372,22 +4385,26 @@ async function deleteMediaIfUnused(reference, keepContext = null) {
 }
 
 async function saveUploadedMediaRecord(file, result, folder, type, source = 'admin', sourcePath = '', linkedName = '', linkedId = '') {
-  await saveRecord('media', uid('media'), {
-    name: file.name,
-    folder: normalizeStorageFolder(folder),
-    type,
-    path: result.path,
-    publicUrl: result.publicUrl,
-    sourcePath,
-    size: file.size,
-    mime: file.type,
-    source,
-    linkedName: linkedName || '',
-    linkedId: linkedId || '',
-    status: 'active',
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
-  });
+  try {
+    await saveRecord('media', uid('media'), {
+      name: file.name,
+      folder: normalizeStorageFolder(folder),
+      type,
+      path: result.path,
+      publicUrl: result.publicUrl,
+      sourcePath,
+      size: file.size,
+      mime: file.type,
+      source,
+      linkedName: linkedName || '',
+      linkedId: linkedId || '',
+      status: 'active',
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    });
+  } catch (err) {
+    console.warn('Non-fatal media record log error:', err);
+  }
 }
 
 async function uploadRecordMedia(form, node, next) {
