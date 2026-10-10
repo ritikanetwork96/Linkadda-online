@@ -50,11 +50,15 @@
 
     const thumbItem = img.closest('.fk-thumb-item');
     if (thumbItem) {
-      thumbItem.style.display = 'none';
+      if (!img.src.startsWith('data:image')) {
+        img.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'%3E%3Crect width='100%25' height='100%25' fill='%2313121f'/%3E%3Ctext x='50%25' y='55%25' fill='%23ff2a8d' font-family='sans-serif' font-size='10' font-weight='700' text-anchor='middle'%3EVIP%3C/text%3E%3C/svg%3E";
+      }
       return;
     }
 
-    img.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='480' height='270' viewBox='0 0 480 270'%3E%3Crect width='100%25' height='100%25' fill='%2313121f'/%3E%3Ccircle cx='240' cy='120' r='32' fill='%23ff2a8d' opacity='0.25'/%3E%3Cpolygon points='234,106 254,120 234,134' fill='%23ff2a8d'/%3E%3Ctext x='50%25' y='180' fill='%23ffffff' font-family='sans-serif' font-size='14' font-weight='700' text-anchor='middle'%3ELINKADDA VIP%3C/text%3E%3C/svg%3E";
+    if (!img.src.startsWith('data:image')) {
+      img.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='480' height='270' viewBox='0 0 480 270'%3E%3Crect width='100%25' height='100%25' fill='%2313121f'/%3E%3Ccircle cx='240' cy='120' r='32' fill='%23ff2a8d' opacity='0.25'/%3E%3Cpolygon points='234,106 254,120 234,134' fill='%23ff2a8d'/%3E%3Ctext x='50%25' y='180' fill='%23ffffff' font-family='sans-serif' font-size='14' font-weight='700' text-anchor='middle'%3ELINKADDA VIP%3C/text%3E%3C/svg%3E";
+    }
   };
 
   window.handleFkVideoError = function(vidEl, fallbackUrl, idx, prodTitle) {
@@ -566,68 +570,15 @@
     const thumbs = document.getElementById('fkPvGalleryThumbs');
     if (!stage || !thumbs) return;
 
-    const parseMediaList = (val) => {
-      if (!val) return [];
-      if (Array.isArray(val)) return val.filter(Boolean);
-      if (typeof val === 'string') {
-        const trimmed = val.trim();
-        if (!trimmed) return [];
-        if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
-          try {
-            const arr = JSON.parse(trimmed);
-            if (Array.isArray(arr)) return arr.filter(Boolean);
-          } catch (_) {}
-        }
-        return trimmed.split(/[\n,]+/).map(s => s.trim()).filter(Boolean);
-      }
-      return [];
-    };
+    // Unified media resolver: Single source of truth across whole site
+    const media = (typeof window.resolveMediaList === 'function')
+      ? window.resolveMediaList(prod)
+      : { images: [prod.image].filter(Boolean), videos: [prod.video].filter(Boolean) };
 
-    let rawImages = [];
-    let rawVideos = [];
+    const images = Array.isArray(media.images) ? media.images.filter(Boolean) : [];
+    const videos = Array.isArray(media.videos) ? media.videos.filter(Boolean) : [];
 
-    // 1. Collect all images across all possible fields (images, galleryImages, image, thumbnail, media)
-    if (prod.images) rawImages.push(...parseMediaList(prod.images));
-    if (prod.galleryImages) rawImages.push(...parseMediaList(prod.galleryImages));
-    if (prod.image) rawImages.push(prod.image);
-    if (prod.thumbnail) rawImages.push(prod.thumbnail);
-
-    if (Array.isArray(prod.media)) {
-      prod.media.forEach((m) => {
-        const val = typeof m === 'string' ? m : (m && m.url ? m.url : '');
-        if (!val) return;
-        if (/\.(mp4|webm|mov|m4v)$/i.test(val) || (m && m.type === 'video')) rawVideos.push(val);
-        else rawImages.push(val);
-      });
-    }
-
-    // 2. Collect all videos
-    if (prod.videos) rawVideos.push(...parseMediaList(prod.videos));
-    if (prod.video) rawVideos.push(prod.video);
-
-    const SUPABASE_CDN_ROOT = 'https://dsleaglxbedljdxrikdn.supabase.co/storage/v1/object/public/linkadda-media';
-
-    const normalizeUrl = (u) => {
-      let str = String(u || '').trim();
-      if (!str) return '';
-      if (str.includes('rustfs-mi5c.srv1942099.hstgr.cloud') || (str.includes('supabase.co') && !str.includes('dsleaglxbedljdxrikdn'))) {
-        const pathPart = str.split('/linkadda-media/').pop() || str.split('/public/').pop() || str.split('/').pop();
-        return `${SUPABASE_CDN_ROOT}/${pathPart.replace(/^\/+/, '')}`;
-      }
-      if (str.startsWith('products/') || str.startsWith('categories/') || str.startsWith('videos/')) {
-        return `${SUPABASE_CDN_ROOT}/${str}`;
-      }
-      const fn = str.split('/').pop().split('?')[0];
-      if (!str.startsWith('http') && (/^photo_\d+|^category\d+|^prod_/.test(fn))) {
-        return 'images/' + fn;
-      }
-      return str;
-    };
-
-    let images = [...new Set(rawImages.map(normalizeUrl).filter(Boolean))];
-    let videos = [...new Set(rawVideos.map(normalizeUrl).filter(Boolean))];
-
-    const fallbackPoster = images[0] || (prod.image ? normalizeUrl(prod.image) : '') || '';
+    const fallbackPoster = images[0] || (prod.image ? String(prod.image).trim() : '') || '';
     const prodTitleSafe = String(prod.title || prod.name || 'Pack').replace(/'/g, "\\'");
 
     const mediaList = [];

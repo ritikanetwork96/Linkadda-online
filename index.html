@@ -49,7 +49,7 @@
   <link rel="stylesheet" href="linkadda-store.css?v=20261010_fix1" />
   <link rel="stylesheet" href="auth-modal.css?v=20261010_fix1" />
   <link rel="stylesheet" href="mobile-app.css?v=20261010_fix1" />
-  <script src="preload.js?v=20261010_fix1" charset="UTF-8"></script>
+  <script src="preload.js?v=20261011_v6" charset="UTF-8"></script>
   <style id="critical-hero-toast-fix">
     /* Hero Title: White top line, neon glowing gradient for second line */
     .hero-title,
@@ -2144,9 +2144,9 @@
     }
 
     let rawList = [];
-    if (primary.length > 0) {
-      // Prioritize explicit admin images array
-      rawList = primary;
+    if (primary.length > 0 || gallery.length > 0) {
+      // Prioritize explicit admin images + gallery images array
+      rawList = [...new Set([...primary, ...gallery, cat.image, cat.imageUrl, cat.thumbnail].map(u => String(u || '').trim()).filter(Boolean))];
     } else {
       // Fallback only if product has NO explicit images array
       rawList = [...new Set([cat.image, cat.imageUrl, cat.thumbnail, cat.cover, cat.photo, ...gallery, ...mediaArr].map(u => String(u || '').trim()).filter(Boolean))];
@@ -6186,9 +6186,9 @@
     </main>
   </div>
 
-  <script type="module" src="media-resolver.js?v=20261010_fix1"></script>
+  <script type="module" src="media-resolver.js?v=20261011_v6"></script>
   <script src="live-ticker.js?v=20261010_fix1"></script>
-  <script src="linkadda-store.js?v=20261011_gallery_fix"></script>
+  <script src="linkadda-store.js?v=20261011_v6"></script>
   <script type="module" src="auth-modal.js?v=20261010_fix1"></script>
 </body>
 </html>

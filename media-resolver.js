@@ -213,6 +213,11 @@ function updateImage(el) {
     return;
   }
 
+  // Never touch or mutate elements inside the Product Gallery modal, Stage, Thumbs, or Lightbox
+  if (el.closest && el.closest('#fkProductPageOverlay, .fk-gallery-stage, .fk-gallery-thumbs, #fkLightboxModal, .fk-card-media')) {
+    return;
+  }
+
   // Attach error resilience listener if not present
   if (!el.dataset.hasErrHandler) {
     el.dataset.hasErrHandler = 'true';
@@ -307,6 +312,9 @@ function updateImage(el) {
   if (typeof document !== 'undefined') {
     document.addEventListener('error', (e) => {
       if (e.target && (e.target.tagName === 'IMG' || e.target.tagName === 'SOURCE')) {
+        if (e.target.closest && e.target.closest('#fkProductPageOverlay, .fk-gallery-stage, .fk-gallery-thumbs, #fkLightboxModal, .fk-card-media')) {
+          return;
+        }
         updateImage(e.target);
       }
     }, true);
