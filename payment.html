@@ -1963,10 +1963,13 @@
       </div>
     </div>
 
-    <!-- ━━ BACK TO STORE CTA ━━ -->
-    <div style="text-align: center; margin-top: 16px; margin-bottom: 24px;">
-      <a href="./index.html" style="display: inline-flex; align-items: center; gap: 8px; color: #94a3b8; text-decoration: none; font-size: 13px; font-weight: 600; padding: 10px 20px; border-radius: 12px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); transition: all 0.2s ease;">
-        <i class="fa-solid fa-arrow-left"></i> Back to LinkAdda Storefront
+    <!-- ━━ VIEW ORDERS / BACK TO STORE CTA ━━ -->
+    <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 18px; margin-bottom: 24px;">
+      <a href="./index.html#orders" class="btn-primary" style="display: inline-flex; align-items: center; gap: 8px; text-decoration: none; font-size: 13.5px; font-weight: 700; padding: 12px 22px; border-radius: 12px;">
+        <i class="fa-solid fa-receipt"></i> View My Orders
+      </a>
+      <a href="./index.html" style="display: inline-flex; align-items: center; gap: 8px; color: #94a3b8; text-decoration: none; font-size: 13px; font-weight: 600; padding: 11px 20px; border-radius: 12px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); transition: all 0.2s ease;">
+        <i class="fa-solid fa-arrow-left"></i> Back to Storefront
       </a>
     </div>
 
@@ -4305,10 +4308,13 @@ async function saveOrderToFirebase(amountText, methodName) {
     // Save to user's localStorage so they can view their order history
     try {
       const existingOrders = JSON.parse(localStorage.getItem('linkadda_user_orders') || '[]');
+      const prodImg = (typeof orderData !== 'undefined' && (orderData.image || orderData.imageUrl || orderData.thumbnail || orderData.img)) || payload.image || payload.img || '';
       const userOrderSummary = {
         orderId: orderId,
         productId: payload.productId,
         productName: payload.productName,
+        image: prodImg,
+        img: prodImg,
         amountDisplay: payload.amountDisplay,
         paymentMethod: payload.paymentMethod,
         downloadLink: '',
@@ -4321,6 +4327,14 @@ async function saveOrderToFirebase(amountText, methodName) {
       const filtered = existingOrders.filter(o => o.orderId !== orderId);
       filtered.unshift(userOrderSummary);
       localStorage.setItem('linkadda_user_orders', JSON.stringify(filtered.slice(0, 30)));
+
+      // Broadcast order placed event across open storefront tabs
+      try {
+        localStorage.setItem('linkadda_order_placed_event', JSON.stringify({
+          order: userOrderSummary,
+          timestamp: Date.now()
+        }));
+      } catch (_) {}
     } catch (_) {}
 
     // Un-blacklist newly generated order ID if previously marked

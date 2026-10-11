@@ -623,6 +623,11 @@
             <i class="fa-solid fa-gear" style="color: #ff2a8d; font-size: 1.05rem;"></i>
             <span class="fk-user-btn-text" id="headerUserBtnText">Settings</span>
           </button>
+          <button type="button" class="fk-orders-btn-wrap" id="headerOrdersBtn" title="My Orders" onclick="window.openOrdersDrawer ? window.openOrdersDrawer() : (window.location.hash = '#orders')">
+            <i class="fa-solid fa-receipt" style="color:#10b981;"></i>
+            <span class="fk-orders-btn-text">Orders</span>
+            <span class="fk-cart-count-badge" id="ordersBadgeHeader" style="display:none;background:#10b981;">0</span>
+          </button>
           <button type="button" class="fk-cart-btn-wrap" id="headerCartBtn" title="Shopping Cart">
             <i class="fa-solid fa-cart-shopping"></i>
             <span class="fk-cart-btn-text">Cart</span>
@@ -2720,15 +2725,33 @@
   function updateOrdersBadge() {
     const orders = getStoredUserOrders();
     const count = orders.length;
-    const badge = document.getElementById('fkAppbarOrdersBadge');
-    const headerBtn = document.getElementById('headerOrdersBtn');
-    if (badge) {
-      if (count > 0) {
-        badge.textContent = count;
-        badge.style.display = 'inline-flex';
-      } else {
-        badge.style.display = 'none';
-      }
+    const countText = String(count);
+
+    const headerBadge = document.getElementById('ordersBadgeHeader');
+    if (headerBadge) {
+      headerBadge.textContent = countText;
+      headerBadge.style.display = count > 0 ? 'inline-flex' : 'none';
+    }
+
+    const appbarBadge = document.getElementById('fkAppbarOrdersBadge');
+    if (appbarBadge) {
+      appbarBadge.textContent = countText;
+      appbarBadge.style.display = count > 0 ? 'inline-flex' : 'none';
+    }
+
+    const drawerCount = document.getElementById('ordersDrawerCount');
+    if (drawerCount) {
+      drawerCount.textContent = countText;
+    }
+
+    const profileCount = document.getElementById('profileOrdersCount');
+    if (profileCount) {
+      profileCount.textContent = `${count} ${count === 1 ? 'Order' : 'Orders'}`;
+    }
+
+    const ordersPageCount = document.getElementById('ordersPageCountPill');
+    if (ordersPageCount) {
+      ordersPageCount.textContent = `${count} ${count === 1 ? 'Order' : 'Orders'}`;
     }
   }
 
@@ -2750,6 +2773,23 @@
     if (drawer) drawer.classList.remove('open');
     if (backdrop) backdrop.classList.remove('open');
     document.body.classList.remove('orders-open');
+    if (window.location.hash === '#orders') {
+      try {
+        history.replaceState(null, '', window.location.pathname + window.location.search);
+      } catch (_) {}
+    }
+  }
+
+  function findProductMediaForOrder(ord) {
+    if (ord.image || ord.img || ord.productImage) return ord.image || ord.img || ord.productImage;
+    try {
+      const catalog = (typeof window !== 'undefined' && window.__preloadedCatalog?.products) ? window.__preloadedCatalog.products : null;
+      if (catalog && typeof catalog === 'object') {
+        const p = ord.productId && catalog[ord.productId] ? catalog[ord.productId] : Object.values(catalog).find(x => x && (x.id === ord.productId || x.slug === ord.productId || x.title === ord.productName || x.name === ord.productName));
+        if (p) return p.image || p.imageUrl || p.thumbnail || (Array.isArray(p.images) ? p.images[0] : '');
+      }
+    } catch (_) {}
+    return '';
   }
 
   function renderOrdersDrawer() {
@@ -2781,6 +2821,11 @@
       const tgMsg = `Hi Admin, I have placed order #${orderId} (${ord.productName || 'VIP Content Pack'}). Please verify and approve my payment.`;
       const tgUrl = `https://t.me/TRUSTED_BROTHER1234?text=${encodeURIComponent(tgMsg)}`;
 
+      const thumbImg = findProductMediaForOrder(ord);
+      const thumbHtml = thumbImg
+        ? `<img src="${esc(thumbImg)}" alt="${esc(ord.productName || 'Order')}" style="width:100%;height:100%;object-fit:cover;border-radius:10px;" />`
+        : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.06);border-radius:10px;color:#10b981;font-size:18px;"><i class="fa-solid fa-receipt"></i></div>`;
+
       return `
         <div class="order-item-card ${isConfirmed ? 'confirmed' : 'pending'}">
           <div class="order-card-header">
@@ -2793,19 +2838,29 @@
               ${isConfirmed ? 'Confirmed' : 'Pending Approval'}
             </span>
           </div>
-          <div class="order-card-title">${esc(ord.productName || 'VIP Content Pack')}</div>
-          <div class="order-card-meta-row">
-            <span class="order-meta-item"><i class="fa-solid fa-wallet"></i> ${esc(ord.paymentMethod || 'UPI / Crypto')}</span>
-            <span class="order-meta-sep">•</span>
-            <span class="order-meta-item"><i class="fa-regular fa-clock"></i> ${esc(ord.date || 'Recent')}</span>
+
+          <div style="display:flex;gap:12px;align-items:center;">
+            <div style="width:62px;height:62px;min-width:62px;border-radius:10px;overflow:hidden;border:1px solid rgba(255,255,255,0.1);background:#131722;position:relative;">
+              ${thumbHtml}
+            </div>
+            <div style="flex:1;min-width:0;">
+              <div class="order-card-title" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${esc(ord.productName || 'VIP Content Pack')}">${esc(ord.productName || 'VIP Content Pack')}</div>
+              <div class="order-card-meta-row" style="margin-top:4px;">
+                <span class="order-meta-item"><i class="fa-solid fa-wallet"></i> ${esc(ord.paymentMethod || 'UPI / Crypto')}</span>
+                <span class="order-meta-sep">•</span>
+                <span class="order-meta-item"><i class="fa-regular fa-clock"></i> ${esc(ord.date || 'Recent')}</span>
+              </div>
+            </div>
           </div>
-          <div class="user-order-note ${isConfirmed ? 'confirmed' : 'pending'}" style="font-size:11.5px;padding:6px 10px;border-radius:8px;display:flex;align-items:center;gap:6px;margin-top:2px;${isConfirmed ? 'background:rgba(16,185,129,0.12);color:#34d399;border:1px solid rgba(16,185,129,0.3);' : ''}">
+
+          <div class="user-order-note ${isConfirmed ? 'confirmed' : 'pending'}" style="font-size:11.5px;padding:6px 10px;border-radius:8px;display:flex;align-items:center;gap:6px;${isConfirmed ? 'background:rgba(16,185,129,0.12);color:#34d399;border:1px solid rgba(16,185,129,0.3);' : 'background:rgba(245,158,11,0.1);color:#fbbf24;border:1px solid rgba(245,158,11,0.25);'}">
             <i class="fa-solid ${isConfirmed ? 'fa-circle-check' : 'fa-hourglass-half'}"></i>
             <span>${isConfirmed 
               ? (accessLink ? 'Order Approved! Aapka Telegram VIP link ready hai.' : 'Order Approved! Telegram VIP link syncing...') 
               : 'Admin verification in progress. Approve hote hi link unlock hoga.'}</span>
           </div>
-          <div class="order-card-footer" style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
+
+          <div class="order-card-footer" style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;padding-top:8px;border-top:1px solid rgba(255,255,255,0.06);">
             <span class="order-paid-amount">${esc(ord.amountDisplay || '₹399')}</span>
             ${isConfirmed ? `
               <div style="display:flex;gap:6px;align-items:center;">
@@ -2872,6 +2927,30 @@
   // Initialize badges
   document.addEventListener('DOMContentLoaded', updateOrdersBadge);
   setTimeout(updateOrdersBadge, 1200);
+
+  // Instant storage & cross-tab sync for customer orders
+  window.addEventListener('storage', (e) => {
+    if (e.key === 'linkadda_user_orders' || e.key === 'linkadda_order_placed_event') {
+      updateOrdersBadge();
+      const drawer = document.getElementById('ordersDrawer');
+      if (drawer && drawer.classList.contains('open')) {
+        renderOrdersDrawer();
+      }
+    }
+  });
+
+  // Check #orders hash on load and hashchange
+  function checkOrdersHash() {
+    if (window.location.hash === '#orders') {
+      openOrdersDrawer();
+    }
+  }
+  window.addEventListener('hashchange', checkOrdersHash);
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', checkOrdersHash);
+  } else {
+    checkOrdersHash();
+  }
 
   // LinkAdda Signature Smart Sticky Header Controller
   // Scroll down: top branding row collapses so search row & category pills stay fixed
@@ -5694,7 +5773,7 @@
 
         <!-- 1. Bento 4-Tile Quick Hub -->
         <div class="fk-hub-grid">
-          <div class="fk-hub-card orders-tile" id="profileOrdersCard" onclick="window.showOrdersPage ? window.showOrdersPage('profile') : (window.location.hash = '#orders')" role="button" tabindex="0">
+          <div class="fk-hub-card orders-tile" id="profileOrdersCard" onclick="window.openOrdersDrawer ? window.openOrdersDrawer() : (window.showOrdersPage ? window.showOrdersPage('profile') : (window.location.hash = '#orders'))" role="button" tabindex="0">
             <div class="fk-hub-icon-wrap orders">
               <i class="fa-solid fa-bag-shopping"></i>
             </div>

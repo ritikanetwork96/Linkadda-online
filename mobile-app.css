@@ -5323,6 +5323,7 @@ body.in-search-view #fkMobileAppbar,
   }
 
   .fk-notif-btn-wrap,
+  .fk-orders-btn-wrap,
   .fk-cart-btn-wrap {
     width: 36px !important;
     height: 36px !important;
@@ -5338,6 +5339,7 @@ body.in-search-view #fkMobileAppbar,
   }
 
   [data-theme="light"] .fk-notif-btn-wrap,
+  [data-theme="light"] .fk-orders-btn-wrap,
   [data-theme="light"] .fk-cart-btn-wrap {
     background: #f1f5f9 !important;
     border-color: #cbd5e1 !important;
@@ -5349,7 +5351,8 @@ body.in-search-view #fkMobileAppbar,
     display: none !important;
   }
 
-  .fk-cart-btn-wrap .fk-cart-btn-text {
+  .fk-cart-btn-wrap .fk-cart-btn-text,
+  .fk-orders-btn-wrap .fk-orders-btn-text {
     display: none !important;
   }
 

@@ -45,8 +45,6 @@ function loadCachedStore() {
     seller_applications: {},
   };
 
-  const deletedIds = getDeletedOrderIds();
-
   // 1. Seed from window.__preloadedCatalog immediately (instant 0ms bootstrap)
   try {
     const preCatalog = (typeof window !== 'undefined' && window.__preloadedCatalog) ? window.__preloadedCatalog : null;
@@ -85,14 +83,6 @@ function loadCachedStore() {
             initial[k] = { ...(initial[k] || {}), ...parsed[k] };
           }
         });
-        // Purge any blacklisted deleted orders from cached initial.orders
-        if (initial.orders && typeof initial.orders === 'object') {
-          for (const oid of Object.keys(initial.orders)) {
-            const item = initial.orders[oid];
-            if (deletedIds.has(String(oid)) || (item && (deletedIds.has(String(item.id)) || deletedIds.has(String(item.orderId))))) {
-              delete initial.orders[oid];
-            }
-          }
         }
       }
     }
@@ -105,24 +95,14 @@ function loadCachedStore() {
       const userOrders = JSON.parse(rawUserOrders);
       if (Array.isArray(userOrders)) {
         if (!initial.orders || typeof initial.orders !== 'object') initial.orders = {};
-        let cleaned = false;
-        const keptOrders = [];
         userOrders.forEach((o) => {
           if (o && (o.orderId || o.id)) {
             const oid = String(o.orderId || o.id);
-            if (deletedIds.has(oid) || (o.id && deletedIds.has(String(o.id))) || (o.orderId && deletedIds.has(String(o.orderId)))) {
-              cleaned = true;
-              return;
-            }
-            keptOrders.push(o);
             if (!initial.orders[oid]) {
               initial.orders[oid] = { id: oid, orderId: oid, ...o };
             }
           }
         });
-        if (cleaned) {
-          localStorage.setItem('linkadda_user_orders', JSON.stringify(keptOrders));
-        }
       }
     }
   } catch (_) {}
@@ -283,16 +263,6 @@ function attachNode(key, mode = 'collection') {
         if (snap.exists() && snap.val()) {
           const val = snap.val();
           if (typeof val === 'object' && Object.keys(val).length > 0) {
-            if (key === 'orders') {
-              const deletedIds = getDeletedOrderIds();
-              for (const k of Object.keys(val)) {
-                const item = val[k];
-                if (deletedIds.has(String(k)) || (item && (deletedIds.has(String(item.id)) || deletedIds.has(String(item.orderId))))) {
-                  delete val[k];
-                  remove(ref(db, `orders/${k}`)).catch(() => {});
-                }
-              }
-            }
             STORE[key] = val;
             emit();
           } else if (mode === 'singleton') {
@@ -319,16 +289,6 @@ function attachNode(key, mode = 'collection') {
         if (snap.exists() && snap.val()) {
           const val = snap.val();
           if (typeof val === 'object' && Object.keys(val).length > 0) {
-            if (key === 'orders') {
-              const deletedIds = getDeletedOrderIds();
-              for (const k of Object.keys(val)) {
-                const item = val[k];
-                if (deletedIds.has(String(k)) || (item && (deletedIds.has(String(item.id)) || deletedIds.has(String(item.orderId))))) {
-                  delete val[k];
-                  remove(ref(db, `orders/${k}`)).catch(() => {});
-                }
-              }
-            }
             STORE[key] = val;
             emit();
           } else if (mode === 'singleton') {
@@ -727,8 +687,7 @@ if (typeof window !== 'undefined') {
         if (data && (data.orderId || data.payload)) {
           const o = data.payload || data;
           const oid = String(data.orderId || o.id || o.orderId);
-          const deletedIds = getDeletedOrderIds();
-          if (oid && !deletedIds.has(oid)) {
+          if (oid) {
             if (!STORE.orders || typeof STORE.orders !== 'object') STORE.orders = {};
             STORE.orders[oid] = { id: oid, orderId: oid, ...o };
             emitImmediate();
@@ -745,13 +704,10 @@ if (typeof window !== 'undefined') {
       if (res.ok) {
         const data = await res.json();
         if (data && typeof data === 'object') {
-          const deletedIds = getDeletedOrderIds();
           let hasNew = false;
           if (!STORE.orders || typeof STORE.orders !== 'object') STORE.orders = {};
           for (const [k, v] of Object.entries(data)) {
-            if (!v || deletedIds.has(String(k)) || deletedIds.has(String(v.id || v.orderId))) {
-              continue;
-            }
+            if (!v) continue;
             if (!STORE.orders[k] || STORE.orders[k].status !== v.status || STORE.orders[k].updatedAt !== v.updatedAt) {
               STORE.orders[k] = v;
               hasNew = true;
