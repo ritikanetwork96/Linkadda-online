@@ -52,6 +52,7 @@ import {
   deleteRecord,
   duplicateRecord,
   getSnapshot,
+  syncAllFromFirebase,
 } from './state.js';
 import { uploadAsset, deletePublicAsset } from './storage.js';
 import { fetchCurrentSiteCatalog, normalizeCatalogRecords } from './site-import.js';
@@ -3643,15 +3644,19 @@ function getActivityIcon(type) {
 }
 
 function renderKpiCard({ label, value, change, note, icon, series, tone, valuePrefix = '' }) {
+  const isDynamic = change !== null && change !== undefined;
+  const trendBadge = isDynamic
+    ? `<span class="kpi-change ${change >= 0 ? 'up' : 'down'}">${formatTrendValue(change)}</span>`
+    : `<span class="kpi-change up" style="background: rgba(16, 185, 129, 0.15); color: #34d399; font-weight: 700; display: inline-flex; align-items: center; gap: 3px; padding: 2px 8px; border-radius: 6px;"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><circle cx="12" cy="12" r="6" fill="#10b981"/></svg>Live</span>`;
   return `
-    <article class="kpi-card glass ${change !== null && change !== undefined ? 'kpi-card-dynamic' : ''}">
+    <article class="kpi-card glass ${isDynamic ? 'kpi-card-dynamic' : ''}">
       <div class="kpi-card-top">
         <span class="kpi-label">${escapeHtml(label)}</span>
         <span class="kpi-icon ${escapeHtml(tone)}"><i data-lucide="${escapeHtml(icon)}"></i></span>
       </div>
       <div class="kpi-value">${escapeHtml(valuePrefix)}${escapeHtml(String(value))}</div>
       <div class="kpi-meta">
-        <span class="kpi-change ${change >= 0 ? 'up' : 'down'}">${formatTrendValue(change || 0)}</span>
+        ${trendBadge}
         <span>${escapeHtml(note)}</span>
       </div>
       <div class="kpi-sparkline">${renderSparkline(series, tone)}</div>
@@ -9404,8 +9409,24 @@ function attachGlobalHandlers() {
       return;
     }
     if (action === 'refresh') {
-      renderView(ui.data || {});
-      showToast('Dashboard refreshed');
+      const btn = actionBtn;
+      const originalHtml = btn ? btn.innerHTML : '';
+      if (btn) btn.innerHTML = '<i data-lucide="refresh-cw" class="spin"></i> Syncing...';
+      try {
+        await syncAllFromFirebase(true);
+        startRealtime(true);
+        ui.data = getSnapshot();
+        renderView(ui.data || {});
+        showToast('Live store data synced from Firebase');
+      } catch (err) {
+        renderView(ui.data || {});
+        showToast('Dashboard refreshed');
+      } finally {
+        if (btn) btn.innerHTML = originalHtml;
+        if (window.lucide) {
+          try { lucide.createIcons(); } catch (_) {}
+        }
+      }
       return;
     }
     if (action === 'set-range') {

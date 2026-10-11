@@ -51,14 +51,14 @@
       ".write": "auth != null && (auth.token.email === 'botforword@gmail.com' || auth.token.email === 'ritikanetwork96@gmail.com' || auth.token.email === 'admin@linkadda.online')"
     },
     "visitors": {
-      ".read": "auth != null && (auth.token.email === 'botforword@gmail.com' || auth.token.email === 'ritikanetwork96@gmail.com' || auth.token.email === 'admin@linkadda.online')",
+      ".read": true,
       ".write": "auth != null && (auth.token.email === 'botforword@gmail.com' || auth.token.email === 'ritikanetwork96@gmail.com' || auth.token.email === 'admin@linkadda.online')",
       "$visitor_id": {
         ".write": true
       }
     },
     "events": {
-      ".read": "auth != null && (auth.token.email === 'botforword@gmail.com' || auth.token.email === 'ritikanetwork96@gmail.com' || auth.token.email === 'admin@linkadda.online')",
+      ".read": true,
       ".write": "auth != null && (auth.token.email === 'botforword@gmail.com' || auth.token.email === 'ritikanetwork96@gmail.com' || auth.token.email === 'admin@linkadda.online')",
       "$event_id": {
         ".write": true

@@ -83,7 +83,6 @@ function loadCachedStore() {
             initial[k] = { ...(initial[k] || {}), ...parsed[k] };
           }
         });
-        }
       }
     }
   } catch (_) {}
@@ -275,9 +274,6 @@ function attachNode(key, mode = 'collection') {
             if (STORE[key] && typeof STORE[key] === 'object' && Object.keys(STORE[key]).length > 0) {
               set(ref(db, nodeName), STORE[key]).catch(() => {});
             }
-          } else if (key === 'orders') {
-            STORE.orders = {};
-            emit();
           }
         }
       })
@@ -296,13 +292,15 @@ function attachNode(key, mode = 'collection') {
             emit();
           }
         } else {
-          // RTDB node is empty or all items were deleted: update memory state immediately
-          if (mode === 'collection') {
-            STORE[key] = {};
-            emit();
-          } else if (mode === 'singleton') {
-            STORE[key] = null;
-            emit();
+          // Do not wipe critical catalog or transaction collections if snapshot is empty/unresolved
+          if (!['orders', 'products', 'categories', 'events', 'visitors'].includes(key)) {
+            if (mode === 'collection') {
+              STORE[key] = {};
+              emit();
+            } else if (mode === 'singleton') {
+              STORE[key] = null;
+              emit();
+            }
           }
         }
       },
@@ -339,6 +337,56 @@ export function startRealtime(force = false) {
   attachNode('customers');
   attachNode('sellers');
   attachNode('seller_applications');
+  // Proactively fetch complete fresh snapshot via REST as high-reliability fallback
+  syncAllFromFirebase(force).catch(() => {});
+}
+
+export async function syncAllFromFirebase(force = false) {
+  try {
+    let token = null;
+    if (auth.currentUser) {
+      try {
+        token = await auth.currentUser.getIdToken();
+      } catch (_) {}
+    }
+    const tokenQuery = token ? `?auth=${token}` : '';
+    const base = 'https://linkadda-online-default-rtdb.firebaseio.com';
+
+    const targets = ['visitors', 'events', 'orders', 'products', 'categories', 'customers'];
+    const results = await Promise.allSettled(
+      targets.map(async (key) => {
+        const res = await fetch(`${base}/${key}.json${tokenQuery}`, { cache: 'no-store' });
+        if (!res.ok) return null;
+        return res.json();
+      })
+    );
+
+    let hasChange = false;
+    targets.forEach((key, idx) => {
+      const outcome = results[idx];
+      if (outcome.status === 'fulfilled' && outcome.value && typeof outcome.value === 'object') {
+        const data = outcome.value;
+        const count = Object.keys(data).length;
+        if (count > 0) {
+          if (key === 'orders') {
+            if (!STORE.orders || typeof STORE.orders !== 'object') STORE.orders = {};
+            Object.entries(data).forEach(([k, v]) => {
+              if (v) STORE.orders[k] = v;
+            });
+          } else {
+            STORE[key] = data;
+          }
+          hasChange = true;
+        }
+      }
+    });
+
+    if (hasChange) {
+      emitImmediate();
+    }
+  } catch (err) {
+    console.warn('syncAllFromFirebase warning:', err);
+  }
 }
 
 // Proactively start listeners on load
@@ -348,6 +396,7 @@ startRealtime();
 onAuthStateChanged(auth, (user) => {
   if (user) {
     startRealtime(true);
+    syncAllFromFirebase(true).catch(() => {});
   }
 });
 
@@ -593,7 +642,20 @@ export function stats() {
   const orders = Object.values(STORE.orders || {}).filter(Boolean);
   const visitors = Object.values(STORE.visitors || {}).filter(Boolean);
   const events = Object.values(STORE.events || {}).filter(Boolean);
-  const today = new Date().toISOString().slice(0, 10);
+  const formatLocalDate = (input) => {
+    try {
+      const d = input instanceof Date ? input : new Date(input);
+      if (isNaN(d.getTime())) return '';
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
+    } catch (_) {
+      return '';
+    }
+  };
+
+  const today = formatLocalDate(new Date());
   const isOrderClick = (item) => {
     if (!item) return false;
     const t = String(item.type || '').toLowerCase();
@@ -603,12 +665,13 @@ export function stats() {
 
   const matchesDate = (item, targetDate) => {
     if (!item) return false;
-    if (item.date && String(item.date).slice(0, 10) === targetDate) return true;
+    if (item.date) {
+      const d = String(item.date).trim();
+      if (d.slice(0, 10) === targetDate || formatLocalDate(d) === targetDate) return true;
+    }
     const stamp = Number(item.timestamp || item.createdAt || item.updatedAt || 0);
     if (stamp > 0) {
-      try {
-        if (new Date(stamp).toISOString().slice(0, 10) === targetDate) return true;
-      } catch (_) {}
+      if (formatLocalDate(stamp) === targetDate) return true;
     }
     return false;
   };
@@ -697,28 +760,9 @@ if (typeof window !== 'undefined') {
     }
   });
 
-  // 2. Continuous 8s fallback polling ensures incoming orders arrive even if websocket drops
+  // 2. Continuous 12s fallback polling ensures incoming orders, visitors, and events stay fresh
   setInterval(async () => {
-    try {
-      const res = await fetch('https://linkadda-online-default-rtdb.firebaseio.com/orders.json');
-      if (res.ok) {
-        const data = await res.json();
-        if (data && typeof data === 'object') {
-          let hasNew = false;
-          if (!STORE.orders || typeof STORE.orders !== 'object') STORE.orders = {};
-          for (const [k, v] of Object.entries(data)) {
-            if (!v) continue;
-            if (!STORE.orders[k] || STORE.orders[k].status !== v.status || STORE.orders[k].updatedAt !== v.updatedAt) {
-              STORE.orders[k] = v;
-              hasNew = true;
-            }
-          }
-          if (hasNew) {
-            emit();
-          }
-        }
-      }
-    } catch (_) {}
-  }, 8000);
+    syncAllFromFirebase().catch(() => {});
+  }, 12000);
 }
 
