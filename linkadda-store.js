@@ -18,6 +18,7 @@
 
   // Helper string hash for deterministic fallback stats
   function hashStr(str) {
+    if (typeof window.hashId === 'function') return window.hashId(str);
     let hash = 0;
     const s = String(str || 'la');
     for (let i = 0; i < s.length; i++) {
@@ -28,6 +29,7 @@
   }
 
   function escapeHtml(str) {
+    if (typeof window.escapeHtml === 'function') return window.escapeHtml(str);
     return String(str || '')
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
@@ -986,85 +988,14 @@
   };
 
   // --- WISHLIST TOGGLING ---
-  window.toggleFkWishlist = function (e, productId) {
-    if (e) {
-      e.stopPropagation();
-      e.preventDefault();
-    }
-    const pid = String(productId);
-    let list = [];
-    try {
-      list = JSON.parse(localStorage.getItem('la_wishlist') || localStorage.getItem('linkadda_wishlist') || '[]');
-    } catch (_) {}
-
-    const idx = list.indexOf(pid);
-    let nowLiked = false;
-
-    if (idx > -1) {
-      list.splice(idx, 1);
-      nowLiked = false;
-    } else {
-      list.push(pid);
-      nowLiked = true;
-    }
-
-    try {
-      const unique = Array.from(new Set(list));
-      localStorage.setItem('la_wishlist', JSON.stringify(unique));
-      localStorage.setItem('linkadda_wishlist', JSON.stringify(unique));
-    } catch (_) {}
-
-    // Persist real-time like/appreciation in database
-    trackProductLike(pid, nowLiked);
-
-    if (typeof window.updateWishlistUI === 'function') {
-      window.updateWishlistUI();
-    }
-
-    document.querySelectorAll(`.fk-card-wishlist-btn[data-id="${pid}"]`).forEach(btn => {
-      btn.classList.toggle('active', nowLiked);
-      btn.setAttribute('title', nowLiked ? 'Liked Pack' : 'Like this Pack');
-      const icon = btn.querySelector('i');
-      if (icon) {
-        icon.className = nowLiked ? 'fa-solid fa-heart' : 'fa-regular fa-heart';
+  // Centrally managed via window.toggleFkWishlist in index.html (single source of truth)
+  if (typeof window.toggleFkWishlist !== 'function') {
+    window.toggleFkWishlist = function (e, productId) {
+      if (typeof trackProductLike === 'function') {
+        trackProductLike(productId, true);
       }
-      if (nowLiked) {
-        btn.classList.add('heart-pulse');
-        setTimeout(() => btn.classList.remove('heart-pulse'), 600);
-      }
-    });
-
-    const pvHeart = document.getElementById('fkPvWishlistBtn');
-    if (pvHeart && (pvHeart.dataset.id === pid || (window.__fkActiveProduct && String(window.__fkActiveProduct.id) === pid))) {
-      pvHeart.classList.toggle('active-liked', nowLiked);
-      pvHeart.classList.toggle('active', nowLiked);
-      if (nowLiked) {
-        pvHeart.style.background = 'linear-gradient(135deg, #f43f5e, #e11d48)';
-        pvHeart.style.color = '#ffffff';
-      } else {
-        pvHeart.style.background = 'rgba(255, 255, 255, 0.08)';
-        pvHeart.style.color = '#ffffff';
-      }
-    }
-
-    if (typeof window.renderWishlistDrawer === 'function') {
-      const wlDrawer = document.getElementById('wishlistDrawer');
-      if (wlDrawer && wlDrawer.classList.contains('open')) {
-        window.renderWishlistDrawer();
-      }
-    }
-
-    const toastMsg = nowLiked ? 'Saved to Liked collection ❤️' : 'Removed from Liked';
-    if (typeof window.showToast === 'function') {
-      window.showToast(toastMsg);
-    } else if (typeof showCartToast === 'function') {
-      showCartToast(toastMsg, false);
-    }
-
-    if (typeof window.renderLiveGrid === 'function' && window.activeCategoryFilter === 'liked') {
-      window.renderLiveGrid();
-    }
-  };
+    };
+  }
 
   // --- REVIEWS RENDERING ---
   function renderReviews(productId) {
@@ -1383,6 +1314,7 @@
     }
     alert(message);
   }
+  window.showToast = showShareToast;
 
   function copyShareLinkToClipboard(url, title = 'Product') {
     const fallbackExecCopy = () => {

@@ -1,5 +1,3 @@
-import { ref, onValue } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-database.js";
-
 const STORAGE_BASE = "https://dsleaglxbedljdxrikdn.supabase.co/storage/v1/object/public/linkadda-media";
 const mediaMap = new Map();
 const fallbackMap = new Map();
@@ -313,70 +311,16 @@ function updateImage(el) {
     }, true);
   }
 
-  function startResolver(db) {
-    if (!db || window.__mediaResolverActive) return;
-    window.__mediaResolverActive = true;
+  function checkAndInit() {
+    // Initialize fallback index immediately (0ms synchronous)
+    initPreseededTable();
+    window.__syncDocumentMedia = syncDocument;
 
-    try {
-      onValue(ref(db, 'media'), (snap) => {
-        rebuildIndex(snap.val() || {});
-        scheduleSync();
-      });
-
-      if (!observer) {
-        observer = new MutationObserver((mutations) => {
-          let hasMedia = false;
-          for (let i = 0; i < mutations.length; i++) {
-            const added = mutations[i].addedNodes;
-            if (!added) continue;
-            for (let j = 0; j < added.length; j++) {
-              const node = added[j];
-              if (node.nodeType === 1) {
-                if (node.tagName === 'IMG' || node.tagName === 'SOURCE' || (node.firstElementChild && node.querySelector('img, source'))) {
-                  hasMedia = true;
-                  break;
-                }
-              }
-            }
-            if (hasMedia) break;
-          }
-          if (hasMedia) scheduleSync();
-        });
-        observer.observe(document.documentElement, { childList: true, subtree: true });
-      }
-
-      scheduleSync();
-    } catch (e) {
-      console.warn('Media resolver init warning:', e);
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', syncDocument, { once: true });
+    } else {
+      syncDocument();
     }
   }
 
-function checkAndInit() {
-  // Always initialize fallback index immediately (0ms synchronous)
-  initPreseededTable();
-  syncDocument();
-
-  const db = window.__linkaddaDb || window._fbDB;
-  if (db) {
-    startResolver(db);
-  } else {
-    window.addEventListener('linkadda-firebase-ready', () => {
-      const readyDb = window.__linkaddaDb || window._fbDB;
-      if (readyDb) startResolver(readyDb);
-    }, { once: true });
-
-    let tries = 0;
-    const interval = setInterval(() => {
-      tries++;
-      const currentDb = window.__linkaddaDb || window._fbDB;
-      if (currentDb) {
-        clearInterval(interval);
-        startResolver(currentDb);
-      } else if (tries > 20) {
-        clearInterval(interval);
-      }
-    }, 250);
-  }
-}
-
-checkAndInit();
+  checkAndInit();

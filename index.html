@@ -49,7 +49,7 @@
   <link rel="stylesheet" href="linkadda-store.css?v=20261010_fix1" />
   <link rel="stylesheet" href="auth-modal.css?v=20261010_fix1" />
   <link rel="stylesheet" href="mobile-app.css?v=20261010_fix1" />
-  <script src="preload.js?v=20261011_v7" charset="UTF-8"></script>
+  <script src="preload.js?v=20261011_v8" charset="UTF-8"></script>
   <style id="critical-hero-toast-fix">
     /* Hero Title: White top line, neon glowing gradient for second line */
     .hero-title,
@@ -1402,8 +1402,9 @@
   });
 
   function esc(str) {
-    return String(str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    return String(str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
   }
+  window.escapeHtml = esc;
 
   function normalizeTierList(raw) {
     if (!raw) return [];
@@ -1798,6 +1799,7 @@
   onValue(ref(db, 'settings'), snap => {
     const val = snap.val();
     saveSettingsCache('settings', val);
+    liveCollections.settings = val || {};
     applySiteSettings(val);
     if (window.__linkaddaToast && val) {
       window.__linkaddaToast.updateConfig(val);
@@ -1865,6 +1867,7 @@
   onValue(ref(db, 'testimonials'), snap => {
     const val = snap.val();
     saveSettingsCache('testimonials', val);
+    liveCollections.testimonials = val || {};
     applyTestimonials(val);
     if (val && typeof window.updateMarqueeReviews === 'function') {
       const revs = Object.values(val)
@@ -1881,32 +1884,14 @@
   });
   onValue(ref(db, 'payment'), snap => { const val = snap.val(); saveSettingsCache('payment', val); applyPaymentLinks(val); });
 
-  // -- REAL LIVE STATS: VISITORS (Today & Weekly) --
-  onValue(ref(db, 'visitors'), snap => {
-    const data = snap.val();
-    if (!data) return;
-    const list = Object.values(data);
+  // -- REAL LIVE STATS: VISITORS (Sourced safely from settings.liveActivity) --
+  (function initLiveVisitorsStats() {
     const today = new Date().toISOString().slice(0, 10);
-    const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-
-    const todayCount = list.filter(v => String(v.date || '').slice(0, 10) === today).length;
-    const weeklyCount = list.filter(v => {
-      const ts = Number(v.timestamp || 0);
-      if (ts) return ts >= sevenDaysAgo;
-      const d = String(v.date || '');
-      return d && new Date(d).getTime() >= sevenDaysAgo;
-    }).length;
-
     const localToday = Number(localStorage.getItem(`linkadda_vis_count_${today}`) || 0);
-    const finalToday = Math.max(todayCount, localToday);
-
-    if (typeof window.updateMarqueeVisitors === 'function') {
-      window.updateMarqueeVisitors({
-        today: finalToday,
-        weekly: weeklyCount
-      });
+    if (localToday > 0 && typeof window.updateMarqueeVisitors === 'function') {
+      window.updateMarqueeVisitors({ today: localToday });
     }
-  }, () => {});
+  })();
 
   // -- REAL LIVE STATS: ORDERS (Weekly Completed & Approved Pool) --
   onValue(ref(db, 'orders'), snap => {
@@ -2428,6 +2413,7 @@
     }
     return Math.abs(hash);
   }
+  window.hashId = hashId;
 
   // --- WISHLIST / LIKED SYSTEM (PERMANENT LOCALSTORAGE PERSISTENCE) ---
   const WISHLIST_KEY = 'la_wishlist';
@@ -2514,8 +2500,16 @@
 
     // Also update product details sheet heart if open
     const pvHeart = document.getElementById('fkPvWishlistBtn');
-    if (pvHeart && pvHeart.dataset.id === pid) {
+    if (pvHeart && (pvHeart.dataset.id === pid || (window.__fkActiveProduct && String(window.__fkActiveProduct.id) === pid))) {
+      pvHeart.classList.toggle('active-liked', nowLiked);
       pvHeart.classList.toggle('active', nowLiked);
+      if (nowLiked) {
+        pvHeart.style.background = 'linear-gradient(135deg, #f43f5e, #e11d48)';
+        pvHeart.style.color = '#ffffff';
+      } else {
+        pvHeart.style.background = 'rgba(255, 255, 255, 0.08)';
+        pvHeart.style.color = '#ffffff';
+      }
       const icon = pvHeart.querySelector('i');
       if (icon) icon.className = nowLiked ? 'fa-solid fa-heart' : 'fa-regular fa-heart';
     }
@@ -3465,8 +3459,15 @@
       renderPinnedBanner();
       if (typeof window.openFkProductPage === 'function' && window.__fkActiveProduct && document.getElementById('fkProductPageOverlay')?.classList.contains('active')) {
         const activeId = window.__fkActiveProduct.id || window.__fkActiveProduct.slug;
-        if (activeId && liveCollections.products && (liveCollections.products[activeId] || Object.values(liveCollections.products).some(p => String(p?.id) === String(activeId)))) {
-          window.openFkProductPage(activeId);
+        const fresh = liveCollections.products && (liveCollections.products[activeId] || Object.values(liveCollections.products).find(p => String(p?.id) === String(activeId)));
+        if (fresh && window.__fkActiveProduct) {
+          const oldUp = window.__fkActiveProduct.updatedAt || '';
+          const newUp = fresh.updatedAt || '';
+          const oldImg = JSON.stringify(window.__fkActiveProduct.images || []);
+          const newImg = JSON.stringify(fresh.images || []);
+          if (oldUp !== newUp || oldImg !== newImg) {
+            window.openFkProductPage(activeId);
+          }
         }
       }
     });
@@ -4142,14 +4143,19 @@
     }
   });
 
-  // Fast parallel REST fetch to ensure instant fresh data even before WebSocket handshakes
+  // Fast resilient REST fallback: Only updates if new catalog data actually differs
   fetch(`https://linkadda-online-default-rtdb.firebaseio.com/products.json?_t=${Date.now()}`, { cache: 'no-store' })
     .then(r => r.json())
     .then(data => {
       if (data && typeof data === 'object' && Object.keys(data).length) {
-        liveCollections.products = data;
-        saveCachedLiveData();
-        scheduleRenderLiveStore();
+        const curKeys = Object.keys(liveCollections.products || {});
+        const newKeys = Object.keys(data);
+        const hasDiff = curKeys.length !== newKeys.length || newKeys.some(k => !liveCollections.products[k] || liveCollections.products[k].updatedAt !== data[k].updatedAt || liveCollections.products[k].image !== data[k].image);
+        if (hasDiff) {
+          liveCollections.products = data;
+          saveCachedLiveData();
+          scheduleRenderLiveStore();
+        }
       }
     })
     .catch(() => {});
@@ -4158,25 +4164,15 @@
     .then(r => r.json())
     .then(data => {
       if (data && typeof data === 'object' && Object.keys(data).length) {
-        liveCollections.categories = data;
-        saveCachedLiveData();
-        scheduleRenderLiveStore();
+        const curKeys = Object.keys(liveCollections.categories || {});
+        const newKeys = Object.keys(data);
+        const hasDiff = curKeys.length !== newKeys.length || newKeys.some(k => !liveCollections.categories[k] || liveCollections.categories[k].updatedAt !== data[k].updatedAt);
+        if (hasDiff) {
+          liveCollections.categories = data;
+          saveCachedLiveData();
+          scheduleRenderLiveStore();
+        }
       }
-    })
-    .catch(() => {});
-
-  onValue(ref(db,'testimonials'), snap => {
-    liveCollections.testimonials = snap.val() || {};
-  });
-
-  onValue(ref(db,'settings'), snap => {
-    liveCollections.settings = snap.val() || {};
-  });
-
-  fetch('https://linkadda-online-default-rtdb.firebaseio.com/testimonials.json')
-    .then(r => r.json())
-    .then(data => {
-      if (data && typeof data === 'object') liveCollections.testimonials = data;
     })
     .catch(() => {});
 
@@ -6186,9 +6182,9 @@
     </main>
   </div>
 
-  <script type="module" src="media-resolver.js?v=20261011_v7"></script>
+  <script type="module" src="media-resolver.js?v=20261011_v8"></script>
   <script src="live-ticker.js?v=20261010_fix1"></script>
-  <script src="linkadda-store.js?v=20261011_v7"></script>
+  <script src="linkadda-store.js?v=20261011_v8"></script>
   <script type="module" src="auth-modal.js?v=20261010_fix1"></script>
 </body>
 </html>
