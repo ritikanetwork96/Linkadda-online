@@ -820,26 +820,37 @@ body.linkadda-store {
   }
   [data-theme="light"] .fk-card-action-circle,
   [data-theme="light"] .fk-card-wishlist-btn {
-    background: rgba(255, 255, 255, 0.98) !important;
-    backdrop-filter: none !important;
-    -webkit-backdrop-filter: none !important;
-    border: 1px solid rgba(0, 0, 0, 0.08) !important;
-    color: #64748b !important;
-    box-shadow: 0 3px 12px rgba(15, 23, 42, 0.12), inset 0 1px 0 #ffffff !important;
+    background: rgba(255, 255, 255, 0.96) !important;
+    backdrop-filter: blur(12px) !important;
+    -webkit-backdrop-filter: blur(12px) !important;
+    border: 1.5px solid rgba(244, 63, 94, 0.35) !important;
+    color: #f43f5e !important;
+    box-shadow: 0 4px 14px rgba(244, 63, 94, 0.2), 0 2px 6px rgba(0, 0, 0, 0.08), inset 0 1px 0 #ffffff !important;
+  }
+  [data-theme="light"] .fk-card-action-circle i,
+  [data-theme="light"] .fk-card-wishlist-btn i {
+    color: #f43f5e !important;
+    filter: drop-shadow(0 1px 2px rgba(244, 63, 94, 0.35)) !important;
   }
   [data-theme="light"] .fk-card-action-circle:hover,
   [data-theme="light"] .fk-card-wishlist-btn:hover {
-    color: #f43f5e !important;
+    color: #ff1a53 !important;
     background: #ffffff !important;
-    transform: scale(1.1) !important;
-    box-shadow: 0 4px 16px rgba(244, 63, 94, 0.25) !important;
+    border-color: #ff1a53 !important;
+    transform: scale(1.15) !important;
+    box-shadow: 0 6px 20px rgba(244, 63, 94, 0.38) !important;
   }
   .fk-card-wishlist-btn.active,
   [data-theme="light"] .fk-card-wishlist-btn.active {
     color: #ffffff !important;
-    background: linear-gradient(135deg, #ff2a55, #e1143c) !important;
-    border-color: #e1143c !important;
-    box-shadow: 0 4px 16px rgba(225, 29, 72, 0.45) !important;
+    background: linear-gradient(135deg, #ff1a53, #e11244) !important;
+    border-color: rgba(255, 255, 255, 0.6) !important;
+    box-shadow: 0 4px 18px rgba(225, 29, 72, 0.55), inset 0 1px 1.5px rgba(255, 255, 255, 0.6) !important;
+  }
+  .fk-card-wishlist-btn.active i,
+  [data-theme="light"] .fk-card-wishlist-btn.active i {
+    color: #ffffff !important;
+    filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.95)) !important;
   }
   .fk-card-duration-badge {
     display: none !important;
@@ -1092,24 +1103,27 @@ body.linkadda-store {
     background: rgba(255, 255, 255, 0.16) !important;
   }
   [data-theme="light"] .fk-card-btn-cart {
-    background: linear-gradient(180deg, #ffffff 0%, #f1f5f9 100%) !important;
-    border: 1px solid #cbd5e1 !important;
-    color: #0f172a !important;
-    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.07), inset 0 1px 0 #ffffff !important;
+    background: linear-gradient(180deg, #ffffff 0%, #fff1f4 100%) !important;
+    border: 1.5px solid rgba(225, 20, 68, 0.38) !important;
+    color: #e11244 !important;
+    font-weight: 800 !important;
+    letter-spacing: 0.3px !important;
+    box-shadow: 0 2px 10px rgba(225, 20, 68, 0.12), inset 0 1px 0 #ffffff !important;
   }
   [data-theme="light"] .fk-card-btn-cart i {
-    color: #e11d48 !important;
+    color: #e11244 !important;
+    filter: drop-shadow(0 1px 2px rgba(225, 20, 68, 0.3)) !important;
   }
   [data-theme="light"] .fk-card-btn-cart:hover {
-    background: #ffffff !important;
-    border-color: #94a3b8 !important;
-    color: #e11d48 !important;
-    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.1), inset 0 1px 0 #ffffff !important;
-    transform: translateY(-1px) !important;
+    background: linear-gradient(180deg, #fff5f7 0%, #ffe4e9 100%) !important;
+    border-color: #e11244 !important;
+    color: #e11244 !important;
+    box-shadow: 0 5px 16px rgba(225, 20, 68, 0.2), inset 0 1px 0 #ffffff !important;
+    transform: translateY(-2px) scale(1.02) !important;
   }
   [data-theme="light"] .fk-card-btn-cart:active {
     transform: scale(0.96) !important;
-    background: #e2e8f0 !important;
+    background: #ffe4e9 !important;
   }
   .fk-card-btn-cart.added,
   [data-theme="light"] .fk-card-btn-cart.added {
@@ -4244,26 +4258,39 @@ body.linkadda-store {
 
 [data-theme="light"] .fk-card-wishlist-btn,
 [data-theme="light"] .fk-card-action-circle {
-  background: rgba(255, 255, 255, 0.88) !important;
-  backdrop-filter: blur(16px) !important;
-  -webkit-backdrop-filter: blur(16px) !important;
-  border: 1px solid rgba(0, 0, 0, 0.08) !important;
-  color: #475569 !important;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08) !important;
+  background: rgba(255, 255, 255, 0.96) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+  border: 1.5px solid rgba(244, 63, 94, 0.35) !important;
+  color: #f43f5e !important;
+  box-shadow: 0 4px 14px rgba(244, 63, 94, 0.2), 0 2px 6px rgba(0, 0, 0, 0.08), inset 0 1px 0 #ffffff !important;
+}
+
+[data-theme="light"] .fk-card-wishlist-btn i,
+[data-theme="light"] .fk-card-action-circle i {
+  color: #f43f5e !important;
+  filter: drop-shadow(0 1px 2px rgba(244, 63, 94, 0.35)) !important;
 }
 
 [data-theme="light"] .fk-card-wishlist-btn:hover,
 [data-theme="light"] .fk-card-action-circle:hover {
-  color: #f43f5e !important;
-  border-color: rgba(244, 63, 94, 0.3) !important;
+  color: #ff1a53 !important;
+  border-color: #ff1a53 !important;
   background: #ffffff !important;
+  transform: scale(1.15) !important;
+  box-shadow: 0 6px 20px rgba(244, 63, 94, 0.38) !important;
 }
 
 [data-theme="light"] .fk-card-wishlist-btn.active {
-  background: #f43f5e !important;
+  background: linear-gradient(135deg, #ff1a53, #e11244) !important;
   color: #ffffff !important;
-  border-color: #f43f5e !important;
-  box-shadow: 0 4px 14px rgba(244, 63, 94, 0.45) !important;
+  border-color: rgba(255, 255, 255, 0.6) !important;
+  box-shadow: 0 4px 18px rgba(244, 30, 80, 0.55), inset 0 1px 1.5px rgba(255, 255, 255, 0.6) !important;
+}
+
+[data-theme="light"] .fk-card-wishlist-btn.active i {
+  color: #ffffff !important;
+  filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.95)) !important;
 }
 
 [data-theme="light"] .fk-card-duration-badge {
@@ -4351,34 +4378,36 @@ body.linkadda-store {
 }
 
 [data-theme="light"] .fk-card-btn-cart {
-  background: linear-gradient(180deg, #ffffff 0%, #f1f5f9 100%) !important;
-  border: 1px solid #cbd5e1 !important;
-  color: #0f172a !important;
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.07), inset 0 1px 0 #ffffff !important;
-  font-weight: 750 !important;
+  background: linear-gradient(180deg, #ffffff 0%, #fff1f4 100%) !important;
+  border: 1.5px solid rgba(225, 20, 68, 0.38) !important;
+  color: #e11244 !important;
+  box-shadow: 0 2px 10px rgba(225, 20, 68, 0.12), inset 0 1px 0 #ffffff !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.3px !important;
 }
 
 [data-theme="light"] .fk-card-btn-cart i {
-  color: #e11d48 !important;
-  font-size: 12px !important;
+  color: #e11244 !important;
+  font-size: 13px !important;
+  filter: drop-shadow(0 1px 2px rgba(225, 20, 68, 0.3)) !important;
   transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
 }
 
 [data-theme="light"] .fk-card-btn-cart:hover {
-  background: #ffffff !important;
-  border-color: #94a3b8 !important;
-  color: #e11d48 !important;
-  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.1), inset 0 1px 0 #ffffff !important;
-  transform: translateY(-1px) !important;
+  background: linear-gradient(180deg, #fff5f7 0%, #ffe4e9 100%) !important;
+  border-color: #e11244 !important;
+  color: #e11244 !important;
+  box-shadow: 0 5px 16px rgba(225, 20, 68, 0.2), inset 0 1px 0 #ffffff !important;
+  transform: translateY(-2px) scale(1.02) !important;
 }
 
 [data-theme="light"] .fk-card-btn-cart:hover i {
-  transform: scale(1.15) !important;
+  transform: scale(1.18) !important;
 }
 
 [data-theme="light"] .fk-card-btn-cart:active {
   transform: scale(0.96) !important;
-  background: #e2e8f0 !important;
+  background: #ffe4e9 !important;
 }
 
 [data-theme="light"] .fk-card-btn-cart.added {
@@ -5825,26 +5854,41 @@ body.linkadda-store,
   background: rgba(255, 255, 255, 0.22) !important;
 }
 
-/* Light Mode: Cart Button */
+/* Light Mode: Luxury Blush-Pearl Cart Button */
 [data-theme="light"] .fk-card-btn-cart,
 [data-theme="light"] .btn-card-add-cart,
 [data-theme="light"] .fk-card-add-cart-btn {
-  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%) !important;
-  border: 1.5px solid #cbd5e1 !important;
-  color: #0f172a !important;
-  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08), inset 0 1px 0 #ffffff !important;
+  background: linear-gradient(180deg, #ffffff 0%, #fff1f4 100%) !important;
+  border: 1.5px solid rgba(225, 20, 68, 0.38) !important;
+  color: #e11244 !important;
+  font-weight: 800 !important;
+  font-size: 12.5px !important;
+  letter-spacing: 0.35px !important;
+  box-shadow: 0 2px 10px rgba(225, 20, 68, 0.12), inset 0 1px 0 #ffffff !important;
 }
 
-[data-theme="light"] .fk-card-btn-cart i {
-  color: #e11d48 !important;
+[data-theme="light"] .fk-card-btn-cart i,
+[data-theme="light"] .btn-card-add-cart i,
+[data-theme="light"] .fk-card-add-cart-btn i {
+  color: #e11244 !important;
+  font-size: 13px !important;
+  filter: drop-shadow(0 1px 2px rgba(225, 20, 68, 0.3)) !important;
 }
 
-[data-theme="light"] .fk-card-btn-cart:hover {
-  background: #ffffff !important;
-  border-color: #f43f5e !important;
-  color: #e11d48 !important;
-  box-shadow: 0 6px 18px rgba(225, 29, 72, 0.18), inset 0 1px 0 #ffffff !important;
+[data-theme="light"] .fk-card-btn-cart:hover,
+[data-theme="light"] .btn-card-add-cart:hover,
+[data-theme="light"] .fk-card-add-cart-btn:hover {
+  background: linear-gradient(180deg, #fff5f7 0%, #ffe4e9 100%) !important;
+  border-color: #ff1a53 !important;
+  color: #b3042b !important;
+  box-shadow: 0 6px 20px rgba(225, 20, 68, 0.24), inset 0 1px 0 #ffffff !important;
   transform: translateY(-2px) scale(1.02) !important;
+}
+
+[data-theme="light"] .fk-card-btn-cart:hover i,
+[data-theme="light"] .btn-card-add-cart:hover i,
+[data-theme="light"] .fk-card-add-cart-btn:hover i {
+  transform: scale(1.18) !important;
 }
 
 /* Added to Cart Jewel State */
@@ -5853,7 +5897,7 @@ body.linkadda-store,
 [data-theme="light"] .fk-card-btn-cart.added,
 [data-theme="light"] .fk-card-btn-cart.in-cart {
   background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
-  border: 1px solid rgba(255, 255, 255, 0.35) !important;
+  border: 1px solid rgba(255, 255, 255, 0.45) !important;
   color: #ffffff !important;
   box-shadow: 0 4px 18px rgba(16, 185, 129, 0.5), inset 0 1px 1.5px rgba(255, 255, 255, 0.55) !important;
 }
@@ -5863,7 +5907,7 @@ body.linkadda-store,
 [data-theme="light"] .fk-card-btn-cart.added i,
 [data-theme="light"] .fk-card-btn-cart.in-cart i {
   color: #ffffff !important;
-  filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.8)) !important;
+  filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.85)) !important;
   animation: lkCheckPop 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275) !important;
 }
 
@@ -5875,15 +5919,16 @@ body.linkadda-store,
 
 /* ── 4. CARD WISHLIST CIRCULAR GLASS BUTTON ── */
 .fk-card-action-circle,
-.fk-card-wishlist-btn {
+.fk-card-wishlist-btn,
+.pcard-wishlist-btn {
   width: 36px !important;
   height: 36px !important;
   border-radius: 50% !important;
-  background: rgba(15, 12, 24, 0.65) !important;
-  backdrop-filter: blur(12px) !important;
-  -webkit-backdrop-filter: blur(12px) !important;
-  border: 1px solid rgba(255, 255, 255, 0.22) !important;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35) !important;
+  background: rgba(18, 14, 28, 0.85) !important;
+  backdrop-filter: blur(14px) !important;
+  -webkit-backdrop-filter: blur(14px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.28) !important;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45), inset 0 1px 1px rgba(255, 255, 255, 0.25) !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
@@ -5892,33 +5937,91 @@ body.linkadda-store,
   user-select: none !important;
 }
 
-.fk-card-wishlist-btn i {
+.fk-card-wishlist-btn i,
+.fk-card-action-circle i,
+.pcard-wishlist-btn i {
   font-size: 15px !important;
-  color: rgba(255, 255, 255, 0.8) !important;
+  color: #f43f5e !important;
+  filter: drop-shadow(0 1px 2px rgba(244, 63, 94, 0.4)) !important;
   transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), color 0.2s !important;
 }
 
-.fk-card-wishlist-btn:hover {
+.fk-card-wishlist-btn:hover,
+.fk-card-action-circle:hover,
+.pcard-wishlist-btn:hover {
   background: rgba(244, 63, 94, 0.22) !important;
-  border-color: rgba(244, 63, 94, 0.65) !important;
-  transform: scale(1.12) !important;
-  box-shadow: 0 6px 20px rgba(244, 63, 94, 0.35) !important;
+  border-color: rgba(244, 63, 94, 0.7) !important;
+  transform: scale(1.15) !important;
+  box-shadow: 0 6px 20px rgba(244, 63, 94, 0.4) !important;
 }
 
-.fk-card-wishlist-btn:hover i {
-  color: #ff2a6d !important;
+.fk-card-wishlist-btn:hover i,
+.fk-card-action-circle:hover i,
+.pcard-wishlist-btn:hover i {
+  color: #ff1a53 !important;
+  transform: scale(1.18) !important;
+}
+
+.fk-card-wishlist-btn:active,
+.fk-card-action-circle:active,
+.pcard-wishlist-btn:active {
+  transform: scale(0.92) !important;
+}
+
+.fk-card-wishlist-btn.active,
+.fk-card-action-circle.active,
+.pcard-wishlist-btn.active {
+  background: linear-gradient(135deg, #ff1a53 0%, #e11244 100%) !important;
+  border: 1.5px solid rgba(255, 255, 255, 0.5) !important;
+  box-shadow: 0 4px 18px rgba(244, 30, 80, 0.55), inset 0 1px 1.5px rgba(255, 255, 255, 0.6) !important;
+}
+
+.fk-card-wishlist-btn.active i,
+.fk-card-action-circle.active i,
+.pcard-wishlist-btn.active i {
+  color: #ffffff !important;
+  filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.9)) !important;
+  animation: lkHeartBeat 1.4s infinite !important;
+}
+
+/* Light Mode: Wishlist / Like Button */
+[data-theme="light"] .fk-card-wishlist-btn,
+[data-theme="light"] .fk-card-action-circle,
+[data-theme="light"] .pcard-wishlist-btn {
+  background: rgba(255, 255, 255, 0.96) !important;
+  border: 1.5px solid rgba(244, 63, 94, 0.32) !important;
+  box-shadow: 0 4px 14px rgba(244, 63, 94, 0.16), 0 2px 6px rgba(0, 0, 0, 0.06), inset 0 1px 0 #ffffff !important;
+}
+
+[data-theme="light"] .fk-card-wishlist-btn i,
+[data-theme="light"] .fk-card-action-circle i,
+[data-theme="light"] .pcard-wishlist-btn i {
+  color: #f43f5e !important;
+  filter: drop-shadow(0 1px 2px rgba(244, 63, 94, 0.35)) !important;
+}
+
+[data-theme="light"] .fk-card-wishlist-btn:hover,
+[data-theme="light"] .fk-card-action-circle:hover,
+[data-theme="light"] .pcard-wishlist-btn:hover {
+  background: #ffffff !important;
+  border-color: #ff1a53 !important;
+  box-shadow: 0 6px 20px rgba(244, 63, 94, 0.35) !important;
   transform: scale(1.15) !important;
 }
 
-.fk-card-wishlist-btn.active {
-  background: rgba(244, 63, 94, 0.28) !important;
-  border-color: #ff2a6d !important;
-  box-shadow: 0 4px 18px rgba(244, 63, 94, 0.45) !important;
+[data-theme="light"] .fk-card-wishlist-btn.active,
+[data-theme="light"] .fk-card-action-circle.active,
+[data-theme="light"] .pcard-wishlist-btn.active {
+  background: linear-gradient(135deg, #ff1a53 0%, #e11244 100%) !important;
+  border: 1.5px solid rgba(255, 255, 255, 0.6) !important;
+  box-shadow: 0 4px 18px rgba(244, 30, 80, 0.55), inset 0 1px 1.5px rgba(255, 255, 255, 0.6) !important;
 }
 
-.fk-card-wishlist-btn.active i {
-  color: #ff2a6d !important;
-  animation: lkHeartBeat 1.4s infinite !important;
+[data-theme="light"] .fk-card-wishlist-btn.active i,
+[data-theme="light"] .fk-card-action-circle.active i,
+[data-theme="light"] .pcard-wishlist-btn.active i {
+  color: #ffffff !important;
+  filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.9)) !important;
 }
 
 @keyframes lkHeartBeat {
@@ -6054,14 +6157,21 @@ body.linkadda-store,
 
 /* ── 7. VIP FLOATING CART DOCK ── */
 .floating-cart-left {
-  background: linear-gradient(135deg, rgba(20, 16, 32, 0.94), rgba(30, 20, 48, 0.94)) !important;
+  background: linear-gradient(135deg, rgba(20, 16, 32, 0.95), rgba(30, 20, 48, 0.95)) !important;
   backdrop-filter: blur(24px) !important;
   -webkit-backdrop-filter: blur(24px) !important;
   border: 1.5px solid rgba(255, 255, 255, 0.22) !important;
   box-shadow: 0 8px 32px rgba(244, 63, 94, 0.42), 
               inset 0 1px 1px rgba(255, 255, 255, 0.35) !important;
   border-radius: 9999px !important;
+  color: #ffffff !important;
   transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+.floating-cart-left .floating-cart-label {
+  color: #ffffff !important;
+  font-weight: 800 !important;
+  font-size: 13px !important;
 }
 
 .floating-cart-left:hover {
@@ -6069,6 +6179,24 @@ body.linkadda-store,
   box-shadow: 0 12px 40px rgba(244, 63, 94, 0.55), 
               0 0 25px rgba(244, 63, 94, 0.3) !important;
   border-color: rgba(244, 63, 94, 0.6) !important;
+}
+
+[data-theme="light"] .floating-cart-left {
+  background: rgba(255, 255, 255, 0.96) !important;
+  border: 1.5px solid rgba(244, 63, 94, 0.35) !important;
+  box-shadow: 0 8px 30px rgba(244, 63, 94, 0.22), 0 2px 10px rgba(0, 0, 0, 0.08) !important;
+  color: #0f172a !important;
+}
+
+[data-theme="light"] .floating-cart-left .floating-cart-label {
+  color: #0f172a !important;
+  font-weight: 800 !important;
+}
+
+[data-theme="light"] .floating-cart-left:hover {
+  background: #ffffff !important;
+  border-color: #ff1a53 !important;
+  box-shadow: 0 12px 36px rgba(244, 63, 94, 0.35) !important;
 }
 
 /* ── 8. PRIMARY CTA BUTTONS & CHECKOUT DRAWERS ── */
