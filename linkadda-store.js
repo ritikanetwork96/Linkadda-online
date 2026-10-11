@@ -1422,4 +1422,33 @@
     executeShareProduct(prod);
   };
 
+  // ── Universal Tactile Ripple & Haptic Feedback Engine ──
+  document.addEventListener('pointerdown', function (e) {
+    var btn = e.target && e.target.closest && e.target.closest(
+      '.fk-card-btn-buy, .fk-card-btn-cart, .btn-primary, .cart-checkout-btn, #wishlistAddAllBtn, .fk-quick-pill, .fk-notif-btn-wrap, .fk-user-btn-wrap, .fk-orders-btn-wrap, .fk-cart-btn-wrap, .floating-cart-left, .download-qr-btn, .copy-btn, .btn-proceed, .fk-appbar-item'
+    );
+    if (!btn) return;
+    try {
+      btn.classList.add('lk-ripple-host');
+      var rect = btn.getBoundingClientRect();
+      var x = e.clientX - rect.left;
+      var y = e.clientY - rect.top;
+      var size = Math.max(rect.width, rect.height) * 1.8;
+      var wave = document.createElement('span');
+      wave.className = 'lk-ripple-wave';
+      wave.style.width = size + 'px';
+      wave.style.height = size + 'px';
+      wave.style.left = (x - size / 2) + 'px';
+      wave.style.top = (y - size / 2) + 'px';
+      btn.appendChild(wave);
+      setTimeout(function () {
+        if (wave && wave.parentNode) wave.parentNode.removeChild(wave);
+      }, 650);
+      if (window.navigator && window.navigator.vibrate) {
+        window.navigator.vibrate(8);
+      }
+    } catch (_) {}
+  }, { passive: true });
+
 })();
+

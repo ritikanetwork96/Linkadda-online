@@ -634,6 +634,15 @@
     .tag-intl { background: rgba(56, 189, 248, 0.12); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.25); }
     .tag-usdt { background: rgba(245, 158, 11, 0.12); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.25); }
 
+    /* ━━ RIPPLE EFFECT ━━ */
+    .lk-ripple-host { position: relative !important; overflow: hidden !important; }
+    .lk-ripple-wave {
+      position: absolute; border-radius: 50%; pointer-events: none; transform: scale(0);
+      background: radial-gradient(circle, rgba(255, 255, 255, 0.45) 0%, rgba(255, 255, 255, 0.1) 70%, transparent 100%);
+      animation: lkRippleAnim 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards; z-index: 99;
+    }
+    @keyframes lkRippleAnim { 0% { transform: scale(0); opacity: 1; } 100% { transform: scale(2.8); opacity: 0; } }
+
     /* ━━ PROCEED BUTTON ━━ */
     .btn-proceed {
       width: 100%;
@@ -814,23 +823,40 @@
       align-items: center;
       justify-content: center;
       gap: 8px;
-      margin-top: 6px;
-      padding: 9px 20px;
-      background: rgba(255, 255, 255, 0.05);
-      border: 1px solid rgba(255, 255, 255, 0.12);
+      margin-top: 8px;
+      padding: 10px 22px;
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.04));
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border: 1px solid rgba(255, 255, 255, 0.22);
       border-radius: 12px;
       color: #ffffff;
-      font-size: 12px;
-      font-weight: 700;
+      font-size: 12.5px;
+      font-weight: 800;
       cursor: pointer;
-      transition: all 0.22s ease;
-      letter-spacing: 0.2px;
+      transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+      letter-spacing: 0.25px;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25), inset 0 1px 1px rgba(255, 255, 255, 0.3);
+    }
+    .download-qr-btn i {
+      color: #fda4af;
+      font-size: 13px;
+      filter: drop-shadow(0 0 4px rgba(253, 164, 175, 0.6));
+      transition: transform 0.2s ease;
     }
     .download-qr-btn:hover {
-      background: linear-gradient(135deg, rgba(240, 36, 122, 0.25), rgba(124, 58, 237, 0.25));
-      border-color: rgba(240, 36, 122, 0.5);
-      transform: translateY(-2px);
-      box-shadow: 0 6px 20px rgba(240, 36, 122, 0.25);
+      background: linear-gradient(135deg, rgba(240, 36, 122, 0.3), rgba(168, 85, 247, 0.3));
+      border-color: rgba(240, 36, 122, 0.65);
+      transform: translateY(-2px) scale(1.02);
+      box-shadow: 0 8px 24px rgba(240, 36, 122, 0.35), inset 0 1px 1.5px rgba(255, 255, 255, 0.5);
+      color: #ffffff;
+    }
+    .download-qr-btn:hover i {
+      transform: translateY(1px) scale(1.15);
+      color: #ffffff;
+    }
+    .download-qr-btn:active {
+      transform: translateY(1px) scale(0.97);
     }
 
     .network-badge {
@@ -875,30 +901,51 @@
       color: #fff;
     }
     .copy-btn {
-      background: rgba(240, 36, 122, 0.12);
-      border: 1px solid rgba(240, 36, 122, 0.3);
-      color: var(--pink-soft);
-      padding: 8px 14px;
-      border-radius: 10px;
-      font-size: 12px;
+      background: linear-gradient(135deg, rgba(240, 36, 122, 0.16), rgba(240, 36, 122, 0.08));
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(240, 36, 122, 0.4);
+      color: #ff758f;
+      padding: 9px 16px;
+      border-radius: 12px;
+      font-size: 12.5px;
       cursor: pointer;
       white-space: nowrap;
-      transition: all .2s;
-      font-weight: 700;
-      font-family: 'Inter', sans-serif;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+      font-weight: 800;
+      font-family: 'Inter', -apple-system, sans-serif;
       display: flex;
       align-items: center;
-      gap: 5px;
+      gap: 6px;
       flex-shrink: 0;
+      box-shadow: 0 2px 10px rgba(240, 36, 122, 0.15), inset 0 1px 1px rgba(255, 255, 255, 0.2);
+    }
+    .copy-btn i {
+      font-size: 12.5px;
+      transition: transform 0.2s ease;
     }
     .copy-btn:hover {
-      background: rgba(240, 36, 122, 0.24);
-      color: #fff;
+      background: linear-gradient(135deg, rgba(240, 36, 122, 0.32), rgba(240, 36, 122, 0.2));
+      border-color: rgba(240, 36, 122, 0.75);
+      color: #ffffff;
+      transform: translateY(-2px) scale(1.02);
+      box-shadow: 0 6px 18px rgba(240, 36, 122, 0.35), inset 0 1px 1.5px rgba(255, 255, 255, 0.4);
+    }
+    .copy-btn:hover i {
+      transform: scale(1.15);
+    }
+    .copy-btn:active {
+      transform: translateY(1px) scale(0.96);
     }
     .copy-btn.copied {
-      background: rgba(16, 185, 129, 0.15);
-      border-color: rgba(16, 185, 129, 0.4);
-      color: #34d399;
+      background: linear-gradient(135deg, rgba(16, 185, 129, 0.25), rgba(16, 185, 129, 0.15)) !important;
+      border-color: rgba(16, 185, 129, 0.65) !important;
+      color: #34d399 !important;
+      box-shadow: 0 4px 16px rgba(16, 185, 129, 0.35) !important;
+    }
+    .copy-btn.copied i {
+      color: #34d399 !important;
+      animation: lkCheckPop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
     }
 
     .pay-note {
@@ -3259,25 +3306,13 @@ async function createCheckoutOrder(baseOrder, productRecord = null) {
 async function findOrderRecordByIdentifier(identifier) {
   const target = normalizeLookupValue(identifier);
   if (!target || !window.__linkaddaDb) return null;
-  const snap = await get(ref(window.__linkaddaDb, 'orders'));
-  const records = unwrapRecords(snap.val());
-  const matched = records.find((entry) => {
-    const value = entry.value || {};
-    const haystacks = [
-      entry.key,
-      value.orderId,
-      value.id,
-      value.productId,
-      value.productSlug,
-      value.productName,
-      value.package,
-      value.title,
-      value.name,
-    ].map(normalizeLookupValue);
-    return haystacks.includes(target);
-  });
-  if (!matched) return null;
-  return normalizeOrderRecord(matched.value || {}, matched.key);
+  try {
+    const snap = await get(ref(window.__linkaddaDb, `orders/${target}`));
+    if (snap.exists()) {
+      return normalizeOrderRecord(snap.val() || {}, snap.key);
+    }
+  } catch (_) {}
+  return null;
 }
 
 async function ensureCheckoutOrderLoaded() {
@@ -4542,6 +4577,26 @@ function launchConfetti() {
     }
   }, 1000);
 })();
+
+// ── Universal Tactile Ripple Engine ──
+document.addEventListener('pointerdown', (e) => {
+  const btn = e.target?.closest?.('.btn-proceed, .copy-btn, .download-qr-btn, .method-card, .btn-primary');
+  if (!btn) return;
+  try {
+    btn.classList.add('lk-ripple-host');
+    const rect = btn.getBoundingClientRect();
+    const size = Math.max(rect.width, rect.height) * 1.8;
+    const wave = document.createElement('span');
+    wave.className = 'lk-ripple-wave';
+    wave.style.width = size + 'px';
+    wave.style.height = size + 'px';
+    wave.style.left = (e.clientX - rect.left - size / 2) + 'px';
+    wave.style.top = (e.clientY - rect.top - size / 2) + 'px';
+    btn.appendChild(wave);
+    setTimeout(() => wave?.parentNode?.removeChild(wave), 650);
+    if (window.navigator?.vibrate) window.navigator.vibrate(8);
+  } catch (_) {}
+}, { passive: true });
 
 // Auto initialize UI immediately (before Firebase, for instant render)
 function initPaymentUIOnce() {

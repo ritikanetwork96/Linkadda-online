@@ -5643,5 +5643,502 @@ body.linkadda-store,
   }
 }
 
+/* ==========================================================================
+   💎 LINKADDA SIGNATURE ULTRA-PREMIUM BUTTONS & ICONS MASTER DESIGN SYSTEM
+   Ultra-luxurious tactile physics, bevel depth, neon glow aura, and jewel icons
+   ========================================================================== */
+
+/* ── 1. GLOBAL TACTILE RIPPLE ENGINE ── */
+.lk-ripple-host {
+  position: relative !important;
+  overflow: hidden !important;
+}
+
+.lk-ripple-wave {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  transform: scale(0);
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.45) 0%, rgba(255, 255, 255, 0.1) 70%, transparent 100%);
+  animation: lkRippleAnim 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  z-index: 99;
+}
+
+@keyframes lkRippleAnim {
+  0% { transform: scale(0); opacity: 1; }
+  100% { transform: scale(2.8); opacity: 0; }
+}
+
+/* ── 2. CARD "BUY NOW" SIGNATURE HIGH-VOLTAGE BUTTON ── */
+.fk-card-btn-buy,
+.fk-card-buy-btn,
+.btn-card-buy-now,
+[data-theme="light"] .fk-card-btn-buy,
+[data-theme="light"] .fk-card-buy-btn,
+[data-theme="light"] .btn-card-buy-now {
+  height: 38px !important;
+  padding: 0 12px !important;
+  border-radius: 12px !important;
+  background: linear-gradient(135deg, #ff1a53 0%, #e11244 52%, #b3042b 100%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.28) !important;
+  color: #ffffff !important;
+  font-family: 'Outfit', 'Inter', -apple-system, sans-serif !important;
+  font-size: 12.5px !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.35px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  text-decoration: none !important;
+  cursor: pointer !important;
+  user-select: none !important;
+  position: relative !important;
+  overflow: hidden !important;
+  box-shadow: 0 4px 18px rgba(225, 20, 68, 0.45), 
+              inset 0 1.5px 1.5px rgba(255, 255, 255, 0.6), 
+              inset 0 -1.5px 2px rgba(0, 0, 0, 0.32) !important;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35) !important;
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), 
+              box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1), 
+              filter 0.2s ease !important;
+  -webkit-tap-highlight-color: transparent !important;
+}
+
+.fk-card-btn-buy i,
+.fk-card-buy-btn i,
+.btn-card-buy-now i {
+  color: #ffffff !important;
+  font-size: 12px !important;
+  filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.9)) !important;
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+/* Moving Shimmer Sheen on Buy Now */
+.fk-card-btn-buy::after,
+.fk-card-buy-btn::after,
+.btn-card-buy-now::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -120%;
+  width: 60%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.35), transparent);
+  transform: skewX(-22deg);
+  transition: none;
+  pointer-events: none;
+}
+
+.fk-card-btn-buy:hover::after,
+.fk-card-buy-btn:hover::after,
+.btn-card-buy-now:hover::after {
+  animation: lkSheenSweep 1.1s ease forwards;
+}
+
+@keyframes lkSheenSweep {
+  0% { left: -120%; }
+  100% { left: 160%; }
+}
+
+.fk-card-btn-buy:hover,
+.fk-card-buy-btn:hover,
+.btn-card-buy-now:hover,
+[data-theme="light"] .fk-card-btn-buy:hover,
+[data-theme="light"] .fk-card-buy-btn:hover,
+[data-theme="light"] .btn-card-buy-now:hover {
+  filter: brightness(1.1) !important;
+  transform: translateY(-2px) scale(1.02) !important;
+  box-shadow: 0 8px 26px rgba(225, 20, 68, 0.6), 
+              0 0 20px rgba(255, 26, 83, 0.35),
+              inset 0 1.5px 2px rgba(255, 255, 255, 0.75) !important;
+}
+
+.fk-card-btn-buy:hover i,
+.fk-card-buy-btn:hover i,
+.btn-card-buy-now:hover i {
+  transform: scale(1.22) rotate(-6deg) !important;
+}
+
+.fk-card-btn-buy:active,
+.fk-card-buy-btn:active,
+.btn-card-buy-now:active,
+[data-theme="light"] .fk-card-btn-buy:active,
+[data-theme="light"] .fk-card-buy-btn:active,
+[data-theme="light"] .btn-card-buy-now:active {
+  transform: translateY(1px) scale(0.96) !important;
+  box-shadow: 0 2px 8px rgba(225, 20, 68, 0.35) !important;
+}
+
+/* ── 3. CARD "ADD TO CART" FROSTED OBSIDIAN / PORCELAIN BUTTON ── */
+.fk-card-btn-cart,
+.btn-card-add-cart,
+.fk-card-add-cart-btn {
+  height: 38px !important;
+  padding: 0 10px !important;
+  border-radius: 12px !important;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.05) 100%) !important;
+  backdrop-filter: blur(16px) !important;
+  -webkit-backdrop-filter: blur(16px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.22) !important;
+  box-shadow: inset 0 1px 1.5px rgba(255, 255, 255, 0.3), 
+              0 3px 12px rgba(0, 0, 0, 0.28) !important;
+  color: #ffffff !important;
+  font-family: 'Outfit', 'Inter', -apple-system, sans-serif !important;
+  font-size: 12.5px !important;
+  font-weight: 750 !important;
+  letter-spacing: 0.25px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  cursor: pointer !important;
+  user-select: none !important;
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), 
+              background 0.2s ease, 
+              border-color 0.2s ease, 
+              box-shadow 0.2s ease !important;
+}
+
+.fk-card-btn-cart i {
+  color: #fda4af !important;
+  font-size: 12px !important;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3)) !important;
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+.fk-card-btn-cart:hover {
+  background: rgba(255, 255, 255, 0.18) !important;
+  border-color: rgba(255, 42, 95, 0.6) !important;
+  box-shadow: 0 6px 20px rgba(255, 42, 95, 0.25), 
+              inset 0 1px 2px rgba(255, 255, 255, 0.45) !important;
+  transform: translateY(-2px) scale(1.02) !important;
+  color: #ffffff !important;
+}
+
+.fk-card-btn-cart:hover i {
+  transform: scale(1.18) !important;
+}
+
+.fk-card-btn-cart:active {
+  transform: translateY(1px) scale(0.96) !important;
+  background: rgba(255, 255, 255, 0.22) !important;
+}
+
+/* Light Mode: Cart Button */
+[data-theme="light"] .fk-card-btn-cart,
+[data-theme="light"] .btn-card-add-cart,
+[data-theme="light"] .fk-card-add-cart-btn {
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%) !important;
+  border: 1.5px solid #cbd5e1 !important;
+  color: #0f172a !important;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08), inset 0 1px 0 #ffffff !important;
+}
+
+[data-theme="light"] .fk-card-btn-cart i {
+  color: #e11d48 !important;
+}
+
+[data-theme="light"] .fk-card-btn-cart:hover {
+  background: #ffffff !important;
+  border-color: #f43f5e !important;
+  color: #e11d48 !important;
+  box-shadow: 0 6px 18px rgba(225, 29, 72, 0.18), inset 0 1px 0 #ffffff !important;
+  transform: translateY(-2px) scale(1.02) !important;
+}
+
+/* Added to Cart Jewel State */
+.fk-card-btn-cart.added,
+.fk-card-btn-cart.in-cart,
+[data-theme="light"] .fk-card-btn-cart.added,
+[data-theme="light"] .fk-card-btn-cart.in-cart {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.35) !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 18px rgba(16, 185, 129, 0.5), inset 0 1px 1.5px rgba(255, 255, 255, 0.55) !important;
+}
+
+.fk-card-btn-cart.added i,
+.fk-card-btn-cart.in-cart i,
+[data-theme="light"] .fk-card-btn-cart.added i,
+[data-theme="light"] .fk-card-btn-cart.in-cart i {
+  color: #ffffff !important;
+  filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.8)) !important;
+  animation: lkCheckPop 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275) !important;
+}
+
+@keyframes lkCheckPop {
+  0% { transform: scale(0.4); opacity: 0; }
+  70% { transform: scale(1.3); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* ── 4. CARD WISHLIST CIRCULAR GLASS BUTTON ── */
+.fk-card-action-circle,
+.fk-card-wishlist-btn {
+  width: 36px !important;
+  height: 36px !important;
+  border-radius: 50% !important;
+  background: rgba(15, 12, 24, 0.65) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.22) !important;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer !important;
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  user-select: none !important;
+}
+
+.fk-card-wishlist-btn i {
+  font-size: 15px !important;
+  color: rgba(255, 255, 255, 0.8) !important;
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), color 0.2s !important;
+}
+
+.fk-card-wishlist-btn:hover {
+  background: rgba(244, 63, 94, 0.22) !important;
+  border-color: rgba(244, 63, 94, 0.65) !important;
+  transform: scale(1.12) !important;
+  box-shadow: 0 6px 20px rgba(244, 63, 94, 0.35) !important;
+}
+
+.fk-card-wishlist-btn:hover i {
+  color: #ff2a6d !important;
+  transform: scale(1.15) !important;
+}
+
+.fk-card-wishlist-btn.active {
+  background: rgba(244, 63, 94, 0.28) !important;
+  border-color: #ff2a6d !important;
+  box-shadow: 0 4px 18px rgba(244, 63, 94, 0.45) !important;
+}
+
+.fk-card-wishlist-btn.active i {
+  color: #ff2a6d !important;
+  animation: lkHeartBeat 1.4s infinite !important;
+}
+
+@keyframes lkHeartBeat {
+  0%, 100% { transform: scale(1); }
+  25% { transform: scale(1.18); }
+  40% { transform: scale(1.05); }
+  60% { transform: scale(1.18); }
+}
+
+/* ── 5. LUXURY HEADER ACTION CAPSULES ── */
+.fk-notif-btn-wrap,
+.fk-user-btn-wrap,
+.fk-orders-btn-wrap,
+.fk-cart-btn-wrap {
+  height: 38px !important;
+  border-radius: 9999px !important;
+  backdrop-filter: blur(14px) !important;
+  -webkit-backdrop-filter: blur(14px) !important;
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  user-select: none !important;
+}
+
+.fk-notif-btn-wrap {
+  background: rgba(245, 158, 11, 0.1) !important;
+  border: 1px solid rgba(245, 158, 11, 0.3) !important;
+  color: #fef3c7 !important;
+}
+
+.fk-notif-btn-wrap i {
+  color: #fbbf24 !important;
+  filter: drop-shadow(0 0 4px rgba(251, 191, 36, 0.5)) !important;
+}
+
+.fk-notif-btn-wrap:hover {
+  background: rgba(245, 158, 11, 0.2) !important;
+  border-color: rgba(245, 158, 11, 0.6) !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 6px 18px rgba(245, 158, 11, 0.25) !important;
+}
+
+.fk-user-btn-wrap {
+  background: rgba(244, 63, 94, 0.1) !important;
+  border: 1px solid rgba(244, 63, 94, 0.32) !important;
+  color: #ffe4e6 !important;
+}
+
+.fk-user-btn-wrap i {
+  color: #f43f5e !important;
+  filter: drop-shadow(0 0 4px rgba(244, 63, 94, 0.5)) !important;
+  transition: transform 0.4s ease !important;
+}
+
+.fk-user-btn-wrap:hover {
+  background: rgba(244, 63, 94, 0.2) !important;
+  border-color: rgba(244, 63, 94, 0.65) !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 6px 18px rgba(244, 63, 94, 0.25) !important;
+}
+
+.fk-user-btn-wrap:hover i {
+  transform: rotate(90deg) !important;
+}
+
+.fk-orders-btn-wrap {
+  background: rgba(16, 185, 129, 0.1) !important;
+  border: 1px solid rgba(16, 185, 129, 0.32) !important;
+  color: #d1fae5 !important;
+}
+
+.fk-orders-btn-wrap i {
+  color: #10b981 !important;
+  filter: drop-shadow(0 0 4px rgba(16, 185, 129, 0.5)) !important;
+}
+
+.fk-orders-btn-wrap:hover {
+  background: rgba(16, 185, 129, 0.2) !important;
+  border-color: rgba(16, 185, 129, 0.6) !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 6px 18px rgba(16, 185, 129, 0.25) !important;
+}
+
+.fk-cart-btn-wrap {
+  background: linear-gradient(135deg, rgba(244, 63, 94, 0.18), rgba(168, 85, 247, 0.18)) !important;
+  border: 1px solid rgba(244, 63, 94, 0.38) !important;
+  color: #ffffff !important;
+  box-shadow: 0 2px 14px rgba(244, 63, 94, 0.2) !important;
+}
+
+.fk-cart-btn-wrap i {
+  color: #f43f5e !important;
+  filter: drop-shadow(0 0 5px rgba(244, 63, 94, 0.6)) !important;
+}
+
+.fk-cart-btn-wrap:hover {
+  background: linear-gradient(135deg, rgba(244, 63, 94, 0.28), rgba(168, 85, 247, 0.28)) !important;
+  border-color: rgba(244, 63, 94, 0.65) !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 6px 22px rgba(244, 63, 94, 0.4) !important;
+}
+
+/* ── 6. QUICK FILTER PILL CHIPS ── */
+.fk-quick-pill {
+  border-radius: 9999px !important;
+  padding: 6px 15px !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  background: rgba(255, 255, 255, 0.06) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  color: #cbd5e1 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  cursor: pointer !important;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+.fk-quick-pill:hover {
+  background: rgba(255, 255, 255, 0.12) !important;
+  border-color: rgba(255, 255, 255, 0.28) !important;
+  color: #ffffff !important;
+  transform: translateY(-1px) !important;
+}
+
+.fk-quick-pill.active {
+  background: linear-gradient(135deg, #ff1a53 0%, #e11244 100%) !important;
+  border-color: rgba(255, 255, 255, 0.35) !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 16px rgba(244, 30, 80, 0.45), inset 0 1px 1px rgba(255, 255, 255, 0.4) !important;
+  transform: translateY(-1px) scale(1.02) !important;
+}
+
+/* ── 7. VIP FLOATING CART DOCK ── */
+.floating-cart-left {
+  background: linear-gradient(135deg, rgba(20, 16, 32, 0.94), rgba(30, 20, 48, 0.94)) !important;
+  backdrop-filter: blur(24px) !important;
+  -webkit-backdrop-filter: blur(24px) !important;
+  border: 1.5px solid rgba(255, 255, 255, 0.22) !important;
+  box-shadow: 0 8px 32px rgba(244, 63, 94, 0.42), 
+              inset 0 1px 1px rgba(255, 255, 255, 0.35) !important;
+  border-radius: 9999px !important;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+.floating-cart-left:hover {
+  transform: translateY(-3px) scale(1.04) !important;
+  box-shadow: 0 12px 40px rgba(244, 63, 94, 0.55), 
+              0 0 25px rgba(244, 63, 94, 0.3) !important;
+  border-color: rgba(244, 63, 94, 0.6) !important;
+}
+
+/* ── 8. PRIMARY CTA BUTTONS & CHECKOUT DRAWERS ── */
+.btn-primary,
+.cart-checkout-btn,
+#wishlistAddAllBtn {
+  background: linear-gradient(135deg, #ff1a53 0%, #e11244 52%, #b3042b 100%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.3) !important;
+  color: #ffffff !important;
+  font-family: 'Outfit', 'Inter', -apple-system, sans-serif !important;
+  font-weight: 800 !important;
+  border-radius: 14px !important;
+  box-shadow: 0 6px 24px rgba(225, 20, 68, 0.45), 
+              inset 0 1.5px 1.5px rgba(255, 255, 255, 0.55), 
+              inset 0 -1.5px 2px rgba(0, 0, 0, 0.28) !important;
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), 
+              box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1), 
+              filter 0.2s ease !important;
+  user-select: none !important;
+  position: relative !important;
+  overflow: hidden !important;
+}
+
+.btn-primary:hover,
+.cart-checkout-btn:hover,
+#wishlistAddAllBtn:hover {
+  filter: brightness(1.1) !important;
+  transform: translateY(-2px) scale(1.01) !important;
+  box-shadow: 0 10px 32px rgba(225, 20, 68, 0.6), 
+              0 0 22px rgba(255, 26, 83, 0.35) !important;
+}
+
+.btn-primary:active,
+.cart-checkout-btn:active,
+#wishlistAddAllBtn:active {
+  transform: translateY(1px) scale(0.97) !important;
+  box-shadow: 0 2px 10px rgba(225, 20, 68, 0.35) !important;
+}
+
+/* ── 9. NATIVE BOTTOM BAR (5 LUXURY TABS) ── */
+.fk-mobile-appbar {
+  background: rgba(11, 13, 22, 0.94) !important;
+  backdrop-filter: blur(28px) saturate(190%) !important;
+  -webkit-backdrop-filter: blur(28px) saturate(190%) !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.1) !important;
+  box-shadow: 0 -4px 28px rgba(0, 0, 0, 0.55) !important;
+}
+
+.fk-appbar-item {
+  transition: color 0.2s ease, transform 0.2s ease !important;
+}
+
+.fk-appbar-item i {
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3)) !important;
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+.fk-appbar-item:active i {
+  transform: scale(0.88) !important;
+}
+
+.fk-appbar-item.active {
+  color: #ff2a6d !important;
+}
+
+.fk-appbar-item.active i {
+  transform: scale(1.12) !important;
+  filter: drop-shadow(0 0 8px rgba(255, 42, 109, 0.6)) !important;
+}
+
+
 
 
