@@ -2,8 +2,9 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
+  <base href="/admin/" />
   <script>
-    // ðŸ›¡ï¸ LinkAdda Admin Anti-Clone Domain Lock
+    // 🛡️ LinkAdda Admin Anti-Clone Domain Lock
     (function protectAdmin() {
       var h = (window.location.hostname || '').toLowerCase();
       var p = window.location.protocol;
@@ -39,17 +40,18 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./assets/admin.css?v=34" />
+  <link rel="stylesheet" href="/admin/assets/admin.css?v=20261011_v2" />
   <script src="https://cdn.jsdelivr.net/npm/lucide@latest/dist/umd/lucide.min.js" onerror="this.onerror=null;this.src='https://unpkg.com/lucide@latest';"></script>
 </head>
 <body data-theme="dark">
   <main id="authMount"></main>
   <script type="module">
-    import { mountLoginPage, whenAuthenticated } from './js/auth.js';
+    import { mountLoginPage, whenAuthenticated } from '/admin/js/auth.js?v=20261011_v2';
     const mount = document.getElementById('authMount');
     whenAuthenticated((user) => {
-      if (user) {
-        window.location.href = '/admin';
+      const email = String(user?.email || '').trim().toLowerCase();
+      if (user && email === 'botforword@gmail.com') {
+        window.location.replace('/admin');
       }
     });
     mountLoginPage(mount);

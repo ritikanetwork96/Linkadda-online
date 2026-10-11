@@ -254,6 +254,11 @@ export function mountLoginPage(root) {
     note.textContent = 'Authenticating admin credentials...';
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const userEmail = String(userCredential.user?.email || '').trim().toLowerCase();
+      if (userEmail !== 'botforword@gmail.com') {
+        await signOut(auth);
+        throw new Error('Access Denied: Only root administrator (botforword@gmail.com) is authorized.');
+      }
       await registerAdminSession(userCredential.user);
       note.textContent = 'Success! Opening admin center...';
       window.location.href = '/admin';
@@ -288,6 +293,12 @@ export function protectRoute(onReady) {
       if (window.location.protocol === 'file:') {
         if (!hasHandledAuth) {
           hasHandledAuth = true;
+          const gate = document.getElementById('authGate');
+          if (gate) gate.remove();
+          const shell = document.getElementById('adminShell');
+          if (shell) shell.style.removeProperty('display');
+          const mobileNav = document.getElementById('mobileBottomNav');
+          if (mobileNav) mobileNav.style.removeProperty('display');
           if (auth.currentUser) {
             if (typeof onReady === 'function') onReady(auth.currentUser);
           } else {
@@ -297,8 +308,16 @@ export function protectRoute(onReady) {
         return;
       }
       if (!/\/login(?:\.html)?\/?$/i.test(window.location.pathname)) {
-        window.location.href = '/admin/login';
+        window.location.replace('/admin/login');
       }
+      return;
+    }
+
+    // STRICT ROOT ACCESS ENFORCEMENT: ONLY botforword@gmail.com
+    const email = String(user.email || '').trim().toLowerCase();
+    if (email !== 'botforword@gmail.com') {
+      try { await signOut(auth); } catch (_) {}
+      window.location.replace('/admin/login');
       return;
     }
 
@@ -306,6 +325,13 @@ export function protectRoute(onReady) {
       hasHandledAuth = true;
       registerAdminSession(user).catch(() => {});
       startSessionWatch(user);
+      // Reveal the admin shell now that access is strictly verified
+      const gate = document.getElementById('authGate');
+      if (gate) gate.remove();
+      const shell = document.getElementById('adminShell');
+      if (shell) shell.style.removeProperty('display');
+      const mobileNav = document.getElementById('mobileBottomNav');
+      if (mobileNav) mobileNav.style.removeProperty('display');
       if (typeof onReady === 'function') onReady(user);
     }
   });

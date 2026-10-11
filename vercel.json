@@ -26,13 +26,15 @@
     { "source": "/seller", "destination": "/", "statusCode": 301 }
   ],
   "rewrites": [
+    { "source": "/admin/assets/(.*)", "destination": "/admin/assets/$1" },
+    { "source": "/admin/js/(.*)", "destination": "/admin/js/$1" },
     { "source": "/assets/(.*)", "destination": "/admin/assets/$1" },
     { "source": "/about", "destination": "/about.html" },
     { "source": "/payment", "destination": "/payment.html" },
     { "source": "/legal", "destination": "/legal.html" },
-    { "source": "/admin", "destination": "/admin/index.html" },
     { "source": "/admin/login", "destination": "/admin/login.html" },
-    { "source": "/admin/(.*)", "destination": "/admin/index.html" }
+    { "source": "/admin", "destination": "/admin/index.html" },
+    { "source": "/admin/", "destination": "/admin/index.html" }
   ],
   "headers": [
     {

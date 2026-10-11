@@ -11529,6 +11529,11 @@ subscribe((data) => {
 protectRoute((user) => {
   syncTopbar(user);
   startRealtime(true);
+  try {
+    const route = window.location.hash.replace(/^#\/?/, '') || 'dashboard';
+    applyRoute(route);
+    renderView(getSnapshot());
+  } catch (_) {}
 });
 
 
