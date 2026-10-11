@@ -103,6 +103,123 @@
   <link rel="stylesheet" href="mobile-app.css?v=20261011_v9" />
   <script src="preload.js?v=20261011_v8" charset="UTF-8"></script>
   <style id="critical-hero-toast-fix">
+    /* ── CARD "ADD TO CART" LUXURY BUTTON ── */
+    [data-theme="light"] .fk-card-btn-cart,
+    [data-theme="light"] .btn-card-add-cart,
+    [data-theme="light"] .btn-add-cart {
+      background: linear-gradient(180deg, #ffffff 0%, #fff1f4 100%) !important;
+      border: 1.5px solid rgba(225, 20, 68, 0.38) !important;
+      color: #e11244 !important;
+      font-weight: 800 !important;
+      letter-spacing: 0.3px !important;
+      box-shadow: 0 2px 10px rgba(225, 20, 68, 0.12), inset 0 1px 0 #ffffff !important;
+    }
+    [data-theme="light"] .fk-card-btn-cart i,
+    [data-theme="light"] .btn-card-add-cart i,
+    [data-theme="light"] .btn-add-cart i {
+      color: #e11244 !important;
+      filter: drop-shadow(0 1px 2px rgba(225, 20, 68, 0.3)) !important;
+    }
+    [data-theme="light"] .fk-card-btn-cart:hover,
+    [data-theme="light"] .btn-card-add-cart:hover,
+    [data-theme="light"] .btn-add-cart:hover {
+      background: linear-gradient(180deg, #fff5f7 0%, #ffe4e9 100%) !important;
+      border-color: #e11244 !important;
+      color: #e11244 !important;
+      box-shadow: 0 5px 16px rgba(225, 20, 68, 0.22), inset 0 1px 0 #ffffff !important;
+      transform: translateY(-2px) scale(1.02) !important;
+    }
+
+    /* ── CARD WISHLIST / LIKE HEART BUTTON ── */
+    .fk-card-wishlist-btn,
+    .fk-card-action-circle,
+    .pcard-wishlist-btn {
+      width: 36px !important;
+      height: 36px !important;
+      border-radius: 50% !important;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      cursor: pointer !important;
+      transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), background 0.2s, box-shadow 0.2s !important;
+    }
+    .fk-card-wishlist-btn i,
+    .fk-card-action-circle i,
+    .pcard-wishlist-btn i {
+      font-size: 15px !important;
+      color: #f43f5e !important;
+      filter: drop-shadow(0 1px 2px rgba(244, 63, 94, 0.35)) !important;
+      transition: transform 0.2s, color 0.2s !important;
+    }
+    [data-theme="light"] .fk-card-wishlist-btn,
+    [data-theme="light"] .fk-card-action-circle,
+    [data-theme="light"] .pcard-wishlist-btn {
+      background: rgba(255, 255, 255, 0.96) !important;
+      border: 1.5px solid rgba(244, 63, 94, 0.35) !important;
+      color: #f43f5e !important;
+      box-shadow: 0 4px 14px rgba(244, 63, 94, 0.2), 0 2px 6px rgba(0, 0, 0, 0.08), inset 0 1px 0 #ffffff !important;
+    }
+    [data-theme="light"] .fk-card-wishlist-btn:hover,
+    [data-theme="light"] .fk-card-action-circle:hover,
+    [data-theme="light"] .pcard-wishlist-btn:hover {
+      background: #ffffff !important;
+      border-color: #ff1a53 !important;
+      transform: scale(1.15) !important;
+      box-shadow: 0 6px 20px rgba(244, 63, 94, 0.38) !important;
+    }
+    .fk-card-wishlist-btn.active,
+    .fk-card-action-circle.active,
+    .pcard-wishlist-btn.active,
+    [data-theme="light"] .fk-card-wishlist-btn.active,
+    [data-theme="light"] .fk-card-action-circle.active,
+    [data-theme="light"] .pcard-wishlist-btn.active {
+      background: linear-gradient(135deg, #ff1a53 0%, #e11244 100%) !important;
+      border: 1.5px solid rgba(255, 255, 255, 0.6) !important;
+      box-shadow: 0 4px 18px rgba(244, 30, 80, 0.55), inset 0 1px 1.5px rgba(255, 255, 255, 0.6) !important;
+    }
+    .fk-card-wishlist-btn.active i,
+    .fk-card-action-circle.active i,
+    .pcard-wishlist-btn.active i,
+    [data-theme="light"] .fk-card-wishlist-btn.active i,
+    [data-theme="light"] .fk-card-action-circle.active i,
+    [data-theme="light"] .pcard-wishlist-btn.active i {
+      color: #ffffff !important;
+      filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.95)) !important;
+    }
+
+    /* ── FLOATING CART DOCK ── */
+    .floating-cart-left {
+      border-radius: 9999px !important;
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
+    }
+    .floating-cart-left .floating-cart-label {
+      font-weight: 800 !important;
+      font-size: 13px !important;
+    }
+    [data-theme="light"] .floating-cart-left {
+      background: rgba(255, 255, 255, 0.96) !important;
+      border: 1.5px solid rgba(244, 63, 94, 0.35) !important;
+      box-shadow: 0 8px 30px rgba(244, 63, 94, 0.22), 0 2px 10px rgba(0, 0, 0, 0.08) !important;
+      color: #0f172a !important;
+    }
+    [data-theme="light"] .floating-cart-left .floating-cart-label {
+      color: #0f172a !important;
+    }
+    [data-theme="light"] .floating-cart-left:hover {
+      background: #ffffff !important;
+      border-color: #ff1a53 !important;
+      box-shadow: 0 12px 36px rgba(244, 63, 94, 0.35) !important;
+    }
+    [data-theme="dark"] .floating-cart-left {
+      background: linear-gradient(135deg, rgba(20, 16, 32, 0.95), rgba(30, 20, 48, 0.95)) !important;
+      border: 1.5px solid rgba(255, 255, 255, 0.22) !important;
+      box-shadow: 0 8px 32px rgba(244, 63, 94, 0.42), inset 0 1px 1px rgba(255, 255, 255, 0.35) !important;
+      color: #ffffff !important;
+    }
+    [data-theme="dark"] .floating-cart-left .floating-cart-label {
+      color: #ffffff !important;
+    }
+
     /* Hero Title: White top line, neon glowing gradient for second line */
     .hero-title,
     [data-theme="light"] .hero-title,
