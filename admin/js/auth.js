@@ -42,6 +42,61 @@ export function getDeviceDetails() {
   return { browser, os, type };
 }
 
+let cachedGeo = null;
+export async function getClientLocation() {
+  if (cachedGeo) return cachedGeo;
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 3500);
+    const res = await fetch('https://ipapi.co/json/', { signal: controller.signal });
+    clearTimeout(timer);
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.ip) {
+        cachedGeo = {
+          ip: data.ip || '',
+          city: data.city || '',
+          region: data.region || '',
+          country: data.country_name || data.country || 'India',
+          countryCode: (data.country_code || 'IN').toUpperCase(),
+          isp: data.org || '',
+          locationStr: [data.city, data.region, data.country_name].filter(Boolean).join(', ') || 'India',
+        };
+        return cachedGeo;
+      }
+    }
+  } catch (_) {}
+
+  try {
+    const res2 = await fetch('https://ipwho.is/');
+    if (res2.ok) {
+      const data2 = await res2.json();
+      if (data2 && data2.success !== false && data2.ip) {
+        cachedGeo = {
+          ip: data2.ip || '',
+          city: data2.city || '',
+          region: data2.region || '',
+          country: data2.country || 'India',
+          countryCode: (data2.country_code || 'IN').toUpperCase(),
+          isp: data2.connection?.isp || data2.connection?.org || '',
+          locationStr: [data2.city, data2.region, data2.country].filter(Boolean).join(', ') || 'India',
+        };
+        return cachedGeo;
+      }
+    }
+  } catch (_) {}
+
+  return {
+    ip: '',
+    city: '',
+    region: '',
+    country: 'India',
+    countryCode: 'IN',
+    isp: '',
+    locationStr: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Kolkata',
+  };
+}
+
 export function getCurrentSessionId() {
   let sessId = localStorage.getItem('linkadda_admin_session_id');
   if (!sessId) {
@@ -57,13 +112,20 @@ export async function registerAdminSession(user) {
   const device = getDeviceDetails();
   const sessionRef = ref(db, `admin_sessions/${sessId}`);
   
-  const sessionData = {
+  const initialSessionData = {
     id: sessId,
     uid: user.uid,
-    email: user.email || 'Admin',
+    email: user.email || 'botforword@gmail.com',
     browser: device.browser,
     os: device.os,
     deviceType: device.type,
+    ip: '',
+    city: '',
+    region: '',
+    country: 'India',
+    countryCode: 'IN',
+    isp: '',
+    locationStr: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Kolkata',
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Kolkata',
     loginAt: Date.now(),
     lastActiveAt: Date.now(),
@@ -71,10 +133,28 @@ export async function registerAdminSession(user) {
   };
 
   try {
-    await set(sessionRef, sessionData);
+    await set(sessionRef, initialSessionData);
   } catch (err) {
-    console.warn('Could not register admin session in RTDB:', err);
+    console.warn('Could not register initial admin session in RTDB:', err);
   }
+
+  // Background lookup to enrich session with real IP and City/State/Country
+  getClientLocation().then((geo) => {
+    if (geo && (geo.city || geo.ip || geo.locationStr)) {
+      try {
+        update(sessionRef, {
+          ip: geo.ip || '',
+          city: geo.city || '',
+          region: geo.region || '',
+          country: geo.country || 'India',
+          countryCode: geo.countryCode || 'IN',
+          isp: geo.isp || '',
+          locationStr: geo.locationStr || 'India',
+        });
+      } catch (_) {}
+    }
+  }).catch(() => {});
+
   return sessId;
 }
 
@@ -83,12 +163,12 @@ export function startSessionWatch(user, onTerminated) {
   const sessId = getCurrentSessionId();
   const sessionRef = ref(db, `admin_sessions/${sessId}`);
 
-  // Heartbeat every 60 seconds
+  // Heartbeat every 45 seconds to keep lastActiveAt fresh
   const heartbeatTimer = setInterval(() => {
     try {
       update(sessionRef, { lastActiveAt: Date.now() });
     } catch (_) {}
-  }, 60000);
+  }, 45000);
 
   // Listen for remote termination from other devices
   onValue(sessionRef, (snapshot) => {
@@ -105,6 +185,27 @@ export function startSessionWatch(user, onTerminated) {
   });
 }
 
+export function listenToAdminSessions(callback) {
+  const currentSessId = getCurrentSessionId();
+  const sessionsRef = ref(db, 'admin_sessions');
+  return onValue(sessionsRef, (snapshot) => {
+    const val = snapshot.val() || {};
+    const list = Object.values(val)
+      .filter((s) => s && typeof s === 'object' && s.id)
+      .map((s) => ({
+        ...s,
+        isCurrent: s.id === currentSessId,
+      }))
+      .sort((a, b) => (b.lastActiveAt || b.loginAt || 0) - (a.lastActiveAt || a.loginAt || 0));
+
+    if (typeof callback === 'function') {
+      callback(list, currentSessId);
+    }
+  }, (err) => {
+    console.warn('Realtime admin_sessions listen error:', err);
+  });
+}
+
 export async function getActiveAdminSessions() {
   const currentSessId = getCurrentSessionId();
   const device = getDeviceDetails();
@@ -114,6 +215,7 @@ export async function getActiveAdminSessions() {
     browser: device.browser,
     os: device.os,
     deviceType: device.type,
+    locationStr: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Kolkata',
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Kolkata',
     loginAt: Date.now(),
     lastActiveAt: Date.now(),
@@ -127,23 +229,16 @@ export async function getActiveAdminSessions() {
     const val = snapshot.val() || {};
     
     let list = Object.values(val)
-      .filter((s) => s && s.status === 'active')
+      .filter((s) => s && typeof s === 'object' && s.id)
       .map((s) => ({
         ...s,
         isCurrent: s.id === currentSessId,
       }))
-      .sort((a, b) => (b.lastActiveAt || 0) - (a.lastActiveAt || 0));
+      .sort((a, b) => (b.lastActiveAt || b.loginAt || 0) - (a.lastActiveAt || a.loginAt || 0));
 
     const hasCurrent = list.some((s) => s.id === currentSessId);
     if (!hasCurrent) {
       list.unshift(currentSessionFallback);
-      try {
-        set(ref(db, `admin_sessions/${currentSessId}`), {
-          ...currentSessionFallback,
-          uid: auth.currentUser?.uid || 'admin',
-          email: auth.currentUser?.email || 'admin',
-        }).catch(() => {});
-      } catch (_) {}
     }
 
     return list;
