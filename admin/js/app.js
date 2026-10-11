@@ -6399,63 +6399,10 @@ function renderActiveSessionsCardsList(sessions = [], currentSessId = null) {
   return sessions.map((sess) => renderActiveSessionCard(sess, currentId)).join('');
 }
 
-function renderCustomerLoginsCardsList(customers = []) {
-  if (!customers.length) {
-    return `
-      <div class="glass" style="padding: 24px; border-radius: 12px; text-align: center; color: var(--muted);">
-        <i data-lucide="users" style="width: 32px; height: 32px; margin-bottom: 8px; opacity: 0.5;"></i>
-        <p style="margin: 0; font-size: 13px;">No registered store customer accounts found yet.</p>
-      </div>
-    `;
-  }
-
-  return customers
-    .sort((a, b) => (b.lastLoginAt || b.createdAt || 0) - (a.lastLoginAt || a.createdAt || 0))
-    .map((cust) => {
-      const name = cust.displayName || cust.name || 'Store Customer';
-      const email = cust.email || 'No email provided';
-      const phone = cust.phone || '';
-      const provider = cust.provider || (cust.providers && cust.providers[0]) || 'Web OTP';
-      const lastLogin = cust.lastLoginAt ? formatDateTime(cust.lastLoginAt) : (cust.createdAt ? formatDateTime(cust.createdAt) : 'Recently');
-      const timeSince = formatRelativeTime(cust.lastLoginAt || cust.createdAt || Date.now());
-
-      return `
-        <div class="glass" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px; padding: 14px 18px; border-radius: 12px; border: 1px solid var(--border); background: rgba(255,255,255,0.02);">
-          <div style="display: flex; align-items: center; gap: 14px; min-width: 0; flex: 1;">
-            <div style="width: 42px; height: 42px; border-radius: 12px; background: linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(168, 85, 247, 0.2)); color: #c084fc; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 16px; flex-shrink: 0; border: 1px solid rgba(168, 85, 247, 0.3);">
-              ${escapeHtml(name.slice(0, 1).toUpperCase())}
-            </div>
-            <div style="min-width: 0; flex: 1;">
-              <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-                <strong style="font-size: 14px; color: var(--text); font-weight: 700;">${escapeHtml(name)}</strong>
-                <span class="badge" style="background: rgba(99, 102, 241, 0.15); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.3); font-size: 10px; font-weight: 700; padding: 1px 7px;">${escapeHtml(provider.toUpperCase())}</span>
-              </div>
-              <div style="font-size: 12px; color: var(--muted); margin-top: 4px; display: flex; gap: 14px; flex-wrap: wrap; align-items: center;">
-                <span><i data-lucide="mail" style="width: 12px; height: 12px; vertical-align: -2px; margin-right: 3px;"></i> <strong style="color: var(--text);">${escapeHtml(email)}</strong></span>
-                ${phone ? `<span><i data-lucide="phone" style="width: 12px; height: 12px; vertical-align: -2px; margin-right: 3px;"></i> ${escapeHtml(phone)}</span>` : ''}
-                <span><i data-lucide="clock" style="width: 12px; height: 12px; vertical-align: -2px; margin-right: 3px;"></i> Last active: <span style="color: var(--text);">${escapeHtml(timeSince)} (${escapeHtml(lastLogin)})</span></span>
-              </div>
-            </div>
-          </div>
-          <div style="display: flex; align-items: center; gap: 8px;">
-            <span class="badge" style="background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); font-size: 11px; font-weight: 700; padding: 4px 10px;">
-              <i data-lucide="check-circle" style="width: 12px; height: 12px; vertical-align: -1px; margin-right: 4px;"></i> Verified Customer
-            </span>
-          </div>
-        </div>
-      `;
-    }).join('');
-}
-
-function renderActiveSessionsSection(sessions = [], fullData = {}) {
+function renderActiveSessionsSection(sessions = []) {
   const currentSessId = getCurrentSessionId();
   const activeSessions = sessions.filter((s) => s.status === 'active');
   const otherActiveCount = activeSessions.filter((s) => s.id !== currentSessId).length;
-  
-  const rawCustomers = fullData.customers || ui.data?.customers || {};
-  const customersList = Array.isArray(rawCustomers) ? rawCustomers : Object.values(rawCustomers || {});
-  
-  const activeTab = ui.securityTab || 'admin';
 
   return `
     <section class="panel glass" id="activeSessionsContainer" style="padding: 24px 28px; border-radius: 16px; border: 1px solid var(--border); margin-top: 24px;">
@@ -6468,50 +6415,22 @@ function renderActiveSessionsSection(sessions = [], fullData = {}) {
           </div>
           <div>
             <h3 style="margin: 0; font-size: 17px; font-weight: 800; color: var(--text);">Active Logged-in Devices & Multi-Location Security</h3>
-            <p style="margin: 2px 0 0 0; font-size: 12.5px; color: var(--muted);">Realtime tracking of all devices, phones, laptops, and locations where admin & users are logged in.</p>
+            <p style="margin: 2px 0 0 0; font-size: 12.5px; color: var(--muted);">Realtime tracking of all phones, laptops & computers where root admin is signed in. Terminate remote logins anytime.</p>
           </div>
         </div>
         
-        <!-- Tab Selector -->
-        <div style="display: flex; gap: 6px; background: rgba(0,0,0,0.3); padding: 4px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.06);">
-          <button class="btn btn-sm ${activeTab === 'admin' ? 'btn-primary' : 'btn-ghost'}" type="button" data-action="switch-security-tab" data-tab="admin" style="font-size: 12px; padding: 6px 14px; border-radius: 7px; font-weight: 700;">
-            <i data-lucide="shield" style="width: 13px; height: 13px; vertical-align: -1px; margin-right: 4px;"></i> Admin Devices (<span id="adminActiveCount">${activeSessions.length}</span>)
+        <div class="toolbar" style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+          <button class="btn btn-ghost btn-sm" type="button" data-action="refresh-sessions" style="font-size: 12px; padding: 6px 14px; border-radius: 8px;">
+            <i data-lucide="refresh-cw" style="width: 13px; height: 13px;"></i> Refresh Devices
           </button>
-          <button class="btn btn-sm ${activeTab === 'customers' ? 'btn-primary' : 'btn-ghost'}" type="button" data-action="switch-security-tab" data-tab="customers" style="font-size: 12px; padding: 6px 14px; border-radius: 7px; font-weight: 700;">
-            <i data-lucide="users" style="width: 13px; height: 13px; vertical-align: -1px; margin-right: 4px;"></i> Customer Accounts (<span id="customerCount">${customersList.length}</span>)
+          <button class="btn btn-danger btn-sm" type="button" data-action="terminate-all-other-sessions" id="terminateOtherSessionsBtn" ${otherActiveCount === 0 ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : ''} style="font-size: 12px; padding: 6px 14px; font-weight: 700; border-radius: 8px;">
+            <i data-lucide="power" style="width: 13px; height: 13px;"></i> Log Out All Other Devices (<span id="otherSessionsCount">${otherActiveCount}</span>)
           </button>
         </div>
       </div>
 
-      <!-- Tab 1: Admin Devices -->
-      <div id="adminSessionsTabContent" style="display: ${activeTab === 'admin' ? 'block' : 'none'};">
-        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-bottom: 14px;">
-          <div style="font-size: 12.5px; color: var(--muted);">
-            Showing all phones, laptops & computers where root admin is signed in. You can log out any remote device instantly.
-          </div>
-          <div class="toolbar" style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
-            <button class="btn btn-ghost btn-sm" type="button" data-action="refresh-sessions" style="font-size: 12px; padding: 6px 12px;">
-              <i data-lucide="refresh-cw" style="width: 13px; height: 13px;"></i> Refresh Devices
-            </button>
-            <button class="btn btn-danger btn-sm" type="button" data-action="terminate-all-other-sessions" id="terminateOtherSessionsBtn" ${otherActiveCount === 0 ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : ''} style="font-size: 12px; padding: 6px 12px; font-weight: 700;">
-              <i data-lucide="power" style="width: 13px; height: 13px;"></i> Log Out All Other Devices (<span id="otherSessionsCount">${otherActiveCount}</span>)
-            </button>
-          </div>
-        </div>
-
-        <div id="activeSessionsList" style="display: flex; flex-direction: column; gap: 12px;">
-          ${renderActiveSessionsCardsList(sessions, currentSessId)}
-        </div>
-      </div>
-
-      <!-- Tab 2: Customer Logins -->
-      <div id="customerLoginsTabContent" style="display: ${activeTab === 'customers' ? 'block' : 'none'};">
-        <div style="font-size: 12.5px; color: var(--muted); margin-bottom: 14px;">
-          List of customers and buyers who have signed into linkadda.online with their emails and phone numbers.
-        </div>
-        <div id="customerLoginsList" style="display: flex; flex-direction: column; gap: 12px;">
-          ${renderCustomerLoginsCardsList(customersList)}
-        </div>
+      <div id="activeSessionsList" style="display: flex; flex-direction: column; gap: 12px;">
+        ${renderActiveSessionsCardsList(sessions, currentSessId)}
       </div>
 
     </section>
@@ -6836,7 +6755,7 @@ function renderSettingsManagementView(data = {}, fullData = {}) {
       </form>
 
       <!-- 4. Active Logins & Device Security Section -->
-      ${renderActiveSessionsSection(ui.sessions || [], fullData || data || {})}
+      ${renderActiveSessionsSection(ui.sessions || [])}
 
     </div>
   `;
@@ -9704,20 +9623,6 @@ function attachGlobalHandlers() {
       } catch (err) {
         showToast('Failed to refresh sessions', 'danger');
       }
-      return;
-    }
-    if (action === 'switch-security-tab') {
-      const tab = actionBtn.dataset.tab || 'admin';
-      ui.securityTab = tab;
-      const adminContent = document.getElementById('adminSessionsTabContent');
-      const customerContent = document.getElementById('customerLoginsTabContent');
-      if (adminContent) adminContent.style.display = tab === 'admin' ? 'block' : 'none';
-      if (customerContent) customerContent.style.display = tab === 'customers' ? 'block' : 'none';
-      const btns = document.querySelectorAll('[data-action="switch-security-tab"]');
-      btns.forEach((b) => {
-        const isSelected = b.dataset.tab === tab;
-        b.className = `btn btn-sm ${isSelected ? 'btn-primary' : 'btn-ghost'}`;
-      });
       return;
     }
     if (action === 'edit-single') {
