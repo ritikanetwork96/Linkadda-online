@@ -2954,6 +2954,80 @@ function parseMetricNumber(value) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+export function getOrderCurrencyAndAmount(item = {}) {
+  if (!item || typeof item !== 'object') {
+    return { currency: 'INR', amount: 0, isUsdt: false, isPaid: false };
+  }
+  const isPaid = isPaidOrder(item);
+
+  // Check currency cues
+  const rawCurrency = String(item.currency || '').trim().toUpperCase();
+  const rawMethod = String(item.paymentMethod || item.method || item.gateway || item.channel || item.provider || '').trim().toLowerCase();
+  const display = String(item.amountDisplay || item.amountText || '').trim();
+
+  const isUsdt =
+    rawCurrency === 'USD' ||
+    rawCurrency === 'USDT' ||
+    rawCurrency === 'CRYPTO' ||
+    rawMethod.includes('usdt') ||
+    rawMethod.includes('bep20') ||
+    rawMethod.includes('erc20') ||
+    rawMethod.includes('eth') ||
+    rawMethod.includes('crypto') ||
+    rawMethod.includes('binance') ||
+    rawMethod.includes('giftcard') ||
+    display.includes('$') ||
+    display.toUpperCase().includes('USDT') ||
+    (Number(item.amountUSD) > 0 && !Number(item.amountINR));
+
+  let amount = 0;
+  if (isUsdt) {
+    if (Number.isFinite(Number(item.amountUSD)) && Number(item.amountUSD) > 0) {
+      amount = Number(item.amountUSD);
+    } else if (rawCurrency === 'USD' || rawCurrency === 'USDT') {
+      amount = parseMetricNumber(item.amount || item.usd || 0);
+    } else {
+      amount = parseMetricNumber(item.amountUSD || item.amount || item.usd || 0);
+    }
+    if (!amount && display) {
+      amount = parseMetricNumber(display);
+    }
+    return {
+      currency: 'USDT',
+      amount: Math.round(amount * 100) / 100,
+      isUsdt: true,
+      isPaid,
+    };
+  } else {
+    if (Number.isFinite(Number(item.amountINR)) && Number(item.amountINR) > 0) {
+      amount = Number(item.amountINR);
+    } else if (rawCurrency === 'INR') {
+      amount = parseMetricNumber(item.amount || item.inr || 0);
+    } else {
+      amount = parseMetricNumber(item.amount || item.amountINR || item.inr || 0);
+    }
+    if (!amount && display) {
+      amount = parseMetricNumber(display);
+    }
+    return {
+      currency: 'INR',
+      amount: Math.round(amount * 100) / 100,
+      isUsdt: false,
+      isPaid,
+    };
+  }
+}
+
+export function formatOrderAmount(order = {}) {
+  if (!order || typeof order !== 'object') return '₹0';
+  if (order.amountDisplay) return order.amountDisplay;
+  const { isUsdt, amount } = getOrderCurrencyAndAmount(order);
+  if (isUsdt) {
+    return `$${formatNumber(amount)} USDT`;
+  }
+  return `₹${formatNumber(amount)}`;
+}
+
 function getRangeWindow(range, offset = 0) {
   if (range === 'all') {
     if (offset > 0) return { start: 0, end: 0 };
@@ -3073,19 +3147,63 @@ function summarizeDashboard(range = ui.dashboardRange) {
   const allVisitorsCount = Math.max(visitors.length, stats().visitors || 0);
   const allClicksCount = Math.max(events.filter(clickPredicate).length, stats().clicks || 0);
   const allOrdersCount = Math.max(orders.length, stats().orders || 0);
-  const allRevenueCount = orders.reduce((sum, item) => isPaidOrder(item) ? sum + parseMetricNumber(item.amount || item.amountINR || 0) : sum, 0);
-  const totalVolumeCount = orders.reduce((sum, item) => sum + parseMetricNumber(item.amount || item.amountINR || item.inr || 0), 0);
+
+  // STRICT RULE: Only approved/confirmed/paid orders are counted in Revenue
+  const paidOrders = orders.filter(isPaidOrder);
+
+  // All-time approved revenue separated by currency
+  let allRevenueINR = 0;
+  let allRevenueUSDT = 0;
+  paidOrders.forEach((item) => {
+    const info = getOrderCurrencyAndAmount(item);
+    if (info.isUsdt) {
+      allRevenueUSDT += info.amount;
+    } else {
+      allRevenueINR += info.amount;
+    }
+  });
+
+  // Current window approved orders
+  const currentWindowPaidOrders = isAllRange
+    ? paidOrders
+    : paidOrders.filter((item) => isInWindow(recordTimestamp(item), currentWindow.start, currentWindow.end));
+
+  let currentRevenueINR = 0;
+  let currentRevenueUSDT = 0;
+  currentWindowPaidOrders.forEach((item) => {
+    const info = getOrderCurrencyAndAmount(item);
+    if (info.isUsdt) {
+      currentRevenueUSDT += info.amount;
+    } else {
+      currentRevenueINR += info.amount;
+    }
+  });
+
+  // Previous window approved orders
+  const prevWindowPaidOrders = paidOrders.filter((item) =>
+    isInWindow(recordTimestamp(item), previousWindow.start, previousWindow.end)
+  );
+
+  let prevRevenueINR = 0;
+  let prevRevenueUSDT = 0;
+  prevWindowPaidOrders.forEach((item) => {
+    const info = getOrderCurrencyAndAmount(item);
+    if (info.isUsdt) {
+      prevRevenueUSDT += info.amount;
+    } else {
+      prevRevenueINR += info.amount;
+    }
+  });
 
   const currentVisitors = isAllRange ? allVisitorsCount : countInWindow(visitors, currentWindow.start, currentWindow.end);
   const currentOrders = isAllRange ? allOrdersCount : countInWindow(orders, currentWindow.start, currentWindow.end);
   const currentClicks = isAllRange ? allClicksCount : countInWindow(events, currentWindow.start, currentWindow.end, clickPredicate);
-  const currentRevenue = isAllRange ? allRevenueCount : sumInWindow(orders, currentWindow.start, currentWindow.end, (item) => item.amount, isPaidOrder);
   const prevVisitors = countInWindow(visitors, previousWindow.start, previousWindow.end);
   const prevOrders = countInWindow(orders, previousWindow.start, previousWindow.end);
   const prevClicks = countInWindow(events, previousWindow.start, previousWindow.end, clickPredicate);
-  const prevRevenue = sumInWindow(orders, previousWindow.start, previousWindow.end, (item) => item.amount, isPaidOrder);
   const topProducts = buildTopProducts({ range, clicks: currentClicks });
   const top = topProducts[0] ? [topProducts[0].title || topProducts[0].name, topProducts[0].clicks] : [];
+
   return {
     range,
     rangeDays: getRangeDays(range),
@@ -3098,14 +3216,23 @@ function summarizeDashboard(range = ui.dashboardRange) {
     orders: currentOrders,
     ordersPrev: prevOrders,
     ordersTrend: percentChange(currentOrders, prevOrders),
-    revenue: currentRevenue,
-    totalVolume: totalVolumeCount,
-    revenuePrev: prevRevenue,
-    revenueTrend: percentChange(currentRevenue, prevRevenue),
+    paidOrdersCount: currentWindowPaidOrders.length,
+    allPaidOrdersCount: paidOrders.length,
+    revenueINR: Math.round(currentRevenueINR * 100) / 100,
+    revenueUSDT: Math.round(currentRevenueUSDT * 100) / 100,
+    allRevenueINR: Math.round(allRevenueINR * 100) / 100,
+    allRevenueUSDT: Math.round(allRevenueUSDT * 100) / 100,
+    revenue: Math.round(currentRevenueINR * 100) / 100,
+    totalVolume: Math.round(currentRevenueINR * 100) / 100,
+    revenuePrev: prevRevenueINR,
+    revenueTrend: percentChange(currentRevenueINR, prevRevenueINR),
     visitorSeries: buildSeries(visitors, range),
     clickSeries: buildSeries(events, range, clickPredicate),
     orderSeries: buildSeries(orders, range),
-    revenueSeries: buildValueSeries(orders, range, (item) => item.amount, isPaidOrder),
+    revenueSeries: buildValueSeries(paidOrders, range, (item) => {
+      const info = getOrderCurrencyAndAmount(item);
+      return !info.isUsdt ? info.amount : 0;
+    }, () => true),
     topClicked: topProducts.map((p) => [p.title || p.name, p.clicks]),
     topProductName: top[0] || 'None',
     topProductClicks: top[1] || 0,
@@ -3644,18 +3771,19 @@ function getActivityIcon(type) {
   return 'sparkles';
 }
 
-function renderKpiCard({ label, value, change, note, icon, series, tone, valuePrefix = '' }) {
+function renderKpiCard({ label, value, change, note, icon, series, tone, valuePrefix = '', rawValueHtml = '' }) {
   const isDynamic = change !== null && change !== undefined;
   const trendBadge = isDynamic
     ? `<span class="kpi-change ${change >= 0 ? 'up' : 'down'}">${formatTrendValue(change)}</span>`
     : `<span class="kpi-change up" style="background: rgba(16, 185, 129, 0.15); color: #34d399; font-weight: 700; display: inline-flex; align-items: center; gap: 3px; padding: 2px 8px; border-radius: 6px;"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><circle cx="12" cy="12" r="6" fill="#10b981"/></svg>Live</span>`;
+  const valContent = rawValueHtml || `${escapeHtml(valuePrefix)}${escapeHtml(String(value))}`;
   return `
     <article class="kpi-card glass ${isDynamic ? 'kpi-card-dynamic' : ''}">
       <div class="kpi-card-top">
         <span class="kpi-label">${escapeHtml(label)}</span>
         <span class="kpi-icon ${escapeHtml(tone)}"><i data-lucide="${escapeHtml(icon)}"></i></span>
       </div>
-      <div class="kpi-value">${escapeHtml(valuePrefix)}${escapeHtml(String(value))}</div>
+      <div class="kpi-value">${valContent}</div>
       <div class="kpi-meta">
         ${trendBadge}
         <span>${escapeHtml(note)}</span>
@@ -4755,15 +4883,27 @@ function renderDashboard(data) {
             })}
             ${renderKpiCard({
               label: 'Revenue',
-              value: formatNumber(summary.range === 'all' ? (summary.revenue > 0 ? summary.revenue : summary.totalVolume) : summary.revenue),
+              value: formatNumber(summary.revenueINR),
               change: summary.range === 'all' ? null : summary.revenueTrend,
               note: summary.range === 'all'
-                ? (summary.totalVolume > 0 ? `₹${formatNumber(summary.totalVolume)} in customer orders` : 'All-time verified revenue')
-                : `${summary.range === 'day' ? 'Last 24 Hours' : summary.range === 'week' ? 'Last 7 Days' : 'Last 30 Days'} · ₹${formatNumber(summary.totalVolume)} all-time`,
+                ? `Approved orders only · ${summary.allPaidOrdersCount || 0} verified`
+                : `${summary.range === 'day' ? 'Last 24 Hours' : summary.range === 'week' ? 'Last 7 Days' : 'Last 30 Days'} · ${summary.paidOrdersCount || 0} approved`,
               icon: 'banknote',
               series: summary.revenueSeries,
               tone: 'accent',
               valuePrefix: '₹',
+              rawValueHtml: `
+                <div class="revenue-kpi-split" style="display: flex; flex-direction: column; gap: 4px; width: 100%;">
+                  <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 8px;">
+                    <span style="font-size: 1.7rem; font-weight: 800; color: #ffffff; letter-spacing: -0.02em;">₹${formatNumber(summary.revenueINR)}</span>
+                    <span style="font-size: 10px; font-weight: 700; color: #818cf8; background: rgba(99,102,241,0.15); border: 1px solid rgba(99,102,241,0.3); padding: 2px 7px; border-radius: 6px; letter-spacing: 0.05em;">INR</span>
+                  </div>
+                  <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding-top: 4px; border-top: 1px dashed rgba(255,255,255,0.08);">
+                    <span style="font-size: 1.15rem; font-weight: 750; color: #34d399; letter-spacing: -0.01em;">$${summary.revenueUSDT ? formatNumber(summary.revenueUSDT) : '0.00'}</span>
+                    <span style="font-size: 10px; font-weight: 700; color: #34d399; background: rgba(16,185,129,0.15); border: 1px solid rgba(16,185,129,0.3); padding: 2px 7px; border-radius: 6px; letter-spacing: 0.05em;">USDT</span>
+                  </div>
+                </div>
+              `,
             })}
           </div>
           <div class="dashboard-secondary-grid">
@@ -4860,7 +5000,7 @@ function renderDashboard(data) {
                 const method = orderMethodLabel(item);
                 const methodLower = method.toLowerCase();
                 const methodClass = methodLower.includes('upi') ? 'upi' : methodLower.includes('binance') ? 'binance' : methodLower.includes('paypal') ? 'paypal' : 'crypto';
-                const formattedAmt = item.amountDisplay || formatCurrencyCompact(item.amount || item.inr || 0);
+                const formattedAmt = formatOrderAmount(item);
 
                 return `
                   <tr>
@@ -5734,9 +5874,15 @@ function parseAmountValue(value) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function formatCurrencyCompact(value) {
+function formatCurrencyCompact(value, currency = 'INR') {
+  if (value && typeof value === 'object') {
+    return formatOrderAmount(value);
+  }
   const number = parseAmountValue(value);
-  return `Rs ${formatNumber(number)}`;
+  if (String(currency).toUpperCase() === 'USD' || String(currency).toUpperCase() === 'USDT') {
+    return `$${formatNumber(number)} USDT`;
+  }
+  return `₹${formatNumber(number)}`;
 }
 
 function pickFirstValue(item = {}, keys = [], fallback = '') {
@@ -5811,6 +5957,8 @@ function orderDateValue(item = {}) {
 }
 
 function isPaidOrder(item = {}) {
+  if (!item || typeof item !== 'object') return false;
+  if (item.verified === true || item.isPaid === true || item.approved === true) return true;
   const value = orderStatusValue(item);
   return ['paid', 'approved', 'success', 'completed', 'complete', 'verified'].includes(value);
 }
@@ -5853,19 +6001,31 @@ function managementCounts(list = [], predicate = () => true) {
 function managementTotals(list = []) {
   const today = new Date().toISOString().slice(0, 10);
   const monthKey = today.slice(0, 7);
-  const totalReceived = list.filter(isPaidOrder).reduce((total, item) => total + parseAmountValue(item.amount || item.inr || item.amountINR), 0);
+  const paidList = list.filter(isPaidOrder);
+  let totalReceivedINR = 0;
+  let totalReceivedUSDT = 0;
+  for (const item of paidList) {
+    const info = getOrderCurrencyAndAmount(item);
+    if (info.isUsdt) {
+      totalReceivedUSDT += info.amount;
+    } else {
+      totalReceivedINR += info.amount;
+    }
+  }
   const pending = managementCounts(list, isPendingOrder);
   const failed = managementCounts(list, isFailedOrder);
   const todayCount = list.filter((item) => String(item.date || '').slice(0, 10) === today || new Date(orderDateValue(item)).toISOString().slice(0, 10) === today).length;
   const monthCount = list.filter((item) => String(item.date || '').slice(0, 7) === monthKey || new Date(orderDateValue(item)).toISOString().slice(0, 7) === monthKey).length;
   return {
-    totalReceived,
+    totalReceived: Math.round(totalReceivedINR * 100) / 100,
+    totalReceivedINR: Math.round(totalReceivedINR * 100) / 100,
+    totalReceivedUSDT: Math.round(totalReceivedUSDT * 100) / 100,
     pending,
     failed,
     today: todayCount,
     month: monthCount,
     total: list.length,
-    paid: managementCounts(list, isPaidOrder),
+    paid: paidList.length,
   };
 }
 
@@ -6940,21 +7100,45 @@ function renderPaymentManagementView(data = {}, fullData = {}) {
   const records = sortManagementList(filterManagementList(paymentOrders, 'payment'));
   const totals = managementTotals(records);
   const paidMethods = [...new Set(paymentOrders.map((item) => orderMethodLabel(item)).filter((value) => value && value !== 'Unknown'))];
-  const totalVolume = records.reduce((total, item) => total + parseAmountValue(item.amount || item.inr), 0);
-  const todayReceived = records
+  const paidRecords = records.filter(isPaidOrder);
+  let totalVolumeINR = 0;
+  let totalVolumeUSDT = 0;
+  paidRecords.forEach((item) => {
+    const info = getOrderCurrencyAndAmount(item);
+    if (info.isUsdt) totalVolumeUSDT += info.amount;
+    else totalVolumeINR += info.amount;
+  });
+
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const monthStr = todayStr.slice(0, 7);
+
+  let todayReceivedINR = 0;
+  let todayReceivedUSDT = 0;
+  paidRecords
     .filter((item) => {
       const d = orderDateValue(item);
       const day = d ? new Date(d).toISOString().slice(0, 10) : '';
-      return day === new Date().toISOString().slice(0, 10);
+      return day === todayStr;
     })
-    .reduce((total, item) => total + parseAmountValue(item.amount || item.inr), 0);
-  const monthReceived = records
+    .forEach((item) => {
+      const info = getOrderCurrencyAndAmount(item);
+      if (info.isUsdt) todayReceivedUSDT += info.amount;
+      else todayReceivedINR += info.amount;
+    });
+
+  let monthReceivedINR = 0;
+  let monthReceivedUSDT = 0;
+  paidRecords
     .filter((item) => {
       const d = orderDateValue(item);
       const m = d ? new Date(d).toISOString().slice(0, 7) : '';
-      return m === new Date().toISOString().slice(0, 7);
+      return m === monthStr;
     })
-    .reduce((total, item) => total + parseAmountValue(item.amount || item.inr), 0);
+    .forEach((item) => {
+      const info = getOrderCurrencyAndAmount(item);
+      if (info.isUsdt) monthReceivedUSDT += info.amount;
+      else monthReceivedINR += info.amount;
+    });
   const tableItems = records;
 
   return `
@@ -6973,11 +7157,11 @@ function renderPaymentManagementView(data = {}, fullData = {}) {
           </div>
         </div>
         <div class="management-summary-grid">
-          ${renderManagementSummaryCard('Total Volume', formatCurrencyCompact(totalVolume || totals.totalReceived), `${records.length} screenshot submission${records.length === 1 ? '' : 's'}`, 'success')}
+          ${renderManagementSummaryCard('Verified Revenue', `₹${formatNumber(totalVolumeINR)}${totalVolumeUSDT > 0 ? ` + $${formatNumber(totalVolumeUSDT)}` : ''}`, `${paidRecords.length} approved payment${paidRecords.length === 1 ? '' : 's'}`, 'success')}
           ${renderManagementSummaryCard('Pending Verification', String(totals.pending), totals.pending ? 'Awaiting admin review' : 'All clear', 'warning')}
           ${renderManagementSummaryCard('Failed / Rejected', String(totals.failed), 'Rejected or expired payments', 'danger')}
-          ${renderManagementSummaryCard('Today Received', formatCurrencyCompact(todayReceived), 'Received today', 'primary')}
-          ${renderManagementSummaryCard('This Month', formatCurrencyCompact(monthReceived), 'Total this month', 'accent')}
+          ${renderManagementSummaryCard('Today Received', `₹${formatNumber(todayReceivedINR)}${todayReceivedUSDT > 0 ? ` + $${formatNumber(todayReceivedUSDT)}` : ''}`, 'Approved today', 'primary')}
+          ${renderManagementSummaryCard('This Month', `₹${formatNumber(monthReceivedINR)}${monthReceivedUSDT > 0 ? ` + $${formatNumber(monthReceivedUSDT)}` : ''}`, 'Approved this month', 'accent')}
         </div>
       </section>
 
@@ -7085,7 +7269,7 @@ function renderPaymentManagementView(data = {}, fullData = {}) {
                   </td>
                   <td><code>${escapeHtml(orderTransactionId(item))}</code></td>
                   <td><span class="badge">${escapeHtml(orderMethodLabel(item))}</span></td>
-                  <td><strong>${escapeHtml(formatCurrencyCompact(item.amount || item.inr || 0))}</strong></td>
+                  <td><strong>${escapeHtml(formatOrderAmount(item))}</strong></td>
                   <td>${renderStatusBadge(orderStatusValue(item))}</td>
                   <td>${escapeHtml(formatDateTime(orderDateValue(item)))}</td>
                   <td>
@@ -7212,7 +7396,7 @@ function renderOrderDetailsModal(item = {}) {
   const delivery = orderDeliveryInfo(item);
   const isPaid = isPaidOrder(item);
   const isFailed = isFailedOrder(item);
-  const amountFormatted = item.amountDisplay || formatCurrencyCompact(item.amount || item.inr || 0);
+  const amountFormatted = formatOrderAmount(item);
   const methodName = orderMethodLabel(item);
   const orderId = item.id || item.orderId || '-';
   const prodName = orderProductName(item);
@@ -7375,9 +7559,15 @@ function renderOrdersManagementView(data = {}, fullData = {}) {
           </div>
 
           <div style="background: rgba(236, 72, 153, 0.06); border: 1px solid rgba(236, 72, 153, 0.25); border-radius: 14px; padding: 16px 18px;">
-            <div style="font-size: 11px; font-weight: 700; color: #f472b6; text-transform: uppercase; letter-spacing: 0.05em;">Total Volume</div>
-            <div style="font-size: 26px; font-weight: 800; color: #fff; margin-top: 4px;">${formatCurrencyCompact(totals.totalReceived)}</div>
-            <div style="font-size: 12px; color: var(--muted); margin-top: 2px;">From verified payments</div>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <div style="font-size: 11px; font-weight: 700; color: #f472b6; text-transform: uppercase; letter-spacing: 0.05em;">Verified Revenue</div>
+              <span style="font-size: 10px; font-weight: 700; color: #34d399; background: rgba(16, 185, 129, 0.15); padding: 1px 6px; border-radius: 4px;">APPROVED ONLY</span>
+            </div>
+            <div style="margin-top: 6px; display: flex; flex-direction: column; gap: 3px;">
+              <div style="font-size: 22px; font-weight: 850; color: #fff; line-height: 1.2;">₹${formatNumber(totals.totalReceivedINR)} <span style="font-size: 11px; font-weight: 700; color: #818cf8;">INR</span></div>
+              <div style="font-size: 15px; font-weight: 750; color: #34d399; line-height: 1.2;">$${formatNumber(totals.totalReceivedUSDT)} <span style="font-size: 11px; font-weight: 700; color: #34d399;">USDT</span></div>
+            </div>
+            <div style="font-size: 12px; color: var(--muted); margin-top: 4px;">${totals.paid} verified order${totals.paid === 1 ? '' : 's'}</div>
           </div>
 
         </div>
@@ -7449,7 +7639,7 @@ function renderOrdersManagementView(data = {}, fullData = {}) {
               const method = orderMethodLabel(item);
               const methodLower = method.toLowerCase();
               const methodClass = methodLower.includes('upi') ? 'upi' : methodLower.includes('binance') ? 'binance' : methodLower.includes('paypal') ? 'paypal' : 'crypto';
-              const formattedAmt = item.amountDisplay || formatCurrencyCompact(item.amount || item.inr || 0);
+              const formattedAmt = formatOrderAmount(item);
 
               return `
                 <tr>
@@ -7743,7 +7933,7 @@ function renderScreenshotsGalleryView(data = {}, fullData = {}) {
                   </div>
                   <div style="display: flex; justify-content: space-between; align-items: center;">
                     <span style="color: var(--muted);">Amount Paid:</span>
-                    <strong style="color: #10b981; font-size: 14px;">${escapeHtml(formatCurrencyCompact(item.amount))}</strong>
+                    <strong style="color: #10b981; font-size: 14px;">${escapeHtml(formatOrderAmount(item))}</strong>
                   </div>
                   <div style="display: flex; justify-content: space-between; align-items: center;">
                     <span style="color: var(--muted);">Order ID:</span>
