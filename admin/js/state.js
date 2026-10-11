@@ -2,6 +2,10 @@ import { db, ref, onValue, get, set, update, remove, auth, onAuthStateChanged } 
 import { RTDB_NODES } from './config.js';
 import { safeJson, slugify, uid } from './utils.js';
 
+if (typeof window !== 'undefined' && window.location.pathname.endsWith('.js')) {
+  window.location.replace('/admin');
+}
+
 const CACHE_KEY = 'linkadda_admin_store_cache_v4';
 const DELETED_ORDERS_KEY = 'linkadda_deleted_order_ids_v1';
 

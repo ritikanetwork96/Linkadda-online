@@ -69,6 +69,10 @@ import {
   copyText,
 } from './utils.js';
 
+if (typeof window !== 'undefined' && window.location.pathname.endsWith('.js')) {
+  window.location.replace('/admin');
+}
+
 const viewRoot = document.getElementById('viewRoot');
 const sideNav = document.getElementById('sideNav');
 const sidebar = document.getElementById('sidebar');
@@ -9422,23 +9426,45 @@ function softUpdateCatalog() {
 }
 
 let routeProgressBar = null;
-function triggerRouteProgressBar() {
+export function triggerRouteProgressBar() {
   if (!routeProgressBar) {
-    routeProgressBar = document.createElement('div');
-    routeProgressBar.className = 'route-progress-bar';
-    document.body.appendChild(routeProgressBar);
+    routeProgressBar = document.getElementById('topProgressBar') || document.querySelector('.top-progress-bar');
+    if (!routeProgressBar) {
+      routeProgressBar = document.createElement('div');
+      routeProgressBar.id = 'topProgressBar';
+      routeProgressBar.className = 'top-progress-bar';
+      document.body.prepend(routeProgressBar);
+    }
   }
+  routeProgressBar.classList.add('active');
   routeProgressBar.style.transition = 'none';
-  routeProgressBar.style.width = '0%';
+  routeProgressBar.style.width = '28%';
   routeProgressBar.style.opacity = '1';
   requestAnimationFrame(() => {
-    routeProgressBar.style.transition = 'width 240ms cubic-bezier(0.16, 1, 0.3, 1)';
+    routeProgressBar.style.transition = 'width 320ms cubic-bezier(0.16, 1, 0.3, 1)';
     routeProgressBar.style.width = '100%';
     setTimeout(() => {
       routeProgressBar.style.opacity = '0';
-    }, 260);
+      routeProgressBar.classList.remove('active');
+      setTimeout(() => {
+        if (routeProgressBar) routeProgressBar.style.width = '0%';
+      }, 200);
+    }, 360);
   });
 }
+export const startTopProgress = triggerRouteProgressBar;
+export function finishTopProgress() {
+  if (routeProgressBar) {
+    routeProgressBar.style.width = '100%';
+    setTimeout(() => {
+      routeProgressBar.style.opacity = '0';
+      routeProgressBar.classList.remove('active');
+    }, 200);
+  }
+}
+window.startTopProgress = startTopProgress;
+window.finishTopProgress = finishTopProgress;
+window.triggerRouteProgressBar = triggerRouteProgressBar;
 
 function applyRoute(path) {
   const targetRoute = (path === 'products' || path === 'categories') ? 'catalog' : (NAV_ITEMS.some((item) => item.key === path) ? path : 'dashboard');
@@ -9592,10 +9618,31 @@ function attachGlobalHandlers() {
   paletteBackdrop.addEventListener('click', (event) => {
     if (event.target === paletteBackdrop) closePalette();
   });
+  // ━━ ULTRA-TACTILE BUTTON RIPPLE & PRESS ENGINE ━━
+  document.addEventListener('pointerdown', (e) => {
+    const btn = e.target.closest('.btn, button, .table-action-btn, .order-tab-btn, .chip, .icon-btn, .catalog-action-btn, .mobile-nav-item');
+    if (!btn) return;
+    const rect = btn.getBoundingClientRect();
+    const size = Math.max(rect.width, rect.height) * 1.6;
+    const x = e.clientX - rect.left - size / 2;
+    const y = e.clientY - rect.top - size / 2;
+    const ripple = document.createElement('span');
+    ripple.className = 'btn-ripple-wave';
+    ripple.style.width = `${size}px`;
+    ripple.style.height = `${size}px`;
+    ripple.style.left = `${x}px`;
+    ripple.style.top = `${y}px`;
+    btn.appendChild(ripple);
+    setTimeout(() => {
+      try { ripple.remove(); } catch (_) {}
+    }, 550);
+  });
+
   document.addEventListener('click', async (event) => {
     const routeBtn = event.target.closest('[data-route]');
     if (routeBtn) {
       event.preventDefault();
+      triggerRouteProgressBar();
       const route = routeBtn.dataset.route;
       routeBtn.classList.add('nav-link-pressed');
       setTimeout(() => routeBtn.classList.remove('nav-link-pressed'), 250);
@@ -9616,6 +9663,18 @@ function attachGlobalHandlers() {
     const id = actionBtn.dataset.id;
     const target = actionBtn.dataset.target;
     closeCatalogActionMenus();
+
+    // Instant tactile feedback & top loader
+    actionBtn.classList.add('btn-pressed');
+    setTimeout(() => actionBtn.classList.remove('btn-pressed'), 200);
+    triggerRouteProgressBar();
+
+    // Show temporary inline loading indicator if async actionable button
+    const isAsyncAction = ['approve-order', 'reject-order', 'delete-order', 'save', 'sync', 'export-orders-csv', 'backup', 'restore', 'add-payment-method', 'edit-single', 'delete-single'].includes(action);
+    if (isAsyncAction && !actionBtn.classList.contains('is-loading')) {
+      actionBtn.classList.add('is-loading');
+      setTimeout(() => actionBtn.classList.remove('is-loading'), 1200);
+    }
     if (action === 'goto') {
       const route = actionBtn.dataset.route;
       const targetHash = `#/${route}`;
@@ -10828,6 +10887,12 @@ function attachGlobalHandlers() {
   document.addEventListener('submit', async (event) => {
     event.preventDefault();
     const form = event.target;
+    triggerRouteProgressBar();
+    const submitBtn = form.querySelector('button[type="submit"], .btn-primary');
+    if (submitBtn && !submitBtn.classList.contains('is-loading')) {
+      submitBtn.classList.add('is-loading');
+      setTimeout(() => submitBtn.classList.remove('is-loading'), 1500);
+    }
     if (form.id === 'paymentMethodForm') {
       const methodId = form.dataset.methodId || (`custom_${Date.now()}`);
       const isCustom = form.dataset.isCustom === 'true' || methodId.startsWith('custom_');

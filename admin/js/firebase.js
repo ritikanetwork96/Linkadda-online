@@ -25,6 +25,10 @@ import {
 } from 'https://www.gstatic.com/firebasejs/12.17.1/firebase-database.js';
 import { FIREBASE_CONFIG } from './config.js';
 
+if (typeof window !== 'undefined' && window.location.pathname.endsWith('.js')) {
+  window.location.replace('/admin');
+}
+
 const app = initializeApp(FIREBASE_CONFIG);
 const auth = getAuth(app);
 const db = getDatabase(app);

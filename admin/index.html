@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <base href="/admin/" />
   <script>
-    // 🛡️ LinkAdda Admin Anti-Clone Domain Lock
+    // 🛡️ LinkAdda Admin Anti-Clone Domain Lock & Hardened Anti-Inspect Shield
     (function protectAdmin() {
       var h = (window.location.hostname || '').toLowerCase();
       var p = window.location.protocol;
@@ -33,6 +33,81 @@
           window.history.replaceState(null, '', cleanPath + window.location.search + window.location.hash);
         }
       }
+
+      // 🔒 1. Disable Right-Click Context Menu
+      document.addEventListener('contextmenu', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        return false;
+      }, { capture: true });
+
+      // 🔒 2. Block Inspect Keyboard Shortcuts (F12, Ctrl+Shift+I/J/C/K, Ctrl+U, Ctrl+S)
+      window.addEventListener('keydown', function(e) {
+        var key = (e.key || '').toUpperCase();
+        var code = e.keyCode || 0;
+        var isCtrlOrMeta = e.ctrlKey || e.metaKey;
+        var isShift = e.shiftKey;
+
+        // F12
+        if (key === 'F12' || code === 123) {
+          e.preventDefault();
+          e.stopPropagation();
+          return false;
+        }
+
+        // Ctrl+Shift+I / J / C / K
+        if (isCtrlOrMeta && isShift && (key === 'I' || key === 'J' || key === 'C' || key === 'K')) {
+          e.preventDefault();
+          e.stopPropagation();
+          return false;
+        }
+
+        // Ctrl+U (View Source)
+        if (isCtrlOrMeta && (key === 'U' || code === 85)) {
+          e.preventDefault();
+          e.stopPropagation();
+          return false;
+        }
+
+        // Ctrl+S (Save Page)
+        if (isCtrlOrMeta && (key === 'S' || code === 83)) {
+          e.preventDefault();
+          e.stopPropagation();
+          return false;
+        }
+      }, { capture: true });
+
+      // 🔒 3. Active DevTools Detector (Non-local)
+      if (!isLocal) {
+        var devtoolsActive = false;
+        var threshold = 160;
+
+        function triggerDevtoolsBlock() {
+          if (devtoolsActive) return;
+          devtoolsActive = true;
+          try { console.clear(); } catch (_) {}
+          document.body.innerHTML = '<div style="position:fixed;inset:0;background:#06080e;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',sans-serif;text-align:center;padding:24px;z-index:99999999;"><div style="width:64px;height:64px;border-radius:20px;background:linear-gradient(135deg,#ef4444,#dc2626);display:flex;align-items:center;justify-content:center;font-size:30px;box-shadow:0 10px 30px rgba(239,68,68,0.4);margin-bottom:20px;">🛡️</div><h2 style="font-size:22px;font-weight:800;margin:0 0 8px 0;letter-spacing:-0.02em;">Security Restriction Active</h2><p style="color:#94a3b8;font-size:14px;max-width:380px;line-height:1.5;margin:0 0 24px 0;">Developer tools and inspecting are strictly prohibited in LinkAdda Secure Admin.</p><button onclick="window.location.replace(\'/\')" style="padding:10px 24px;background:#6366f1;color:#fff;border:none;border-radius:12px;font-weight:700;font-size:14px;cursor:pointer;">Return to Safe Store</button></div>';
+          setTimeout(function() {
+            window.location.replace('/');
+          }, 2000);
+        }
+
+        setInterval(function() {
+          if ((window.outerWidth - window.innerWidth > threshold) || (window.outerHeight - window.innerHeight > threshold)) {
+            triggerDevtoolsBlock();
+          }
+        }, 1200);
+
+        // Silence production console
+        try {
+          var noop = function() {};
+          window.console.log = noop;
+          window.console.warn = noop;
+          window.console.info = noop;
+          window.console.debug = noop;
+          window.console.table = noop;
+        } catch (_) {}
+      }
     })();
   </script>
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
@@ -44,8 +119,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-  <link rel="stylesheet" href="/admin/assets/admin.css?v=20261011_v2" />
-  <script src="/preload.js?v=20261011_v2" charset="UTF-8"></script>
+  <link rel="stylesheet" href="/admin/assets/admin.css?v=20261011_v3" />
+  <script src="/preload.js?v=20261011_v3" charset="UTF-8"></script>
   <script src="https://cdn.jsdelivr.net/npm/lucide@latest/dist/umd/lucide.min.js" onerror="this.onerror=null;this.src='https://unpkg.com/lucide@latest';"></script>
   <script>
     function renderAppLucideIcons() {
@@ -60,6 +135,8 @@
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
 </head>
 <body data-theme="dark">
+  <!-- Slim Glowing Top Loader Progress Bar -->
+  <div id="topProgressBar" class="top-progress-bar" aria-hidden="true"></div>
   <!-- Security Gate: Blocks viewing the admin panel until authentication as root administrator is verified -->
   <div id="authGate" style="position: fixed; inset: 0; background: #090d16; z-index: 999999; display: flex; flex-direction: column; align-items: center; justify-content: center; font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; color: #f8fafc; text-align: center; padding: 24px;">
     <div style="width: 58px; height: 58px; border-radius: 18px; background: linear-gradient(135deg, #6366f1, #a855f7); display: flex; align-items: center; justify-content: center; font-size: 28px; font-weight: 800; color: #ffffff; box-shadow: 0 10px 30px rgba(99,102,241,0.45); margin-bottom: 22px;">L</div>

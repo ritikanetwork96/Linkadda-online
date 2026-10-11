@@ -14,6 +14,10 @@ import {
 import { APP_CONFIG } from './config.js';
 import { escapeHtml } from './utils.js';
 
+if (typeof window !== 'undefined' && window.location.pathname.endsWith('.js')) {
+  window.location.replace('/admin');
+}
+
 export function getDeviceDetails() {
   const ua = navigator.userAgent || '';
   let browser = 'Browser';

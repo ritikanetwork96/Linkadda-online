@@ -1,3 +1,7 @@
+if (typeof window !== 'undefined' && window.location.pathname.endsWith('.js')) {
+  window.location.replace('/admin');
+}
+
 export const APP_CONFIG = {
   appName: 'Linkadda Admin',
   appSlug: 'linkadda-admin',
