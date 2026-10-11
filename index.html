@@ -3634,18 +3634,18 @@
     }
   }
 
-  function startCardTimer(mediaEl, staggerDelay = 3200) {
+  function startCardTimer(mediaEl, staggerDelay = 3000) {
     stopCardTimer(mediaEl);
     const slides = mediaEl.querySelectorAll('.fk-card-slide');
     if (slides.length <= 1) return;
 
     mediaEl._cardDelayTimeout = setTimeout(() => {
-      if (mediaEl._isHovered) return;
+      if (mediaEl._isHovered || document.body.classList.contains('media-viewer-open') || document.body.classList.contains('fk-product-open')) return;
       const curIdx = parseInt(mediaEl.dataset.activeIdx || '0', 10);
       goToCardSlide(mediaEl, curIdx + 1);
 
       mediaEl._cardTimer = setInterval(() => {
-        if (mediaEl._isHovered) return;
+        if (mediaEl._isHovered || document.body.classList.contains('media-viewer-open') || document.body.classList.contains('fk-product-open')) return;
         const cIdx = parseInt(mediaEl.dataset.activeIdx || '0', 10);
         goToCardSlide(mediaEl, cIdx + 1);
       }, 3500);
@@ -3657,7 +3657,7 @@
     const slides = mediaEl.querySelectorAll('.fk-card-slide');
     if (slides.length <= 1) return;
     mediaEl._cardTimer = setInterval(() => {
-      if (mediaEl._isHovered) return;
+      if (mediaEl._isHovered || document.body.classList.contains('media-viewer-open') || document.body.classList.contains('fk-product-open')) return;
       const cIdx = parseInt(mediaEl.dataset.activeIdx || '0', 10);
       goToCardSlide(mediaEl, cIdx + 1);
     }, 3500);
@@ -3697,11 +3697,16 @@
       activeCardSlideshowObserver = new IntersectionObserver((entries) => {
         entries.forEach((entry) => {
           const mediaEl = entry.target;
-          if (!entry.isIntersecting) {
+          if (entry.isIntersecting) {
+            const cardIdx = parseInt(mediaEl.dataset.cardOrder || '0', 10);
+            const stagger = 2000 + ((cardIdx % 4) * 700);
+            ensureCardMediaLoaded(mediaEl);
+            startCardTimer(mediaEl, stagger);
+          } else {
             stopCardTimer(mediaEl);
           }
         });
-      }, { rootMargin: '200px 0px 200px 0px', threshold: 0 });
+      }, { rootMargin: '250px 0px 250px 0px', threshold: 0.1 });
     }
 
     cardSlideshows.forEach((mediaEl, index) => {
@@ -3709,19 +3714,21 @@
 
       if (activeCardSlideshowObserver) {
         activeCardSlideshowObserver.observe(mediaEl);
+      } else {
+        ensureCardMediaLoaded(mediaEl);
+        startCardTimer(mediaEl, 2000 + ((index % 4) * 700));
       }
 
-      // Hover preview: start auto-cycling on mouse hover only
+      // Hover preview / pause:
       if (!mediaEl._hasHoverListener) {
         mediaEl._hasHoverListener = true;
         mediaEl.addEventListener('mouseenter', () => {
-          ensureCardMediaLoaded(mediaEl);
           mediaEl._isHovered = true;
-          startCardTimer(mediaEl, 1500);
+          stopCardTimer(mediaEl);
         });
         mediaEl.addEventListener('mouseleave', () => {
           mediaEl._isHovered = false;
-          stopCardTimer(mediaEl);
+          startCardTimer(mediaEl, 1500);
         });
       }
 
@@ -3751,6 +3758,7 @@
               } else {
                 goToCardSlide(mediaEl, cIdx - 1);
               }
+              restartCardTimer(mediaEl);
             }
           }
         }, { passive: true });
@@ -4086,6 +4094,7 @@
         }).join('');
 
         if (grid._lastRenderedHtml === nextHtml && grid.children.length === records.length) {
+          initSlideshows();
           return;
         }
 
