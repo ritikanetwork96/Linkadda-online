@@ -128,7 +128,7 @@ function renderPasswordChangedNotificationEmail(ownerName, storeName, timestampS
               </a>
 
               <p style="margin: 26px 0 0; font-size: 12px; line-height: 1.5; color: #64748b;">
-                If you made this change, you can safely disregard this message. If you did <strong>NOT</strong> authorize this change, please immediately reach out to our Helpdesk at <strong>ritikanetwork96@gmail.com</strong> or contact Telegram <strong>@TRUSTED_BROTHER1234</strong>.
+                If you made this change, you can safely disregard this message. If you did <strong>NOT</strong> authorize this change, please immediately reach out to our Helpdesk at <strong>botforword@gmail.com</strong> or contact Telegram <strong>@TRUSTED_BROTHER1234</strong>.
               </p>
             </td>
           </tr>
@@ -370,7 +370,7 @@ export default async function handler(req, res) {
 
       // Send Security Confirmation Email via Brevo API
       const apiKey = (process.env.BREVO_API_KEY || '').trim();
-      const senderEmail = (process.env.BREVO_SENDER_EMAIL || 'ritikanetwork96@gmail.com').trim();
+      const senderEmail = (process.env.BREVO_SENDER_EMAIL || 'botforword@gmail.com').trim();
       const senderName = (process.env.BREVO_SENDER_NAME || 'Linkadda Online').trim();
 
       const reqHost = req.headers['host'] || req.headers['x-forwarded-host'] || '';
@@ -450,7 +450,7 @@ export default async function handler(req, res) {
 
       // Send OTP via Brevo API
       const apiKey = (process.env.BREVO_API_KEY || '').trim();
-      const senderEmail = (process.env.BREVO_SENDER_EMAIL || 'ritikanetwork96@gmail.com').trim();
+      const senderEmail = (process.env.BREVO_SENDER_EMAIL || 'botforword@gmail.com').trim();
       const senderName = (process.env.BREVO_SENDER_NAME || 'Linkadda Online').trim();
 
       if (apiKey) {

@@ -32,7 +32,7 @@ function getEnvConfig() {
 
 async function uploadToStorageBackend(key, buffer, contentType, s3Client, config) {
   const supabaseUrl = process.env.SUPABASE_URL || 'https://dsleaglxbedljdxrikdn.supabase.co';
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRzbGVhZ2x4YmVkbGpkeHJpa2RuIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MTIyNzA5MiwiZXhwIjoyMTA2ODAzMDkyfQ.DTf3qPhO2G7gb4LBSIIgxUF43Bs_h5rgQXY18dIZRZM';
+  const serviceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
   const supabaseBucket = process.env.SUPABASE_BUCKET || 'linkadda-media';
 
   if (supabaseUrl && serviceKey) {
@@ -265,7 +265,7 @@ export default async function handler(req, res) {
 
       const partBuffers = [];
       const supabaseUrl = process.env.SUPABASE_URL || 'https://dsleaglxbedljdxrikdn.supabase.co';
-      const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRzbGVhZ2x4YmVkbGpkeHJpa2RuIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MTIyNzA5MiwiZXhwIjoyMTA2ODAzMDkyfQ.DTf3qPhO2G7gb4LBSIIgxUF43Bs_h5rgQXY18dIZRZM';
+      const serviceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
       const supabaseBucket = process.env.SUPABASE_BUCKET || 'linkadda-media';
 
       for (let i = 0; i < totalParts; i++) {

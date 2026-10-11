@@ -3,18 +3,70 @@
 <head>
   <meta charset="UTF-8" />
   <script>
-    (function() {
-      var isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.protocol === 'file:';
-      if (isLocal) return;
-      var path = window.location.pathname;
-      var cleanPath = null;
-      if (path.endsWith('/index.html')) {
-        cleanPath = path.substring(0, path.length - 10) || '/';
-      } else if (path.endsWith('.html')) {
-        cleanPath = path.substring(0, path.length - 5);
+    // ðŸ›¡ï¸ LinkAdda Anti-Clone Domain Lock & Anti-Copy Protection
+    (function protectLinkAdda() {
+      var h = (window.location.hostname || '').toLowerCase();
+      var p = window.location.protocol;
+      var isLocal = h === 'localhost' || h === '127.0.0.1' || h === '' || p === 'file:';
+      var isAuthorized = isLocal || h === 'linkadda.online' || h === 'www.linkadda.online';
+
+      if (!isAuthorized) {
+        try { if (window.stop) window.stop(); } catch (_) {}
+        var dest = 'https://linkadda.online' + (window.location.pathname || '') + (window.location.search || '');
+        window.location.replace(dest);
+        return;
       }
-      if (cleanPath !== null) {
-        window.history.replaceState(null, '', cleanPath + window.location.search + window.location.hash);
+
+      try {
+        if (window.top !== window.self) {
+          if (!isLocal && (!window.top.location.hostname || !window.top.location.hostname.endsWith('linkadda.online'))) {
+            window.top.location.replace(window.self.location.href);
+          }
+        }
+      } catch (_) {
+        if (!isLocal) window.location.replace('https://linkadda.online');
+      }
+
+      if (!isLocal) {
+        var path = window.location.pathname;
+        var cleanPath = null;
+        if (path.endsWith('/index.html')) {
+          cleanPath = path.substring(0, path.length - 10) || '/';
+        } else if (path.endsWith('.html')) {
+          cleanPath = path.substring(0, path.length - 5);
+        }
+        if (cleanPath !== null) {
+          window.history.replaceState(null, '', cleanPath + window.location.search + window.location.hash);
+        }
+
+        // Anti-Copy & Anti-Theft Client Safeguards
+        document.addEventListener('contextmenu', function(e) {
+          var t = (e.target && e.target.tagName || '').toLowerCase();
+          if (t !== 'input' && t !== 'textarea') {
+            e.preventDefault();
+            return false;
+          }
+        }, false);
+
+        document.addEventListener('keydown', function(e) {
+          var k = (e.key || '').toLowerCase();
+          var ctrl = e.ctrlKey || e.metaKey;
+          if (e.keyCode === 123) { // F12
+            e.preventDefault();
+            e.stopPropagation();
+            return false;
+          }
+          if (ctrl && (k === 'u' || k === 's' || k === 'p')) {
+            e.preventDefault();
+            e.stopPropagation();
+            return false;
+          }
+          if (ctrl && e.shiftKey && (k === 'i' || k === 'j' || k === 'c')) {
+            e.preventDefault();
+            e.stopPropagation();
+            return false;
+          }
+        }, false);
       }
     })();
     // Theme Bootstrap — sync with index.html & script.js
@@ -1156,7 +1208,7 @@
         
         <div class="support-contact-chip">
           <span><i class="fa-solid fa-at" style="color:#ea4335; margin-right:6px;"></i> Official Email:</span>
-          <span style="color:var(--ab-text); font-weight:800;">ritikanetwork96@gmail.com</span>
+          <span style="color:var(--ab-text); font-weight:800;">botforword@gmail.com</span>
         </div>
         <div class="support-contact-chip">
           <span><i class="fa-solid fa-clock-rotate-left" style="color:var(--ab-muted); margin-right:6px;"></i> Response Time:</span>
@@ -1164,9 +1216,9 @@
         </div>
 
         <div style="margin-top: auto; padding-top: 10px;">
-          <a href="mailto:ritikanetwork96@gmail.com?subject=LinkAdda%20Order%20Support%20Request" class="ab-btn-secondary" style="width: 100%; justify-content: center; border-color: rgba(225, 29, 72, 0.4); color: var(--ab-pink);">
+          <a href="mailto:botforword@gmail.com?subject=LinkAdda%20Order%20Support%20Request" class="ab-btn-secondary" style="width: 100%; justify-content: center; border-color: rgba(225, 29, 72, 0.4); color: var(--ab-pink);">
             <i class="fa-solid fa-paper-plane"></i>
-            <span>Email ritikanetwork96@gmail.com</span>
+            <span>Email botforword@gmail.com</span>
           </a>
         </div>
       </div>
@@ -1251,7 +1303,7 @@
         <div class="ab-faq-answer">
           You can reach our dedicated support desk across two official channels:<br>
           1. <strong>Telegram Live Support</strong>: Message <a href="https://t.me/TRUSTED_BROTHER1234" target="_blank" style="color:var(--ab-pink);font-weight:700;text-decoration:underline;">@TRUSTED_BROTHER1234</a> for rapid 5–10 minute assistance.<br>
-          2. <strong>Official Email Desk</strong>: Mail <a href="mailto:ritikanetwork96@gmail.com" style="color:var(--ab-pink);font-weight:700;text-decoration:underline;">ritikanetwork96@gmail.com</a> for formal dispute tickets or order verification. All queries are resolved within 12–24 hours guaranteed.
+          2. <strong>Official Email Desk</strong>: Mail <a href="mailto:botforword@gmail.com" style="color:var(--ab-pink);font-weight:700;text-decoration:underline;">botforword@gmail.com</a> for formal dispute tickets or order verification. All queries are resolved within 12–24 hours guaranteed.
         </div>
       </div>
     </div>
@@ -1266,9 +1318,9 @@
       <a href="legal.html#terms">Terms of Service</a>
       <a href="legal.html#refund">Refund Policy</a>
       <a href="https://t.me/TRUSTED_BROTHER1234" target="_blank" rel="noopener">Telegram Support</a>
-      <a href="mailto:ritikanetwork96@gmail.com">Official Email: ritikanetwork96@gmail.com</a>
+      <a href="mailto:botforword@gmail.com">Official Email: botforword@gmail.com</a>
     </div>
-    <p>&copy; 2026 LinkAdda Online. India's Premier Digital Content Marketplace. Official Support: ritikanetwork96@gmail.com</p>
+    <p>&copy; 2026 LinkAdda Online. India's Premier Digital Content Marketplace. Official Support: botforword@gmail.com</p>
   </footer>
 
   <!-- FLOATING BACK TO TOP BUTTON -->

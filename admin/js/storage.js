@@ -13,7 +13,7 @@ async function getUploadAuthHeaders() {
   return headers;
 }
 
-const SUPABASE_SERVICE_ROLE_KEY = SUPABASE_CONFIG?.serviceKey || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRzbGVhZ2x4YmVkbGpkeHJpa2RuIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MTIyNzA5MiwiZXhwIjoyMTA2ODAzMDkyfQ.DTf3qPhO2G7gb4LBSIIgxUF43Bs_h5rgQXY18dIZRZM';
+const SUPABASE_API_KEY = SUPABASE_CONFIG?.anonKey || '';
 const SUPABASE_STORAGE_ROOT = `${SUPABASE_CONFIG.url}/storage/v1/object`;
 const RUSTFS_STORAGE_ROOT = `${RUSTFS_CONFIG.endpoint}/${encodeURIComponent(RUSTFS_CONFIG.bucket)}`;
 
@@ -118,8 +118,8 @@ export async function deletePublicAsset(path) {
       const res = await fetch(`${SUPABASE_STORAGE_ROOT}/${encodeURIComponent(SUPABASE_CONFIG.bucket)}/${encodeURI(storagePath)}`, {
         method: 'DELETE',
         headers: {
-          apikey: SUPABASE_SERVICE_ROLE_KEY,
-          Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+          apikey: SUPABASE_API_KEY,
+          Authorization: `Bearer ${SUPABASE_API_KEY}`,
         },
       });
       return res;
@@ -240,8 +240,8 @@ export async function uploadAsset(file, folder = 'products', onProgress) {
     const supaRes = await fetch(endpoint, {
       method: 'POST',
       headers: {
-        apikey: SUPABASE_SERVICE_ROLE_KEY,
-        Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+        apikey: SUPABASE_API_KEY,
+        Authorization: `Bearer ${SUPABASE_API_KEY}`,
         'x-upsert': 'true',
         'Content-Type': fileToUpload.type || file.type || 'application/octet-stream',
       },
@@ -380,8 +380,8 @@ export async function uploadAsset(file, folder = 'products', onProgress) {
       const supaRes = await fetch(endpoint, {
         method: 'POST',
         headers: {
-          apikey: SUPABASE_SERVICE_ROLE_KEY,
-          Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+          apikey: SUPABASE_API_KEY,
+          Authorization: `Bearer ${SUPABASE_API_KEY}`,
           'x-upsert': 'true',
           'Content-Type': fileToUpload.type || file.type || 'application/octet-stream',
         },

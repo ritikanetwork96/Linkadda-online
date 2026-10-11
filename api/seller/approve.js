@@ -262,7 +262,7 @@ export default async function handler(req, res) {
 
     // 3. Send Credentials Email via Brevo API
     const apiKey = (process.env.BREVO_API_KEY || '').trim();
-    const senderEmail = (process.env.BREVO_SENDER_EMAIL || 'ritikanetwork96@gmail.com').trim();
+    const senderEmail = (process.env.BREVO_SENDER_EMAIL || 'botforword@gmail.com').trim();
     const senderName = (process.env.BREVO_SENDER_NAME || 'Linkadda Online').trim();
 
     const reqHost = req.headers['host'] || req.headers['x-forwarded-host'] || '';

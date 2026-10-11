@@ -288,15 +288,11 @@ export function protectRoute(onReady) {
       if (window.location.protocol === 'file:') {
         if (!hasHandledAuth) {
           hasHandledAuth = true;
-          // Authenticate with genuine Firebase credentials so RTDB grants admin read/write permissions
-          signInWithEmailAndPassword(auth, 'botforword@gmail.com', 'Sunil@018vk')
-            .then((cred) => {
-              if (typeof onReady === 'function') onReady(cred.user);
-            })
-            .catch((err) => {
-              console.warn('Local admin auth note:', err?.message || err);
-              if (typeof onReady === 'function') onReady({ uid: 'local-admin', email: 'botforword@gmail.com', displayName: 'Linkadda Admin' });
-            });
+          if (auth.currentUser) {
+            if (typeof onReady === 'function') onReady(auth.currentUser);
+          } else {
+            if (typeof onReady === 'function') onReady({ uid: 'local-admin', email: 'botforword@gmail.com', displayName: 'Linkadda Admin' });
+          }
         }
         return;
       }

@@ -3,17 +3,34 @@
 <head>
   <meta charset="UTF-8" />
   <script>
-    (function() {
-      if (window.location.protocol === 'file:') return;
-      var path = window.location.pathname;
-      var cleanPath = null;
-      if (path.endsWith('/index.html')) {
-        cleanPath = path.substring(0, path.length - 10) || '/';
-      } else if (path.endsWith('.html')) {
-        cleanPath = path.substring(0, path.length - 5);
+    // ðŸ›¡ï¸ LinkAdda Admin Anti-Clone Domain Lock
+    (function protectAdmin() {
+      var h = (window.location.hostname || '').toLowerCase();
+      var p = window.location.protocol;
+      var isLocal = h === 'localhost' || h === '127.0.0.1' || h === '' || p === 'file:';
+      var isAuthorized = isLocal || h === 'linkadda.online' || h === 'www.linkadda.online';
+
+      if (!isAuthorized) {
+        try { if (window.stop) window.stop(); } catch (_) {}
+        window.location.replace('https://linkadda.online/');
+        return;
       }
-      if (cleanPath !== null) {
-        window.history.replaceState(null, '', cleanPath + window.location.search + window.location.hash);
+
+      if (window.top !== window.self) {
+        try { window.top.location.replace(window.self.location.href); } catch (_) { window.location.replace('https://linkadda.online/'); }
+      }
+
+      if (!isLocal) {
+        var path = window.location.pathname;
+        var cleanPath = null;
+        if (path.endsWith('/index.html')) {
+          cleanPath = path.substring(0, path.length - 10) || '/';
+        } else if (path.endsWith('.html')) {
+          cleanPath = path.substring(0, path.length - 5);
+        }
+        if (cleanPath !== null) {
+          window.history.replaceState(null, '', cleanPath + window.location.search + window.location.hash);
+        }
       }
     })();
   </script>
