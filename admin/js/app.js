@@ -6413,7 +6413,7 @@ function renderActiveSessionsSection(sessions = []) {
 
 function renderSettingsManagementView(data = {}, fullData = {}) {
   const settings = fullData.settings || {};
-  const currentEmail = userEmail?.textContent && userEmail.textContent !== 'connected' && !/jaigram|jai/i.test(userEmail.textContent) ? userEmail.textContent : 'admin@linkadda.online';
+  const currentEmail = userEmail?.textContent && userEmail.textContent !== 'connected' && !/jaigram|jai/i.test(userEmail.textContent) ? userEmail.textContent : 'botforword@gmail.com';
   
   // Trigger async fetch for live sessions list if not already loaded
   if (!ui.sessionsLoaded) {

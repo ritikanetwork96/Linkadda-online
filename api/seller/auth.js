@@ -650,7 +650,7 @@ export default async function handler(req, res) {
       }
 
       // Strictly protect admin account
-      if (email.toLowerCase() === 'ritikanetwork96@gmail.com') {
+      if (email.toLowerCase() === 'botforword@gmail.com') {
         return res.status(403).json({ error: 'This email is reserved for system administration.' });
       }
 

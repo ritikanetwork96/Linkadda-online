@@ -111,7 +111,7 @@ export async function getFirebaseAdminToken() {
     return cachedAdminToken;
   }
   const apiKey = (process.env.FIREBASE_API_KEY || process.env.VITE_FIREBASE_API_KEY || '').trim();
-  const adminEmail = (process.env.admin || process.env.ADMIN_EMAIL || process.env.ADMIN || 'admin@linkadda.online').trim();
+  const adminEmail = (process.env.admin || process.env.ADMIN_EMAIL || process.env.ADMIN || 'botforword@gmail.com').trim();
   const adminPassword = (process.env.password || process.env.ADMIN_PASSWORD || process.env.PASSWORD || '').trim();
 
   if (!apiKey || !adminEmail || !adminPassword) {
@@ -166,8 +166,8 @@ export async function verifyAdminRequest(req) {
       if (res.ok) {
         const data = await res.json();
         const email = data?.users?.[0]?.email?.toLowerCase()?.trim();
-        const targetAdminEmail = (process.env.admin || process.env.ADMIN_EMAIL || process.env.ADMIN || 'admin@linkadda.online').toLowerCase().trim();
-        if (email && (email === targetAdminEmail || email === 'botforword@gmail.com' || email.endsWith('@linkadda.online'))) {
+        const targetAdminEmail = (process.env.admin || process.env.ADMIN_EMAIL || process.env.ADMIN || 'botforword@gmail.com').toLowerCase().trim();
+        if (email && (email === targetAdminEmail || email === 'botforword@gmail.com')) {
           return true;
         }
       }
