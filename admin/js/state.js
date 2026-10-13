@@ -148,23 +148,33 @@ let saveCacheTimer = null;
 
 function syncWebsiteCache() {
   try {
+    const cleanProducts = {};
+    Object.entries(STORE.products || {}).forEach(([id, p]) => {
+      if (!p) return;
+      if (typeof p.video === 'string' && p.video.startsWith('data:video')) {
+        cleanProducts[id] = { ...p, video: '' };
+      } else {
+        cleanProducts[id] = p;
+      }
+    });
     const liveCache = {
       categories: STORE.categories || {},
-      products: STORE.products || {},
+      products: cleanProducts,
       banner: STORE.banner || {},
       timestamp: Date.now(),
     };
-    localStorage.setItem('linkadda_cached_live_data', JSON.stringify(liveCache));
-    localStorage.setItem('linkadda_cached_live_data_v5', JSON.stringify(liveCache));
-    localStorage.setItem('linkadda_cached_live_data_v4', JSON.stringify(liveCache));
+    const payload = JSON.stringify(liveCache);
+    try { localStorage.setItem('linkadda_cached_live_data', payload); } catch (_) {}
+    try { localStorage.setItem('linkadda_cached_live_data_v5', payload); } catch (_) {}
+    try { localStorage.setItem('linkadda_cached_live_data_v4', payload); } catch (_) {}
     if (STORE.payment) {
-      localStorage.setItem('linkadda_payment_payment', JSON.stringify(STORE.payment));
+      try { localStorage.setItem('linkadda_payment_payment', JSON.stringify(STORE.payment)); } catch (_) {}
     }
     if (STORE.settings) {
-      localStorage.setItem('linkadda_payment_settings', JSON.stringify(STORE.settings));
+      try { localStorage.setItem('linkadda_payment_settings', JSON.stringify(STORE.settings)); } catch (_) {}
     }
     if (STORE.faq) {
-      localStorage.setItem('linkadda_cached_faq', JSON.stringify(STORE.faq));
+      try { localStorage.setItem('linkadda_cached_faq', JSON.stringify(STORE.faq)); } catch (_) {}
     }
   } catch (_) {}
 }

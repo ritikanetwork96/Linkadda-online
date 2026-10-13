@@ -2359,7 +2359,7 @@
   window.handleCardImgError = function(img) {
     if (!img) return;
     const fallback = img.dataset.fallback || '';
-    if (fallback && img.src !== fallback && !img._triedLocal && !fallback.includes('photo_')) {
+    if (fallback && img.src !== fallback && !img._triedLocal && !fallback.includes('photo_') && !fallback.includes('category1') && !fallback.includes('eiasnjx')) {
       img._triedLocal = true;
       img.src = fallback;
     } else if (!img._failedSvg) {
@@ -2477,7 +2477,7 @@
     // Filter out dead Hostinger gallery URLs that never existed on Supabase
     rawList = rawList.filter(u => !/\/products\/gallery\/178[89]/.test(String(u || '')));
 
-    // Only if product has no images at all, check its assigned category or title keywords
+    // Only if product has no images at all, check its assigned category for a legitimate non-collage image
     if (!rawList.length) {
       let matchedCover = '';
       if (cat.category && liveCollections.categories) {
@@ -2495,21 +2495,10 @@
           }
         }
       }
-      if (!matchedCover) {
-        const titleLower = String(cat.title || cat.badge || '').toLowerCase();
-        if (titleLower.includes('indian') || titleLower.includes('punjabi') || titleLower.includes('mallu') || titleLower.includes('tamil') || titleLower.includes('desi')) {
-          matchedCover = 'images/category1.jpg';
-        } else if (titleLower.includes('jav') || titleLower.includes('japan')) {
-          matchedCover = 'images/category2.jpg';
-        } else if (titleLower.includes('asian') || titleLower.includes('chinese') || titleLower.includes('korean')) {
-          matchedCover = 'images/category3.png';
-        } else if (titleLower.includes('vip') || titleLower.includes('premium')) {
-          matchedCover = 'images/category5.jpg';
-        } else {
-          matchedCover = 'images/category1.jpg';
-        }
+      // Never use the generic 16-tile adult collage (category1.jpg or eiasnjx) as a blanket fallback across products
+      if (matchedCover && !matchedCover.includes('category1') && !matchedCover.includes('eiasnjx')) {
+        rawList = [matchedCover];
       }
-      if (matchedCover) rawList = [matchedCover];
     }
 
     const SUPABASE_CDN_ROOT = 'https://dsleaglxbedljdxrikdn.supabase.co/storage/v1/object/public/linkadda-media';

@@ -13,7 +13,7 @@ async function getUploadAuthHeaders() {
   return headers;
 }
 
-const SUPABASE_API_KEY = SUPABASE_CONFIG?.anonKey || '';
+const SUPABASE_API_KEY = SUPABASE_CONFIG?.serviceKey || SUPABASE_CONFIG?.anonKey || '';
 const SUPABASE_STORAGE_ROOT = `${SUPABASE_CONFIG.url}/storage/v1/object`;
 const RUSTFS_STORAGE_ROOT = `${RUSTFS_CONFIG.endpoint}/${encodeURIComponent(RUSTFS_CONFIG.bucket)}`;
 

@@ -846,7 +846,7 @@ function renderMediaStudioCard(item, index) {
         ${isVideo
           ? `<video src="${escapeHtml(resolvedUrl)}" preload="metadata" muted playsinline></video>
              <div class="media-vid-overlay-play"><i data-lucide="play" style="width:18px;height:18px;"></i></div>`
-          : `<img src="${escapeHtml(resolvedUrl)}" data-raw-src="${escapeHtml(rawUrl)}" alt="Media ${index + 1}" loading="lazy" onerror="if(!this._failed){this._failed=true; if(this.getAttribute('data-raw-src').startsWith('images/')){this.src='/' + this.getAttribute('data-raw-src');}else{this.src='https://rustfs-mi5c.srv1942099.hstgr.cloud/linkadda-media/products/' + this.getAttribute('data-raw-src');}}" />`
+          : `<img src="${escapeHtml(resolvedUrl)}" data-raw-src="${escapeHtml(rawUrl)}" alt="Media ${index + 1}" loading="lazy" onerror="if(!this._failed){this._failed=true; if(this.getAttribute('data-raw-src').startsWith('images/')){this.src='/' + this.getAttribute('data-raw-src');}else{this.src='https://dsleaglxbedljdxrikdn.supabase.co/storage/v1/object/public/linkadda-media/products/' + this.getAttribute('data-raw-src');}}" />`
         }
       </div>
 
@@ -1948,8 +1948,26 @@ function attachProductEditorBehaviors(form) {
   };
 
   const addMediaItems = (newItems = []) => {
-    const current = form.__mediaStudioItems || [];
+    let current = form.__mediaStudioItems || [];
     const valid = newItems.filter((it) => it && it.url && String(it.url).trim());
+    if (!valid.length) return;
+
+    // Check if new items contain an image
+    const hasNewImage = valid.some((it) => it.type === 'image');
+    if (hasNewImage) {
+      // Remove legacy collage placeholder (category1 / eiasnjx) so the new image takes over clean
+      current = current.filter((it) => {
+        const u = String(it.url || '');
+        return !(u.includes('prod_products_eiasnjx') || u.includes('category1.jpg'));
+      });
+      // Ensure the first new image becomes the primary cover image
+      current.forEach((it) => {
+        if (it.type === 'image') it.isMainImage = false;
+      });
+      const firstNewImg = valid.find((it) => it.type === 'image');
+      if (firstNewImg) firstNewImg.isMainImage = true;
+    }
+
     form.__mediaStudioItems = [...current, ...valid];
     syncMediaStudio();
   };
@@ -2101,8 +2119,8 @@ function attachProductEditorBehaviors(form) {
             newItems.push({
               url,
               type: isVid ? 'video' : 'image',
-              isMainImage: false,
-              isMainVideo: false,
+              isMainImage: !isVid,
+              isMainVideo: isVid,
             });
           }
         } catch (itemErr) {
@@ -4611,6 +4629,9 @@ async function uploadRecordMedia(form, node, next) {
       next.image = next.galleryImages[0];
       next.thumbnail = next.image;
       next.images = [...new Set(next.galleryImages.filter(Boolean))];
+    } else if (Array.isArray(next.images) && next.images.length) {
+      next.image = next.images[0];
+      next.thumbnail = next.image;
     }
     return next;
   } catch (error) {
