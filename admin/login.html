@@ -117,7 +117,7 @@
 <body data-theme="dark">
   <main id="authMount"></main>
   <script type="module">
-    import { mountLoginPage, whenAuthenticated } from '/admin/js/auth.js?v=20261011_v2';
+    import { mountLoginPage, whenAuthenticated } from '/admin/js/auth.js?v=20261013_v1';
     const mount = document.getElementById('authMount');
     whenAuthenticated((user) => {
       const email = String(user?.email || '').trim().toLowerCase();

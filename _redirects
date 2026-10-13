@@ -3,6 +3,8 @@
 # 1. Deprecated & Legacy Paths Redirects
 /login / 301
 /login.html / 301
+/admin/login /admin/login/ 301
+/admin/login.html /admin/login/ 301
 /seller / 301
 /seller/* / 301
 
@@ -13,6 +15,14 @@
 /package.json / 302
 /package-lock.json / 302
 /dev-server.mjs / 302
+/scratch* / 302
+/api/* / 302
+/*.mjs / 302
+/*.ps1 / 302
+/*.jsonc / 302
+/wrangler.jsonc / 302
+/vercel.json / 302
+/README.md / 302
 
 # 3. Supabase Storage Global Edge CDN Redirect
 /media/* https://dsleaglxbedljdxrikdn.supabase.co/storage/v1/object/public/linkadda-media/:splat 302

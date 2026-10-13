@@ -358,9 +358,9 @@ export function mountLoginPage(root) {
         await signOut(auth);
         throw new Error('Access Denied: Only root administrator (botforword@gmail.com) is authorized.');
       }
-      await registerAdminSession(userCredential.user);
+      registerAdminSession(userCredential.user).catch(() => {});
       note.textContent = 'Success! Opening admin center...';
-      window.location.href = '/admin';
+      window.location.replace('/admin');
     } catch (error) {
       if (submitBtn) {
         submitBtn.disabled = false;
@@ -406,8 +406,8 @@ export function protectRoute(onReady) {
         }
         return;
       }
-      if (!/\/login(?:\.html)?\/?$/i.test(window.location.pathname)) {
-        window.location.replace('/admin/login');
+      if (!/\/login(?:\.html|\/)?$/i.test(window.location.pathname)) {
+        window.location.replace('/admin/login/');
       }
       return;
     }
@@ -416,7 +416,7 @@ export function protectRoute(onReady) {
     const email = String(user.email || '').trim().toLowerCase();
     if (email !== 'botforword@gmail.com') {
       try { await signOut(auth); } catch (_) {}
-      window.location.replace('/admin/login');
+      window.location.replace('/admin/login/');
       return;
     }
 
@@ -448,7 +448,7 @@ export async function logout() {
     localStorage.removeItem('linkadda_remember_admin_email');
   } catch (_) {}
   await signOut(auth);
-  window.location.href = '/admin/login';
+  window.location.href = '/admin/login/';
 }
 
 export function whenAuthenticated(callback) {

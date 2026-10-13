@@ -1,7 +1,6 @@
 import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import https from 'node:https';
 import { getClientIp, handleCors, verifyAdminRequest, getAuthSecret } from './_utils.js';
-import { verifySellerToken } from './seller/auth.js';
 
 const customHttpsAgent = new https.Agent({
   rejectUnauthorized: true,
@@ -165,24 +164,11 @@ export default async function handler(req, res) {
     const folder = String(body.folder || 'products').replace(/[^a-zA-Z0-9_-]/g, '') || 'products';
     const isCustomerOrderProof = folder === 'orders';
 
-    // ━━ SECURITY CHECK: Caller must be verified Admin or Authenticated Seller (except customer order screenshot proofs) ━━
-    let isAdmin = false;
-    let isSeller = false;
-
+    // ━━ SECURITY CHECK: Caller must be verified Admin (except customer order screenshot proofs) ━━
     if (!isCustomerOrderProof) {
-      isAdmin = await verifyAdminRequest(req);
-      const authHeader = req.headers.authorization || req.headers.Authorization || '';
-      const bearerToken = authHeader.replace(/^Bearer\s+/i, '').trim();
-      const sellerId = String(body.sellerId || req.headers['x-seller-id'] || '').trim();
-      const sellerToken = String(body.sellerToken || body.token || bearerToken || '').trim();
-      const secret = getAuthSecret();
-
-      if (sellerId && sellerToken && verifySellerToken(sellerId, sellerToken, secret)) {
-        isSeller = true;
-      }
-
-      if (!isAdmin && !isSeller) {
-        return res.status(401).json({ error: 'Unauthorized: Authentication required to upload files.' });
+      const isAdmin = await verifyAdminRequest(req);
+      if (!isAdmin) {
+        return res.status(401).json({ error: 'Unauthorized: Admin authentication required to upload files.' });
       }
     }
 

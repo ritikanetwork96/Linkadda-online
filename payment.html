@@ -2078,6 +2078,7 @@
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-app.js";
+import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-auth.js";
 import { getDatabase, ref, push, set, get, onValue } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-database.js";
 
 const firebaseConfig = {
@@ -2094,7 +2095,13 @@ const firebaseConfig = {
 (async () => {
   try {
     const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    if (!auth.currentUser) {
+      await signInAnonymously(auth).catch(() => {});
+    }
     const db  = getDatabase(app);
+    window.__linkaddaApp = app;
+    window.__linkaddaAuth = auth;
     window.__linkaddaDb = db;
 
     window._firebaseReady = true;
@@ -2109,6 +2116,25 @@ const firebaseConfig = {
     window._fbSet = set;
     window._fbGet = get;
     window._fbOnValue = onValue;
+
+    // -- TRACK VISITOR SESSION ON PAYMENT CHECKOUT --
+    if (!sessionStorage.getItem('visit_tracked')) {
+      try {
+        const todayDateStr = new Date().toISOString().slice(0, 10);
+        const vRef = push(ref(db, 'visitors'));
+        set(vRef, {
+          date: todayDateStr,
+          timestamp: Date.now(),
+          page: 'payment',
+          referrer: document.referrer ? (function() { try { return new URL(document.referrer, window.location.origin).hostname; } catch(_) { return 'direct'; } })() : 'direct'
+        }).then(() => {
+          sessionStorage.setItem('visit_tracked', '1');
+        }).catch((err) => {
+          console.warn('Payment visitor logging notice:', err && err.message);
+        });
+      } catch (_) {}
+    }
+
     window.dispatchEvent(new CustomEvent('linkadda-firebase-ready'));
   } catch(e) {
     console.warn('Firebase init failed:', e);
@@ -2979,12 +3005,12 @@ function buildUpiPaymentUri() {
   if (amount > 0) {
     params.set('am', amount.toFixed(2));
   }
+  // 🔒 Privacy & UPI Protection: NEVER expose sensitive product titles in bank/UPI remarks (tn)
+  // Clean neutral transaction note prevents bank account flags and protects user privacy
+  params.set('tn', 'LinkAdda Digital Services');
   const orderRef = String(orderData.orderId || requestedCheckout.orderId || '').trim();
   if (orderRef) {
-    params.set('tn', `Order ${orderRef}`);
     params.set('tr', orderRef);
-  } else {
-    params.set('tn', `Order ${orderData.name || 'Payment'}`);
   }
   return `upi://pay?${params.toString()}`;
 }
@@ -3033,9 +3059,9 @@ function renderUpiQr() {
   const qrImage = document.getElementById('upiQRImage');
   const qrError = document.getElementById('upiQRError');
   const qrLoading = document.getElementById('upiQRLoading');
-  if (!frame || !qrGeneratedEl || !qrImage || !qrError || !qrLoading) return;
+  if (!frame || !qrGeneratedEl || !qrImage || !qrError) return;
 
-  qrLoading.style.display = 'none';
+  if (qrLoading) qrLoading.style.display = 'none';
 
   const upiId = CONFIG.upiId || 'Ritikane@ptyes';
   const upiIdEl = document.getElementById('upiIdText');
@@ -3055,7 +3081,7 @@ function renderUpiQr() {
     directBtn.style.display = 'inline-flex';
   }
 
-  // Draw reliable dynamic QR (QRCode JS with high-res API fallback)
+  // Draw reliable dynamic QR (QRCode JS with high-res multi-CDN image fallback)
   function drawQrDirectly() {
     qrImage.style.display = 'none';
     qrError.style.display = 'none';
@@ -3073,36 +3099,50 @@ function renderUpiQr() {
           colorLight: '#ffffff',
           correctLevel: QRCode.CorrectLevel.M,
         });
-        rendered = true;
+        const hasCanvasOrImg = qrGeneratedEl.querySelector('canvas, img');
+        if (hasCanvasOrImg) {
+          rendered = true;
+        }
       } catch (err) {
         console.warn('QRCode JS library error, using fallback QR:', err);
       }
     }
 
-    // Fallback: If client-side QRCode is not available or canvas is blank, use instant SVG/image QR
-    if (!rendered || !qrGeneratedEl.firstElementChild) {
-      const fallbackUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=6&data=${encodeURIComponent(upiUri)}`;
-      qrGeneratedEl.innerHTML = `<img src="${fallbackUrl}" alt="UPI QR Code" style="width:190px;height:190px;display:block;margin:0 auto;border-radius:8px;background:#fff;" />`;
+    // High-res instant multi-CDN fallback: Guaranteed to render even if client JS library fails or DOM was hidden
+    if (!rendered) {
+      const primaryUrl = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=4&data=${encodeURIComponent(upiUri)}`;
+      const backupUrl = `https://quickchart.io/qr?text=${encodeURIComponent(upiUri)}&size=220`;
+      qrGeneratedEl.innerHTML = `<img src="${primaryUrl}" alt="UPI QR Code" style="width:190px;height:190px;display:block;margin:0 auto;border-radius:8px;background:#ffffff;" onerror="this.onerror=null;this.src='${backupUrl}';" />`;
     }
     return true;
   }
 
-  // Priority 1: If custom uploaded QR image is present and valid
+  // Priority 1: If custom uploaded QR image is present and valid, verify it actually loads
   const imageSrc = safeUrl(CONFIG.qrImage || (window.__paymentPayment && (window.__paymentPayment.qrImage || window.__paymentPayment.upiQr)), '');
   if (imageSrc && imageSrc !== '—' && !imageSrc.includes('placeholder')) {
-    qrGeneratedEl.style.display = 'none';
-    qrGeneratedEl.innerHTML = '';
-    qrError.style.display = 'none';
-    qrImage.src = imageSrc;
-    qrImage.style.display = 'block';
-    qrImage.onerror = () => {
-      console.warn('Configured QR image failed to load, automatically falling back to dynamic QR code');
+    const testImg = new Image();
+    testImg.onload = () => {
+      if (testImg.naturalWidth > 20) {
+        qrGeneratedEl.style.display = 'none';
+        qrGeneratedEl.innerHTML = '';
+        qrError.style.display = 'none';
+        qrImage.src = imageSrc;
+        qrImage.style.display = 'block';
+      } else {
+        drawQrDirectly();
+      }
+    };
+    testImg.onerror = () => {
+      console.warn('Custom QR image failed to load, falling back to dynamic UPI QR');
       drawQrDirectly();
     };
+    testImg.src = imageSrc;
+    // Immediate dynamic render while image loads so frame is NEVER empty white
+    drawQrDirectly();
     return;
   }
 
-  // Priority 2: Dynamic QR code with exact amount
+  // Priority 2: Dynamic QR code with exact amount and clean note
   drawQrDirectly();
 }
 
@@ -3471,8 +3511,6 @@ async function ensureCheckoutOrderLoaded() {
         downloadLink: matched.downloadLink || matched.fileUrl || matched.orderLink || '',
         fileUrl: matched.downloadLink || matched.fileUrl || matched.orderLink || '',
         orderLink: matched.downloadLink || matched.fileUrl || matched.orderLink || '',
-        sellerId: matched.sellerId || '',
-        sellerName: matched.sellerName || '',
         available: true,
         reason: '',
       };
@@ -3627,16 +3665,25 @@ function generateQR(containerId, text, size) {
   const container = document.getElementById(containerId);
   if (!container) return;
   container.innerHTML = '';
-  try {
-    new QRCode(container, {
-      text: text,
-      width: size, height: size,
-      colorDark: '#000000',
-      colorLight: '#ffffff',
-      correctLevel: QRCode.CorrectLevel.M
-    });
-  } catch(e) {
-    container.innerHTML = '<div style="width:180px;height:180px;display:flex;align-items:center;justify-content:center;font-size:12px;color:#999;text-align:center;padding:20px">QR unavailable</div>';
+  let rendered = false;
+  if (typeof window.QRCode === 'function') {
+    try {
+      new QRCode(container, {
+        text: text,
+        width: size, height: size,
+        colorDark: '#000000',
+        colorLight: '#ffffff',
+        correctLevel: QRCode.CorrectLevel.M
+      });
+      if (container.querySelector('canvas, img')) {
+        rendered = true;
+      }
+    } catch(e) {}
+  }
+  if (!rendered) {
+    const primaryUrl = `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&margin=4&data=${encodeURIComponent(text)}`;
+    const backupUrl = `https://quickchart.io/qr?text=${encodeURIComponent(text)}&size=${size}`;
+    container.innerHTML = `<img src="${primaryUrl}" alt="QR Code" style="width:${size}px;height:${size}px;display:block;margin:0 auto;border-radius:8px;background:#ffffff;" onerror="this.onerror=null;this.src='${backupUrl}';" />`;
   }
 }
 
@@ -4232,41 +4279,54 @@ async function compressImageBase64(base64Str, maxWidth = 720, quality = 0.65) {
   });
 }
 
-// ———— UPLOAD SCREENSHOT TO STORAGE VIA API WITH FAST FALLBACK ————
+// ———— UPLOAD SCREENSHOT TO STORAGE VIA DIRECT CDN WITH ULTRA-COMPACT FALLBACK ————
 async function uploadScreenshot(orderId, base64Data) {
   try {
     const compressed = window.__cachedCompressedScreenshot || await compressImageBase64(base64Data, 720, 0.65);
     const fileName = `${orderId || 'order'}_${Date.now()}.jpg`;
 
-    // 1. Try Serverless Supabase Upload via /api/upload with short 500ms timeout
+    // 1. Primary: Direct Supabase Storage Upload (Super fast CDN, no serverless cold start)
     try {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 500);
+      const supaUrl = 'https://dsleaglxbedljdxrikdn.supabase.co';
+      const supaKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRzbGVhZ2x4YmVkbGpkeHJpa2RuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTEyMjcwOTIsImV4cCI6MjEwNjgwMzA5Mn0.sRzSAOIcgdObrx-uInPI8CE-96I24Jqyhr3K--pxuIw';
+      const endpoint = `${supaUrl}/storage/v1/object/linkadda-media/orders/${encodeURI(fileName)}`;
 
-      const res = await fetch('/api/upload', {
+      // Convert base64 data to binary Blob
+      const parts = compressed.split(',');
+      const byteString = atob(parts[1] || parts[0]);
+      const mimeMatch = parts[0].match(/:(.*?);/);
+      const mimeType = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+      const ab = new ArrayBuffer(byteString.length);
+      const ia = new Uint8Array(ab);
+      for (let i = 0; i < byteString.length; i++) {
+        ia[i] = byteString.charCodeAt(i);
+      }
+      const blob = new Blob([ab], { type: mimeType });
+
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 3500);
+
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
+          'apikey': supaKey,
+          'Authorization': `Bearer ${supaKey}`,
+          'x-upsert': 'true',
+          'Content-Type': 'image/jpeg',
         },
-        body: JSON.stringify({
-          folder: 'orders',
-          filename: fileName,
-          base64: compressed,
-          contentType: 'image/jpeg',
-        }),
+        body: blob,
         signal: controller.signal,
       });
       clearTimeout(timer);
 
       if (res.ok) {
-        const data = await res.json();
-        if (data.publicUrl) {
-          return data.publicUrl;
-        }
+        return `${supaUrl}/storage/v1/object/public/linkadda-media/orders/${encodeURI(fileName)}`;
       }
     } catch (_) {}
 
-    return compressed;
+    // 2. Fallback: Ultra-compact thumbnail (<35KB) to prevent RTDB database bloat
+    const tinyThumbnail = await compressImageBase64(base64Data, 480, 0.55).catch(() => compressed);
+    return tinyThumbnail || compressed;
   } catch (err) {
     return base64Data;
   }
@@ -4278,8 +4338,41 @@ async function saveOrderToFirebase(amountText, methodName) {
     const screenshotRaw = document.getElementById('previewImg')?.src || '';
     let finalProof = null;
     let orderId = orderData.orderId || requestedCheckout.orderId || '';
-    const inrAmount = Number.isFinite(orderData.amountINRValue) ? orderData.amountINRValue : extractMoneyNumber(orderData.rawINR || orderData.inr);
-    const usdAmount = Number.isFinite(orderData.amountUSDValue) ? orderData.amountUSDValue : extractMoneyNumber(orderData.rawUSD || orderData.usd);
+    let inrAmount = Number.isFinite(orderData.amountINRValue) ? orderData.amountINRValue : extractMoneyNumber(orderData.rawINR || orderData.inr);
+    let usdAmount = Number.isFinite(orderData.amountUSDValue) ? orderData.amountUSDValue : extractMoneyNumber(orderData.rawUSD || orderData.usd);
+
+    // 🔒 STRICT PRICE INTEGRITY: Always verify against authoritative catalog to block URL tampering / client manipulation
+    if (!orderData.isCart) {
+      const liveProd = typeof findLiveProductForOrder === 'function' ? findLiveProductForOrder(orderData) : null;
+      if (liveProd) {
+        let verifiedINR = null;
+        let verifiedUSD = null;
+        if (orderData.tier) {
+          const rawTiers = liveProd.record?.tiers || liveProd.tiers;
+          if (Array.isArray(rawTiers)) {
+            const targetTier = String(orderData.tier).trim().toLowerCase();
+            const matchedTier = rawTiers.find(t => t && String(t.label || t.name || '').trim().toLowerCase() === targetTier);
+            if (matchedTier) {
+              verifiedINR = extractMoneyNumber(matchedTier.inr || matchedTier.priceINR);
+              verifiedUSD = extractMoneyNumber(matchedTier.usd || matchedTier.priceUSD);
+            }
+          }
+        }
+        if (!Number.isFinite(verifiedINR) || verifiedINR <= 0) {
+          verifiedINR = Number.isFinite(liveProd.amountINRValue) && liveProd.amountINRValue > 0
+            ? liveProd.amountINRValue
+            : extractMoneyNumber(liveProd.rawINR || liveProd.inr);
+        }
+        if (!Number.isFinite(verifiedUSD) || verifiedUSD <= 0) {
+          verifiedUSD = Number.isFinite(liveProd.amountUSDValue) && liveProd.amountUSDValue > 0
+            ? liveProd.amountUSDValue
+            : extractMoneyNumber(liveProd.rawUSD || liveProd.usd);
+        }
+
+        if (Number.isFinite(verifiedINR) && verifiedINR > 0) inrAmount = verifiedINR;
+        if (Number.isFinite(verifiedUSD) && verifiedUSD > 0) usdAmount = verifiedUSD;
+      }
+    }
 
     if (!orderId) {
       if (window._fbPush && window._fbRef && window._fbDB) {
@@ -4319,8 +4412,6 @@ async function saveOrderToFirebase(amountText, methodName) {
       downloadLink: '',
       fileUrl: '',
       orderLink: '',
-      sellerId: orderData.sellerId || '',
-      sellerName: orderData.sellerName || '',
       checkoutToken: orderData.checkoutToken || requestedCheckout.token || null,
       lockedAmountINR: Number.isFinite(inrAmount) ? inrAmount : null,
       lockedAmountUSD: Number.isFinite(usdAmount) ? usdAmount : null,
@@ -4379,7 +4470,14 @@ async function saveOrderToFirebase(amountText, methodName) {
     // 2. Direct REST fallback ensures order is 100% saved even if SDK connection was slow or offline
     if (!saved) {
       try {
-        const rtdbRes = await fetch(`https://linkadda-online-default-rtdb.firebaseio.com/orders/${orderId}.json`, {
+        let authToken = '';
+        try {
+          if (window.__linkaddaAuth && window.__linkaddaAuth.currentUser) {
+            authToken = await window.__linkaddaAuth.currentUser.getIdToken();
+          }
+        } catch (_) {}
+        const authParam = authToken ? `?auth=${encodeURIComponent(authToken)}` : '';
+        const rtdbRes = await fetch(`https://linkadda-online-default-rtdb.firebaseio.com/orders/${orderId}.json${authParam}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
@@ -4391,6 +4489,20 @@ async function saveOrderToFirebase(amountText, methodName) {
         console.warn('Direct REST order write failed:', restErr);
       }
     }
+
+    // Ensure visitor count is guaranteed for this session so admin analytics always reflects orders
+    try {
+      const todayDateStr = new Date().toISOString().slice(0, 10);
+      if (window._fbDB && window._fbPush && window._fbSet && window._fbRef) {
+        const vRef = window._fbPush(window._fbRef(window._fbDB, 'visitors'));
+        window._fbSet(vRef, {
+          date: todayDateStr,
+          timestamp: Date.now(),
+          page: 'payment_checkout',
+          referrer: document.referrer ? (function() { try { return new URL(document.referrer, window.location.origin).hostname; } catch(_) { return 'direct'; } })() : 'direct'
+        }).catch(() => {});
+      }
+    } catch (_) {}
 
     // Save to user's localStorage so they can view their order history
     try {

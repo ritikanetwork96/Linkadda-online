@@ -52,8 +52,6 @@ export const RTDB_NODES = {
   visitors: 'visitors',
   reviews: 'reviews',
   customers: 'customers',
-  sellers: 'events/sellers',
-  seller_applications: 'events/seller_applications',
 };
 
 export const NAV_ITEMS = [
@@ -77,7 +75,6 @@ export const DEFAULT_EMPTY = {
   slug: '',
   description: '',
   category: '',
-  sellerName: 'LinkAdda Official',
   priceINR: '',
   priceUSD: '',
   originalPriceINR: '',

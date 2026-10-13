@@ -236,7 +236,7 @@ async function syncCustomerToDatabase(user) {
 
 
 
-// ━━ 4. UI HEADER UPDATER (STRICTLY 'SETTINGS' - NO PROFILE / LOGIN / SELLER) ━━
+// ━━ 4. UI HEADER UPDATER (STRICTLY 'SETTINGS') ━━
 export function updateHeaderUserUI() {
   const headerBtn = document.getElementById('headerUserBtn');
   const mobBtn = document.getElementById('mobUserBtn');
@@ -455,10 +455,6 @@ export function showProfilePage() {
     const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
     themeSwitch.checked = (currentTheme === 'dark');
   }
-
-  // Seller section disabled
-  const sellerSection = document.getElementById('profileSellerSection');
-  if (sellerSection) sellerSection.style.display = 'none';
 
   // 6. Highlight bottom appbar Profile/Account tab
   document.querySelectorAll('.fk-appbar-item').forEach(el => el.classList.remove('active'));
@@ -907,46 +903,26 @@ export function formatOrderCardHtml(ord) {
   let actionHtml = '';
 
   if (isConfirmed) {
-    if (accessLink) {
-      noteHtml = `
-        <div class="user-order-note confirmed" style="background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.3); color: #34d399; border-radius: 8px; padding: 6px 10px; display: flex; align-items: center; gap: 6px; font-size: 12px; margin-top: 4px;">
-          <i class="fa-solid fa-circle-check"></i>
-          <span>Order Approved! Digital content link unlocked.</span>
-        </div>
-      `;
-      actionHtml = `
-        <div class="user-order-actions" style="display: flex; gap: 8px; margin-top: 8px; align-items: stretch;">
-          <a href="${escapeHtml(accessLink)}" target="_blank" rel="noopener" class="btn-order-access confirmed" style="flex: 1; text-align: center; text-decoration: none; justify-content: center; display: inline-flex; align-items: center; gap: 8px; font-weight: 700; padding: 10px 14px; border-radius: 12px; background: linear-gradient(135deg, #10b981, #059669); color: #ffffff;">
-            <i class="fa-brands fa-telegram"></i>
-            <span>Open Telegram VIP Link</span>
-          </a>
-          <button type="button" class="btn-order-copy" onclick="window.copyOrderLink && window.copyOrderLink('${escapeHtml(accessLink)}', this)" title="Copy Link" style="background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.35); color: #10b981; padding: 0 14px; border-radius: 12px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; font-weight: 600; font-size: 13px; transition: all 0.2s ease;">
-            <i class="fa-regular fa-clone"></i>
-            <span>Copy</span>
-          </button>
-        </div>
-      `;
-    } else {
-      noteHtml = `
-        <div class="user-order-note confirmed" style="background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.3); color: #34d399; border-radius: 8px; padding: 6px 10px; display: flex; align-items: center; gap: 6px; font-size: 12px; margin-top: 4px;">
-          <i class="fa-solid fa-circle-check"></i>
-          <span>Order Approved! Link syncing...</span>
-        </div>
-      `;
-      actionHtml = `
-        <div class="user-order-actions" style="display: flex; gap: 8px; margin-top: 8px;">
-          <a href="https://t.me/TRUSTED_BROTHER1234?text=${encodeURIComponent(`Hi Admin, my order #${orderId} is approved. Please provide my Telegram access link.`)}" target="_blank" rel="noopener" class="btn-order-access confirmed" style="flex: 1; text-align: center; text-decoration: none; justify-content: center; padding: 10px 14px; border-radius: 12px;">
-            <i class="fa-solid fa-headset"></i>
-            <span>Contact Support for Telegram Link</span>
-          </a>
-        </div>
-      `;
-    }
+    const adminTelegramUrl = 'https://t.me/TRUSTED_BROTHER1234';
+    noteHtml = `
+      <div class="user-order-note confirmed" style="background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.3); color: #34d399; border-radius: 8px; padding: 6px 10px; display: flex; align-items: center; gap: 6px; font-size: 12px; margin-top: 4px;">
+        <i class="fa-solid fa-circle-check"></i>
+        <span>Order Approved! Direct message Admin on Telegram for instant access.</span>
+      </div>
+    `;
+    actionHtml = `
+      <div class="user-order-actions" style="display: flex; gap: 8px; margin-top: 8px; align-items: stretch;">
+        <a href="${adminTelegramUrl}" target="_blank" rel="noopener" class="btn-order-access confirmed" style="flex: 1; text-align: center; text-decoration: none; justify-content: center; display: inline-flex; align-items: center; gap: 8px; font-weight: 700; padding: 10px 14px; border-radius: 12px; background: linear-gradient(135deg, #10b981, #059669); color: #ffffff;">
+          <i class="fa-brands fa-telegram"></i>
+          <span>Contact Admin on Telegram (@TRUSTED_BROTHER1234)</span>
+        </a>
+      </div>
+    `;
   } else {
     noteHtml = `
       <div class="user-order-note pending">
         <i class="fa-solid fa-hourglass-half"></i>
-        <span>Order pending hai. Admin approval ke baad link yahan automatic unlock ho jayega.</span>
+        <span>Order pending verification. Content access link will unlock automatically upon admin approval.</span>
       </div>
     `;
     actionHtml = `
@@ -1120,7 +1096,7 @@ export function addOrderConfirmedNotification(ord) {
     // Deduplicate
     if (list.some(n => n.id === notifId)) return;
 
-    const accessLink = ord.telegramLink || ord.channelLink || ord.downloadLink || ord.fileUrl || ord.orderLink || 'https://t.me/TRUSTED_BROTHER1234';
+    const adminDmUrl = 'https://t.me/TRUSTED_BROTHER1234';
     const productName = ord.productName || ord.name || ord.title || 'VIP Content Pack';
     const eventTime = ord.reviewedAt || ord.approvedAt || ord.timestamp || Date.now();
 
@@ -1130,11 +1106,11 @@ export function addOrderConfirmedNotification(ord) {
       orderId: rawId,
       productName: productName,
       title: `Order #${orderId} Approved! 🎉`,
-      desc: `Aapka order #${orderId} approve ho gaya hai! VIP Telegram Group / Channel access link unlock ho chuka hai. Tap karke join karein.`,
+      desc: `Your order #${orderId} has been verified and approved! To claim your content access, direct message Admin on Telegram: @TRUSTED_BROTHER1234`,
       timestamp: eventTime,
       time: formatRelativeTime(eventTime),
-      actionUrl: accessLink,
-      actionText: 'Join Telegram VIP Channel / Group',
+      actionUrl: adminDmUrl,
+      actionText: 'Contact Admin on Telegram (@TRUSTED_BROTHER1234)',
       unread: true,
       icon: 'fa-circle-check',
       theme: 'success'
@@ -1147,7 +1123,7 @@ export function addOrderConfirmedNotification(ord) {
     updateNotificationsUI();
     renderNotificationsPage();
 
-    showAppToast(`🎉 Order #${orderId} approve ho gaya! VIP Telegram Link taiyar hai.`);
+    showAppToast(`🎉 Order #${orderId} approved! Message Admin on Telegram for instant access: @TRUSTED_BROTHER1234`);
   } catch (err) {
     console.warn('Order confirmed notification notice:', err);
   }
@@ -1300,9 +1276,10 @@ export function getUserNotifications() {
       item.timestamp = Date.now() - 180000;
       listModified = true;
     }
-    if (item.desc && (item.desc.includes('download') || item.desc.includes('Download'))) {
+    if (item.desc && (item.desc.includes('download') || item.desc.includes('Download') || item.desc.includes('VIP content aur'))) {
       item.desc = item.desc
-        .replace(/VIP content aur download link ke liye Telegram par message karein\.?/gi, 'VIP Telegram Channel / Group access unlock ho chuka hai. Tap karke message padhein aur join karein.')
+        .replace(/VIP content aur download link ke liye Telegram par message karein\.?/gi, 'VIP Telegram access unlocked. Tap to view message and contact Admin.')
+        .replace(/VIP Telegram Channel \/ Group access unlock ho chuka hai\. Tap karke message padhein aur join karein\.?/gi, 'VIP Telegram access unlocked. Tap to view message and contact Admin.')
         .replace(/download link/gi, 'Telegram VIP link')
         .replace(/download/gi, 'access');
       listModified = true;
@@ -1532,14 +1509,14 @@ export function openNotificationDetailModal(notif) {
     if (itemNameEl) itemNameEl.textContent = notif.productName || 'VIP Content Pack';
     if (orderIdEl) orderIdEl.textContent = '#' + String(notif.orderId || '').slice(-10).toUpperCase();
 
-    const link = notif.actionUrl || notif.telegramLink || notif.channelLink || 'https://t.me/TRUSTED_BROTHER1234';
+    const link = notif.actionUrl || 'https://t.me/TRUSTED_BROTHER1234';
     if (actionWrap) actionWrap.style.display = 'flex';
     if (ctaBtn) {
       ctaBtn.href = link;
       ctaBtn.dataset.url = link;
     }
     if (ctaBtnLabel) {
-      ctaBtnLabel.textContent = 'Join Telegram VIP Channel / Group';
+      ctaBtnLabel.textContent = 'Contact Admin on Telegram (@TRUSTED_BROTHER1234)';
     }
   } else if (notif.actionUrl) {
     if (statusPill) statusPill.style.display = 'none';

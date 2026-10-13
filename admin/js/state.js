@@ -1,4 +1,4 @@
-import { db, ref, onValue, get, set, update, remove, auth, onAuthStateChanged } from './firebase.js';
+import { db, ref, onValue, get, set, update, remove, auth, onAuthStateChanged, query, limitToLast } from './firebase.js';
 import { RTDB_NODES } from './config.js';
 import { safeJson, slugify, uid } from './utils.js';
 
@@ -45,8 +45,6 @@ function loadCachedStore() {
     media: {},
     visitors: {},
     customers: {},
-    sellers: {},
-    seller_applications: {},
   };
 
   // 1. Seed from window.__preloadedCatalog immediately (instant 0ms bootstrap)
@@ -190,8 +188,6 @@ function saveStoreCache() {
         visitors: STORE.visitors || {},
         customers: STORE.customers || {},
         analytics: STORE.analytics || {},
-        sellers: STORE.sellers || {},
-        seller_applications: STORE.seller_applications || {},
         timestamp: Date.now(),
       };
       localStorage.setItem(CACHE_KEY, JSON.stringify(updatedCache));
@@ -261,34 +257,26 @@ function attachNode(key, mode = 'collection') {
   }
 
   try {
-    get(ref(db, nodeName))
-      .then((snap) => {
-        if (snap.exists() && snap.val()) {
-          const val = snap.val();
-          if (typeof val === 'object' && Object.keys(val).length > 0) {
-            STORE[key] = val;
-            emit();
-          } else if (mode === 'singleton') {
-            STORE[key] = val;
-            emit();
-          }
-        } else if (!snap.exists() || !snap.val()) {
-          // Never auto-seed transactional or queue nodes (orders, events, visitors)
-          if (!['orders', 'events', 'visitors'].includes(key) && auth.currentUser) {
-            if (STORE[key] && typeof STORE[key] === 'object' && Object.keys(STORE[key]).length > 0) {
-              set(ref(db, nodeName), STORE[key]).catch(() => {});
-            }
-          }
-        }
-      })
-      .catch(() => {});
+    // ⚡ HIGH-PERFORMANCE QUERYING: Limit high-volume transactional streams to recent items
+    let targetRef = ref(db, nodeName);
+    if (key === 'orders') {
+      targetRef = query(ref(db, nodeName), limitToLast(75));
+    } else if (key === 'visitors') {
+      targetRef = query(ref(db, nodeName), limitToLast(150));
+    } else if (key === 'events') {
+      targetRef = query(ref(db, nodeName), limitToLast(120));
+    }
 
     const unsub = onValue(
-      ref(db, nodeName),
+      targetRef,
       (snap) => {
         if (snap.exists() && snap.val()) {
           const val = snap.val();
-          if (typeof val === 'object' && Object.keys(val).length > 0) {
+          if (['orders', 'visitors', 'events'].includes(key)) {
+            if (!STORE[key] || typeof STORE[key] !== 'object') STORE[key] = {};
+            Object.assign(STORE[key], val);
+            emit();
+          } else if (typeof val === 'object' && Object.keys(val).length > 0) {
             STORE[key] = val;
             emit();
           } else if (mode === 'singleton') {
@@ -320,6 +308,25 @@ function attachNode(key, mode = 'collection') {
   }
 }
 
+// Seamless on-demand fetch of all historical orders if requested by admin
+export async function loadAllHistoricalOrders() {
+  try {
+    const snap = await get(ref(db, 'orders'));
+    if (snap.exists() && snap.val()) {
+      if (!STORE.orders || typeof STORE.orders !== 'object') STORE.orders = {};
+      Object.assign(STORE.orders, snap.val());
+      emitImmediate();
+      return Object.keys(STORE.orders).length;
+    }
+  } catch (err) {
+    console.warn('loadAllHistoricalOrders note:', err);
+  }
+  return 0;
+}
+if (typeof window !== 'undefined') {
+  window.loadAllHistoricalOrders = loadAllHistoricalOrders;
+}
+
 let isRealtimeStarted = false;
 export function startRealtime(force = false) {
   if (isRealtimeStarted && !force) return;
@@ -339,10 +346,6 @@ export function startRealtime(force = false) {
   attachNode('visitors');
   attachNode('reviews');
   attachNode('customers');
-  attachNode('sellers');
-  attachNode('seller_applications');
-  // Proactively fetch complete fresh snapshot via REST as high-reliability fallback
-  syncAllFromFirebase(force).catch(() => {});
 }
 
 export async function syncAllFromFirebase(force = false) {
@@ -359,7 +362,12 @@ export async function syncAllFromFirebase(force = false) {
     const targets = ['visitors', 'events', 'orders', 'products', 'categories', 'customers'];
     const results = await Promise.allSettled(
       targets.map(async (key) => {
-        const res = await fetch(`${base}/${key}.json${tokenQuery}`, { cache: 'no-store' });
+        let querySuffix = tokenQuery;
+        if (['orders', 'visitors', 'events'].includes(key)) {
+          const delim = querySuffix ? '&' : '?';
+          querySuffix += `${delim}orderBy=%22$key%22&limitToLast=50`;
+        }
+        const res = await fetch(`${base}/${key}.json${querySuffix}`, { cache: 'no-store' });
         if (!res.ok) return null;
         return res.json();
       })
@@ -372,10 +380,10 @@ export async function syncAllFromFirebase(force = false) {
         const data = outcome.value;
         const count = Object.keys(data).length;
         if (count > 0) {
-          if (key === 'orders') {
-            if (!STORE.orders || typeof STORE.orders !== 'object') STORE.orders = {};
+          if (['orders', 'visitors', 'events'].includes(key)) {
+            if (!STORE[key] || typeof STORE[key] !== 'object') STORE[key] = {};
             Object.entries(data).forEach(([k, v]) => {
-              if (v) STORE.orders[k] = v;
+              if (v) STORE[key][k] = v;
             });
           } else {
             STORE[key] = data;
@@ -400,7 +408,6 @@ startRealtime();
 onAuthStateChanged(auth, (user) => {
   if (user) {
     startRealtime(true);
-    syncAllFromFirebase(true).catch(() => {});
   }
 });
 
@@ -764,9 +771,9 @@ if (typeof window !== 'undefined') {
     }
   });
 
-  // 2. Continuous 12s fallback polling ensures incoming orders, visitors, and events stay fresh
+  // 2. Light 60s fallback polling ensures incoming orders, visitors, and events stay fresh without flooding network
   setInterval(async () => {
     syncAllFromFirebase().catch(() => {});
-  }, 12000);
+  }, 60000);
 }
 

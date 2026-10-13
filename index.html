@@ -103,6 +103,118 @@
   <link rel="stylesheet" href="mobile-app.css?v=20261011_v9" />
   <script src="preload.js?v=20261011_v8" charset="UTF-8"></script>
   <style id="critical-hero-toast-fix">
+    /* ── LIGHT MODE LUXURY HEADER ACTION BUTTONS ── */
+    [data-theme="light"] .fk-notif-btn-wrap {
+      background: rgba(245, 158, 11, 0.12) !important;
+      border: 1.5px solid rgba(217, 119, 6, 0.35) !important;
+      color: #92400e !important;
+      box-shadow: 0 2px 8px rgba(217, 119, 6, 0.08) !important;
+    }
+    [data-theme="light"] .fk-notif-btn-wrap i {
+      color: #d97706 !important;
+      filter: drop-shadow(0 1px 2px rgba(217, 119, 6, 0.25)) !important;
+    }
+    [data-theme="light"] .fk-notif-btn-wrap:hover {
+      background: rgba(245, 158, 11, 0.22) !important;
+      border-color: rgba(217, 119, 6, 0.6) !important;
+      color: #78350f !important;
+    }
+    [data-theme="light"] .fk-user-btn-wrap {
+      background: rgba(244, 63, 94, 0.09) !important;
+      border: 1.5px solid rgba(225, 29, 72, 0.35) !important;
+      color: #9f1239 !important;
+      box-shadow: 0 2px 8px rgba(225, 29, 72, 0.08) !important;
+    }
+    [data-theme="light"] .fk-user-btn-wrap i,
+    [data-theme="light"] .fk-user-btn-wrap i.fa-gear {
+      color: #e11d48 !important;
+      filter: drop-shadow(0 1px 2px rgba(225, 29, 72, 0.25)) !important;
+    }
+    [data-theme="light"] .fk-user-btn-wrap .fk-user-btn-text,
+    [data-theme="light"] #headerUserBtnText {
+      color: #9f1239 !important;
+      font-weight: 750 !important;
+      letter-spacing: 0.2px !important;
+    }
+    [data-theme="light"] .fk-user-btn-wrap:hover {
+      background: rgba(244, 63, 94, 0.18) !important;
+      border-color: rgba(225, 29, 72, 0.65) !important;
+      color: #881337 !important;
+    }
+    [data-theme="light"] .fk-orders-btn-wrap {
+      background: rgba(16, 185, 129, 0.1) !important;
+      border: 1.5px solid rgba(5, 150, 105, 0.35) !important;
+      color: #065f46 !important;
+      box-shadow: 0 2px 8px rgba(5, 150, 105, 0.08) !important;
+    }
+    [data-theme="light"] .fk-orders-btn-wrap i,
+    [data-theme="light"] .fk-orders-btn-wrap i.fa-receipt {
+      color: #059669 !important;
+      filter: drop-shadow(0 1px 2px rgba(5, 150, 105, 0.25)) !important;
+    }
+    [data-theme="light"] .fk-orders-btn-wrap .fk-orders-btn-text {
+      color: #065f46 !important;
+      font-weight: 750 !important;
+      letter-spacing: 0.2px !important;
+    }
+    [data-theme="light"] .fk-orders-btn-wrap:hover {
+      background: rgba(16, 185, 129, 0.2) !important;
+      border-color: rgba(5, 150, 105, 0.65) !important;
+      color: #044e3b !important;
+    }
+    [data-theme="light"] #ordersBadgeHeader {
+      background: #059669 !important;
+      color: #ffffff !important;
+    }
+    [data-theme="light"] .fk-cart-btn-wrap {
+      background: linear-gradient(135deg, rgba(244, 63, 94, 0.12), rgba(168, 85, 247, 0.12)) !important;
+      border: 1.5px solid rgba(225, 29, 72, 0.38) !important;
+      color: #9f1239 !important;
+      box-shadow: 0 2px 10px rgba(225, 29, 72, 0.1) !important;
+    }
+    [data-theme="light"] .fk-cart-btn-wrap i {
+      color: #e11d48 !important;
+      filter: drop-shadow(0 1px 2px rgba(225, 29, 72, 0.25)) !important;
+    }
+    [data-theme="light"] .fk-cart-btn-wrap .fk-cart-btn-text {
+      color: #9f1239 !important;
+      font-weight: 750 !important;
+      letter-spacing: 0.2px !important;
+    }
+    [data-theme="light"] .fk-cart-btn-wrap:hover {
+      background: linear-gradient(135deg, rgba(244, 63, 94, 0.2), rgba(168, 85, 247, 0.2)) !important;
+      border-color: rgba(225, 29, 72, 0.65) !important;
+      color: #881337 !important;
+    }
+    [data-theme="light"] #cartBadgeHeader {
+      background: #e11d48 !important;
+      color: #ffffff !important;
+    }
+    [data-theme="light"] .fk-quick-pill {
+      background: #ffffff !important;
+      border: 1.5px solid #cbd5e1 !important;
+      color: #1e293b !important;
+      font-weight: 700 !important;
+      box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05) !important;
+    }
+    [data-theme="light"] .fk-quick-pill:hover {
+      background: #f8fafc !important;
+      border-color: #94a3b8 !important;
+      color: #0f172a !important;
+    }
+    [data-theme="light"] .fk-quick-pill.active {
+      background: linear-gradient(135deg, #ff1a53 0%, #e11244 100%) !important;
+      color: #ffffff !important;
+      border-color: transparent !important;
+    }
+    [data-theme="light"] .fk-logo-text {
+      color: #0f172a !important;
+      -webkit-text-fill-color: #0f172a !important;
+    }
+    [data-theme="light"] .fk-brand-sub {
+      color: #64748b !important;
+    }
+
     /* ── CARD "ADD TO CART" LUXURY BUTTON ── */
     [data-theme="light"] .fk-card-btn-cart,
     [data-theme="light"] .btn-card-add-cart,
@@ -1414,6 +1526,7 @@
   <!-- ------ FIREBASE INTEGRATION ------ -->
   <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-app.js";
+  import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-auth.js";
   import { getDatabase, ref, get, push, set, onValue } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-database.js";
 
   const firebaseConfig = {
@@ -1428,12 +1541,56 @@
   };
 
   const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
   const db = getDatabase(app);
+
+  window.__linkaddaApp = app;
+  window.__linkaddaAuth = auth;
   window.__linkaddaDb = db;
   window.__linkaddaDbRef = ref;
   window.__linkaddaDbGet = get;
   window.__linkaddaDbPush = push;
   window.__linkaddaDbSet = set;
+  window.__linkaddaOnValue = onValue;
+
+  // Domain-guarded silent anonymous authentication:
+  // Legitimate visitors on linkadda.online get authorized automatically.
+  // Cloned sites on unauthorized domains (e.g. goldclub.win99.pp.ua) are rejected by Google Identity Toolkit.
+  let __cachedCatalogToken = null;
+  const __authReadyPromise = new Promise((resolve) => {
+    try {
+      onAuthStateChanged(auth, async (user) => {
+        if (user) {
+          try { __cachedCatalogToken = await user.getIdToken(); } catch (_) {}
+          resolve(user);
+        } else {
+          try {
+            const cred = await signInAnonymously(auth);
+            __cachedCatalogToken = await cred.user.getIdToken();
+            resolve(cred.user);
+          } catch (err) {
+            console.warn('Catalog auth status:', err.message);
+            resolve(null);
+          }
+        }
+      });
+    } catch (err) {
+      console.warn('Catalog auth listener init failed:', err.message);
+      resolve(null);
+    }
+  });
+  window.__linkaddaAuthReady = __authReadyPromise;
+  window.getFirebaseCatalogToken = async () => {
+    if (__cachedCatalogToken) return __cachedCatalogToken;
+    try {
+      const u = auth.currentUser || (await __authReadyPromise);
+      if (u) {
+        __cachedCatalogToken = await u.getIdToken();
+        return __cachedCatalogToken;
+      }
+    } catch (_) {}
+    return null;
+  };
   var activeSlideshowObserver = null;
 
   function safeUrl(value, fallback = '') {
@@ -1536,34 +1693,65 @@
     });
   }
 
-  // -- VISITOR TRACKING (once per session) --
+  // -- BULLETPROOF AUTHENTICATED VISITOR TRACKING (once per session) --
   const todayDateStr = new Date().toISOString().slice(0, 10);
-  try {
-    const visKey = `linkadda_vis_count_${todayDateStr}`;
-    let currentVis = Number(localStorage.getItem(visKey) || 0);
-    if (!sessionStorage.getItem('visit_tracked')) {
-      sessionStorage.setItem('visit_tracked', '1');
+  async function trackVisitorSession(pageName = 'index') {
+    try {
+      const visKey = `linkadda_vis_count_${todayDateStr}`;
+      let currentVis = Number(localStorage.getItem(visKey) || 0);
+
+      // Update UI counts immediately from local cache if already tracked
+      if (sessionStorage.getItem('visit_tracked')) {
+        if (window.__linkaddaToast && currentVis > 0) window.__linkaddaToast.setVisitorCount(currentVis);
+        if (typeof window.updateMarqueeVisitors === 'function' && currentVis > 0) window.updateMarqueeVisitors({ today: currentVis });
+        return;
+      }
+
+      // Wait for silent anonymous auth to resolve so auth != null in RTDB rules
+      try {
+        if (window.__linkaddaAuthReady) await window.__linkaddaAuthReady;
+      } catch (_) {}
+
+      const targetAuth = window.__linkaddaAuth || auth;
+      if (!targetAuth.currentUser) {
+        try {
+          await signInAnonymously(targetAuth);
+        } catch (_) {}
+      }
+
       const visitRef = push(ref(db, 'visitors'));
-      set(visitRef, { date: todayDateStr, timestamp: Date.now(), page: 'index' }).catch(() => {});
+      await set(visitRef, {
+        date: todayDateStr,
+        timestamp: Date.now(),
+        page: pageName,
+        referrer: document.referrer ? (function() { try { return new URL(document.referrer, window.location.origin).hostname; } catch(_) { return 'direct'; } })() : 'direct'
+      });
+
+      sessionStorage.setItem('visit_tracked', '1');
       currentVis += 1;
       localStorage.setItem(visKey, String(currentVis));
+
+      if (window.__linkaddaToast && currentVis > 0) {
+        window.__linkaddaToast.setVisitorCount(currentVis);
+      }
+      if (typeof window.updateMarqueeVisitors === 'function' && currentVis > 0) {
+        window.updateMarqueeVisitors({ today: currentVis });
+      }
+    } catch (err) {
+      console.warn('Visitor tracking note:', err && err.message);
     }
-    if (window.__linkaddaToast && currentVis > 0) {
-      window.__linkaddaToast.setVisitorCount(currentVis);
-    }
-    if (typeof window.updateMarqueeVisitors === 'function' && currentVis > 0) {
-      window.updateMarqueeVisitors({ today: currentVis });
-    }
-  } catch (_) {}
+  }
+  trackVisitorSession('index');
 
   // -- TELEGRAM CLICKS TRACKING --
-  document.addEventListener('click', (event) => {
+  document.addEventListener('click', async (event) => {
     const tgLink = event.target.closest('a[href*="t.me"], .floating-tg-dock, #floatingTgDock, .btn-contact');
     if (tgLink) {
       try {
         if (window.__linkaddaToast) {
           window.__linkaddaToast.recordTelegramClick();
         }
+        if (window.__linkaddaAuthReady) await window.__linkaddaAuthReady;
         push(ref(db, 'events'), {
           type: 'telegram_click',
           page: 'index',
@@ -2067,39 +2255,17 @@
     }
   })();
 
-  // -- REAL LIVE STATS: ORDERS (Weekly Completed & Approved Pool) --
-  onValue(ref(db, 'orders'), snap => {
-    const data = snap.val();
-    if (!data) return;
-    const list = Object.values(data);
-    const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-
-    const weeklyCompleted = list.filter(o => {
-      const status = String(o.status || '').toLowerCase();
-      const isCompleted = status === 'approved' || status === 'delivered' || status === 'completed';
-      if (!isCompleted) return false;
-      const ts = Number(o.timestamp || o.createdAt || o.updatedAt || 0);
-      if (ts) return ts >= sevenDaysAgo;
-      const d = String(o.date || '');
-      return d && new Date(d).getTime() >= sevenDaysAgo;
-    }).length;
-
-    if (typeof window.updateMarqueeWeeklyOrders === 'function') {
-      window.updateMarqueeWeeklyOrders(weeklyCompleted);
-    }
-
-    const approvedFromOrders = list
-      .filter(o => {
-        const status = String(o.status || '').toLowerCase();
-        return status === 'approved' || status === 'delivered' || status === 'completed';
-      })
-      .map(o => o.package || o.title || o.productName || o.name || '')
-      .filter(Boolean);
-
-    if (approvedFromOrders.length > 0 && typeof window.updateMarqueeWithOrders === 'function') {
-      window.updateMarqueeWithOrders(approvedFromOrders);
-    }
-  }, () => {});
+  // -- REAL LIVE STATS: ORDERS (Weekly Completed & Approved Pool sourced safely via settings & local cache) --
+  (function initWeeklyOrdersStats() {
+    try {
+      const cached = JSON.parse(localStorage.getItem('linkadda_cached_settings') || '{}');
+      const act = cached?.settings?.liveActivity || cached?.settings || {};
+      const weekly = Number(act.weeklyOrders || act.weeklyCompletedOrders || 15);
+      if (weekly > 0 && typeof window.updateMarqueeWeeklyOrders === 'function') {
+        window.updateMarqueeWeeklyOrders(weekly);
+      }
+    } catch (_) {}
+  })();
 
   function getOrderClickMeta(link, checkoutMeta = null) {
     const meta = checkoutMeta || resolveCheckoutMeta(link);
@@ -3025,8 +3191,8 @@
           <div class="user-order-note ${isConfirmed ? 'confirmed' : 'pending'}" style="font-size:11.5px;padding:6px 10px;border-radius:8px;display:flex;align-items:center;gap:6px;${isConfirmed ? 'background:rgba(16,185,129,0.12);color:#34d399;border:1px solid rgba(16,185,129,0.3);' : 'background:rgba(245,158,11,0.1);color:#fbbf24;border:1px solid rgba(245,158,11,0.25);'}">
             <i class="fa-solid ${isConfirmed ? 'fa-circle-check' : 'fa-hourglass-half'}"></i>
             <span>${isConfirmed 
-              ? (accessLink ? 'Order Approved! Aapka Telegram VIP link ready hai.' : 'Order Approved! Telegram VIP link syncing...') 
-              : 'Admin verification in progress. Approve hote hi link unlock hoga.'}</span>
+              ? (accessLink ? 'Order Approved! Your Telegram VIP link is ready.' : 'Order Approved! Telegram VIP link syncing...') 
+              : 'Admin verification in progress. Access link will unlock automatically upon approval.'}</span>
           </div>
 
           <div class="order-card-footer" style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;padding-top:8px;border-top:1px solid rgba(255,255,255,0.06);">
@@ -4364,24 +4530,60 @@
     } catch (_) {}
   }
 
-  // -- LIVE REALTIME DATA SYNC FROM FIREBASE (Never wipes out catalog if database is empty) --
-  onValue(ref(db,'categories'), snap => {
-    const val = snap.val();
-    if (val && typeof val === 'object' && Object.keys(val).length > 0) {
-      liveCollections.categories = val;
-      saveCachedLiveData();
-      scheduleRenderLiveStore();
-    }
-  });
+  // -- SECURE REALTIME DATA SYNC FROM FIREBASE (Domain-Auth Guarded) --
+  let __catUnsub = null;
+  let __prodUnsub = null;
 
-  onValue(ref(db,'products'), snap => {
-    const val = snap.val();
-    if (val && typeof val === 'object' && Object.keys(val).length > 0) {
-      liveCollections.products = val;
-      saveCachedLiveData();
-      scheduleRenderLiveStore();
-    }
-  });
+  function attachStoreRealtimeListeners() {
+    if (__catUnsub) { try { __catUnsub(); } catch (_) {} }
+    if (__prodUnsub) { try { __prodUnsub(); } catch (_) {} }
+
+    try {
+      __catUnsub = onValue(ref(db, 'categories'), snap => {
+        const val = snap.val();
+        if (val && typeof val === 'object' && Object.keys(val).length > 0) {
+          liveCollections.categories = val;
+          saveCachedLiveData();
+          scheduleRenderLiveStore();
+        }
+      }, (err) => {
+        console.warn('Realtime categories notice:', err?.message);
+      });
+    } catch (_) {}
+
+    try {
+      __prodUnsub = onValue(ref(db, 'products'), snap => {
+        const val = snap.val();
+        if (val && typeof val === 'object' && Object.keys(val).length > 0) {
+          liveCollections.products = val;
+          saveCachedLiveData();
+          scheduleRenderLiveStore();
+        }
+      }, (err) => {
+        console.warn('Realtime products notice:', err?.message);
+      });
+    } catch (_) {}
+  }
+
+  // Attach immediately if visitor is already authenticated
+  if (auth.currentUser) {
+    attachStoreRealtimeListeners();
+  }
+  // And attach seamlessly as soon as domain-authorized anonymous token resolves
+  if (window.__linkaddaAuthReady) {
+    window.__linkaddaAuthReady.then((user) => {
+      if (user) {
+        attachStoreRealtimeListeners();
+        initRestSync();
+      }
+    }).catch(() => {});
+  }
+  // Re-attach if user logs in or auth credentials refresh
+  try {
+    onAuthStateChanged(auth, (user) => {
+      if (user) attachStoreRealtimeListeners();
+    });
+  } catch (_) {}
 
   // Instant cross-tab sync: updates storefront in 0ms when admin saves changes in another tab
   window.addEventListener('storage', (e) => {
@@ -4400,38 +4602,49 @@
     }
   });
 
-  // Fast resilient REST fallback: Only updates if new catalog data actually differs
-  fetch(`https://linkadda-online-default-rtdb.firebaseio.com/products.json?_t=${Date.now()}`, { cache: 'no-store' })
-    .then(r => r.json())
-    .then(data => {
-      if (data && typeof data === 'object' && Object.keys(data).length) {
-        const curKeys = Object.keys(liveCollections.products || {});
-        const newKeys = Object.keys(data);
-        const hasDiff = curKeys.length !== newKeys.length || newKeys.some(k => !liveCollections.products[k] || liveCollections.products[k].updatedAt !== data[k].updatedAt || liveCollections.products[k].image !== data[k].image);
-        if (hasDiff) {
-          liveCollections.products = data;
-          saveCachedLiveData();
-          scheduleRenderLiveStore();
-        }
-      }
-    })
-    .catch(() => {});
+  // Fast resilient REST sync: Instantly updates live products and images from Firebase with auth
+  const initRestSync = async () => {
+    try {
+      const token = typeof window.getFirebaseCatalogToken === 'function' ? await window.getFirebaseCatalogToken() : null;
+      const authQuery = token ? `?auth=${encodeURIComponent(token)}` : '';
 
-  fetch(`https://linkadda-online-default-rtdb.firebaseio.com/categories.json?_t=${Date.now()}`, { cache: 'no-store' })
-    .then(r => r.json())
-    .then(data => {
-      if (data && typeof data === 'object' && Object.keys(data).length) {
-        const curKeys = Object.keys(liveCollections.categories || {});
-        const newKeys = Object.keys(data);
-        const hasDiff = curKeys.length !== newKeys.length || newKeys.some(k => !liveCollections.categories[k] || liveCollections.categories[k].updatedAt !== data[k].updatedAt);
-        if (hasDiff) {
-          liveCollections.categories = data;
-          saveCachedLiveData();
-          scheduleRenderLiveStore();
-        }
-      }
-    })
-    .catch(() => {});
+      fetch(`https://linkadda-online-default-rtdb.firebaseio.com/products.json${authQuery}`, { cache: 'no-store' })
+        .then(r => r.json())
+        .then(data => {
+          if (data && typeof data === 'object' && !data.error && Object.keys(data).length) {
+            const curKeys = Object.keys(liveCollections.products || {});
+            const newKeys = Object.keys(data);
+            const hasDiff = curKeys.length !== newKeys.length || newKeys.some(k => !liveCollections.products[k] || liveCollections.products[k].updatedAt !== data[k].updatedAt || liveCollections.products[k].image !== data[k].image);
+            if (hasDiff) {
+              liveCollections.products = data;
+              saveCachedLiveData();
+              scheduleRenderLiveStore();
+            }
+          }
+        })
+        .catch(() => {});
+
+      fetch(`https://linkadda-online-default-rtdb.firebaseio.com/categories.json${authQuery}`, { cache: 'no-store' })
+        .then(r => r.json())
+        .then(data => {
+          if (data && typeof data === 'object' && !data.error && Object.keys(data).length) {
+            const curKeys = Object.keys(liveCollections.categories || {});
+            const newKeys = Object.keys(data);
+            const hasDiff = curKeys.length !== newKeys.length || newKeys.some(k => !liveCollections.categories[k] || liveCollections.categories[k].updatedAt !== data[k].updatedAt);
+            if (hasDiff) {
+              liveCollections.categories = data;
+              saveCachedLiveData();
+              scheduleRenderLiveStore();
+            }
+          }
+        })
+        .catch(() => {});
+    } catch (_) {}
+  };
+  // Fallback trigger
+  setTimeout(() => {
+    initRestSync();
+  }, 600);
 
   var sharedFocusDone = false;
   var sharedFocusTargetId = '';
@@ -6290,7 +6503,7 @@
 
         <div class="notif-detail-desc-box">
           <p class="notif-detail-message-text" id="notifDetailMessageText">
-            Aapka order approve ho gaya hai! VIP Telegram Group / Channel access link unlock ho chuka hai.
+            Your order has been approved! Content access and VIP Telegram details are now unlocked.
           </p>
         </div>
 
@@ -6439,9 +6652,9 @@
     </main>
   </div>
 
-  <script type="module" src="media-resolver.js?v=20261011_v8"></script>
-  <script src="live-ticker.js?v=20261010_fix1"></script>
-  <script src="linkadda-store.js?v=20261011_v8"></script>
-  <script type="module" src="auth-modal.js?v=20261010_fix1"></script>
+  <script type="module" src="media-resolver.js?v=20261013_v1"></script>
+  <script src="live-ticker.js?v=20261013_v1"></script>
+  <script src="linkadda-store.js?v=20261013_v1"></script>
+  <script type="module" src="auth-modal.js?v=20261013_v1"></script>
 </body>
 </html>

@@ -6122,6 +6122,126 @@ body.linkadda-store,
   box-shadow: 0 6px 22px rgba(244, 63, 94, 0.4) !important;
 }
 
+/* ── LIGHT MODE LUXURY HEADER ACTION CAPSULES ([data-theme="light"]) ── */
+[data-theme="light"] .fk-notif-btn-wrap {
+  background: rgba(245, 158, 11, 0.12) !important;
+  border: 1.5px solid rgba(217, 119, 6, 0.35) !important;
+  color: #92400e !important;
+  box-shadow: 0 2px 8px rgba(217, 119, 6, 0.08) !important;
+}
+
+[data-theme="light"] .fk-notif-btn-wrap i {
+  color: #d97706 !important;
+  filter: drop-shadow(0 1px 2px rgba(217, 119, 6, 0.25)) !important;
+}
+
+[data-theme="light"] .fk-notif-btn-wrap:hover {
+  background: rgba(245, 158, 11, 0.22) !important;
+  border-color: rgba(217, 119, 6, 0.6) !important;
+  color: #78350f !important;
+  box-shadow: 0 4px 16px rgba(217, 119, 6, 0.2) !important;
+}
+
+[data-theme="light"] .fk-user-btn-wrap {
+  background: rgba(244, 63, 94, 0.09) !important;
+  border: 1.5px solid rgba(225, 29, 72, 0.35) !important;
+  color: #9f1239 !important;
+  box-shadow: 0 2px 8px rgba(225, 29, 72, 0.08) !important;
+}
+
+[data-theme="light"] .fk-user-btn-wrap i,
+[data-theme="light"] .fk-user-btn-wrap i.fa-gear {
+  color: #e11d48 !important;
+  filter: drop-shadow(0 1px 2px rgba(225, 29, 72, 0.25)) !important;
+}
+
+[data-theme="light"] .fk-user-btn-wrap .fk-user-btn-text,
+[data-theme="light"] #headerUserBtnText {
+  color: #9f1239 !important;
+  font-weight: 750 !important;
+  letter-spacing: 0.2px !important;
+}
+
+[data-theme="light"] .fk-user-btn-wrap:hover {
+  background: rgba(244, 63, 94, 0.18) !important;
+  border-color: rgba(225, 29, 72, 0.65) !important;
+  color: #881337 !important;
+  box-shadow: 0 4px 16px rgba(225, 29, 72, 0.22) !important;
+}
+
+[data-theme="light"] .fk-user-btn-wrap:hover .fk-user-btn-text {
+  color: #881337 !important;
+}
+
+[data-theme="light"] .fk-orders-btn-wrap {
+  background: rgba(16, 185, 129, 0.1) !important;
+  border: 1.5px solid rgba(5, 150, 105, 0.35) !important;
+  color: #065f46 !important;
+  box-shadow: 0 2px 8px rgba(5, 150, 105, 0.08) !important;
+}
+
+[data-theme="light"] .fk-orders-btn-wrap i,
+[data-theme="light"] .fk-orders-btn-wrap i.fa-receipt {
+  color: #059669 !important;
+  filter: drop-shadow(0 1px 2px rgba(5, 150, 105, 0.25)) !important;
+}
+
+[data-theme="light"] .fk-orders-btn-wrap .fk-orders-btn-text {
+  color: #065f46 !important;
+  font-weight: 750 !important;
+  letter-spacing: 0.2px !important;
+}
+
+[data-theme="light"] .fk-orders-btn-wrap:hover {
+  background: rgba(16, 185, 129, 0.2) !important;
+  border-color: rgba(5, 150, 105, 0.65) !important;
+  color: #044e3b !important;
+  box-shadow: 0 4px 16px rgba(5, 150, 105, 0.22) !important;
+}
+
+[data-theme="light"] .fk-orders-btn-wrap:hover .fk-orders-btn-text {
+  color: #044e3b !important;
+}
+
+[data-theme="light"] #ordersBadgeHeader {
+  background: #059669 !important;
+  color: #ffffff !important;
+}
+
+[data-theme="light"] .fk-cart-btn-wrap {
+  background: linear-gradient(135deg, rgba(244, 63, 94, 0.12), rgba(168, 85, 247, 0.12)) !important;
+  border: 1.5px solid rgba(225, 29, 72, 0.38) !important;
+  color: #9f1239 !important;
+  box-shadow: 0 2px 10px rgba(225, 29, 72, 0.1) !important;
+}
+
+[data-theme="light"] .fk-cart-btn-wrap i {
+  color: #e11d48 !important;
+  filter: drop-shadow(0 1px 2px rgba(225, 29, 72, 0.25)) !important;
+}
+
+[data-theme="light"] .fk-cart-btn-wrap .fk-cart-btn-text {
+  color: #9f1239 !important;
+  font-weight: 750 !important;
+  letter-spacing: 0.2px !important;
+}
+
+[data-theme="light"] .fk-cart-btn-wrap:hover {
+  background: linear-gradient(135deg, rgba(244, 63, 94, 0.2), rgba(168, 85, 247, 0.2)) !important;
+  border-color: rgba(225, 29, 72, 0.65) !important;
+  color: #881337 !important;
+  box-shadow: 0 6px 20px rgba(225, 29, 72, 0.25) !important;
+}
+
+[data-theme="light"] .fk-cart-btn-wrap:hover .fk-cart-btn-text {
+  color: #881337 !important;
+}
+
+[data-theme="light"] #cartBadgeHeader {
+  background: #e11d48 !important;
+  color: #ffffff !important;
+}
+
 /* ── 6. QUICK FILTER PILL CHIPS ── */
 .fk-quick-pill {
   border-radius: 9999px !important;

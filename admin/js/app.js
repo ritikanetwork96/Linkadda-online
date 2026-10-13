@@ -140,10 +140,6 @@ const ui = {
     search: '',
     status: 'all',
   },
-  sellers: {
-    tab: 'pending',
-    search: '',
-  },
   catalogFiltersOpen: typeof catalogPrefs.catalogFiltersOpen === 'boolean'
     ? catalogPrefs.catalogFiltersOpen
     : !isMobileViewport(),
@@ -203,8 +199,6 @@ const collectionSchemas = {
       { key: 'title', label: 'Title', type: 'text', required: true },
       { key: 'slug', label: 'Slug', type: 'text', required: true },
       { key: 'category', label: 'Category', type: 'text' },
-      { key: 'sellerName', label: 'Seller / Store Name', type: 'text', hint: 'Creator / partner storefront name' },
-      { key: 'sellerId', label: 'Seller ID', type: 'text', hint: 'Partner seller ID (e.g. seller_...)' },
       { key: 'description', label: 'Description', type: 'textarea' },
       { key: 'priceINR', label: 'Price INR', type: 'text' },
       { key: 'priceUSD', label: 'Price USD', type: 'text' },
@@ -1271,13 +1265,6 @@ function renderProductEditor(record = {}, schema = null) {
               </div>
             </div>
 
-            <div class="product-grid-2" style="margin-top: 14px;">
-              <div class="field">
-                <label for="sellerName" style="font-weight: 700;">Seller / Studio Name</label>
-                <input class="input" type="text" name="sellerName" id="sellerName" value="${escapeHtml(data.sellerName || 'LinkAdda Official')}" placeholder="e.g. LinkAdda Official" />
-                <small class="field-hint">Displays as 'Sold by [Store Name] 🛡️ Verified' on product card & details drawer.</small>
-              </div>
-
               <div class="field">
                 <label for="rating">Star Rating (1.0 to 5.0)</label>
                 <input class="input" type="text" name="rating" id="rating" value="${escapeHtml(data.rating || '4.9')}" placeholder="e.g. 4.9" />
@@ -1778,7 +1765,6 @@ function getProductEditorRecord(form) {
     slug: form.querySelector('[name="slug"]')?.value || '',
     category: form.querySelector('[name="category"]')?.value || '',
     description: form.querySelector('[name="description"]')?.value || '',
-    sellerName: form.querySelector('[name="sellerName"]')?.value || '',
     rating: form.querySelector('[name="rating"]')?.value || '',
     reviewsCount: form.querySelector('[name="reviewsCount"]')?.value || '',
     priceINR: form.querySelector('[name="priceINR"]')?.value || '',
@@ -7536,6 +7522,7 @@ function renderOrdersManagementView(data = {}, fullData = {}) {
             <p style="margin: 4px 0 0 0; color: var(--muted); font-size: 13px;">Manage real customer transactions, verify payment screenshot proofs, and approve orders.</p>
           </div>
           <div class="toolbar" style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+            <button class="btn btn-ghost" type="button" data-action="load-all-orders" title="Fetch all historical orders from database"><i data-lucide="history"></i> Load Full History</button>
             <button class="btn btn-ghost" type="button" data-action="export-orders-csv" title="Export all orders to CSV"><i data-lucide="download"></i> Export CSV</button>
             <button class="btn btn-ghost" type="button" data-action="goto" data-route="payment"><i data-lucide="credit-card"></i> Payment Hub</button>
           </div>
@@ -10461,7 +10448,18 @@ function attachGlobalHandlers() {
       renderView(ui.data || {});
       return;
     }
+    if (action === 'load-all-orders') {
+      showToast('Fetching all historical orders...', 'info');
+      if (typeof window.loadAllHistoricalOrders === 'function') {
+        const count = await window.loadAllHistoricalOrders();
+        showToast(`Loaded ${count} orders`, 'success');
+      }
+      return;
+    }
     if (action === 'export-orders-csv') {
+      if (typeof window.loadAllHistoricalOrders === 'function') {
+        await window.loadAllHistoricalOrders().catch(() => {});
+      }
       const allOrders = listCollection('orders');
       if (!allOrders.length) {
         showToast('No orders found to export', 'warning');
@@ -10517,8 +10515,6 @@ function attachGlobalHandlers() {
           if (!productLink) {
             productLink = matchedProduct.downloadLink || matchedProduct.fileUrl || matchedProduct.orderLink || '';
           }
-          if (!order.sellerId && matchedProduct.sellerId) order.sellerId = matchedProduct.sellerId;
-          if (!order.sellerName && matchedProduct.sellerName) order.sellerName = matchedProduct.sellerName;
         }
 
         // Fallback to default Telegram link if product has no link
@@ -10534,8 +10530,6 @@ function attachGlobalHandlers() {
           downloadLink: productLink,
           fileUrl: productLink,
           orderLink: productLink,
-          sellerId: order.sellerId || matchedProduct?.sellerId || '',
-          sellerName: order.sellerName || matchedProduct?.sellerName || '',
           reviewedAt: Date.now(),
           reviewedBy: userEmail?.textContent || userName?.textContent || APP_CONFIG.appName,
         };
@@ -10544,13 +10538,15 @@ function attachGlobalHandlers() {
 
         // Also write to order_approvals for instantaneous client-side notification sync
         try {
+          const adminDmUrl = 'https://t.me/TRUSTED_BROTHER1234';
           await set(ref(db, `order_approvals/${id}`), {
             orderId: id,
             productName: orderTitle,
-            downloadLink: productLink,
-            telegramLink: productLink,
-            channelLink: productLink,
-            groupLink: productLink,
+            downloadLink: productLink || adminDmUrl,
+            telegramLink: adminDmUrl,
+            adminTelegram: adminDmUrl,
+            channelLink: adminDmUrl,
+            groupLink: adminDmUrl,
             status: 'approved',
             approvedAt: Date.now(),
             customerEmail: order.customerEmail || order.email || order.buyerEmail || ''
@@ -10618,83 +10614,8 @@ function attachGlobalHandlers() {
           }).catch(e => console.warn('Buyer email notice:', e));
         }
 
-        // ━━ 2. DISPATCH NOTIFICATION TO SELLER (EMAIL & IN-APP NOTIFICATION) ━━
-        const targetSellerId = order.sellerId || matchedProduct?.sellerId || '';
-        let sellerRecord = null;
-        if (targetSellerId) {
-          const allSellers = listCollection('sellers') || [];
-          sellerRecord = allSellers.find(s => String(s.id) === String(targetSellerId)) || ui.data?.sellers?.[targetSellerId];
-        }
-        if (!sellerRecord && (order.sellerName || matchedProduct?.sellerName)) {
-          const sName = String(order.sellerName || matchedProduct?.sellerName).toLowerCase().trim();
-          const allSellers = listCollection('sellers') || [];
-          sellerRecord = allSellers.find(s => String(s.storeName || '').toLowerCase().trim() === sName);
-        }
-
-        const sellerEmail = sellerRecord?.email || sellerRecord?.ownerEmail;
-        const sellerStore = sellerRecord?.storeName || order.sellerName || matchedProduct?.sellerName || 'Creator Partner';
-        const orderAmount = order.amount || order.amountINR || order.inr || 399;
-
-        if (sellerEmail) {
-          sendAdminNotificationEmail({
-            to: [{ email: sellerEmail, name: sellerStore }],
-            subject: `🎉 Order Approved! ₹${orderAmount} (100% Earnings) Credited for "${orderTitle}"`,
-            htmlContent: `
-              <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #07060c; color: #ffffff; padding: 32px 24px; border-radius: 16px; max-width: 520px; margin: 0 auto; border: 1px solid rgba(255, 42, 141, 0.3);">
-                <div style="text-align: center; margin-bottom: 24px;">
-                  <div style="font-size: 26px; font-weight: 800; color: #ffffff;">LinkAdda <span style="color: #ff2a8d;">&#9819;</span> Seller Hub</div>
-                  <div style="font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; color: #ff2a8d; font-weight: 700; margin-top: 4px;">Order Verified &amp; Approved</div>
-                </div>
-                <h2 style="color: #ffffff; margin: 0 0 12px; font-size: 19px;">Congratulations, ${escapeHtml(sellerStore)}! 💰</h2>
-                <p style="color: #cbd5e1; font-size: 14px; line-height: 1.6; margin-bottom: 20px;">
-                  An order for your pack <strong>"${escapeHtml(orderTitle)}"</strong> has been verified and approved by LinkAdda Admin.
-                </p>
-                <div style="background: rgba(255, 42, 141, 0.08); border: 1px solid rgba(255, 42, 141, 0.25); padding: 18px; border-radius: 12px; margin: 20px 0;">
-                  <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 13px;">
-                    <span style="color: #94a3b8;">Pack Name:</span>
-                    <strong style="color: #ffffff;">${escapeHtml(orderTitle)}</strong>
-                  </div>
-                  <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 13px;">
-                    <span style="color: #94a3b8;">Buyer:</span>
-                    <strong style="color: #ffffff;">${escapeHtml(buyerName)}</strong>
-                  </div>
-                  <div style="display: flex; justify-content: space-between; font-size: 15px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 10px; margin-top: 6px;">
-                    <span style="color: #34d399; font-weight: 700;">100% Creator Earnings:</span>
-                    <strong style="color: #34d399; font-size: 18px; font-weight: 850;">₹${orderAmount}</strong>
-                  </div>
-                </div>
-                <p style="color: #cbd5e1; font-size: 13px; line-height: 1.5;">
-                  100% of this sale amount has been approved and credited to your seller account for 7-day rolling automated UPI payout.
-                </p>
-                <div style="text-align: center; margin-top: 24px;">
-                  <a href="https://linkadda.online/seller/dashboard" target="_blank" style="background: linear-gradient(135deg, #ff2a8d, #ff5e36); color: #ffffff; padding: 12px 24px; border-radius: 10px; font-weight: 800; font-size: 13.5px; text-decoration: none; display: inline-block;">
-                    Open Seller Dashboard
-                  </a>
-                </div>
-              </div>
-            `
-          }).catch(e => console.warn('Seller email notice:', e));
-        }
-
-        // Save in-app notification in Firebase RTDB for seller
-        if (targetSellerId) {
-          try {
-            const notifRef = ref(db, `events/seller_notifications/${targetSellerId}/${Date.now()}`);
-            await set(notifRef, {
-              type: 'order_approved',
-              orderId: id,
-              productName: orderTitle,
-              amount: orderAmount,
-              buyerName: buyerName,
-              message: `Order for "${orderTitle}" approved! ₹${orderAmount} (100% earnings) credited.`,
-              timestamp: Date.now(),
-              read: false,
-            });
-          } catch (_) {}
-        }
-
         closeModal();
-        showToast('✅ Order approved! Telegram link dispatched to buyer & seller notified.', 'success');
+        showToast('✅ Order approved! Telegram link dispatched to buyer.', 'success');
         renderView(ui.data || {});
       } catch (err) {
         showToast('Failed to approve order: ' + (err?.message || err), 'danger');
@@ -11114,28 +11035,6 @@ function attachGlobalHandlers() {
           renderView(ui.data || {});
           return;
         } catch (error) {
-          // Resilient fallback for products via backend admin token
-          if (node === 'products') {
-            try {
-              const adminHeaders = await getAdminTokenHeader();
-              const apiRes = await fetch('/api/seller/products', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', ...adminHeaders },
-                body: JSON.stringify({ action: 'admin_save', product: next }),
-              });
-              if (apiRes.ok) {
-                const resJson = await apiRes.json();
-                const savedProd = resJson.product || next;
-                if (!ui.data) ui.data = {};
-                if (!ui.data.products) ui.data.products = {};
-                ui.data.products[savedProd.id] = savedProd;
-                showToast(`${schema.label} saved successfully!`, 'success');
-                closeModal();
-                renderView(ui.data || {});
-                return;
-              }
-            } catch (_) {}
-          }
           showToast(error?.message || `Failed to save ${schema.label.toLowerCase()}`, 'danger');
         }
       } finally {

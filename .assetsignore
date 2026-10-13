@@ -17,8 +17,11 @@ dev-server.mjs
 scratch*
 *.log
 *.mjs
+*.ps1
+*.jsonc
+api
+api/**
 .env*
+*.example
 database.rules.json
 README.md
-_redirects
-_headers

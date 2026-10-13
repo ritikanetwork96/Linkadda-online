@@ -179,12 +179,3 @@ export async function verifyAdminRequest(req) {
   return false;
 }
 
-// Global in-memory cache for seller applications & active sellers (ensures zero-downtime resilience)
-const globalStore = globalThis.__LINKADDA_SELLER_STORE || {
-  applications: new Map(),
-  sellers: new Map(),
-};
-globalThis.__LINKADDA_SELLER_STORE = globalStore;
-
-export const SELLER_MEMORY_STORE = globalStore;
-

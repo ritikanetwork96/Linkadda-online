@@ -1,4 +1,4 @@
-﻿/* ==========================================================================
+/* ==========================================================================
    LinkAdda Luxury Storefront Authentication & Profile Drawer Styles
    Designed for High-End E-Commerce Experience (Dark & Light Modes)
    ========================================================================== */
@@ -47,16 +47,20 @@
 }
 
 [data-theme="light"] .fk-user-btn-wrap {
-  background: #ffffff;
-  border-color: #e2e8f0;
-  color: #0f172a;
-  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
+  background: rgba(244, 63, 94, 0.09) !important;
+  border: 1.5px solid rgba(225, 29, 72, 0.35) !important;
+  color: #9f1239 !important;
+  box-shadow: 0 2px 8px rgba(225, 29, 72, 0.08) !important;
+}
+
+[data-theme="light"] .fk-user-btn-wrap .fk-user-btn-text {
+  color: #9f1239 !important;
 }
 
 [data-theme="light"] .fk-user-btn-wrap:hover {
-  background: #fff0f7;
-  border-color: #f0247a;
-  color: #db2777;
+  background: rgba(244, 63, 94, 0.18) !important;
+  border-color: rgba(225, 29, 72, 0.65) !important;
+  color: #881337 !important;
 }
 
 /* â”â” 2. SLIDE-OUT E-COMMERCE PROFILE DRAWER â”â” */

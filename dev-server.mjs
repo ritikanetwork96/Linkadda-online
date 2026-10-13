@@ -101,14 +101,6 @@ const server = http.createServer(async (req, res) => {
         const mod = await import(`./api/upload.js${bust}`);
         return await mod.default(req, resEnhanced);
       }
-      if (pathname === '/api/seller/products') {
-        const mod = await import(`./api/seller/products.js${bust}`);
-        return await mod.default(req, resEnhanced);
-      }
-      if (pathname === '/api/seller/approve') {
-        const mod = await import(`./api/seller/approve.js${bust}`);
-        return await mod.default(req, resEnhanced);
-      }
       if (pathname === '/api/auth/customer') {
         const mod = await import(`./api/auth/customer.js${bust}`);
         return await mod.default(req, resEnhanced);
