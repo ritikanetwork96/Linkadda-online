@@ -3,94 +3,94 @@
     ".read": false,
     ".write": false,
     "products": {
-      ".read": "auth != null",
-      ".write": "auth != null && auth.token.email === 'botforword@gmail.com'",
+      ".read": true,
+      ".write": "auth != null && (auth.token.email === 'botforword@gmail.com' || auth.token.email.toLowerCase() === 'botforword@gmail.com')",
       ".indexOn": ["displayOrder", "updatedAt", "createdAt", "status"]
     },
     "categories": {
-      ".read": "auth != null",
-      ".write": "auth != null && auth.token.email === 'botforword@gmail.com'",
+      ".read": true,
+      ".write": "auth != null && (auth.token.email === 'botforword@gmail.com' || auth.token.email.toLowerCase() === 'botforword@gmail.com')",
       ".indexOn": ["displayOrder", "updatedAt", "createdAt", "status"]
     },
     "banner": {
-      ".read": "auth != null",
-      ".write": "auth != null && auth.token.email === 'botforword@gmail.com'"
+      ".read": true,
+      ".write": "auth != null && (auth.token.email === 'botforword@gmail.com' || auth.token.email.toLowerCase() === 'botforword@gmail.com')"
     },
     "hero": {
-      ".read": "auth != null",
-      ".write": "auth != null && auth.token.email === 'botforword@gmail.com'"
+      ".read": true,
+      ".write": "auth != null && (auth.token.email === 'botforword@gmail.com' || auth.token.email.toLowerCase() === 'botforword@gmail.com')"
     },
     "faq": {
-      ".read": "auth != null",
-      ".write": "auth != null && auth.token.email === 'botforword@gmail.com'"
+      ".read": true,
+      ".write": "auth != null && (auth.token.email === 'botforword@gmail.com' || auth.token.email.toLowerCase() === 'botforword@gmail.com')"
     },
     "testimonials": {
-      ".read": "auth != null",
-      ".write": "auth != null && auth.token.email === 'botforword@gmail.com'"
+      ".read": true,
+      ".write": "auth != null && (auth.token.email === 'botforword@gmail.com' || auth.token.email.toLowerCase() === 'botforword@gmail.com')"
     },
     "settings": {
-      ".read": "auth != null",
-      ".write": "auth != null && auth.token.email === 'botforword@gmail.com'"
+      ".read": true,
+      ".write": "auth != null && (auth.token.email === 'botforword@gmail.com' || auth.token.email.toLowerCase() === 'botforword@gmail.com')"
     },
     "payment": {
-      ".read": "auth != null",
-      ".write": "auth != null && auth.token.email === 'botforword@gmail.com'"
+      ".read": true,
+      ".write": "auth != null && (auth.token.email === 'botforword@gmail.com' || auth.token.email.toLowerCase() === 'botforword@gmail.com')"
     },
     "media": {
-      ".read": "auth != null",
-      ".write": "auth != null && auth.token.email === 'botforword@gmail.com'"
+      ".read": true,
+      ".write": "auth != null && (auth.token.email === 'botforword@gmail.com' || auth.token.email.toLowerCase() === 'botforword@gmail.com')"
     },
     "reviews": {
-      ".read": "auth != null",
-      ".write": "auth != null && auth.token.email === 'botforword@gmail.com'"
+      ".read": true,
+      ".write": "auth != null && (auth.token.email === 'botforword@gmail.com' || auth.token.email.toLowerCase() === 'botforword@gmail.com')"
     },
     "analytics": {
-      ".read": "auth != null && auth.token.email === 'botforword@gmail.com'",
-      ".write": "auth != null && auth.token.email === 'botforword@gmail.com'"
+      ".read": "auth != null && (auth.token.email === 'botforword@gmail.com' || auth.token.email.toLowerCase() === 'botforword@gmail.com')",
+      ".write": "auth != null && (auth.token.email === 'botforword@gmail.com' || auth.token.email.toLowerCase() === 'botforword@gmail.com')"
     },
     "admin_sessions": {
-      ".read": "auth != null && auth.token.email === 'botforword@gmail.com'",
-      ".write": "auth != null && auth.token.email === 'botforword@gmail.com'"
+      ".read": "auth != null && (auth.token.email === 'botforword@gmail.com' || auth.token.email.toLowerCase() === 'botforword@gmail.com')",
+      ".write": "auth != null && (auth.token.email === 'botforword@gmail.com' || auth.token.email.toLowerCase() === 'botforword@gmail.com')"
     },
     "visitors": {
-      ".read": "auth != null && auth.token.email === 'botforword@gmail.com'",
-      ".write": "auth != null && auth.token.email === 'botforword@gmail.com'",
+      ".read": "auth != null && (auth.token.email === 'botforword@gmail.com' || auth.token.email.toLowerCase() === 'botforword@gmail.com')",
+      ".write": "auth != null && (auth.token.email === 'botforword@gmail.com' || auth.token.email.toLowerCase() === 'botforword@gmail.com')",
       ".indexOn": ["timestamp", "date"],
       "$visitor_id": {
-        ".write": "auth != null"
+        ".write": "!data.exists() && newData.exists() || auth != null"
       }
     },
     "events": {
-      ".read": "auth != null && auth.token.email === 'botforword@gmail.com'",
-      ".write": "auth != null && auth.token.email === 'botforword@gmail.com'",
+      ".read": "auth != null && (auth.token.email === 'botforword@gmail.com' || auth.token.email.toLowerCase() === 'botforword@gmail.com')",
+      ".write": "auth != null && (auth.token.email === 'botforword@gmail.com' || auth.token.email.toLowerCase() === 'botforword@gmail.com')",
       ".indexOn": ["timestamp", "date", "type"],
       "$event_id": {
-        ".write": "auth != null"
+        ".write": "!data.exists() && newData.exists() || auth != null"
       }
     },
     "customers": {
-      ".read": "auth != null && auth.token.email === 'botforword@gmail.com'",
-      ".write": "auth != null && auth.token.email === 'botforword@gmail.com'",
+      ".read": "auth != null && (auth.token.email === 'botforword@gmail.com' || auth.token.email.toLowerCase() === 'botforword@gmail.com')",
+      ".write": "auth != null && (auth.token.email === 'botforword@gmail.com' || auth.token.email.toLowerCase() === 'botforword@gmail.com')",
       "$customer_id": {
-        ".read": "auth != null && (auth.token.email === 'botforword@gmail.com' || auth.uid === $customer_id)",
-        ".write": "auth != null && (auth.token.email === 'botforword@gmail.com' || auth.uid === $customer_id)"
+        ".read": "auth != null && ((auth.token.email === 'botforword@gmail.com' || auth.token.email.toLowerCase() === 'botforword@gmail.com') || auth.uid === $customer_id)",
+        ".write": "auth != null && ((auth.token.email === 'botforword@gmail.com' || auth.token.email.toLowerCase() === 'botforword@gmail.com') || auth.uid === $customer_id)"
       }
     },
     "orders": {
-      ".read": "auth != null && auth.token.email === 'botforword@gmail.com'",
-      ".write": "auth != null && auth.token.email === 'botforword@gmail.com'",
+      ".read": "auth != null && (auth.token.email === 'botforword@gmail.com' || auth.token.email.toLowerCase() === 'botforword@gmail.com')",
+      ".write": "auth != null && (auth.token.email === 'botforword@gmail.com' || auth.token.email.toLowerCase() === 'botforword@gmail.com')",
       ".indexOn": ["createdAt", "timestamp", "date", "status"],
       "$order_id": {
         ".read": true,
-        ".write": "auth != null && auth.token.email === 'botforword@gmail.com' || (!data.exists() && newData.exists() && newData.child('status').val() === 'pending' && (!newData.child('paymentStatus').exists() || newData.child('paymentStatus').val() === 'pending') && (!newData.child('orderStatus').exists() || newData.child('orderStatus').val() === 'pending') && newData.child('amount').isNumber() && newData.child('amount').val() > 0 && (!newData.child('downloadLink').exists() || newData.child('downloadLink').val() === '') && (!newData.child('orderLink').exists() || newData.child('orderLink').val() === '') && (!newData.child('fileUrl').exists() || newData.child('fileUrl').val() === '')) || (data.exists() && data.child('status').val() === 'pending' && newData.child('status').val() === 'pending' && (!newData.child('paymentStatus').exists() || newData.child('paymentStatus').val() === 'pending') && (!newData.child('orderStatus').exists() || newData.child('orderStatus').val() === 'pending') && (!newData.child('downloadLink').exists() || newData.child('downloadLink').val() === '') && (!newData.child('orderLink').exists() || newData.child('orderLink').val() === '') && (!newData.child('fileUrl').exists() || newData.child('fileUrl').val() === '') && (!newData.child('amount').exists() || newData.child('amount').val() === data.child('amount').val()))"
+        ".write": "(auth != null && (auth.token.email === 'botforword@gmail.com' || auth.token.email.toLowerCase() === 'botforword@gmail.com')) || (!data.exists() && newData.exists() && newData.child('status').val() === 'pending' && (!newData.child('paymentStatus').exists() || newData.child('paymentStatus').val() === 'pending') && (!newData.child('orderStatus').exists() || newData.child('orderStatus').val() === 'pending') && newData.child('amount').isNumber() && newData.child('amount').val() > 0 && (!newData.child('downloadLink').exists() || newData.child('downloadLink').val() === '') && (!newData.child('orderLink').exists() || newData.child('orderLink').val() === '') && (!newData.child('fileUrl').exists() || newData.child('fileUrl').val() === '')) || (data.exists() && data.child('status').val() === 'pending' && newData.child('status').val() === 'pending' && (!newData.child('paymentStatus').exists() || newData.child('paymentStatus').val() === 'pending') && (!newData.child('orderStatus').exists() || newData.child('orderStatus').val() === 'pending') && (!newData.child('downloadLink').exists() || newData.child('downloadLink').val() === '') && (!newData.child('orderLink').exists() || newData.child('orderLink').val() === '') && (!newData.child('fileUrl').exists() || newData.child('fileUrl').val() === '') && (!newData.child('amount').exists() || newData.child('amount').val() === data.child('amount').val()))"
       }
     },
     "order_approvals": {
-      ".read": "auth != null && auth.token.email === 'botforword@gmail.com'",
-      ".write": "auth != null && auth.token.email === 'botforword@gmail.com'",
+      ".read": "auth != null && (auth.token.email === 'botforword@gmail.com' || auth.token.email.toLowerCase() === 'botforword@gmail.com')",
+      ".write": "auth != null && (auth.token.email === 'botforword@gmail.com' || auth.token.email.toLowerCase() === 'botforword@gmail.com')",
       "$order_id": {
         ".read": true,
-        ".write": "auth != null && auth.token.email === 'botforword@gmail.com'"
+        ".write": "auth != null && (auth.token.email === 'botforword@gmail.com' || auth.token.email.toLowerCase() === 'botforword@gmail.com')"
       }
     }
   }

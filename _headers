@@ -51,3 +51,12 @@
 
 /*.woff2
   Cache-Control: public, max-age=31536000, s-maxage=31536000, immutable
+
+# Admin Security & Instant Freshness Override (Must be at end so it overrides /*.js)
+/admin/*
+  Cache-Control: no-store, no-cache, must-revalidate, max-age=0
+  X-Robots-Tag: noindex, nofollow, noarchive
+
+/admin/js/*
+  Cache-Control: no-store, no-cache, must-revalidate, max-age=0
+  X-Robots-Tag: noindex, nofollow, noarchive

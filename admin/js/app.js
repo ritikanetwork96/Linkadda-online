@@ -11711,6 +11711,7 @@ subscribe((data) => {
 protectRoute((user) => {
   syncTopbar(user);
   startRealtime(true);
+  syncAllFromFirebase(true).catch(() => {});
 
   // Live realtime listener for multi-device admin logins & locations
   try {

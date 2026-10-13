@@ -257,15 +257,8 @@ function attachNode(key, mode = 'collection') {
   }
 
   try {
-    // ⚡ HIGH-PERFORMANCE QUERYING: Limit high-volume transactional streams to recent items
-    let targetRef = ref(db, nodeName);
-    if (key === 'orders') {
-      targetRef = query(ref(db, nodeName), limitToLast(75));
-    } else if (key === 'visitors') {
-      targetRef = query(ref(db, nodeName), limitToLast(150));
-    } else if (key === 'events') {
-      targetRef = query(ref(db, nodeName), limitToLast(120));
-    }
+    // Direct RTDB reference ensures clean websocket stream without invalid query constraint errors
+    const targetRef = ref(db, nodeName);
 
     const unsub = onValue(
       targetRef,
@@ -274,7 +267,9 @@ function attachNode(key, mode = 'collection') {
           const val = snap.val();
           if (['orders', 'visitors', 'events'].includes(key)) {
             if (!STORE[key] || typeof STORE[key] !== 'object') STORE[key] = {};
-            Object.assign(STORE[key], val);
+            if (val && typeof val === 'object') {
+              STORE[key] = { ...val };
+            }
             emit();
           } else if (typeof val === 'object' && Object.keys(val).length > 0) {
             STORE[key] = val;
@@ -297,9 +292,7 @@ function attachNode(key, mode = 'collection') {
         }
       },
       (err) => {
-        if (err?.code !== 'PERMISSION_DENIED') {
-          console.warn(`RTDB node ${key} notice:`, err?.message || err);
-        }
+        console.warn(`RTDB node ${key} subscription notice:`, err?.message || err);
       }
     );
     activeUnsubs.set(key, unsub);
@@ -350,41 +343,67 @@ export function startRealtime(force = false) {
 
 export async function syncAllFromFirebase(force = false) {
   try {
+    const targets = ['visitors', 'events', 'orders', 'products', 'categories', 'customers', 'payment', 'settings'];
+
+    // 1. Try Firebase SDK get() on active connection
+    let hasSdkChange = false;
+    const sdkResults = await Promise.allSettled(
+      targets.map(async (key) => {
+        const snap = await get(ref(db, key));
+        if (snap.exists() && snap.val()) {
+          return { key, data: snap.val() };
+        }
+        return null;
+      })
+    );
+
+    sdkResults.forEach((outcome) => {
+      if (outcome.status === 'fulfilled' && outcome.value && outcome.value.data) {
+        const { key, data } = outcome.value;
+        if (typeof data === 'object' && Object.keys(data).length > 0) {
+          if (['orders', 'visitors', 'events'].includes(key)) {
+            if (!STORE[key] || typeof STORE[key] !== 'object') STORE[key] = {};
+            STORE[key] = { ...data };
+          } else {
+            STORE[key] = data;
+          }
+          hasSdkChange = true;
+        }
+      }
+    });
+
+    if (hasSdkChange) {
+      emitImmediate();
+      return;
+    }
+
+    // 2. Direct REST Fallback
     let token = null;
     if (auth.currentUser) {
       try {
         token = await auth.currentUser.getIdToken();
       } catch (_) {}
     }
-    const tokenQuery = token ? `?auth=${token}` : '';
+    const tokenQuery = token ? `?auth=${encodeURIComponent(token)}` : '';
     const base = 'https://linkadda-online-default-rtdb.firebaseio.com';
 
-    const targets = ['visitors', 'events', 'orders', 'products', 'categories', 'customers'];
     const results = await Promise.allSettled(
       targets.map(async (key) => {
-        let querySuffix = tokenQuery;
-        if (['orders', 'visitors', 'events'].includes(key)) {
-          const delim = querySuffix ? '&' : '?';
-          querySuffix += `${delim}orderBy=%22$key%22&limitToLast=50`;
-        }
-        const res = await fetch(`${base}/${key}.json${querySuffix}`, { cache: 'no-store' });
+        const res = await fetch(`${base}/${key}.json${tokenQuery}`, { cache: 'no-store' });
         if (!res.ok) return null;
-        return res.json();
+        return { key, data: await res.json() };
       })
     );
 
     let hasChange = false;
-    targets.forEach((key, idx) => {
-      const outcome = results[idx];
-      if (outcome.status === 'fulfilled' && outcome.value && typeof outcome.value === 'object') {
-        const data = outcome.value;
+    results.forEach((outcome) => {
+      if (outcome.status === 'fulfilled' && outcome.value && outcome.value.data && typeof outcome.value.data === 'object') {
+        const { key, data } = outcome.value;
         const count = Object.keys(data).length;
         if (count > 0) {
           if (['orders', 'visitors', 'events'].includes(key)) {
             if (!STORE[key] || typeof STORE[key] !== 'object') STORE[key] = {};
-            Object.entries(data).forEach(([k, v]) => {
-              if (v) STORE[key][k] = v;
-            });
+            STORE[key] = { ...data };
           } else {
             STORE[key] = data;
           }
@@ -408,6 +427,7 @@ startRealtime();
 onAuthStateChanged(auth, (user) => {
   if (user) {
     startRealtime(true);
+    syncAllFromFirebase(true).catch(() => {});
   }
 });
 

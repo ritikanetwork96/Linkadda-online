@@ -3,8 +3,9 @@
 # 1. Deprecated & Legacy Paths Redirects
 /login / 301
 /login.html / 301
-/admin/login /admin/login/ 301
-/admin/login.html /admin/login/ 301
+/admin/login /admin/login.html 200
+/admin/login/ /admin/login 301
+/admin/login.html /admin/login 301
 /seller / 301
 /seller/* / 301
 
