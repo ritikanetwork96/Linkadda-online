@@ -257,8 +257,29 @@ function attachNode(key, mode = 'collection') {
   }
 
   try {
-    // Direct RTDB reference ensures clean websocket stream without invalid query constraint errors
     const targetRef = ref(db, nodeName);
+
+    // ⚡ INSTANT HYDRATION: Fetch immediate snapshot in parallel with realtime subscription
+    get(targetRef)
+      .then((snap) => {
+        if (snap.exists() && snap.val()) {
+          const val = snap.val();
+          if (['orders', 'visitors', 'events'].includes(key)) {
+            if (!STORE[key] || typeof STORE[key] !== 'object') STORE[key] = {};
+            if (val && typeof val === 'object') {
+              STORE[key] = { ...val };
+            }
+            emitImmediate();
+          } else if (typeof val === 'object' && Object.keys(val).length > 0) {
+            STORE[key] = val;
+            emitImmediate();
+          } else if (mode === 'singleton') {
+            STORE[key] = val;
+            emitImmediate();
+          }
+        }
+      })
+      .catch(() => {});
 
     const unsub = onValue(
       targetRef,
@@ -339,6 +360,8 @@ export function startRealtime(force = false) {
   attachNode('visitors');
   attachNode('reviews');
   attachNode('customers');
+  // Proactively fetch complete fresh snapshot via REST as high-reliability fallback
+  syncAllFromFirebase(force).catch(() => {});
 }
 
 export async function syncAllFromFirebase(force = false) {
@@ -791,9 +814,9 @@ if (typeof window !== 'undefined') {
     }
   });
 
-  // 2. Light 60s fallback polling ensures incoming orders, visitors, and events stay fresh without flooding network
+  // 2. Continuous 12s fallback polling ensures incoming orders, visitors, and events stay fresh
   setInterval(async () => {
     syncAllFromFirebase().catch(() => {});
-  }, 60000);
+  }, 12000);
 }
 
