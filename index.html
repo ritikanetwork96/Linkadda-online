@@ -1707,15 +1707,10 @@
         return;
       }
 
-      // Wait for silent anonymous auth to resolve so auth != null in RTDB rules
-      try {
-        if (window.__linkaddaAuthReady) await window.__linkaddaAuthReady;
-      } catch (_) {}
-
       const targetAuth = window.__linkaddaAuth || auth;
       if (!targetAuth.currentUser) {
         try {
-          await signInAnonymously(targetAuth);
+          signInAnonymously(targetAuth).catch(() => {});
         } catch (_) {}
       }
 
@@ -4568,23 +4563,17 @@
     } catch (_) {}
   }
 
-  // Attach immediately if visitor is already authenticated
-  if (auth.currentUser) {
-    attachStoreRealtimeListeners();
-  }
-  // And attach seamlessly as soon as domain-authorized anonymous token resolves
-  if (window.__linkaddaAuthReady) {
-    window.__linkaddaAuthReady.then((user) => {
+  // Attach immediately so visitors always see live products and real images from Firebase
+  attachStoreRealtimeListeners();
+  initRestSync();
+
+  // Re-attach if user logs in or auth credentials refresh
+  try {
+    onAuthStateChanged(auth, (user) => {
       if (user) {
         attachStoreRealtimeListeners();
         initRestSync();
       }
-    }).catch(() => {});
-  }
-  // Re-attach if user logs in or auth credentials refresh
-  try {
-    onAuthStateChanged(auth, (user) => {
-      if (user) attachStoreRealtimeListeners();
     });
   } catch (_) {}
 
