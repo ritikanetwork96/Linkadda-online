@@ -3,29 +3,29 @@
     ".read": false,
     ".write": false,
     "products": {
-      ".read": true,
+      ".read": "auth != null",
       ".write": "auth != null && (auth.token.email === 'botforword@gmail.com' || auth.token.email.toLowerCase() === 'botforword@gmail.com')",
       ".indexOn": ["displayOrder", "updatedAt", "createdAt", "status"]
     },
     "categories": {
-      ".read": true,
+      ".read": "auth != null",
       ".write": "auth != null && (auth.token.email === 'botforword@gmail.com' || auth.token.email.toLowerCase() === 'botforword@gmail.com')",
       ".indexOn": ["displayOrder", "updatedAt", "createdAt", "status"]
     },
     "banner": {
-      ".read": true,
+      ".read": "auth != null",
       ".write": "auth != null && (auth.token.email === 'botforword@gmail.com' || auth.token.email.toLowerCase() === 'botforword@gmail.com')"
     },
     "hero": {
-      ".read": true,
+      ".read": "auth != null",
       ".write": "auth != null && (auth.token.email === 'botforword@gmail.com' || auth.token.email.toLowerCase() === 'botforword@gmail.com')"
     },
     "faq": {
-      ".read": true,
+      ".read": "auth != null",
       ".write": "auth != null && (auth.token.email === 'botforword@gmail.com' || auth.token.email.toLowerCase() === 'botforword@gmail.com')"
     },
     "testimonials": {
-      ".read": true,
+      ".read": "auth != null",
       ".write": "auth != null && (auth.token.email === 'botforword@gmail.com' || auth.token.email.toLowerCase() === 'botforword@gmail.com')"
     },
     "settings": {
