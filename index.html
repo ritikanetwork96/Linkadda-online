@@ -4568,6 +4568,14 @@
   initRestSync();
 
   // Re-attach if user logs in or auth credentials refresh
+  if (window.__linkaddaAuthReady) {
+    window.__linkaddaAuthReady.then((user) => {
+      if (user) {
+        attachStoreRealtimeListeners();
+        initRestSync();
+      }
+    }).catch(() => {});
+  }
   try {
     onAuthStateChanged(auth, (user) => {
       if (user) {
@@ -4595,7 +4603,7 @@
   });
 
   // Fast resilient REST sync: Instantly updates live products and images from Firebase with auth
-  const initRestSync = async () => {
+  async function initRestSync() {
     try {
       const token = typeof window.getFirebaseCatalogToken === 'function' ? await window.getFirebaseCatalogToken() : null;
       const authQuery = token ? `?auth=${encodeURIComponent(token)}` : '';
