@@ -2358,13 +2358,41 @@
 
   window.handleCardImgError = function(img) {
     if (!img) return;
-    const fallback = img.dataset.fallback || '';
-    if (fallback && img.src !== fallback && !img._triedLocal && !fallback.includes('photo_') && !fallback.includes('category1') && !fallback.includes('eiasnjx')) {
-      img._triedLocal = true;
-      img.src = fallback;
-    } else if (!img._failedSvg) {
+    const card = img.closest('.fk-card, .pcard');
+    const pId = card ? (card.dataset.productId || card.dataset.fbId || '') : '';
+    const title = card ? (card.querySelector('.fk-card-title, .pcard-title')?.textContent || '') : '';
+    const badge = card ? (card.querySelector('.fk-card-badge-vip, .pcard-pill')?.textContent || '') : '';
+
+    // 1. Try local exact file if not tried yet
+    if (!img._triedExact && pId) {
+      img._triedExact = true;
+      img.src = `images/prod_${pId}.jpg`;
+      return;
+    }
+
+    // 2. Try category-matched local cover
+    if (!img._triedCategory) {
+      img._triedCategory = true;
+      const fullText = `${title} ${badge}`.toLowerCase();
+      if (fullText.includes('tango') || fullText.includes('stripchat')) img.src = 'images/category21.jpg';
+      else if (fullText.includes('jav') || fullText.includes('japanese')) img.src = 'images/category8.jpg';
+      else if (fullText.includes('chinese')) img.src = 'images/category14.jpg';
+      else if (fullText.includes('desi') || fullText.includes('punjabi') || fullText.includes('indian')) img.src = 'images/category11.jpg';
+      else if (fullText.includes('tamil') || fullText.includes('mallu')) img.src = 'images/category12.jpg';
+      else if (fullText.includes('hijabi') || fullText.includes('arab')) img.src = 'images/category18.jpg';
+      else if (fullText.includes('shemale') || fullText.includes('black')) img.src = 'images/category17.jpg';
+      else if (fullText.includes('hidden') || fullText.includes('cam')) img.src = 'images/category6.jpg';
+      else if (fullText.includes('snap') || fullText.includes('insta')) img.src = 'images/category7.jpg';
+      else if (fullText.includes('college') || fullText.includes('pickup')) img.src = 'images/category13.jpg';
+      else img.src = 'images/category20.jpg';
+      return;
+    }
+
+    // 3. Ultimate fallback: styled luxury SVG cover with product title
+    if (!img._failedSvg) {
       img._failedSvg = true;
-      img.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400' viewBox='0 0 400 400'%3E%3Crect width='100%25' height='100%25' fill='%2313121f'/%3E%3Ccircle cx='200' cy='160' r='36' fill='%23ff2a8d' opacity='0.25'/%3E%3Cpolygon points='194,146 214,160 194,174' fill='%23ff2a8d'/%3E%3Ctext x='50%25' y='230' fill='%23ffffff' font-family='sans-serif' font-size='14' font-weight='700' text-anchor='middle'%3ELINKADDA VIP%3C/text%3E%3C/svg%3E";
+      const cleanTitle = (title || 'LINKADDA VIP').replace(/[<>&"]/g, '').substring(0, 24);
+      img.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400' viewBox='0 0 400 400'%3E%3Cdefs%3E%3CradialGradient id='bg' cx='50%25' cy='45%25' r='60%25'%3E%3Cstop offset='0%25' stop-color='%232a1b4e'/%3E%3Cstop offset='100%25' stop-color='%230b0b14'/%3E%3C/radialGradient%3E%3C/defs%3E%3Crect width='100%25' height='100%25' fill='url(%23bg)'/%3E%3Ccircle cx='200' cy='155' r='42' fill='%236366f1' opacity='0.25'/%3E%3Cpolygon points='200,130 212,150 235,150 216,164 223,186 200,172 177,186 184,164 165,150 188,150' fill='%23fbbf24'/%3E%3Ctext x='50%25' y='230' fill='%23ffffff' font-family='sans-serif' font-size='15' font-weight='700' text-anchor='middle' letter-spacing='0.5'%3E" + encodeURIComponent(cleanTitle) + "%3C/text%3E%3Ctext x='50%25' y='255' fill='%23a5b4fc' font-family='sans-serif' font-size='11' font-weight='600' text-anchor='middle' opacity='0.85'%3EVIP 4K COLLECTION%3C/text%3E%3C/svg%3E";
     }
   };
 
@@ -2474,30 +2502,93 @@
       rawList = [...new Set([cat.image, cat.imageUrl, cat.thumbnail, cat.cover, cat.photo, ...gallery, ...mediaArr].map(u => String(u || '').trim()).filter(Boolean))];
     }
 
-    // Filter out dead Hostinger gallery URLs that never existed on Supabase
-    rawList = rawList.filter(u => !/\/products\/gallery\/178[89]/.test(String(u || '')));
+    // 1. Check if product has a local exact file in images/ (e.g. prod_<id>.jpg)
+    if (!rawList.length && cat.id) {
+      const pId = String(cat.id || '').trim();
+      const pSlug = String(cat.slug || '').trim();
+      const knownProdImages = new Set([
+        'prod_child-kids-3.jpg', 'prod_mom-son-1.jpg', 'prod_rp-videos-4.jpg',
+        'prod_sis-bro-2.jpg', 'prod_tamil-mallu-premium-pack-12.jpg',
+        'prod_products_0xahnev.jpg', 'prod_products_1uc6agc.jpg',
+        'prod_products_51wi9n1.jpg', 'prod_products_6nyr2uz.jpg',
+        'prod_products_7qckmg7.jpg', 'prod_products_9p2lhst.jpg',
+        'prod_products_crg7uxn.jpg', 'prod_products_erh78iu.jpg',
+        'prod_products_h26kkia.jpg', 'prod_products_h2gcpbk.jpg',
+        'prod_products_i688fjt.jpg', 'prod_products_i8r9aqz.jpg',
+        'prod_products_l7h1p27.jpg', 'prod_products_mw38vpu.jpg',
+        'prod_products_n3egevr.jpg', 'prod_products_qwsxbwe.jpg',
+        'prod_products_rm5c1x1.jpg', 'prod_products_uk3uc8x.jpg',
+        'prod_products_ump06mj.jpg', 'prod_products_uwq3cdb.jpg',
+        'prod_products_v8sclav.jpg', 'prod_products_wu7o2tq.jpg',
+        'prod_products_yu19xj9.jpg', 'prod_products_yui2ohj.jpg',
+        'prod_products_yvve61a.jpg', 'prod_products_z656gy0.jpg',
+        'prod_products_z959iyq.jpg', 'prod_products_zmgliwt.jpg',
+        'prod_products_zqnx3p7.jpg'
+      ]);
+      const matchedLocal = [`prod_${pId}.jpg`, `prod_${pId}_0.jpg`, `prod_${pSlug}.jpg`, `prod_${pSlug}_0.jpg`].find(fn => knownProdImages.has(fn));
+      if (matchedLocal) {
+        rawList = [`images/${matchedLocal}`];
+      }
+    }
 
-    // Only if product has no images at all, check its assigned category for a legitimate non-collage image
+    // 2. Only if product has no images at all, check its assigned category or title keywords for a curated category cover
     if (!rawList.length) {
-      let matchedCover = '';
-      if (cat.category && liveCollections.categories) {
-        const catKey = String(cat.category).trim().toLowerCase();
+      const titleLower = String(cat.title || '').toLowerCase();
+      const badgeLower = String(cat.badge || '').toLowerCase();
+      const catKey = String(cat.category || '').toLowerCase();
+      const fullText = `${titleLower} ${badgeLower} ${catKey}`;
+
+      if (fullText.includes('tango') || fullText.includes('stripchat')) {
+        rawList = ['images/category21.jpg'];
+      } else if (fullText.includes('jav') || fullText.includes('japanese')) {
+        rawList = ['images/category8.jpg'];
+      } else if (fullText.includes('chinese') || fullText.includes('cuckold')) {
+        rawList = ['images/category14.jpg'];
+      } else if (fullText.includes('desi') || fullText.includes('punjabi') || fullText.includes('bengali') || fullText.includes('marathi') || fullText.includes('indian')) {
+        rawList = ['images/category11.jpg'];
+      } else if (fullText.includes('tamil') || fullText.includes('mallu') || fullText.includes('south indian') || fullText.includes('telegu')) {
+        rawList = ['images/category12.jpg'];
+      } else if (fullText.includes('hijabi') || fullText.includes('arab')) {
+        rawList = ['images/category18.jpg'];
+      } else if (fullText.includes('shemale')) {
+        rawList = ['images/category17.jpg'];
+      } else if (fullText.includes('lesbian')) {
+        rawList = ['images/category19.jpg'];
+      } else if (fullText.includes('bhabhi')) {
+        rawList = ['images/category22.jpg'];
+      } else if (fullText.includes('teen')) {
+        rawList = ['images/category5.jpg'];
+      } else if (fullText.includes('hidden') || fullText.includes('camera') || fullText.includes('spy') || fullText.includes('outdoor') || fullText.includes('nude in public')) {
+        rawList = ['images/category6.jpg'];
+      } else if (fullText.includes('snap') || fullText.includes('insta') || fullText.includes('instagram')) {
+        rawList = ['images/category7.jpg'];
+      } else if (fullText.includes('college') || fullText.includes('pickup')) {
+        rawList = ['images/category13.jpg'];
+      } else if (fullText.includes('international') || fullText.includes('myanmar') || fullText.includes('thai')) {
+        rawList = ['images/category15.jpg'];
+      } else if (fullText.includes('fake taxi') || fullText.includes('p0rn') || fullText.includes('porn') || fullText.includes('english')) {
+        rawList = ['images/category23.jpg'];
+      } else if (fullText.includes('monster') || fullText.includes('mix') || fullText.includes('private') || fullText.includes('incest') || fullText.includes('rare') || fullText.includes('blacked')) {
+        rawList = ['images/category20.jpg'];
+      } else if (fullText.includes('cp') || fullText.includes('child') || fullText.includes('animal')) {
+        rawList = ['images/category3.png'];
+      } else if (fullText.includes('hot')) {
+        rawList = ['images/category2.jpg'];
+      } else if (cat.category && window.liveCollections && liveCollections.categories) {
         const matchedCategory = Object.values(liveCollections.categories).find(c => 
           String(c.id || '').toLowerCase() === catKey || 
           String(c.slug || '').toLowerCase() === catKey || 
           String(c.title || '').toLowerCase() === catKey
         );
         if (matchedCategory) {
-          if (Array.isArray(matchedCategory.images) && matchedCategory.images.length) {
-            matchedCover = matchedCategory.images[0];
-          } else if (matchedCategory.image) {
-            matchedCover = matchedCategory.image;
+          const catImg = (Array.isArray(matchedCategory.images) && matchedCategory.images[0]) || matchedCategory.image || '';
+          if (catImg && !catImg.includes('category1') && !catImg.includes('eiasnjx')) {
+            rawList = [catImg];
           }
         }
       }
-      // Never use the generic 16-tile adult collage (category1.jpg or eiasnjx) as a blanket fallback across products
-      if (matchedCover && !matchedCover.includes('category1') && !matchedCover.includes('eiasnjx')) {
-        rawList = [matchedCover];
+      if (!rawList.length) {
+        rawList = ['images/category20.jpg'];
       }
     }
 
@@ -3509,7 +3600,7 @@
         if (hasVideo) {
           return '<div class="fk-card-no-img" style="background: radial-gradient(circle at center, #1e1b4b 0%, #0f172a 100%);"><i class="fa-solid fa-circle-play" style="color:#f43f5e;font-size:36px;margin-bottom:8px;"></i> 4K Video Preview</div>';
         }
-        return '<div class="fk-card-no-img"><i class="fa-solid fa-gem"></i> VIP Pack</div>';
+        return `<div class="fk-card-no-img" style="background: radial-gradient(circle at center, #1e1b4b 0%, #090912 100%); flex-direction:column; justify-content:center; align-items:center; padding:18px 12px; text-align:center; min-height:160px; width:100%;"><i class="fa-solid fa-crown" style="color:#fbbf24;font-size:30px;margin-bottom:8px;filter:drop-shadow(0 0 12px rgba(251,191,36,0.6));"></i><span style="font-weight:700;color:#ffffff;font-size:13px;line-height:1.35;max-width:90%;">${esc(title || 'VIP Pack')}</span><span style="display:inline-block;margin-top:6px;background:rgba(99,102,241,0.2);color:#a5b4fc;padding:2px 8px;border-radius:999px;font-size:10px;font-weight:600;letter-spacing:0.04em;">VIP EXCLUSIVE</span></div>`;
       }
       const cleanUrl = esc(imgUrl);
       const fn = String(imgUrl || '').split('/').pop().split('?')[0];
@@ -4503,7 +4594,11 @@
       const cleanProducts = {};
       Object.entries(liveCollections.products).forEach(([id, item]) => {
         if (item && item.status !== 'deleted') {
-          cleanProducts[id] = item;
+          let pCopy = item;
+          if (typeof item.video === 'string' && item.video.startsWith('data:video')) {
+            pCopy = { ...item, video: '' };
+          }
+          cleanProducts[id] = pCopy;
         }
       });
       const payload = JSON.stringify({
