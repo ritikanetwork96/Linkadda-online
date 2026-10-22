@@ -10582,6 +10582,21 @@ function attachGlobalHandlers() {
 
         await updateRecord('orders', id, approvedPayload);
 
+        // Notify customer on Telegram Bot if order was placed via Telegram
+        try {
+          fetch('/api/telegram/bot?action=approve-order', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              orderId: id,
+              adminUser: {
+                first_name: 'Admin Panel',
+                username: userEmail?.textContent || userName?.textContent || 'admin'
+              }
+            })
+          }).catch(e => console.warn('Telegram bot notify on approve warning:', e));
+        } catch (_) {}
+
         // Also write to order_approvals for instantaneous client-side notification sync
         try {
           await set(ref(db, `order_approvals/${id}`), {
@@ -10736,6 +10751,22 @@ function attachGlobalHandlers() {
           reviewedAt: Date.now(),
           reviewedBy: userEmail?.textContent || userName?.textContent || APP_CONFIG.appName,
         });
+
+        // Notify customer on Telegram Bot if customer ordered via Telegram
+        try {
+          fetch('/api/telegram/bot?action=reject-order', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              orderId: targetOrderId,
+              adminUser: {
+                first_name: 'Admin Panel',
+                username: userEmail?.textContent || userName?.textContent || 'admin'
+              }
+            })
+          }).catch(e => console.warn('Telegram bot notify on reject warning:', e));
+        } catch (_) {}
+
         showToast('Order marked as rejected', 'info');
       } catch (err) {
         showToast('Failed to reject order: ' + (err?.message || err), 'danger');

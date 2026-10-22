@@ -497,6 +497,30 @@ export default async function handler(req, res) {
     }
   }
 
+  // Manual Trigger: Approve Order (e.g. from Admin Panel)
+  if (req.method === 'POST' && (action === 'approve-order' || (req.body && req.body.action === 'approve-order'))) {
+    try {
+      const { orderId, adminUser } = req.body || {};
+      if (!orderId) return res.status(400).json({ error: 'Missing orderId' });
+      const result = await processOrderApproval(orderId, adminUser || { first_name: 'Admin Panel', username: 'admin' });
+      return res.status(200).json(result);
+    } catch (e) {
+      return res.status(500).json({ error: e.message });
+    }
+  }
+
+  // Manual Trigger: Reject Order (e.g. from Admin Panel)
+  if (req.method === 'POST' && (action === 'reject-order' || (req.body && req.body.action === 'reject-order'))) {
+    try {
+      const { orderId, adminUser } = req.body || {};
+      if (!orderId) return res.status(400).json({ error: 'Missing orderId' });
+      const result = await processOrderRejection(orderId, adminUser || { first_name: 'Admin Panel', username: 'admin' });
+      return res.status(200).json(result);
+    } catch (e) {
+      return res.status(500).json({ error: e.message });
+    }
+  }
+
   // Official Telegram Webhook Receiver
   if (req.method === 'POST') {
     try {
