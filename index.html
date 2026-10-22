@@ -1295,22 +1295,22 @@
             </div>
           </div>
           <div class="cpb-prices">
-            <div class="cpb-original">&#8377;49,900</div>
-            <div class="cpb-offer">&#8377;27,000 <span class="cpb-usd">/ $349</span></div>
+            <div class="cpb-original">&#8377;35,000+</div>
+            <div class="cpb-offer">&#8377;29,700 <span class="cpb-usd">/ $1499</span></div>
           </div>
           <div class="cpb-actions-wrap">
             <button type="button" class="cpb-btn-cart btn-add-cart"
                data-product-id="pinned-deal"
                data-name="All Collection Pack"
-               data-inr="27000"
-               data-usd="349">
+               data-inr="29700"
+               data-usd="1499">
               <i class="fa-solid fa-cart-shopping"></i> Add to Cart
             </button>
-            <a href="payment.html?productId=pinned-deal&name=All%20Collection%20Pack&inr=27000&usd=349" class="btn-primary cpb-btn fk-btn-buy-action"
+            <a href="payment.html?productId=pinned-deal&name=All%20Collection%20Pack&inr=29700&usd=1499" class="btn-primary cpb-btn fk-btn-buy-action"
                data-product-id="pinned-deal"
                data-name="All Collection Pack"
-               data-inr="27000"
-               data-usd="349">
+               data-inr="29700"
+               data-usd="1499">
               <i class="fa-solid fa-gem"></i> Claim Deal
             </a>
           </div>
@@ -1993,8 +1993,8 @@
         btn.innerHTML = '<i class="fa-solid fa-gem"></i> Claim Deal';
       }
       const bTitle = b.title || 'All Collection Pack';
-      const bInr = String(b.priceOfferINR || b.inr || '27000').replace(/[^\d.]/g, '') || '27000';
-      const bUsd = String(b.priceOfferUSD || b.usd || '349').replace(/[^\d.]/g, '') || '349';
+      const bInr = String(b.priceOfferINR || b.inr || '29700').replace(/[^\d.]/g, '') || '29700';
+      const bUsd = String(b.priceOfferUSD || b.usd || '1499').replace(/[^\d.]/g, '') || '1499';
       const defaultBannerLink = `payment.html?productId=pinned-deal&name=${encodeURIComponent(bTitle)}&inr=${bInr}&usd=${bUsd}`;
       const targetLink = (!b.buttonLink || b.buttonLink === 'payment.html' || b.buttonLink === 'payment' || !b.buttonLink.includes('?'))
         ? defaultBannerLink
@@ -3510,20 +3510,22 @@
     const images = (media.images || []).filter(Boolean);
     const firstImg = images[0] || '';
     const hasMultipleImgs = images.length > 1;
-    const cleanINR = cat.priceINR ? String(cat.priceINR).replace(/[^\d]/g, '') : '399';
-    const cleanUSD = cat.priceUSD ? String(cat.priceUSD).replace(/[^\d]/g, '') : '14';
+    const rawInrVal = cat.priceINR ?? cat.price_inr ?? cat.inr ?? cat.amountINR;
+    const rawUsdVal = cat.priceUSD ?? cat.price_usd ?? cat.usd ?? cat.amountUSD;
+    const cleanINR = rawInrVal !== undefined && rawInrVal !== null && String(rawInrVal).trim() !== '' ? String(rawInrVal).replace(/[^\d.]/g, '') : '399';
+    const cleanUSD = rawUsdVal !== undefined && rawUsdVal !== null && String(rawUsdVal).trim() !== '' ? String(rawUsdVal).replace(/[^\d.]/g, '') : '14';
 
     // MRP & Discount calculation (Uses admin originalPriceINR / priceOriginal if set, else realistic ~45% OFF)
     const rawMrpINR = cat.originalPriceINR || cat.priceOriginal || cat.mrpINR;
     const rawMrpUSD = cat.originalPriceUSD || cat.priceOriginalUSD || cat.mrpUSD;
-    const mrpINR = rawMrpINR ? String(rawMrpINR).replace(/[^\d]/g, '') : Math.max(Number(cleanINR) + 100, Math.round(Number(cleanINR) * 1.8 / 10) * 10 - 1);
-    const mrpUSD = rawMrpUSD ? String(rawMrpUSD).replace(/[^\d]/g, '') : Math.max(Number(cleanUSD) + 5, Math.round(Number(cleanUSD) * 1.8));
+    const mrpINR = rawMrpINR ? String(rawMrpINR).replace(/[^\d.]/g, '') : Math.max(Number(cleanINR) + 100, Math.round(Number(cleanINR) * 1.8 / 10) * 10 - 1);
+    const mrpUSD = rawMrpUSD ? String(rawMrpUSD).replace(/[^\d.]/g, '') : Math.max(Number(cleanUSD) + 5, Math.round(Number(cleanUSD) * 1.8));
     const discountPercent = Math.min(90, Math.max(15, Math.round(((Number(mrpINR) - Number(cleanINR)) / Number(mrpINR)) * 100)));
 
     const rating = cat.rating || '4.9';
     const h = hashId(id);
     const reviewsVal = cat.reviewsCount || `${(h % 600) + 820}`;
-    const baseTitle = cat.title || 'Exclusive Pack';
+    const baseTitle = cat.title || cat.name || cat.productTitle || 'Exclusive Pack';
     const orderLink = normalizeCheckoutUrl('payment.html', {
       id: id,
       title: baseTitle,
@@ -3739,22 +3741,22 @@
             </div>
           </div>
           <div class="cpb-prices">
-            <div class="cpb-original">&#8377;49,900</div>
-            <div class="cpb-offer">&#8377;27,000 <span class="cpb-usd">/ $349</span></div>
+            <div class="cpb-original">&#8377;35,000+</div>
+            <div class="cpb-offer">&#8377;29,700 <span class="cpb-usd">/ $1499</span></div>
           </div>
           <div class="cpb-actions-wrap">
-            <a href="payment.html?productId=pinned-deal&name=All%20Collection%20Pack&inr=27000&usd=349" class="btn-primary cpb-btn fk-btn-buy-action"
+            <a href="payment.html?productId=pinned-deal&name=All%20Collection%20Pack&inr=29700&usd=1499" class="btn-primary cpb-btn fk-btn-buy-action"
                data-product-id="pinned-deal"
                data-name="All Collection Pack"
-               data-inr="27000"
-               data-usd="349">
+               data-inr="29700"
+               data-usd="1499">
               <i class="fa-solid fa-gem"></i> Claim Deal
             </a>
             <button type="button" class="cpb-btn-cart btn-add-cart"
                data-product-id="pinned-deal"
                data-name="All Collection Pack"
-               data-inr="27000"
-               data-usd="349">
+               data-inr="29700"
+               data-usd="1499">
               <i class="fa-solid fa-cart-shopping"></i> Add to Cart
             </button>
           </div>
@@ -3769,10 +3771,10 @@
     }
 
     const bTitle = data.title || 'All Collection Pack';
-    const bInr = String(data.priceOfferINR || data.inr || '27000').replace(/[^\d.]/g, '') || '27000';
-    const bUsd = String(data.priceOfferUSD || data.usd || '349').replace(/[^\d.]/g, '') || '349';
+    const bInr = String(data.priceOfferINR || data.inr || '29700').replace(/[^\d.]/g, '') || '29700';
+    const bUsd = String(data.priceOfferUSD || data.usd || '1499').replace(/[^\d.]/g, '') || '1499';
     const defaultDealLink = `payment.html?productId=pinned-deal&name=${encodeURIComponent(bTitle)}&inr=${bInr}&usd=${bUsd}`;
-    const finalDealLink = (!data.buttonLink || data.buttonLink === 'payment.html' || data.buttonLink === 'payment' || !data.buttonLink.includes('?'))
+    const finalDealLink = (!data.buttonLink || data.buttonLink === 'payment.html' || data.buttonLink === 'payment' || !data.buttonLink.includes('?') || data.buttonLink.includes('pinned-deal') || data.buttonLink.includes('All%20Collection') || data.buttonLink.includes('All+Collection'))
       ? defaultDealLink
       : data.buttonLink;
 
@@ -3801,9 +3803,9 @@
           </a>
           <button type="button" class="cpb-btn-cart btn-add-cart"
              data-product-id="pinned-deal"
-             data-name="${esc(data.title || 'All Collection Pack')}"
-             data-inr="${esc(data.priceOfferINR || '')}"
-             data-usd="${esc(data.priceOfferUSD || '')}">
+             data-name="${esc(bTitle)}"
+             data-inr="${esc(bInr)}"
+             data-usd="${esc(bUsd)}">
             <i class="fa-solid fa-cart-shopping"></i> Add to Cart
           </button>
         </div>
@@ -4655,21 +4657,39 @@
     }
   });
 
-  // Fast resilient REST sync: Instantly updates live products and images from Supabase
+  // Fast resilient REST sync: Instantly updates live products, categories, and banner from Supabase
   async function initRestSync() {
     try {
       const supaUrl = 'https://esxiwfswnbacmpjxqgsn.supabase.co';
       const supaKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVzeGl3ZnN3bmJhY21wanhxZ3NuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI2MDcxODQsImV4cCI6MjEwODE4MzE4NH0.n6XzLxgH5947CK-224Tp57BJmbWZ_rTKi4PK-EW8bNI';
       const headers = { 'apikey': supaKey, 'Authorization': `Bearer ${supaKey}` };
 
+      // 1. Sync live products
       fetch(`${supaUrl}/rest/v1/products?select=*`, { headers, cache: 'no-store' })
         .then(r => r.json())
         .then(rows => {
           if (Array.isArray(rows) && rows.length) {
             const data = {};
             rows.forEach(item => {
-              const p = item.data && typeof item.data === 'object' ? item.data : item;
-              data[item.id] = { ...p, id: item.id };
+              const p = item.data && typeof item.data === 'object' ? item.data : {};
+              const cleanTitle = item.title || p.title || item.name || p.name || '';
+              const inr = item.price_inr ?? p.priceINR ?? p.price_inr ?? p.inr ?? '';
+              const usd = item.price_usd ?? p.priceUSD ?? p.price_usd ?? p.usd ?? '';
+              data[item.id] = {
+                ...p,
+                ...item,
+                id: item.id,
+                title: cleanTitle,
+                name: cleanTitle,
+                priceINR: inr,
+                priceUSD: usd,
+                price_inr: inr,
+                price_usd: usd,
+                image: item.image || p.image || '',
+                status: item.status || p.status || 'active',
+                category: item.category || p.category || '',
+                displayOrder: item.display_order ?? p.displayOrder ?? 0,
+              };
             });
             const curKeys = Object.keys(liveCollections.products || {});
             const newKeys = Object.keys(data);
@@ -4687,14 +4707,25 @@
         })
         .catch(() => {});
 
+      // 2. Sync live categories
       fetch(`${supaUrl}/rest/v1/categories?select=*`, { headers, cache: 'no-store' })
         .then(r => r.json())
         .then(rows => {
           if (Array.isArray(rows) && rows.length) {
             const data = {};
             rows.forEach(item => {
-              const c = item.data && typeof item.data === 'object' ? item.data : item;
-              data[item.id] = { ...c, id: item.id };
+              const c = item.data && typeof item.data === 'object' ? item.data : {};
+              const cleanName = item.name || c.name || item.title || c.title || '';
+              data[item.id] = {
+                ...c,
+                ...item,
+                id: item.id,
+                name: cleanName,
+                title: cleanName,
+                image: item.image || c.image || '',
+                status: item.status || c.status || 'active',
+                displayOrder: item.display_order ?? c.displayOrder ?? 0,
+              };
             });
             const curKeys = Object.keys(liveCollections.categories || {});
             const newKeys = Object.keys(data);
@@ -4707,6 +4738,37 @@
               liveCollections.categories = data;
               saveCachedLiveData();
               scheduleRenderLiveStore();
+            }
+          }
+        })
+        .catch(() => {});
+
+      // 3. Sync live site_settings (pinned deal banner, hero, faq, testimonials)
+      fetch(`${supaUrl}/rest/v1/site_settings?select=*`, { headers, cache: 'no-store' })
+        .then(r => r.json())
+        .then(rows => {
+          if (Array.isArray(rows) && rows.length) {
+            let bannerUpdated = false;
+            rows.forEach(row => {
+              if (row.key === 'banner' && row.value && typeof row.value === 'object') {
+                liveCollections.banner = row.value;
+                if (typeof applyBanner === 'function') applyBanner(row.value);
+                if (typeof renderPinnedBanner === 'function') renderPinnedBanner();
+                bannerUpdated = true;
+              }
+              if (row.key === 'hero' && row.value && typeof applyHero === 'function') {
+                applyHero(row.value);
+              }
+              if (row.key === 'faq' && row.value && typeof applyFaq === 'function') {
+                applyFaq(row.value);
+              }
+              if (row.key === 'testimonials' && row.value) {
+                liveCollections.testimonials = row.value;
+                if (typeof applyTestimonials === 'function') applyTestimonials(row.value);
+              }
+            });
+            if (bannerUpdated) {
+              saveCachedLiveData();
             }
           }
         })
