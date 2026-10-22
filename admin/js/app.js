@@ -472,7 +472,7 @@ function renderPalette() {
 
 function navMarkup() {
   const allOrders = listCollection('orders');
-  const pendingOrders = allOrders.filter((o) => !o.status || o.status === 'pending' || o.paymentStatus === 'pending').length;
+  const pendingOrders = allOrders.filter((o) => isPendingOrder(o)).length;
   return NAV_ITEMS.map((item) => {
     const isOrders = item.key === 'orders';
     const badgeHtml = isOrders && (pendingOrders > 0 || allOrders.length > 0)
@@ -5962,7 +5962,21 @@ function orderTransactionId(item = {}) {
 }
 
 function orderStatusValue(item = {}) {
-  return normalizeStatusText(pickFirstValue(item, ['paymentStatus', 'orderStatus', 'status', 'state'], 'pending'));
+  if (!item || typeof item !== 'object') return 'pending';
+  // 1. Prioritize explicit approval/verification flags
+  if (item.verified === true || item.approved === true || item.isPaid === true) return 'approved';
+  if (item.status === 'approved' || item.status === 'confirmed' || item.status === 'paid' || item.status === 'completed') return 'approved';
+  if (item.status === 'rejected' || item.status === 'failed' || item.status === 'cancelled') return 'rejected';
+
+  const d = item.data;
+  if (d && typeof d === 'object') {
+    if (d.verified === true || d.approved === true || d.isPaid === true) return 'approved';
+    if (d.status === 'approved' || d.status === 'confirmed' || d.status === 'paid') return 'approved';
+    if (d.status === 'rejected' || d.status === 'failed') return 'rejected';
+  }
+
+  // 2. Candidate fallbacks
+  return normalizeStatusText(pickFirstValue(item, ['status', 'orderStatus', 'paymentStatus', 'state'], 'pending'));
 }
 
 function orderPaymentProof(item = {}) {
@@ -5980,11 +5994,13 @@ function orderDateValue(item = {}) {
 function isPaidOrder(item = {}) {
   if (!item || typeof item !== 'object') return false;
   if (item.verified === true || item.isPaid === true || item.approved === true) return true;
+  if (item.data && (item.data.verified === true || item.data.isPaid === true || item.data.approved === true)) return true;
   const value = orderStatusValue(item);
   return ['paid', 'approved', 'success', 'completed', 'complete', 'verified'].includes(value);
 }
 
 function isPendingOrder(item = {}) {
+  if (isPaidOrder(item) || isFailedOrder(item)) return false;
   const value = orderStatusValue(item);
   return ['pending', 'processing', 'initiated', 'created', 'pending_payment', 'verification_pending'].includes(value);
 }

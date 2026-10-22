@@ -605,8 +605,11 @@ if (heroSection && pointerEffectsEnabled()) {
     overlay.classList.remove('active');
   }
 
-  // Trigger on mouse leaving to top of page
+  const isTg = Boolean(window.TelegramWebviewProxy || (window.Telegram && window.Telegram.WebApp) || (navigator.userAgent && navigator.userAgent.indexOf('Telegram') !== -1));
+
+  // Trigger on mouse leaving to top of page (desktop browser only - disabled in Telegram WebApp so it never blocks Telegram header/bot navigation)
   document.addEventListener('mouseleave', (e) => {
+    if (isTg) return;
     if (e.clientY <= 10) showExitPopup();
   });
 

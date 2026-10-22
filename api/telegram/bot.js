@@ -242,8 +242,8 @@ async function processOrderApproval(orderId, adminUser) {
   const { url, key } = getSupabaseConfig();
   const headers = { 'apikey': key, 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' };
 
-  // Fetch order
-  const orderRes = await fetch(`${url}/rest/v1/orders?id=eq.${encodeURIComponent(orderId)}&select=*`, { headers });
+  // Fetch order matching either id or order_id
+  const orderRes = await fetch(`${url}/rest/v1/orders?or=(id.eq.${encodeURIComponent(orderId)},order_id.eq.${encodeURIComponent(orderId)})&select=*`, { headers });
   if (!orderRes.ok) return { ok: false, error: 'Order not found' };
   const rows = await orderRes.json();
   if (!rows || !rows.length) return { ok: false, error: 'Order not found' };
@@ -262,14 +262,35 @@ async function processOrderApproval(orderId, adminUser) {
   }
   if (channelLink.includes('VIP_KINK') || channelLink.includes('TRUSTED_BROTHER1234')) channelLink = '';
 
+  const adminName = adminUser?.username ? `@${adminUser.username}` : (adminUser?.first_name || String(adminUser?.id || 'Admin'));
+
+  const approvedData = {
+    ...(order.data || {}),
+    status: 'approved',
+    orderStatus: 'approved',
+    paymentStatus: 'approved',
+    isPaid: true,
+    verified: true,
+    approved: true,
+    channelLink: channelLink || '',
+    downloadLink: channelLink || '',
+    fileUrl: channelLink || '',
+    orderLink: channelLink || '',
+    hasDirectLink: Boolean(channelLink),
+    reviewedAt: Date.now(),
+    approvedAt: Date.now(),
+    reviewedBy: adminName,
+    approvedBy: adminName
+  };
+
   // Update order in Supabase
-  await fetch(`${url}/rest/v1/orders?id=eq.${encodeURIComponent(orderId)}`, {
+  await fetch(`${url}/rest/v1/orders?or=(id.eq.${encodeURIComponent(orderId)},order_id.eq.${encodeURIComponent(orderId)})`, {
     method: 'PATCH',
     headers,
     body: JSON.stringify({
       status: 'approved',
       updated_at: new Date().toISOString(),
-      data: { ...(order.data || {}), status: 'approved', approvedBy: adminUser?.username || adminUser?.id || 'Admin' }
+      data: approvedData
     })
   });
 
@@ -319,21 +340,34 @@ async function processOrderRejection(orderId, adminUser) {
   const { url, key } = getSupabaseConfig();
   const headers = { 'apikey': key, 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' };
 
-  // Fetch order
-  const orderRes = await fetch(`${url}/rest/v1/orders?id=eq.${encodeURIComponent(orderId)}&select=*`, { headers });
+  // Fetch order matching either id or order_id
+  const orderRes = await fetch(`${url}/rest/v1/orders?or=(id.eq.${encodeURIComponent(orderId)},order_id.eq.${encodeURIComponent(orderId)})&select=*`, { headers });
   if (!orderRes.ok) return { ok: false, error: 'Order not found' };
   const rows = await orderRes.json();
   if (!rows || !rows.length) return { ok: false, error: 'Order not found' };
   const order = rows[0];
 
+  const adminName = adminUser?.username ? `@${adminUser.username}` : (adminUser?.first_name || String(adminUser?.id || 'Admin'));
+
+  const rejectedData = {
+    ...(order.data || {}),
+    status: 'rejected',
+    orderStatus: 'rejected',
+    paymentStatus: 'rejected',
+    verified: false,
+    approved: false,
+    rejectedAt: Date.now(),
+    rejectedBy: adminName
+  };
+
   // Update order in Supabase
-  await fetch(`${url}/rest/v1/orders?id=eq.${encodeURIComponent(orderId)}`, {
+  await fetch(`${url}/rest/v1/orders?or=(id.eq.${encodeURIComponent(orderId)},order_id.eq.${encodeURIComponent(orderId)})`, {
     method: 'PATCH',
     headers,
     body: JSON.stringify({
       status: 'rejected',
       updated_at: new Date().toISOString(),
-      data: { ...(order.data || {}), status: 'rejected', rejectedBy: adminUser?.username || adminUser?.id || 'Admin' }
+      data: rejectedData
     })
   });
 

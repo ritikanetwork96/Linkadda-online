@@ -429,7 +429,19 @@ export async function syncAllFromFirebase(force = false) {
             if (!res.ok) return null;
             const rows = await res.json();
             const data = {};
-            if (Array.isArray(rows)) rows.forEach(r => { data[r.id] = { ...(r.data || {}), ...r, id: r.id }; });
+            if (Array.isArray(rows)) {
+              rows.forEach(r => {
+                const d = { ...(r.data || {}) };
+                if (r.status === 'approved' || r.status === 'rejected' || r.status === 'paid' || r.status === 'completed') {
+                  d.status = r.status;
+                  d.orderStatus = r.status;
+                  d.paymentStatus = r.status;
+                  d.verified = r.status === 'approved' || r.status === 'paid';
+                  d.isPaid = r.status === 'approved' || r.status === 'paid';
+                }
+                data[r.id] = { ...d, ...r, id: r.id };
+              });
+            }
             return { key, data };
           }
           if (key === 'visitors' || key === 'events') {
@@ -850,9 +862,19 @@ if (typeof window !== 'undefined') {
     }
   });
 
-  // 2. Continuous 12s fallback polling ensures incoming orders, visitors, and events stay fresh
+  // 2. Continuous 8s fallback polling ensures incoming orders, visitors, and events stay fresh
   setInterval(async () => {
     syncAllFromFirebase().catch(() => {});
-  }, 12000);
+  }, 8000);
+
+  // 3. Instant sync whenever admin focuses the browser window or changes tab
+  window.addEventListener('focus', () => {
+    syncAllFromFirebase(true).catch(() => {});
+  });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      syncAllFromFirebase(true).catch(() => {});
+    }
+  });
 }
 

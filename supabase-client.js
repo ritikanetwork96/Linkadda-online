@@ -77,7 +77,15 @@ export async function get(refObj) {
     const data = {};
     if (Array.isArray(rows)) {
       rows.forEach(r => {
-        data[r.id] = { ...(r.data || {}), ...r, id: r.id };
+        const d = { ...(r.data || {}) };
+        if (r.status === 'approved' || r.status === 'rejected' || r.status === 'paid' || r.status === 'completed') {
+          d.status = r.status;
+          d.orderStatus = r.status;
+          d.paymentStatus = r.status;
+          d.verified = r.status === 'approved' || r.status === 'paid';
+          d.isPaid = r.status === 'approved' || r.status === 'paid';
+        }
+        data[r.id] = { ...d, ...r, id: r.id };
       });
     }
     return { exists: () => Object.keys(data).length > 0, val: () => data };
