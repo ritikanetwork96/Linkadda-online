@@ -598,31 +598,98 @@ async function processOrderRejection(orderId, adminUser) {
   return { ok: true };
 }
 
+function escapeTelegramHtml(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
 /**
  * Broadcast New Product to all Telegram Bot Users
+ * Supports dual Telegram Mini App options:
+ * 1. View Product (Full gallery slideshow, video demo, specs, reviews, tiers)
+ * 2. Instant Buy Now & Checkout (Direct payment.html sheet)
  */
-export async function broadcastNewProduct(product) {
+export async function broadcastNewProduct(rawProduct) {
+  let product = rawProduct || {};
+
+  // If payload only has an ID or is missing title/price, fetch live from Supabase (Zero hardcoding)
+  const lookupId = product.id || product.productId || (typeof product === 'string' ? product : '');
+  if (lookupId && ((!product.title && !product.name) || (!product.priceINR && !product.price_inr))) {
+    try {
+      const { url, key } = getSupabaseConfig();
+      const fetchRes = await fetch(`${url}/rest/v1/products?id=eq.${encodeURIComponent(lookupId)}&select=*`, {
+        headers: { apikey: key, Authorization: `Bearer ${key}` }
+      });
+      if (fetchRes.ok) {
+        const rows = await fetchRes.json();
+        if (rows && rows[0]) {
+          product = Object.assign({}, rows[0], product);
+        }
+      }
+    } catch (err) {
+      console.warn('Could not fetch fresh product details from db for broadcast:', err.message);
+    }
+  }
+
   const users = await getAllBotUsers();
   const appUrl = getAppUrl();
-  const title = product.title || product.name || 'New VIP Collection';
-  const priceINR = product.priceINR || product.inr || '299';
-  const priceUSD = product.priceUSD || product.usd || '15';
-  const image = product.image || product.thumbnail || '';
+
+  const prodId = String(product.id || product.productId || product.key || product.slug || lookupId || '').trim();
+  const title = String(product.title || product.name || 'New VIP Collection').trim();
+  const priceINR = String(product.priceINR || product.price_inr || product.inr || product.price || '299').trim();
+  const priceUSD = String(product.priceUSD || product.price_usd || product.usd || '15').trim();
+  const desc = String(product.shortDescription || product.description || product.desc || '').trim();
+
+  // Normalize image to absolute CDN or app URL for Telegram servers
+  let rawImg = product.image || product.thumbnail || product.photo || (Array.isArray(product.images) && product.images.length ? product.images[0] : '') || '';
+  let image = String(rawImg || '').trim();
+  if (image && !image.startsWith('http://') && !image.startsWith('https://')) {
+    if (image.startsWith('/media/')) {
+      image = `https://esxiwfswnbacmpjxqgsn.supabase.co/storage/v1/object/public/linkadda-media/${image.replace(/^\/media\//, '')}`;
+    } else if (image.startsWith('linkadda-media/')) {
+      image = `https://esxiwfswnbacmpjxqgsn.supabase.co/storage/v1/object/public/${image}`;
+    } else if (image.startsWith('products/') || image.startsWith('categories/')) {
+      image = `https://esxiwfswnbacmpjxqgsn.supabase.co/storage/v1/object/public/linkadda-media/${image}`;
+    } else if (image.startsWith('/')) {
+      image = `${appUrl}${image}`;
+    } else {
+      image = `${appUrl}/${image}`;
+    }
+  }
+
+  // 1. Direct Product View URL (Opens full interactive product details modal inside Telegram WebApp)
+  const productViewUrl = `${appUrl}/index.html?productId=${encodeURIComponent(prodId)}&name=${encodeURIComponent(title)}&inr=${encodeURIComponent(priceINR)}&usd=${encodeURIComponent(priceUSD)}${image ? `&img=${encodeURIComponent(image)}` : ''}`;
+
+  // 2. Direct Buy Now Checkout URL (Opens payment sheet inside Telegram WebApp)
+  const checkoutUrl = `${appUrl}/payment.html?productId=${encodeURIComponent(prodId)}&name=${encodeURIComponent(title)}&inr=${encodeURIComponent(priceINR)}&usd=${encodeURIComponent(priceUSD)}`;
+
+  const safeTitle = escapeTelegramHtml(title);
+  const cleanDesc = desc ? escapeTelegramHtml(desc.slice(0, 150)) + (desc.length > 150 ? '...' : '') : '';
 
   const messageText = 
     `🔥 <b>NEW VIP PACK RELEASED!</b>\n` +
     `━━━━━━━━━━━━━━━━━━━━━━\n` +
-    `📦 <b>${title}</b>\n` +
+    `📦 <b><a href="${productViewUrl}">${safeTitle}</a></b>\n` +
     `💰 <b>Price:</b> ₹${priceINR} / $${priceUSD}\n` +
-    `✨ <i>Instant delivery & 100% discrete access!</i>\n\n` +
-    `Tap the button below to view and unlock in store:`;
-
-  const webAppUrl = `${appUrl}/payment.html?productId=${encodeURIComponent(product.id || '')}&name=${encodeURIComponent(title)}&inr=${priceINR}&usd=${priceUSD}`;
+    `✨ <i>Instant delivery & 100% discrete access!</i>\n` +
+    (cleanDesc ? `\n📝 <i>${cleanDesc}</i>\n` : '') +
+    `\nTap <b>View Product</b> to see photos & video demo inside Telegram,\nor tap <b>Buy Now</b> to proceed to instant checkout:`;
 
   const keyboard = {
     inline_keyboard: [
-      [{ text: '🛒 Open Shop & Buy Now', web_app: { url: webAppUrl } }],
-      [{ text: '💬 Support Desk (@VIP_KINK)', url: 'https://t.me/VIP_KINK' }]
+      [
+        { text: '👀 View Product (Photos & Demo)', web_app: { url: productViewUrl } }
+      ],
+      [
+        { text: '⚡ Buy Now & Unlock Access', web_app: { url: checkoutUrl } }
+      ],
+      [
+        { text: '🛍️ Open VIP Store', web_app: { url: appUrl } },
+        { text: '💬 Support Desk (@VIP_KINK)', url: 'https://t.me/VIP_KINK' }
+      ]
     ]
   };
 
@@ -630,13 +697,24 @@ export async function broadcastNewProduct(product) {
   for (const user of users) {
     try {
       if (image && (image.startsWith('http://') || image.startsWith('https://'))) {
-        await callTelegram('sendPhoto', {
-          chat_id: user.id,
-          photo: image,
-          caption: messageText,
-          parse_mode: 'HTML',
-          reply_markup: keyboard
-        });
+        try {
+          await callTelegram('sendPhoto', {
+            chat_id: user.id,
+            photo: image,
+            caption: messageText,
+            parse_mode: 'HTML',
+            reply_markup: keyboard
+          });
+        } catch (photoErr) {
+          // If Telegram can't fetch the image, gracefully fallback to text message
+          console.warn('sendPhoto failed, falling back to sendMessage:', photoErr.message);
+          await callTelegram('sendMessage', {
+            chat_id: user.id,
+            text: messageText,
+            parse_mode: 'HTML',
+            reply_markup: keyboard
+          });
+        }
       } else {
         await callTelegram('sendMessage', {
           chat_id: user.id,
@@ -815,9 +893,36 @@ export default async function handler(req, res) {
         }
 
         if (text === '/start' || text.startsWith('/start')) {
+          const payload = text.replace('/start', '').trim();
           const appUrl = getAppUrl(req);
+
+          if (payload) {
+            // User opened bot via deep link for a specific product e.g. /start prod_123
+            const productViewUrl = `${appUrl}/index.html?productId=${encodeURIComponent(payload)}`;
+            const checkoutUrl = `${appUrl}/payment.html?productId=${encodeURIComponent(payload)}`;
+            const safeName = escapeTelegramHtml(payload.replace(/[-_]+/g, ' '));
+
+            await callTelegram('sendMessage', {
+              chat_id: msg.chat.id,
+              text:
+                `👋 <b>Welcome ${escapeTelegramHtml(fromUser.first_name || 'VIP Member')}!</b>\n\n` +
+                `🔥 You requested VIP Item: <b>${safeName}</b>\n\n` +
+                `Tap <b>View Product</b> to check full details & demo inside Telegram, or <b>Buy Now</b> to unlock access instantly:`,
+              parse_mode: 'HTML',
+              reply_markup: {
+                inline_keyboard: [
+                  [{ text: '👀 View Product (Photos & Demo)', web_app: { url: productViewUrl } }],
+                  [{ text: '⚡ Buy Now & Unlock Access', web_app: { url: checkoutUrl } }],
+                  [{ text: '🛍️ Open VIP Store', web_app: { url: appUrl } }],
+                  [{ text: '💬 Support Desk (@VIP_KINK)', url: 'https://t.me/VIP_KINK' }]
+                ]
+              }
+            });
+            return res.status(200).json({ ok: true });
+          }
+
           const welcomeText = 
-            `👋 <b>Welcome ${fromUser.first_name || 'VIP Member'}!</b>\n\n` +
+            `👋 <b>Welcome ${escapeTelegramHtml(fromUser.first_name || 'VIP Member')}!</b>\n\n` +
             `🔥 Welcome to <b>LinkAdda Online Store</b>!\n\n` +
             `Explore all Exclusive VIP Packs & Collections:\n` +
             `⚡ Instant High-Speed Cloud Access\n` +

@@ -10,7 +10,20 @@
       var p = window.location.protocol;
       var isLocal = h === 'localhost' || h === '127.0.0.1' || h === '' || p === 'file:';
       var isAuthorized = true;
-      var isTg = Boolean(window.TelegramWebviewProxy || (window.Telegram && window.Telegram.WebApp) || (navigator.userAgent && navigator.userAgent.indexOf('Telegram') !== -1));
+      var isTg = Boolean(
+        window.TelegramWebviewProxy ||
+        (window.Telegram && window.Telegram.WebApp) ||
+        (navigator.userAgent && navigator.userAgent.indexOf('Telegram') !== -1) ||
+        (window.location.search && (window.location.search.indexOf('tgWebApp') !== -1 || window.location.search.indexOf('tgWebAppData') !== -1)) ||
+        (document.referrer && document.referrer.indexOf('telegram.org') !== -1)
+      );
+
+      try {
+        if (window.Telegram && window.Telegram.WebApp) {
+          window.Telegram.WebApp.ready();
+          window.Telegram.WebApp.expand();
+        }
+      } catch (_) {}
 
       try {
         if (!isTg && window.top !== window.self) {

@@ -2810,6 +2810,32 @@ window.copyShareLink = function(btn, text) {
   });
 };
 
+window.broadcastProductFromModal = async function(id, node) {
+  const item = getItem(node || 'products', id);
+  if (!item) {
+    showToast('Product record not found', 'danger');
+    return;
+  }
+  const title = item.title || item.name || 'Product';
+  if (!confirm(`Broadcast "${title}" to all Telegram bot users now?\n\nThis will send a notification with "View Product" and "Buy Now" buttons.`)) return;
+  showToast(`Broadcasting "${title}" to Telegram bot...`, 'info');
+  try {
+    const res = await fetch('/api/telegram/broadcast', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(item)
+    });
+    const data = await res.json();
+    if (res.ok && data?.ok) {
+      showToast(`✅ "${title}" broadcasted to ${data.sentCount || 0} Telegram users!`, 'success');
+    } else {
+      showToast(`Broadcast note: ${data?.error || 'Sent'}`, 'info');
+    }
+  } catch (e) {
+    showToast(`Broadcast failed: ${e.message}`, 'danger');
+  }
+};
+
 function openShareModal(node, id) {
   const item = getItem(node, id);
   if (!item) return;
@@ -2824,13 +2850,17 @@ function openShareModal(node, id) {
   const targetParam = item.slug || slugify(item.title || item.name) || item.id || id;
   const paramName = isCategory ? 'category' : 'product';
   const homeUrl = `${cleanBase}/?${paramName}=${encodeURIComponent(targetParam)}`;
+  const itemTitle = item.title || item.name || '';
+  const itemInr = item.priceINR || item.price_inr || '';
+  const itemUsd = item.priceUSD || item.price_usd || '';
+  const checkoutUrl = `${cleanBase}/payment.html?productId=${encodeURIComponent(item.id || id)}&name=${encodeURIComponent(itemTitle)}&inr=${encodeURIComponent(itemInr)}&usd=${encodeURIComponent(itemUsd)}`;
 
   const modalTitle = isCategory ? 'Share Category Link' : 'Share Product Link';
   const typeLabel = isCategory ? 'Category Selected' : 'Product Selected';
-  const inputLabel = isCategory ? 'Customer Link (Opens page & filters to category)' : 'Customer Link (Opens page & highlights product)';
+  const inputLabel = isCategory ? 'Customer Link (Opens page & filters to category)' : 'Product Storefront Link (Opens product details sheet)';
   const footerHelpText = isCategory
     ? 'When customers open this link, the site will automatically filter the catalog and scroll directly to this category.'
-    : 'When customers open this link, the site will automatically scroll to the product and highlight it with a premium glow.';
+    : 'When customers open this link, the site will automatically open the interactive product preview modal with photos, demo video, and instant buy button.';
 
   const html = `
     <div class="panel shadow-lg share-product-modal modal-sm" style="width: 100%; padding: 28px; border-radius: 16px; background: var(--panel-solid); border: 1px solid var(--border); overflow: hidden; position: relative;">
@@ -2853,13 +2883,14 @@ function openShareModal(node, id) {
         <div style="width: 42px; height: 42px; background: linear-gradient(135deg, #6366f1, #a855f7); border-radius: 8px; display: grid; place-items: center; color: white; font-weight: bold; font-size: 18px; flex-shrink: 0;">
           ${escapeHtml((item.title || item.name || 'C')[0].toUpperCase())}
         </div>
-        <div>
+        <div style="flex: 1; min-width: 0;">
           <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: #818cf8; letter-spacing: 0.05em;">${escapeHtml(typeLabel)}</div>
-          <div style="font-size: 14px; font-weight: 600; color: var(--text);">${escapeHtml(item.title || item.name || '')}</div>
+          <div style="font-size: 14px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(item.title || item.name || '')}</div>
+          ${!isCategory && (itemInr || itemUsd) ? `<div style="font-size: 12px; color: var(--muted); margin-top: 2px;">₹${escapeHtml(itemInr || '0')} / $${escapeHtml(itemUsd || '0')}</div>` : ''}
         </div>
       </div>
 
-      <!-- Link Box -->
+      <!-- Link Box: Storefront Product View -->
       <div style="display: flex; flex-direction: column; gap: 8px;">
         <label style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--muted); letter-spacing: 0.05em;">
           ${escapeHtml(inputLabel)}
@@ -2871,6 +2902,38 @@ function openShareModal(node, id) {
           </button>
         </div>
       </div>
+
+      <!-- Link Box: Direct Checkout (for products) -->
+      ${!isCategory ? `
+        <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 14px;">
+          <label style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--muted); letter-spacing: 0.05em;">
+            Direct Buy Now / Checkout Link
+          </label>
+          <div style="display: flex; gap: 8px; width: 100%;">
+            <input type="text" readonly value="${escapeHtml(checkoutUrl)}" onclick="this.select();" style="flex: 1; font-family: 'JetBrains Mono', monospace; font-size: 12px; background: var(--bg); padding: 12px 14px; border-radius: 8px; border: 1px solid var(--border); color: var(--text); outline: none; width: 100%; box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);" />
+            <button class="btn" onclick="copyShareLink(this, '${escapeHtml(checkoutUrl)}');" style="padding: 0 16px; font-size: 13px; font-weight: 700; border-radius: 8px; flex-shrink: 0; background: var(--panel-hover); border: 1px solid var(--border); color: var(--text); display: inline-flex; align-items: center; gap: 6px; cursor: pointer;">
+              <i data-lucide="copy" style="width: 14px; height: 14px;"></i> Copy
+            </button>
+          </div>
+        </div>
+      ` : ''}
+
+      <!-- Broadcast to Bot Banner (for products) -->
+      ${!isCategory ? `
+        <div style="margin-top: 16px; padding: 14px; border-radius: 10px; background: rgba(2, 132, 199, 0.08); border: 1px solid rgba(2, 132, 199, 0.25); display: flex; align-items: center; justify-content: space-between; gap: 12px;">
+          <div>
+            <div style="font-size: 12px; font-weight: 700; color: #0284c7; display: flex; align-items: center; gap: 6px;">
+              <i data-lucide="send" style="width: 14px; height: 14px;"></i> Telegram Bot Notification
+            </div>
+            <div style="font-size: 11px; color: var(--muted); margin-top: 2px;">
+              Broadcast with "View Product" & "Buy Now" buttons to all Telegram bot users
+            </div>
+          </div>
+          <button type="button" class="btn" onclick="broadcastProductFromModal('${escapeHtml(item.id || id)}', '${escapeHtml(node)}')" style="padding: 8px 16px; font-size: 12px; font-weight: 700; border-radius: 8px; flex-shrink: 0; background: linear-gradient(135deg, #0284c7, #0ea5e9); color: white; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 2px 8px rgba(2, 132, 199, 0.3);">
+            <i data-lucide="send" style="width: 13px; height: 13px;"></i> Broadcast Now
+          </button>
+        </div>
+      ` : ''}
 
       <!-- Footer Help Text -->
       <div style="font-size: 11px; color: var(--muted); margin-top: 14px; line-height: 1.4;">
@@ -4246,6 +4309,9 @@ function renderCatalogActionMenu(item, node) {
       <summary aria-label="More actions"><i data-lucide="ellipsis"></i><span>More</span></summary>
       <div class="catalog-card-menu-panel">
         <button type="button" class="catalog-card-menu-item" data-action="share-product" data-node="${node}" data-id="${escapeHtml(item.id)}"><i data-lucide="share-2"></i> Share Product</button>
+        ${!isCategory ? `
+          <button type="button" class="catalog-card-menu-item" data-action="broadcast-product" data-node="${node}" data-id="${escapeHtml(item.id)}" style="color: #0284c7;"><i data-lucide="send"></i> Broadcast to Bot</button>
+        ` : ''}
         <button type="button" class="catalog-card-menu-item" data-action="move-position" data-node="${node}" data-id="${escapeHtml(item.id)}"><i data-lucide="arrow-up-down"></i> Move Position</button>
         <button type="button" class="catalog-card-menu-item" data-action="move-up" data-node="${node}" data-id="${escapeHtml(item.id)}"><i data-lucide="arrow-up"></i> Move Up</button>
         <button type="button" class="catalog-card-menu-item" data-action="move-down" data-node="${node}" data-id="${escapeHtml(item.id)}"><i data-lucide="arrow-down"></i> Move Down</button>
@@ -4356,6 +4422,7 @@ function renderCatalogProductCard(item, node, categoryMap = null, cardIndex = 0)
         <button type="button" class="catalog-action-btn action-tiers" data-action="edit-tiers" data-node="${node}" data-id="${escapeHtml(item.id)}" title="Manage Sub-Plans / Options"><i data-lucide="layers"></i> Sub-Plans${tierCount > 0 ? ` (${tierCount})` : ''}</button>
         <button type="button" class="catalog-action-btn action-move-pos" data-action="move-position" data-node="${node}" data-id="${escapeHtml(item.id)}" title="Move position"><i data-lucide="arrow-up-down"></i> Move</button>
         <button type="button" class="catalog-action-btn action-share" data-action="share-product" data-node="${node}" data-id="${escapeHtml(item.id)}"><i data-lucide="share-2"></i> Share</button>
+        <button type="button" class="catalog-action-btn action-broadcast" data-action="broadcast-product" data-node="${node}" data-id="${escapeHtml(item.id)}" title="Broadcast to Telegram Bot" style="color: #0284c7;"><i data-lucide="send"></i> Broadcast</button>
         <button type="button" class="catalog-action-btn action-duplicate" data-action="duplicate" data-node="${node}" data-id="${escapeHtml(item.id)}"><i data-lucide="copy"></i> Duplicate</button>
         <button type="button" class="catalog-action-btn action-toggle" data-action="toggle" data-node="${node}" data-id="${escapeHtml(item.id)}"><i data-lucide="${toggleIcon}"></i> ${toggleAction}</button>
         <button type="button" class="catalog-action-btn action-delete danger" data-action="delete" data-node="${node}" data-id="${escapeHtml(item.id)}"><i data-lucide="trash-2"></i> Delete</button>
@@ -6632,6 +6699,8 @@ function renderActiveSessionsSection(sessions = []) {
 
     </section>
   `;
+}
+
 let _isLoadingBotStatus = false;
 async function loadTelegramBotAdminStatus() {
   if (_isLoadingBotStatus) return;
@@ -9976,6 +10045,34 @@ function attachGlobalHandlers() {
     }
     if (action === 'share-product') {
       openShareModal(node, id);
+      return;
+    }
+    if (action === 'broadcast-product') {
+      const record = getItem(node || 'products', id);
+      if (!record) {
+        showToast('Product record not found', 'danger');
+        return;
+      }
+      const prodTitle = record.title || record.name || 'Product';
+      if (!confirm(`Broadcast "${prodTitle}" to all Telegram bot users now?\n\nThis will send a notification with "View Product" and "Buy Now" buttons.`)) {
+        return;
+      }
+      showToast(`Broadcasting "${prodTitle}" to Telegram users...`, 'info');
+      try {
+        const bcRes = await fetch('/api/telegram/broadcast', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(record)
+        });
+        const bcData = await bcRes.json();
+        if (bcRes.ok && bcData?.ok) {
+          showToast(`✅ "${prodTitle}" broadcasted to ${bcData.sentCount || 0} Telegram bot users!`, 'success');
+        } else {
+          showToast(`Broadcast note: ${bcData?.error || 'Sent'}`, 'info');
+        }
+      } catch (err) {
+        showToast(`Failed to broadcast: ${err.message}`, 'danger');
+      }
       return;
     }
     if (action === 'duplicate') {

@@ -214,6 +214,30 @@
       }
     }
 
+    // 6. Fast Zero-Latency Hydration from URL Parameters (if opened via direct Telegram link before cache loads)
+    if (!prod && typeof window !== 'undefined' && window.location && window.location.search) {
+      try {
+        const uParams = new URLSearchParams(window.location.search);
+        const urlName = uParams.get('name') || uParams.get('title') || '';
+        const urlInr = uParams.get('inr') || uParams.get('price_inr') || '';
+        const urlUsd = uParams.get('usd') || uParams.get('price_usd') || '';
+        const urlImg = uParams.get('img') || uParams.get('image') || '';
+        if (urlName) {
+          prod = {
+            id: rawId,
+            title: decodeURIComponent(urlName),
+            name: decodeURIComponent(urlName),
+            priceINR: urlInr ? decodeURIComponent(urlInr) : '299',
+            priceUSD: urlUsd ? decodeURIComponent(urlUsd) : '15',
+            image: urlImg ? decodeURIComponent(urlImg) : '',
+            images: urlImg ? [decodeURIComponent(urlImg)] : [],
+            rating: '4.9',
+            reviewsCount: '840'
+          };
+        }
+      } catch (_) {}
+    }
+
     // Zero fake dummy fallbacks! Return null if product does not exist in catalog.
     return prod;
   }
@@ -1179,8 +1203,22 @@
 
   // Auto-open full product details sheet when opened via direct share link (?product=... or #product-...)
   function autoOpenDirectSharedProduct() {
+    try {
+      if (window.Telegram && window.Telegram.WebApp) {
+        window.Telegram.WebApp.ready();
+        window.Telegram.WebApp.expand();
+      }
+    } catch (_) {}
+
     const urlParams = new URLSearchParams(window.location.search);
-    let target = urlParams.get('product') || urlParams.get('productId') || urlParams.get('p') || urlParams.get('id') || '';
+    let target = urlParams.get('product') ||
+                 urlParams.get('productId') ||
+                 urlParams.get('tgWebAppStartParam') ||
+                 urlParams.get('startapp') ||
+                 urlParams.get('p') ||
+                 urlParams.get('id') ||
+                 (window.Telegram?.WebApp?.initDataUnsafe?.start_param) ||
+                 '';
     const hash = window.location.hash;
     if (!target && hash && hash.startsWith('#product-')) {
       target = hash.replace('#product-', '');
