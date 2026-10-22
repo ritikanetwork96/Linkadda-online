@@ -4332,11 +4332,31 @@ async function uploadScreenshot(orderId, base64Data) {
     const compressed = window.__cachedCompressedScreenshot || await compressImageBase64(base64Data, 720, 0.65);
     const fileName = `${orderId || 'order'}_${Date.now()}.jpg`;
 
-    // 1. Primary: Direct Supabase Storage Upload (Super fast CDN, no serverless cold start)
+    // 1. Primary: Serverless API Upload (uses Supabase Service Role Key to save directly into 'screenshots' folder)
+    try {
+      const apiRes = await fetch('/api/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          folder: 'screenshots',
+          filename: fileName,
+          base64: compressed,
+          contentType: 'image/jpeg'
+        })
+      });
+      if (apiRes.ok) {
+        const data = await apiRes.json();
+        if (data && data.publicUrl) {
+          return data.publicUrl;
+        }
+      }
+    } catch (_) {}
+
+    // 2. Direct Supabase Storage Upload to 'screenshots' folder
     try {
       const supaUrl = 'https://esxiwfswnbacmpjxqgsn.supabase.co';
       const supaKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVzeGl3ZnN3bmJhY21wanhxZ3NuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI2MDcxODQsImV4cCI6MjEwODE4MzE4NH0.n6XzLxgH5947CK-224Tp57BJmbWZ_rTKi4PK-EW8bNI';
-      const endpoint = `${supaUrl}/storage/v1/object/linkadda-media/orders/${encodeURI(fileName)}`;
+      const endpoint = `${supaUrl}/storage/v1/object/linkadda-media/screenshots/${encodeURI(fileName)}`;
 
       // Convert base64 data to binary Blob
       const parts = compressed.split(',');
@@ -4367,11 +4387,11 @@ async function uploadScreenshot(orderId, base64Data) {
       clearTimeout(timer);
 
       if (res.ok) {
-        return `${supaUrl}/storage/v1/object/public/linkadda-media/orders/${encodeURI(fileName)}`;
+        return `${supaUrl}/storage/v1/object/public/linkadda-media/screenshots/${encodeURI(fileName)}`;
       }
     } catch (_) {}
 
-    // 2. Fallback: Ultra-compact thumbnail (<35KB) to prevent RTDB database bloat
+    // 3. Fallback: Ultra-compact thumbnail (<35KB) to prevent RTDB database bloat
     const tinyThumbnail = await compressImageBase64(base64Data, 480, 0.55).catch(() => compressed);
     return tinyThumbnail || compressed;
   } catch (err) {

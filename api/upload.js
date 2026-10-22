@@ -162,7 +162,7 @@ export default async function handler(req, res) {
   try {
     const body = req.body || {};
     const folder = String(body.folder || 'products').replace(/[^a-zA-Z0-9_-]/g, '') || 'products';
-    const isCustomerOrderProof = folder === 'orders';
+    const isCustomerOrderProof = folder === 'orders' || folder === 'screenshots' || folder === 'screenshot';
 
     // ━━ SECURITY CHECK: Caller must be verified Admin (except customer order screenshot proofs) ━━
     if (!isCustomerOrderProof) {

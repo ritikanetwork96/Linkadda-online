@@ -87,17 +87,86 @@ async function getAllBotUsers() {
 }
 
 /**
+ * Upload base64 screenshot to Supabase Storage inside the 'screenshots' folder
+ */
+async function ensureScreenshotUploaded(orderId, rawScreenshot) {
+  if (!rawScreenshot || typeof rawScreenshot !== 'string') return '';
+  const trimmed = rawScreenshot.trim();
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+    return trimmed;
+  }
+  if (trimmed.startsWith('data:') || trimmed.length > 100) {
+    try {
+      const { url, key } = getSupabaseConfig();
+      const bucket = process.env.SUPABASE_BUCKET || 'linkadda-media';
+      const fileName = `screenshot_${String(orderId || 'ord').replace(/[^a-zA-Z0-9_-]/g, '_')}_${Date.now()}.jpg`;
+      const cleanKey = `screenshots/${fileName}`;
+
+      let base64Data = trimmed;
+      let contentType = 'image/jpeg';
+      if (trimmed.includes('base64,')) {
+        const parts = trimmed.split('base64,');
+        base64Data = parts[1];
+        const mimeMatch = parts[0].match(/data:([^;]+);/);
+        if (mimeMatch) contentType = mimeMatch[1];
+      }
+
+      const buffer = Buffer.from(base64Data, 'base64');
+      const endpoint = `${url.replace(/\/+$/, '')}/storage/v1/object/${encodeURIComponent(bucket)}/${encodeURI(cleanKey)}`;
+
+      const upRes = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'apikey': key,
+          'Authorization': `Bearer ${key}`,
+          'x-upsert': 'true',
+          'Content-Type': contentType,
+        },
+        body: buffer
+      });
+
+      if (upRes.ok) {
+        return `${url.replace(/\/+$/, '')}/storage/v1/object/public/${encodeURIComponent(bucket)}/${encodeURI(cleanKey)}`;
+      }
+    } catch (err) {
+      console.warn('Screenshot upload notice in bot handler:', err.message);
+    }
+  }
+  return '';
+}
+
+/**
  * Send New Order Notification to BOTH Admins with Screenshot + [Approve] [Reject] buttons
  */
 export async function notifyAdminsNewOrder(order) {
   const adminIds = getAdminChatIds();
   const orderId = String(order.order_id || order.id || order.orderId || 'ORD-' + Date.now());
   const productTitle = order.product_title || order.productTitle || order.title || order.name || 'VIP Content Pack';
-  const amount = order.amount ? `₹${order.amount}` : (order.amountDisplay || '₹399');
+  
+  // Format amount cleanly without double symbols
+  const rawAmt = String(order.amount || order.amountDisplay || '399').trim();
+  const amount = rawAmt.startsWith('₹') || rawAmt.startsWith('$') ? rawAmt : (order.currency === 'USD' ? `$${rawAmt}` : `₹${rawAmt}`);
+  
   const method = order.payment_method || order.method || 'UPI / QR';
   const utr = order.utr || order.transactionId || 'Not provided';
   const tgUser = order.telegramUsername ? `@${order.telegramUsername}` : (order.telegramUserId ? `ID: ${order.telegramUserId}` : 'Website Checkout');
-  const screenshot = order.payment_proof || order.screenshotUrl || order.paymentProof || '';
+  
+  let screenshot = order.payment_proof || order.screenshotUrl || order.paymentProof || '';
+  if (screenshot) {
+    screenshot = await ensureScreenshotUploaded(orderId, screenshot);
+  }
+
+  // Update Supabase order row with permanent screenshot URL if available
+  if (screenshot && (screenshot.startsWith('http://') || screenshot.startsWith('https://'))) {
+    try {
+      const { url, key } = getSupabaseConfig();
+      await fetch(`${url}/rest/v1/orders?id=eq.${encodeURIComponent(orderId)}`, {
+        method: 'PATCH',
+        headers: { 'apikey': key, 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ payment_proof: screenshot, updated_at: new Date().toISOString() })
+      });
+    } catch (_) {}
+  }
 
   const caption = 
     `🚨 <b>NEW ORDER RECEIVED!</b>\n` +
@@ -113,6 +182,9 @@ export async function notifyAdminsNewOrder(order) {
 
   const inlineKeyboard = {
     inline_keyboard: [
+      ...(screenshot && (screenshot.startsWith('http://') || screenshot.startsWith('https://'))
+        ? [[{ text: '🔍 View Full Screenshot', url: screenshot }]]
+        : []),
       [
         { text: '✅ Approve Order', callback_data: `appr_${orderId}` },
         { text: '❌ Reject Order', callback_data: `rejc_${orderId}` }
@@ -139,7 +211,7 @@ export async function notifyAdminsNewOrder(order) {
     // Fallback text message if photo fails or missing
     const textRes = await callTelegram('sendMessage', {
       chat_id: adminId,
-      text: caption + (screenshot ? `\n\n📸 <b>Payment Proof:</b> <a href="${screenshot}">View Screenshot</a>` : ''),
+      text: caption + (screenshot && (screenshot.startsWith('http://') || screenshot.startsWith('https://')) ? `\n\n📸 <b>Payment Proof:</b> <a href="${screenshot}">Tap to View Screenshot</a>` : ''),
       parse_mode: 'HTML',
       reply_markup: inlineKeyboard
     });
