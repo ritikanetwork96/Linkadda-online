@@ -26,7 +26,7 @@ try {
   });
 } catch (_) {}
 
-const PORT = 8899;
+const PORT = process.env.PORT || 8899;
 
 const MIME_TYPES = {
   '.html': 'text/html',
@@ -210,6 +210,6 @@ const server = http.createServer(async (req, res) => {
   });
 });
 
-server.listen(PORT, () => {
-  console.log(`🚀 LinkAdda Local Dev Server running at http://localhost:${PORT}`);
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 LinkAdda Server running at http://0.0.0.0:${PORT}`);
 });
