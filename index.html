@@ -3239,19 +3239,20 @@
             <span class="order-paid-amount">${esc(ord.amountDisplay || '₹399')}</span>
             ${isConfirmed ? `
               <div style="display:flex;gap:6px;align-items:center;">
-                ${accessLink ? `
-                  <a href="${esc(accessLink)}" target="_blank" rel="noopener" class="order-track-btn confirmed" style="background:#0088cc;color:#fff;border-color:#0088cc;">
-                    <i class="fa-brands fa-telegram"></i> Open Telegram Link
+                ${(accessLink && !accessLink.includes('TRUSTED_BROTHER1234')) ? `
+                  <a href="${esc(accessLink)}" target="_blank" rel="noopener" class="order-track-btn confirmed" style="background:#10b981;color:#fff;border-color:#10b981;">
+                    <i class="fa-brands fa-telegram"></i> Open VIP Link
                   </a>
-                  <button type="button" onclick="window.copyOrderLink && window.copyOrderLink('${esc(accessLink)}', this)" class="order-copy-btn" title="Copy Telegram Link">
+                  <button type="button" onclick="window.copyOrderLink && window.copyOrderLink('${esc(accessLink)}', this)" class="order-copy-btn" title="Copy Link">
                     <i class="fa-regular fa-clone"></i> Copy
                   </button>
                 ` : `
-                  <a href="https://t.me/TRUSTED_BROTHER1234?text=${encodeURIComponent('Hi Admin, my order #' + orderId + ' is approved. Please provide Telegram link.')}" target="_blank" rel="noopener" class="order-track-btn confirmed">
-                    <i class="fa-brands fa-telegram"></i> Telegram Support
+                  <a href="https://t.me/TRUSTED_BROTHER1234?text=${encodeURIComponent('Hi Admin, my order #' + orderId + ' is approved. Please provide my Telegram access link.')}" target="_blank" rel="noopener" class="order-track-btn confirmed" style="background:#0088cc;color:#fff;border-color:#0088cc;">
+                    <i class="fa-brands fa-telegram"></i> Get Link (@TRUSTED_BROTHER1234)
                   </a>
                 `}
               </div>
+
             ` : `
               <a href="${tgUrl}" target="_blank" rel="noopener" class="order-track-btn">
                 <i class="fa-brands fa-telegram"></i> Order Pending · TG

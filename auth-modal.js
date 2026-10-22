@@ -879,30 +879,49 @@ export function formatOrderCardHtml(ord) {
   const safeTitle = escapeHtml(ord.productName || 'Exclusive Creator Collection');
   const safePrice = escapeHtml(ord.amountDisplay || '₹399');
   const safeDate = escapeHtml(ord.date || 'Recent');
-  const accessLink = ord.downloadLink || ord.fileUrl || ord.orderLink || '';
+  const specificLink = (ord.channelLink || ord.downloadLink || ord.fileUrl || '').trim();
+  const hasSpecificLink = specificLink && !specificLink.includes('TRUSTED_BROTHER1234');
 
   const tgMsg = `Hi Admin, I have placed order #${orderId} (${ord.productName || 'VIP Content Pack'}). Please verify and approve my payment.`;
   const tgUrl = `https://t.me/TRUSTED_BROTHER1234?text=${encodeURIComponent(tgMsg)}`;
+  const claimMsg = `Hi Admin, my order #${orderId} (${ord.productName || 'VIP Content Pack'}) is approved! Please provide my VIP Telegram access link.`;
+  const claimUrl = `https://t.me/TRUSTED_BROTHER1234?text=${encodeURIComponent(claimMsg)}`;
 
   let noteHtml = '';
   let actionHtml = '';
 
   if (isConfirmed) {
-    const adminTelegramUrl = 'https://t.me/TRUSTED_BROTHER1234';
-    noteHtml = `
-      <div class="user-order-note confirmed" style="background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.3); color: #34d399; border-radius: 8px; padding: 6px 10px; display: flex; align-items: center; gap: 6px; font-size: 12px; margin-top: 4px;">
-        <i class="fa-solid fa-circle-check"></i>
-        <span>Order Approved! Direct message Admin on Telegram for instant access.</span>
-      </div>
-    `;
-    actionHtml = `
-      <div class="user-order-actions" style="display: flex; gap: 8px; margin-top: 8px; align-items: stretch;">
-        <a href="${adminTelegramUrl}" target="_blank" rel="noopener" class="btn-order-access confirmed" style="flex: 1; text-align: center; text-decoration: none; justify-content: center; display: inline-flex; align-items: center; gap: 8px; font-weight: 700; padding: 10px 14px; border-radius: 12px; background: linear-gradient(135deg, #10b981, #059669); color: #ffffff;">
-          <i class="fa-brands fa-telegram"></i>
-          <span>Contact Admin on Telegram (@TRUSTED_BROTHER1234)</span>
-        </a>
-      </div>
-    `;
+    if (hasSpecificLink) {
+      noteHtml = `
+        <div class="user-order-note confirmed" style="background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.3); color: #34d399; border-radius: 8px; padding: 6px 10px; display: flex; align-items: center; gap: 6px; font-size: 12px; margin-top: 4px;">
+          <i class="fa-solid fa-circle-check"></i>
+          <span>Order Approved! Your VIP Access Link is unlocked below.</span>
+        </div>
+      `;
+      actionHtml = `
+        <div class="user-order-actions" style="display: flex; gap: 8px; margin-top: 8px; align-items: stretch;">
+          <a href="${escapeHtml(specificLink)}" target="_blank" rel="noopener" class="btn-order-access confirmed" style="flex: 1; text-align: center; text-decoration: none; justify-content: center; display: inline-flex; align-items: center; gap: 8px; font-weight: 700; padding: 10px 14px; border-radius: 12px; background: linear-gradient(135deg, #10b981, #059669); color: #ffffff;">
+            <i class="fa-brands fa-telegram"></i>
+            <span>Join VIP Channel / Access Link</span>
+          </a>
+        </div>
+      `;
+    } else {
+      noteHtml = `
+        <div class="user-order-note confirmed" style="background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.3); color: #34d399; border-radius: 8px; padding: 6px 10px; display: flex; align-items: center; gap: 6px; font-size: 12px; margin-top: 4px;">
+          <i class="fa-solid fa-circle-check"></i>
+          <span>Order Approved! Message Admin on Telegram (@TRUSTED_BROTHER1234) to claim your link.</span>
+        </div>
+      `;
+      actionHtml = `
+        <div class="user-order-actions" style="display: flex; gap: 8px; margin-top: 8px; align-items: stretch;">
+          <a href="${claimUrl}" target="_blank" rel="noopener" class="btn-order-access confirmed" style="flex: 1; text-align: center; text-decoration: none; justify-content: center; display: inline-flex; align-items: center; gap: 8px; font-weight: 700; padding: 10px 14px; border-radius: 12px; background: linear-gradient(135deg, #0088cc, #0284c7); color: #ffffff;">
+            <i class="fa-brands fa-telegram"></i>
+            <span>Get Link from Admin (@TRUSTED_BROTHER1234)</span>
+          </a>
+        </div>
+      `;
+    }
   } else {
     noteHtml = `
       <div class="user-order-note pending">
@@ -987,7 +1006,8 @@ export async function syncUserOrdersWithFirebase() {
             const wasPending = ord.status !== 'confirmed' && ord.status !== 'completed';
             ord.status = 'confirmed';
             if (!link) {
-              link = remoteOrder.telegramLink || remoteOrder.channelLink || remoteOrder.groupLink || remoteOrder.downloadLink || remoteOrder.fileUrl || remoteOrder.orderLink || ord.telegramLink || ord.channelLink || ord.downloadLink || ord.fileUrl || ord.orderLink || '';
+              link = remoteOrder.channelLink || remoteOrder.downloadLink || remoteOrder.fileUrl || '';
+              if (link.includes('TRUSTED_BROTHER1234')) link = '';
             }
 
             // If order doesn't have link, fetch from original product in Supabase
@@ -999,21 +1019,18 @@ export async function syncUserOrdersWithFirebase() {
                   const pRows = await pRes.json();
                   if (pRows && pRows.length) {
                     const prodData = pRows[0].data || pRows[0];
-                    link = prodData.telegramLink || prodData.channelLink || prodData.downloadLink || prodData.fileUrl || prodData.orderLink || '';
+                    link = prodData.channelLink || prodData.deliveryLink || '';
+                    if (link.includes('TRUSTED_BROTHER1234')) link = '';
                   }
                 }
               } catch (_) {}
             }
 
-            if (!link) {
-              link = 'https://t.me/TRUSTED_BROTHER1234';
-            }
+            ord.channelLink = link || '';
+            ord.downloadLink = link || '';
+            ord.fileUrl = link || '';
+            ord.orderLink = link || '';
 
-            ord.downloadLink = link;
-            ord.fileUrl = link;
-            ord.orderLink = link;
-            ord.telegramLink = link;
-            ord.channelLink = link;
 
             hasUpdates = true;
             if (wasPending) {

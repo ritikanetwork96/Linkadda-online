@@ -1330,8 +1330,17 @@ function renderProductEditor(record = {}, schema = null) {
                 <input class="input" type="number" name="displayOrder" id="displayOrder" value="${escapeHtml(String(data.displayOrder ?? ((listCollection('products').filter(i => i.status !== 'deleted').length || 0) + 1)))}" placeholder="1" />
                 <small class="field-hint">Catalog sorting order (1 = appears first at the top).</small>
               </div>
+
+              <div class="field full" style="margin-top: 10px;">
+                <label for="channelLink" style="font-weight: 700; color: #38bdf8;">
+                  <i class="fa-brands fa-telegram" style="color: #38bdf8;"></i> Product Channel / Group Link (Optional)
+                </label>
+                <input class="input" type="text" name="channelLink" id="channelLink" value="${escapeHtml(data.channelLink || data.deliveryLink || '')}" placeholder="https://t.me/+joinchat... or Mega Link (Leave blank if user must contact @TRUSTED_BROTHER1234)" style="border-color: rgba(56, 189, 248, 0.4);" />
+                <small class="field-hint">Agar yahan link dalenge, toh order approve hone par user ko direct yeh link dikhegi. Agar khali chhodenge, toh user ko @TRUSTED_BROTHER1234 se link lene ka button dikhega.</small>
+              </div>
             </div>
           </div>
+
 
           <!-- Section 3: Sub-Plans / Group Options (Tiers) -->
           ${renderTierEditor(data.tiers)}
@@ -1803,6 +1812,7 @@ function getProductEditorRecord(form) {
     specSupport: form.querySelector('[name="specSupport"]')?.value || '',
     specMediaCount: form.querySelector('[name="specMediaCount"]')?.value || '',
     orderLink: form.querySelector('[name="orderLink"]')?.value || '',
+    channelLink: String(form.querySelector('[name="channelLink"]')?.value || '').trim(),
     status: form.querySelector('[name="status"]')?.value || 'active',
     displayOrder: (() => {
       const v = form.querySelector('[name="displayOrder"]')?.value;
@@ -10521,8 +10531,11 @@ function attachGlobalHandlers() {
         const order = allOrders.find((o) => String(o.id) === String(id)) || {};
         const orderTitle = orderProductName(order) || order.productName || order.title || order.name || 'Digital VIP Pack';
 
-        // Find product to get downloadLink / Telegram link if not already present on order
-        let productLink = order.downloadLink || order.fileUrl || order.orderLink || '';
+        // Find product to check if Admin configured a specific Channel / Group link
+        let productLink = order.channelLink || order.downloadLink || order.fileUrl || '';
+        if (productLink && productLink.includes('TRUSTED_BROTHER1234')) {
+          productLink = ''; // Clean legacy fallback
+        }
         let matchedProduct = null;
 
         const allProducts = listCollection('products') || [];
@@ -10532,15 +10545,9 @@ function attachGlobalHandlers() {
           (orderTitle && (p.title === orderTitle || p.name === orderTitle))
         );
 
-        if (matchedProduct) {
-          if (!productLink) {
-            productLink = matchedProduct.downloadLink || matchedProduct.fileUrl || matchedProduct.orderLink || '';
-          }
-        }
-
-        // Fallback to default Telegram link if product has no link
-        if (!productLink) {
-          productLink = 'https://t.me/TRUSTED_BROTHER1234';
+        if (matchedProduct && !productLink) {
+          productLink = String(matchedProduct.channelLink || matchedProduct.deliveryLink || '').trim();
+          if (productLink.includes('TRUSTED_BROTHER1234')) productLink = '';
         }
 
         const approvedPayload = {
@@ -10548,9 +10555,11 @@ function attachGlobalHandlers() {
           orderStatus: 'approved',
           paymentStatus: 'approved',
           verified: true,
-          downloadLink: productLink,
-          fileUrl: productLink,
-          orderLink: productLink,
+          channelLink: productLink || '',
+          downloadLink: productLink || '',
+          fileUrl: productLink || '',
+          orderLink: productLink || '',
+          hasDirectLink: Boolean(productLink),
           reviewedAt: Date.now(),
           reviewedBy: userEmail?.textContent || userName?.textContent || APP_CONFIG.appName,
         };
@@ -10559,15 +10568,13 @@ function attachGlobalHandlers() {
 
         // Also write to order_approvals for instantaneous client-side notification sync
         try {
-          const adminDmUrl = 'https://t.me/TRUSTED_BROTHER1234';
           await set(ref(db, `order_approvals/${id}`), {
             orderId: id,
             productName: orderTitle,
-            downloadLink: productLink || adminDmUrl,
-            telegramLink: adminDmUrl,
-            adminTelegram: adminDmUrl,
-            channelLink: adminDmUrl,
-            groupLink: adminDmUrl,
+            channelLink: productLink || '',
+            downloadLink: productLink || '',
+            hasDirectLink: Boolean(productLink),
+            adminTelegram: 'https://t.me/TRUSTED_BROTHER1234',
             status: 'approved',
             approvedAt: Date.now(),
             customerEmail: order.customerEmail || order.email || order.buyerEmail || ''
@@ -10575,6 +10582,7 @@ function attachGlobalHandlers() {
         } catch (syncErr) {
           console.warn('order_approvals sync note:', syncErr);
         }
+
 
         // Update settings.recentApproved pool (up to 10 persistent) so storefront rotates them
         try {
