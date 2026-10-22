@@ -1,6 +1,5 @@
 import { handleCors } from '../_utils.js';
 
-const BOT_TOKEN = (process.env.TELEGRAM_BOT_TOKEN || '8686240177:AAEIbKV7NM28JxQIUFHVlsspKycdnjfUWeE').trim();
 const DEFAULT_ADMIN_IDS = ['8802192472', '6966868142'];
 
 export function getAdminChatIds() {
@@ -9,8 +8,15 @@ export function getAdminChatIds() {
   return combined;
 }
 
-export function getAppUrl() {
-  const base = process.env.APP_URL || process.env.RENDER_EXTERNAL_URL || 'https://linkadda-online.onrender.com';
+export function getAppUrl(req = null) {
+  if (req && req.headers) {
+    const host = req.headers['x-forwarded-host'] || req.headers.host;
+    if (host && !host.includes('localhost') && !host.includes('127.0.0.1')) {
+      const proto = req.headers['x-forwarded-proto'] || 'https';
+      return `${proto}://${host}`.replace(/\/+$/, '');
+    }
+  }
+  const base = process.env.APP_URL || process.env.RENDER_EXTERNAL_URL || 'https://linkadda.online';
   return base.replace(/\/+$/, '');
 }
 
@@ -20,12 +26,90 @@ function getSupabaseConfig() {
   return { url, key };
 }
 
+// In-memory cache for active bot config (TTL 15 seconds)
+let cachedBotConfig = null;
+let lastBotCacheFetch = 0;
+const BOT_CACHE_TTL_MS = 15000;
+
 /**
- * Call official Telegram Bot API
+ * Fetch currently active bot token from Supabase site_settings, with env fallback
  */
-export async function callTelegram(method, body = {}) {
+export async function getActiveBotConfig(forceRefresh = false) {
+  const now = Date.now();
+  if (!forceRefresh && cachedBotConfig && (now - lastBotCacheFetch < BOT_CACHE_TTL_MS)) {
+    return cachedBotConfig;
+  }
+
+  const { url, key } = getSupabaseConfig();
+  const headers = { 'apikey': key, 'Authorization': `Bearer ${key}` };
+
+  let token = (process.env.TELEGRAM_BOT_TOKEN || '8686240177:AAEIbKV7NM28JxQIUFHVlsspKycdnjfUWeE').trim();
+  let username = '';
+  let name = '';
+  let botId = '';
+  let source = 'env';
+  let lastActivatedAt = null;
+
   try {
-    const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/${method}`, {
+    const res = await fetch(`${url}/rest/v1/site_settings?key=eq.telegram_bot&select=*`, { headers, cache: 'no-store' });
+    if (res.ok) {
+      const rows = await res.json();
+      const val = rows?.[0]?.value;
+      if (val && typeof val === 'object' && val.botToken) {
+        token = String(val.botToken).trim();
+        username = val.botUsername || '';
+        name = val.botName || '';
+        botId = val.botId || '';
+        source = 'database';
+        lastActivatedAt = val.lastActivatedAt || null;
+      } else if (typeof val === 'string' && val.trim().length > 15) {
+        token = val.trim();
+        source = 'database';
+      }
+    }
+  } catch (err) {
+    console.warn('Error fetching dynamic telegram_bot config from database:', err.message);
+  }
+
+  // Populate bot details if username is not yet known
+  if (!username && token) {
+    try {
+      const meRes = await fetch(`https://api.telegram.org/bot${token}/getMe`);
+      if (meRes.ok) {
+        const meData = await meRes.json();
+        if (meData?.ok && meData.result) {
+          username = meData.result.username || '';
+          name = meData.result.first_name || '';
+          botId = String(meData.result.id || '');
+        }
+      }
+    } catch (_) {}
+  }
+
+  cachedBotConfig = {
+    token,
+    username,
+    name,
+    botId,
+    source,
+    lastActivatedAt,
+    updatedAt: now
+  };
+  lastBotCacheFetch = now;
+  return cachedBotConfig;
+}
+
+/**
+ * Call official Telegram Bot API using the dynamically active token
+ */
+export async function callTelegram(method, body = {}, overrideToken = null) {
+  try {
+    let token = overrideToken;
+    if (!token) {
+      const cfg = await getActiveBotConfig();
+      token = cfg.token;
+    }
+    const res = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
@@ -35,6 +119,128 @@ export async function callTelegram(method, body = {}) {
     console.error(`Telegram API error [${method}]:`, err.message);
     return { ok: false, error: err.message };
   }
+}
+
+/**
+ * Switch & Activate a new Telegram Bot instantly (Hot-Swap)
+ */
+export async function switchTelegramBot(newToken, adminUser = 'Admin Panel', req = null) {
+  if (!newToken || typeof newToken !== 'string' || newToken.trim().length < 15) {
+    return { ok: false, error: 'Please enter a valid Telegram Bot Token from @BotFather.' };
+  }
+  const cleanToken = newToken.trim();
+
+  // 1. Verify token with Telegram getMe
+  const meRes = await callTelegram('getMe', {}, cleanToken);
+  if (!meRes || !meRes.ok || !meRes.result) {
+    return { 
+      ok: false, 
+      error: 'Invalid Bot Token! Telegram returned: ' + (meRes?.description || 'Unauthorized token') 
+    };
+  }
+
+  const botUser = meRes.result;
+  const appUrl = getAppUrl(req);
+  const webhookUrl = `${appUrl}/api/telegram/bot`;
+
+  // 2. Set Webhook on Telegram for this new bot
+  const hookRes = await callTelegram('setWebhook', {
+    url: webhookUrl,
+    drop_pending_updates: false,
+    allowed_updates: ['message', 'callback_query']
+  }, cleanToken);
+
+  if (!hookRes || !hookRes.ok) {
+    return {
+      ok: false,
+      error: 'Failed to configure Telegram Webhook: ' + (hookRes?.description || 'Telegram setWebhook failed')
+    };
+  }
+
+  // 3. Set WebApp Menu Button ("Open Store")
+  await callTelegram('setChatMenuButton', {
+    menu_button: {
+      type: 'web_app',
+      text: 'Open Store',
+      web_app: { url: appUrl }
+    }
+  }, cleanToken).catch(() => {});
+
+  // 4. Set Default Bot Commands
+  await callTelegram('setMyCommands', {
+    commands: [
+      { command: 'start', description: 'Start Store & Open VIP Collections' },
+      { command: 'help', description: '24/7 VIP Customer Support' }
+    ]
+  }, cleanToken).catch(() => {});
+
+  // 5. Save in Supabase site_settings under key = 'telegram_bot'
+  const { url, key } = getSupabaseConfig();
+  const headers = { 
+    'apikey': key, 
+    'Authorization': `Bearer ${key}`, 
+    'Content-Type': 'application/json',
+    'Prefer': 'resolution=merge-duplicates'
+  };
+
+  const botRecord = {
+    botToken: cleanToken,
+    botUsername: botUser.username || '',
+    botName: botUser.first_name || '',
+    botId: String(botUser.id || ''),
+    webhookUrl,
+    status: 'active',
+    lastActivatedAt: Date.now(),
+    activatedBy: adminUser
+  };
+
+  await fetch(`${url}/rest/v1/site_settings`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify([{
+      key: 'telegram_bot',
+      value: botRecord,
+      updated_at: new Date().toISOString()
+    }])
+  });
+
+  // 6. Update in-memory cache
+  cachedBotConfig = {
+    token: cleanToken,
+    username: botUser.username || '',
+    name: botUser.first_name || '',
+    botId: String(botUser.id || ''),
+    source: 'database',
+    lastActivatedAt: Date.now(),
+    updatedAt: Date.now()
+  };
+  lastBotCacheFetch = Date.now();
+
+  // 7. Send notification alert to Admin chat IDs via the new bot
+  const adminIds = getAdminChatIds();
+  for (const adminId of adminIds) {
+    try {
+      await callTelegram('sendMessage', {
+        chat_id: adminId,
+        text: 
+          `🤖 <b>Telegram Bot Switched Successfully!</b>\n\n` +
+          `✅ <b>Active Bot:</b> @${botUser.username}\n` +
+          `🏷️ <b>Bot Name:</b> ${botUser.first_name}\n` +
+          `🆔 <b>Bot ID:</b> <code>${botUser.id}</code>\n` +
+          `🔗 <b>Webhook:</b> <code>${webhookUrl}</code>\n` +
+          `👤 <b>Switched By:</b> ${adminUser}\n\n` +
+          `This bot is now actively receiving orders, alerts, and processing approvals!`,
+        parse_mode: 'HTML'
+      }, cleanToken);
+    } catch (_) {}
+  }
+
+  return {
+    ok: true,
+    bot: botUser,
+    webhook: hookRes,
+    message: `Bot @${botUser.username} successfully activated and linked!`
+  };
 }
 
 /**
@@ -459,20 +665,92 @@ export default async function handler(req, res) {
 
   // Setup Webhook endpoint
   if (req.method === 'GET' && action === 'setup-webhook') {
-    const appUrl = getAppUrl();
-    const webhookUrl = `${appUrl}/api/telegram/webhook`;
+    const appUrl = getAppUrl(req);
+    const webhookUrl = `${appUrl}/api/telegram/bot`;
     const setRes = await callTelegram('setWebhook', {
       url: webhookUrl,
-      drop_pending_updates: false
+      drop_pending_updates: false,
+      allowed_updates: ['message', 'callback_query']
     });
     return res.status(200).json({ webhookUrl, result: setRes });
   }
 
-  // Webhook info check
-  if (req.method === 'GET' && action === 'info') {
-    const info = await callTelegram('getWebhookInfo');
-    const me = await callTelegram('getMe');
-    return res.status(200).json({ me, webhookInfo: info, admins: getAdminChatIds() });
+  // Get active bot configuration & status for Admin Panel
+  if (req.method === 'GET' && (action === 'get-bot-config' || action === 'info')) {
+    try {
+      const cfg = await getActiveBotConfig(true);
+      const webhookInfo = await callTelegram('getWebhookInfo');
+      const token = cfg.token || '';
+      const maskedToken = token.length > 10 ? `${token.slice(0, 6)}...${token.slice(-4)}` : '***';
+      return res.status(200).json({
+        ok: true,
+        bot: {
+          username: cfg.username || '',
+          name: cfg.name || 'LinkAdda Bot',
+          id: cfg.botId || '',
+          source: cfg.source || 'env',
+          maskedToken,
+          lastActivatedAt: cfg.lastActivatedAt
+        },
+        webhook: webhookInfo?.result || webhookInfo,
+        admins: getAdminChatIds(),
+        appUrl: getAppUrl(req)
+      });
+    } catch (e) {
+      return res.status(500).json({ ok: false, error: e.message });
+    }
+  }
+
+  // Hot-Swap: Switch to a new Telegram bot instantly
+  if (req.method === 'POST' && (action === 'switch-bot' || (req.body && req.body.action === 'switch-bot'))) {
+    try {
+      const { token, adminUser } = req.body || {};
+      const result = await switchTelegramBot(token, adminUser || 'Admin Panel', req);
+      return res.status(result.ok ? 200 : 400).json(result);
+    } catch (e) {
+      return res.status(500).json({ ok: false, error: e.message });
+    }
+  }
+
+  // Test notification: Fire alert to all admins via active bot
+  if (req.method === 'POST' && (action === 'test-bot' || (req.body && req.body.action === 'test-bot'))) {
+    try {
+      const cfg = await getActiveBotConfig();
+      const adminIds = getAdminChatIds();
+      let sentCount = 0;
+      for (const adminId of adminIds) {
+        const testRes = await callTelegram('sendMessage', {
+          chat_id: adminId,
+          text: 
+            `🔔 <b>LinkAdda Admin Test Notification</b>\n\n` +
+            `Bot @${cfg.username || 'Active Bot'} is connected, online, and delivering alerts properly!`,
+          parse_mode: 'HTML'
+        });
+        if (testRes?.ok) sentCount++;
+      }
+      return res.status(200).json({ ok: true, sentCount, totalAdmins: adminIds.length });
+    } catch (e) {
+      return res.status(500).json({ ok: false, error: e.message });
+    }
+  }
+
+  // Re-register webhook for active bot
+  if (req.method === 'POST' && (action === 're-register-webhook' || (req.body && req.body.action === 're-register-webhook'))) {
+    try {
+      const appUrl = getAppUrl(req);
+      const webhookUrl = `${appUrl}/api/telegram/bot`;
+      const setRes = await callTelegram('setWebhook', {
+        url: webhookUrl,
+        drop_pending_updates: false,
+        allowed_updates: ['message', 'callback_query']
+      });
+      await callTelegram('setChatMenuButton', {
+        menu_button: { type: 'web_app', text: 'Open Store', web_app: { url: appUrl } }
+      }).catch(() => {});
+      return res.status(200).json({ ok: true, webhookUrl, result: setRes });
+    } catch (e) {
+      return res.status(500).json({ ok: false, error: e.message });
+    }
   }
 
   // Manual Trigger: Order Notification
@@ -537,7 +815,7 @@ export default async function handler(req, res) {
         }
 
         if (text === '/start' || text.startsWith('/start')) {
-          const appUrl = getAppUrl();
+          const appUrl = getAppUrl(req);
           const welcomeText = 
             `👋 <b>Welcome ${fromUser.first_name || 'VIP Member'}!</b>\n\n` +
             `🔥 Welcome to <b>LinkAdda Online Store</b>!\n\n` +

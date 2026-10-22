@@ -6632,6 +6632,158 @@ function renderActiveSessionsSection(sessions = []) {
 
     </section>
   `;
+let _isLoadingBotStatus = false;
+async function loadTelegramBotAdminStatus() {
+  if (_isLoadingBotStatus) return;
+  _isLoadingBotStatus = true;
+  try {
+    const res = await fetch('/api/telegram/bot?action=get-bot-config');
+    if (!res.ok) throw new Error('Bot config fetch returned HTTP ' + res.status);
+    const data = await res.json();
+    if (!data || !data.ok) throw new Error(data?.error || 'Invalid bot status response');
+
+    const usernameEl = document.getElementById('tgActiveBotUsername');
+    const idEl = document.getElementById('tgActiveBotId');
+    const badgeEl = document.getElementById('tgBotStatusBadge');
+    const hookEl = document.getElementById('tgWebhookStatus');
+    const pendingEl = document.getElementById('tgWebhookPending');
+
+    const bot = data.bot || {};
+    const webhook = data.webhook || {};
+
+    if (usernameEl) {
+      if (bot.username) {
+        usernameEl.innerHTML = `<a href="https://t.me/${escapeHtml(bot.username)}" target="_blank" style="color: #38bdf8; text-decoration: none; display: inline-flex; align-items: center; gap: 4px;">@${escapeHtml(bot.username)} <i data-lucide="external-link" style="width: 13px; height: 13px;"></i></a>`;
+      } else {
+        usernameEl.textContent = bot.name || 'Bot Connected';
+      }
+    }
+
+    if (idEl) {
+      idEl.textContent = `Bot ID: ${bot.id || '-'} · Token: ${bot.maskedToken || 'Configured'} (${bot.source === 'database' ? 'Database Custom' : 'Default'})`;
+    }
+
+    if (badgeEl) {
+      badgeEl.className = 'badge success';
+      badgeEl.textContent = '🟢 ACTIVE';
+    }
+
+    if (hookEl) {
+      const hasUrl = Boolean(webhook.url);
+      hookEl.innerHTML = hasUrl 
+        ? `<span style="color: #10b981;">✅ Connected</span> <span style="font-size: 11px; color: var(--muted); font-weight: normal; margin-left: 4px;">(/api/telegram/bot)</span>` 
+        : `<span style="color: #f59e0b;">⚠️ Webhook Pending</span>`;
+    }
+
+    if (pendingEl) {
+      pendingEl.textContent = `Pending updates: ${webhook.pending_update_count ?? 0} · Last error: ${webhook.last_error_message || 'None'}`;
+    }
+
+    if (window.lucide) {
+      try { lucide.createIcons(); } catch (_) {}
+    }
+  } catch (err) {
+    console.warn('Telegram bot status fetch note:', err);
+    const badgeEl = document.getElementById('tgBotStatusBadge');
+    if (badgeEl) {
+      badgeEl.className = 'badge danger';
+      badgeEl.textContent = 'Status Offline';
+    }
+  } finally {
+    _isLoadingBotStatus = false;
+  }
+}
+
+function renderTelegramBotControlSection(settings = {}) {
+  return `
+    <!-- Telegram Bot Hot-Swap Management Center -->
+    <section class="panel glass" style="padding: 24px 28px; border-radius: 16px; border: 1px solid rgba(99, 102, 241, 0.35); background: linear-gradient(180deg, rgba(99, 102, 241, 0.05) 0%, rgba(15, 23, 42, 0.6) 100%); margin-bottom: 24px;">
+      <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px; margin-bottom: 20px; padding-bottom: 14px; border-bottom: 1px solid rgba(255,255,255,0.08);">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <div style="width: 40px; height: 40px; border-radius: 10px; background: linear-gradient(135deg, #6366f1, #a855f7); display: flex; align-items: center; justify-content: center; color: white; box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4); flex-shrink: 0;">
+            <i data-lucide="bot" style="width: 22px; height: 22px;"></i>
+          </div>
+          <div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <h3 style="margin: 0; font-size: 17px; font-weight: 800; color: var(--text);">Telegram Bot & Instant Hot-Swap Center</h3>
+              <span id="tgBotStatusBadge" class="badge" style="font-size: 10px; padding: 2px 8px; text-transform: uppercase;">Checking...</span>
+            </div>
+            <p style="margin: 3px 0 0 0; font-size: 12px; color: var(--muted);">If your bot is ever banned by Telegram, replace it here in 10 seconds with zero downtime.</p>
+          </div>
+        </div>
+        <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+          <button class="btn btn-ghost" type="button" data-action="refresh-tg-bot" style="font-size: 12px; padding: 7px 14px; border: 1px solid var(--border); border-radius: 8px;">
+            <i data-lucide="refresh-cw" style="width: 14px; height: 14px;"></i> Refresh Status
+          </button>
+          <button class="btn btn-ghost" type="button" data-action="test-tg-bot" style="font-size: 12px; padding: 7px 14px; border: 1px solid rgba(99, 102, 241, 0.4); color: #818cf8; border-radius: 8px;">
+            <i data-lucide="send" style="width: 14px; height: 14px;"></i> Send Test Alert
+          </button>
+        </div>
+      </div>
+
+      <!-- Realtime Bot Status Indicators -->
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; margin-bottom: 22px;">
+        <div style="background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px;">
+          <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--muted);">Live Active Bot</div>
+          <div id="tgActiveBotUsername" style="font-size: 16px; font-weight: 800; color: #38bdf8; margin-top: 4px; display: flex; align-items: center; gap: 6px;">
+            <span>Loading...</span>
+          </div>
+          <small id="tgActiveBotId" style="display: block; color: var(--muted); font-size: 11px; margin-top: 2px;">ID: -</small>
+        </div>
+
+        <div style="background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px;">
+          <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--muted);">Webhook Status</div>
+          <div id="tgWebhookStatus" style="font-size: 13.5px; font-weight: 700; color: #10b981; margin-top: 5px; display: flex; align-items: center; gap: 6px;">
+            <span>Checking...</span>
+          </div>
+          <small id="tgWebhookPending" style="display: block; color: var(--muted); font-size: 11px; margin-top: 2px;">Pending updates: 0</small>
+        </div>
+
+        <div style="background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px;">
+          <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--muted);">Admin Chat IDs</div>
+          <div style="font-size: 13.5px; font-weight: 700; color: #f59e0b; margin-top: 5px;">
+            8802192472, 6966868142
+          </div>
+          <small style="display: block; color: var(--muted); font-size: 11px; margin-top: 2px;">Alerts & approvals dispatch to both</small>
+        </div>
+      </div>
+
+      <!-- Instant Switcher Card -->
+      <div style="background: rgba(0,0,0,0.35); border: 1px solid rgba(99, 102, 241, 0.35); border-radius: 14px; padding: 22px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-bottom: 12px;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <i data-lucide="zap" style="color: #fbbf24; width: 18px; height: 18px;"></i>
+            <strong style="font-size: 14px; color: var(--text);">Instant Bot Switcher (Zero Downtime)</strong>
+          </div>
+          <span style="font-size: 11px; color: #a5b4fc; background: rgba(99, 102, 241, 0.15); padding: 3px 9px; border-radius: 6px; border: 1px solid rgba(99, 102, 241, 0.3);">Hot-Swap Ready</span>
+        </div>
+
+        <p style="font-size: 12px; color: var(--muted); margin: 0 0 16px 0; line-height: 1.5;">
+          If your bot ever gets banned or reported by Telegram, create a new bot with <strong>@BotFather</strong>, paste its new token below, and click Activate. The system will auto-verify the token, set the webhook, bind the menu button, and resume order processing immediately.
+        </p>
+
+        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+          <input type="text" id="hotSwapBotTokenInput" placeholder="Enter New Bot Token (e.g. 1234567890:AAH...)" class="input" style="flex: 1; min-width: 280px; padding: 12px 14px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 13px; font-family: monospace;" />
+          <button type="button" id="activateNewBotBtn" data-action="activate-new-tg-bot" class="btn btn-primary" style="padding: 12px 22px; font-weight: 700; font-size: 13px; border-radius: 8px; background: linear-gradient(135deg, #6366f1, #8b5cf6) !important; border: none !important; color: white !important; display: inline-flex; align-items: center; gap: 8px; cursor: pointer; flex-shrink: 0; box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);">
+            <i data-lucide="zap" style="width: 16px; height: 16px;"></i> Switch & Activate New Bot
+          </button>
+        </div>
+
+        <div id="hotSwapFeedback" style="margin-top: 14px; font-size: 12.5px; display: none; padding: 10px 14px; border-radius: 8px;"></div>
+
+        <!-- 30-Second Guide -->
+        <div style="margin-top: 18px; padding-top: 14px; border-top: 1px solid rgba(255,255,255,0.06); display: flex; align-items: flex-start; gap: 10px; font-size: 12px; color: #94a3b8; line-height: 1.5;">
+          <i data-lucide="shield-check" style="color: #10b981; width: 17px; height: 17px; flex-shrink: 0; margin-top: 2px;"></i>
+          <div>
+            <strong style="color: #cbd5e1;">How to create a replacement bot in 30 seconds:</strong><br />
+            1. Open Telegram and search for <code>@BotFather</code>.<br />
+            2. Send <code>/newbot</code>, give it any name & username (e.g. <code>LinkAdda_Store_Bot</code>).<br />
+            3. Copy the HTTP API token, paste it in the box above, and click <strong>Switch & Activate New Bot</strong>.
+          </div>
+        </div>
+      </div>
+    </section>
+  `;
 }
 
 function renderSettingsManagementView(data = {}, fullData = {}) {
@@ -6789,6 +6941,9 @@ function renderSettingsManagementView(data = {}, fullData = {}) {
             </div>
           </div>
         </section>
+
+        <!-- Telegram Bot Management & Instant Hot-Swap Center -->
+        ${renderTelegramBotControlSection(settings)}
 
         <!-- 3. Currency & Pricing -->
         <section class="panel glass" style="padding: 24px 28px; border-radius: 16px; border: 1px solid var(--border);">
@@ -9356,6 +9511,7 @@ function renderView(data) {
     }
     if (current === 'catalog' || current === 'products' || current === 'categories') initCatalogDragAndDrop();
     if (current === 'analytics') mountAnalyticsCharts();
+    if (current === 'settings') loadTelegramBotAdminStatus();
     if (notifyCount) {
       notifyCount.textContent = String(recentActivity(12).length);
     }
@@ -9906,6 +10062,100 @@ function attachGlobalHandlers() {
       } catch (err) {
         showToast('Failed to refresh sessions', 'danger');
       }
+      return;
+    }
+    if (action === 'activate-new-tg-bot') {
+      const input = document.getElementById('hotSwapBotTokenInput');
+      const feedback = document.getElementById('hotSwapFeedback');
+      const token = (input?.value || '').trim();
+      if (!token) {
+        showToast('Please enter the new Telegram Bot Token from @BotFather', 'warning');
+        input?.focus();
+        return;
+      }
+      if (!token.includes(':') || token.length < 15) {
+        showToast('Invalid token format! Bot tokens look like: 1234567890:AAH...', 'warning');
+        input?.focus();
+        return;
+      }
+
+      actionBtn.disabled = true;
+      const originalHtml = actionBtn.innerHTML;
+      actionBtn.innerHTML = `<span class="spin-loader" style="width:14px;height:14px;border:2px solid #fff;border-top-color:transparent;border-radius:50%;display:inline-block;animation:authSpin 0.75s linear infinite;margin-right:6px;"></span> Verifying & Linking...`;
+
+      if (feedback) {
+        feedback.style.display = 'block';
+        feedback.style.background = 'rgba(99, 102, 241, 0.15)';
+        feedback.style.border = '1px solid rgba(99, 102, 241, 0.3)';
+        feedback.style.color = '#c7d2fe';
+        feedback.innerHTML = 'Connecting to Telegram servers and registering webhook...';
+      }
+
+      try {
+        const res = await fetch('/api/telegram/bot?action=switch-bot', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            token,
+            adminUser: userEmail?.textContent || userName?.textContent || 'Admin Panel'
+          })
+        });
+        const result = await res.json();
+        if (!res.ok || !result.ok) {
+          throw new Error(result.error || 'Failed to switch bot');
+        }
+
+        if (feedback) {
+          feedback.style.background = 'rgba(16, 185, 129, 0.15)';
+          feedback.style.border = '1px solid rgba(16, 185, 129, 0.3)';
+          feedback.style.color = '#6ee7b7';
+          feedback.innerHTML = `🎉 <strong>Success!</strong> Bot <strong>@${escapeHtml(result.bot.username)}</strong> is now actively running your store!`;
+        }
+
+        showToast(`✅ Successfully activated Bot @${result.bot.username}!`, 'success');
+        if (input) input.value = '';
+        await loadTelegramBotAdminStatus();
+      } catch (err) {
+        if (feedback) {
+          feedback.style.display = 'block';
+          feedback.style.background = 'rgba(239, 68, 68, 0.15)';
+          feedback.style.border = '1px solid rgba(239, 68, 68, 0.3)';
+          feedback.style.color = '#fca5a5';
+          feedback.innerHTML = `❌ <strong>Activation Failed:</strong> ${escapeHtml(err.message || 'Unknown error')}`;
+        }
+        showToast('Bot activation failed: ' + err.message, 'danger');
+      } finally {
+        actionBtn.disabled = false;
+        actionBtn.innerHTML = originalHtml;
+      }
+      return;
+    }
+    if (action === 'test-tg-bot') {
+      actionBtn.disabled = true;
+      const originalHtml = actionBtn.innerHTML;
+      actionBtn.innerHTML = `<span class="spin-loader" style="width:14px;height:14px;border:2px solid #818cf8;border-top-color:transparent;border-radius:50%;display:inline-block;animation:authSpin 0.75s linear infinite;margin-right:6px;"></span> Sending...`;
+      try {
+        const res = await fetch('/api/telegram/bot?action=test-bot', { method: 'POST' });
+        const result = await res.json();
+        if (result.ok) {
+          showToast(`🔔 Test notification delivered to ${result.sentCount || 0} admin Telegram accounts!`, 'success');
+        } else {
+          showToast('Failed to send test alert: ' + (result.error || 'Check bot status'), 'danger');
+        }
+      } catch (err) {
+        showToast('Test notification error: ' + err.message, 'danger');
+      } finally {
+        actionBtn.disabled = false;
+        actionBtn.innerHTML = originalHtml;
+      }
+      return;
+    }
+    if (action === 'refresh-tg-bot') {
+      actionBtn.disabled = true;
+      showToast('Refreshing bot and webhook status...', 'info');
+      await loadTelegramBotAdminStatus();
+      actionBtn.disabled = false;
+      showToast('✅ Bot status up to date.', 'success');
       return;
     }
     if (action === 'edit-single') {
