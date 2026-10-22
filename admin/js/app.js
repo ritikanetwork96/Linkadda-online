@@ -1336,7 +1336,7 @@ function renderProductEditor(record = {}, schema = null) {
                   <i class="fa-brands fa-telegram" style="color: #38bdf8;"></i> Product Channel / Group Link (Optional)
                 </label>
                 <input class="input" type="text" name="channelLink" id="channelLink" value="${escapeHtml(data.channelLink || data.deliveryLink || '')}" placeholder="https://t.me/+joinchat... or Mega Link (Leave blank if user must contact @TRUSTED_BROTHER1234)" style="border-color: rgba(56, 189, 248, 0.4);" />
-                <small class="field-hint">Agar yahan link dalenge, toh order approve hone par user ko direct yeh link dikhegi. Agar khali chhodenge, toh user ko @TRUSTED_BROTHER1234 se link lene ka button dikhega.</small>
+                <small class="field-hint">If provided, customer receives this direct access link upon approval. If left empty, customer is directed to contact Admin on Telegram (@TRUSTED_BROTHER1234).</small>
               </div>
             </div>
           </div>

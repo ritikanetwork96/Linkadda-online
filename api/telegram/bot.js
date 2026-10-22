@@ -100,16 +100,16 @@ export async function notifyAdminsNewOrder(order) {
   const screenshot = order.payment_proof || order.screenshotUrl || order.paymentProof || '';
 
   const caption = 
-    `🚨 <b>NAYA ORDER AAYA HAI!</b>\n` +
+    `🚨 <b>NEW ORDER RECEIVED!</b>\n` +
     `━━━━━━━━━━━━━━━━━━━━━━\n` +
     `🆔 <b>Order ID:</b> <code>${orderId}</code>\n` +
     `📦 <b>Product:</b> <b>${productTitle}</b>\n` +
     `💰 <b>Amount:</b> <b>${amount}</b>\n` +
     `💳 <b>Payment Method:</b> ${method}\n` +
-    `🔢 <b>UTR / Ref:</b> <code>${utr}</code>\n` +
+    `🔢 <b>UTR / Transaction Ref:</b> <code>${utr}</code>\n` +
     `👤 <b>Customer:</b> ${tgUser}\n` +
     `━━━━━━━━━━━━━━━━━━━━━━\n` +
-    `<i>Niche button se verify karke Approve ya Reject karein:</i>`;
+    `<i>Review payment screenshot and tap below to Approve or Reject:</i>`;
 
   const inlineKeyboard = {
     inline_keyboard: [
@@ -146,16 +146,16 @@ export async function notifyAdminsNewOrder(order) {
     results.push(textRes);
   }
 
-  // Also send instant receipt / acknowledgement to customer if they ordered via Telegram WebApp
+  // Send instant receipt / acknowledgement to customer if they ordered via Telegram WebApp
   if (order.telegramUserId) {
     await callTelegram('sendMessage', {
       chat_id: order.telegramUserId,
       text: 
-        `🕒 <b>Aapka Order #${orderId} Mil Gaya Hai!</b>\n\n` +
+        `🕒 <b>Order #${orderId} Received!</b>\n\n` +
         `📦 <b>Product:</b> ${productTitle}\n` +
         `💰 <b>Amount:</b> ${amount}\n\n` +
-        `🔍 Admin aapka payment screenshot aur UTR verify kar raha hai. <b>Verify hote hi aapko is chat me message aa jayega.</b>\n\n` +
-        `Kisi bhi issue ke liye Admin support se sampark karein: @TRUSTED_BROTHER1234`,
+        `🔍 Admin is currently reviewing your payment proof and transaction reference. <b>You will receive an instant notification right here once verified.</b>\n\n` +
+        `For 24/7 priority support: @TRUSTED_BROTHER1234`,
       parse_mode: 'HTML'
     });
   }
@@ -208,11 +208,11 @@ async function processOrderApproval(orderId, adminUser) {
       await callTelegram('sendMessage', {
         chat_id: customerTgId,
         text: 
-          `🎉 <b>Badhai Ho! Aapka Order #${orderId} Verify Ho Gaya Hai!</b>\n\n` +
+          `🎉 <b>Congratulations! Your Order #${orderId} has been Approved!</b>\n\n` +
           `📦 <b>Product:</b> ${order.product_title || 'VIP Pack'}\n\n` +
-          `🔗 <b>Aapka VIP Channel Link Niche Diya Gaya Hai:</b>\n` +
+          `🔗 <b>Your VIP Access Link:</b>\n` +
           `👉 <b>${channelLink}</b>\n\n` +
-          `Lifetime link replacement aur support ke liye: @TRUSTED_BROTHER1234`,
+          `For lifetime link replacement and 24/7 helpdesk: @TRUSTED_BROTHER1234`,
         parse_mode: 'HTML',
         reply_markup: {
           inline_keyboard: [
@@ -224,9 +224,9 @@ async function processOrderApproval(orderId, adminUser) {
       await callTelegram('sendMessage', {
         chat_id: customerTgId,
         text: 
-          `🎉 <b>Badhai Ho! Aapka Order #${orderId} Verify Ho Gaya Hai!</b>\n\n` +
+          `🎉 <b>Congratulations! Your Order #${orderId} has been Approved!</b>\n\n` +
           `📦 <b>Product:</b> ${order.product_title || 'VIP Pack'}\n\n` +
-          `Apna VIP link receive karne ke liye niche button par tap karke <b>Admin @TRUSTED_BROTHER1234</b> ko message karein:`,
+          `To claim your VIP content access, please message <b>Admin @TRUSTED_BROTHER1234</b> on Telegram below:`,
         parse_mode: 'HTML',
         reply_markup: {
           inline_keyboard: [
@@ -271,13 +271,13 @@ async function processOrderRejection(orderId, adminUser) {
     await callTelegram('sendMessage', {
       chat_id: customerTgId,
       text: 
-        `❌ <b>Aapka Order #${orderId} Verify Nahi Ho Saka</b>\n\n` +
-        `Payment screenshot ya UTR number match nahi ho raha hai.\n` +
-        `Agar aapne payment kar di hai, toh please Admin se screenshot ke saath sampark karein:`,
+        `❌ <b>Order #${orderId} Verification Unsuccessful</b>\n\n` +
+        `The payment screenshot or UTR transaction reference could not be validated.\n\n` +
+        `If you have completed the payment, please contact Support with your payment proof:`,
       parse_mode: 'HTML',
       reply_markup: {
         inline_keyboard: [
-          [{ text: '💬 Contact Support (@TRUSTED_BROTHER1234)', url: `https://t.me/TRUSTED_BROTHER1234?text=${encodeURIComponent(`Hi Admin, my order #${orderId} was rejected. Here is my payment proof.`)}` }]
+          [{ text: '💬 Contact Support (@TRUSTED_BROTHER1234)', url: `https://t.me/TRUSTED_BROTHER1234?text=${encodeURIComponent(`Hi Admin, my order #${orderId} was rejected. Here is my payment receipt.`)}` }]
         ]
       }
     });
@@ -296,15 +296,14 @@ export async function broadcastNewProduct(product) {
   const priceINR = product.priceINR || product.inr || '299';
   const priceUSD = product.priceUSD || product.usd || '15';
   const image = product.image || product.thumbnail || '';
-  const productSlug = product.slug || product.id || '';
 
   const messageText = 
-    `🔥 <b>NAYA VIP PACK ADD HO GAYA HAI!</b>\n` +
+    `🔥 <b>NEW VIP PACK RELEASED!</b>\n` +
     `━━━━━━━━━━━━━━━━━━━━━━\n` +
     `📦 <b>${title}</b>\n` +
     `💰 <b>Price:</b> ₹${priceINR} / $${priceUSD}\n` +
-    `✨ <i>Instant delivery & 100% discrete discrete access!</i>\n\n` +
-    `Abhi store khol kar dekhne aur khareedne ke liye niche button dabayein:`;
+    `✨ <i>Instant delivery & 100% discrete access!</i>\n\n` +
+    `Tap the button below to view and unlock in store:`;
 
   const webAppUrl = `${appUrl}/payment.html?productId=${encodeURIComponent(product.id || '')}&name=${encodeURIComponent(title)}&inr=${priceINR}&usd=${priceUSD}`;
 
@@ -410,13 +409,13 @@ export default async function handler(req, res) {
         if (text === '/start' || text.startsWith('/start')) {
           const appUrl = getAppUrl();
           const welcomeText = 
-            `👋 <b>Namaste ${fromUser.first_name || 'VIP Member'}!</b>\n\n` +
-            `🔥 <b>LinkAdda Online Store</b> me aapka swagat hai!\n\n` +
-            `Yahan aapko sabhi Exclusive VIP Packs & Collections milenge:\n` +
-            `⚡ Instant Fast Access\n` +
+            `👋 <b>Welcome ${fromUser.first_name || 'VIP Member'}!</b>\n\n` +
+            `🔥 Welcome to <b>LinkAdda Online Store</b>!\n\n` +
+            `Explore all Exclusive VIP Packs & Collections:\n` +
+            `⚡ Instant High-Speed Cloud Access\n` +
             `🔒 100% Discrete & Anonymous Checkout\n` +
             `🛡️ Lifetime Free Link Replacement Guarantee\n\n` +
-            `Niche diye gaye <b>Open Store</b> button par click karke shop karein:`;
+            `Tap the <b>Open Store</b> button below to begin shopping:`;
 
           await callTelegram('sendMessage', {
             chat_id: msg.chat.id,
@@ -445,7 +444,7 @@ export default async function handler(req, res) {
         if (!authorizedAdmins.includes(adminIdStr)) {
           await callTelegram('answerCallbackQuery', {
             callback_query_id: cq.id,
-            text: '⚠️ Aap is bot ke authorized Admin nahi hain!',
+            text: '⚠️ You are not an authorized Admin for this bot!',
             show_alert: true
           });
           return res.status(200).json({ ok: true });
