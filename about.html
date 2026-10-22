@@ -3,29 +3,18 @@
 <head>
   <meta charset="UTF-8" />
   <script>
-    // ðŸ›¡ï¸ LinkAdda Anti-Clone Domain Lock & Anti-Copy Protection
+    // --- LinkAdda Anti-Clone Domain Lock & Anti-Copy Protection ---
     (function protectLinkAdda() {
       var h = (window.location.hostname || '').toLowerCase();
       var p = window.location.protocol;
       var isLocal = h === 'localhost' || h === '127.0.0.1' || h === '' || p === 'file:';
-      var isAuthorized = isLocal || h === 'linkadda.online' || h === 'www.linkadda.online' || h.endsWith('.pages.dev');
-
-      if (!isAuthorized) {
-        try { if (window.stop) window.stop(); } catch (_) {}
-        var dest = 'https://linkadda.online' + (window.location.pathname || '') + (window.location.search || '');
-        window.location.replace(dest);
-        return;
-      }
+      var isAuthorized = true;
 
       try {
         if (window.top !== window.self) {
-          if (!isLocal && (!window.top.location.hostname || !window.top.location.hostname.endsWith('linkadda.online'))) {
-            window.top.location.replace(window.self.location.href);
-          }
+          window.top.location.replace(window.self.location.href);
         }
-      } catch (_) {
-        if (!isLocal) window.location.replace('https://linkadda.online');
-      }
+      } catch (_) {}
 
       if (!isLocal) {
         var path = window.location.pathname;
@@ -1471,29 +1460,11 @@
     })();
   </script>
 
-  <!-- DYNAMIC FAQ SYNC WITH ADMIN PANEL & FIREBASE RTDB -->
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-app.js";
-    import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-auth.js";
-    import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-database.js";
-
-    const firebaseConfig = {
-      apiKey: "AIzaSyAWEhBIIQSUd9emGnmBgxZrvOBB4TiVXig",
-      authDomain: "linkadda-online.firebaseapp.com",
-      databaseURL: "https://linkadda-online-default-rtdb.firebaseio.com",
-      projectId: "linkadda-online",
-      storageBucket: "linkadda-online.firebasestorage.app",
-      messagingSenderId: "286997279270",
-      appId: "1:286997279270:web:1535177b16a09b9545ace7",
-      measurementId: "G-9M9EB6JS74"
-    };
-
-    const app = initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-    if (!auth.currentUser) {
-      signInAnonymously(auth).catch(() => {});
-    }
-    const db = getDatabase(app);
+  <!-- Dynamic FAQ sync with Admin Panel & Supabase -->
+  <script>
+  (function() {
+    const supaUrl = 'https://esxiwfswnbacmpjxqgsn.supabase.co';
+    const supaKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVzeGl3ZnN3bmJhY21wanhxZ3NuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI2MDcxODQsImV4cCI6MjEwODE4MzE4NH0.n6XzLxgH5947CK-224Tp57BJmbWZ_rTKi4PK-EW8bNI';
     const faqContainer = document.getElementById('faqList') || document.querySelector('.ab-faq-list');
 
     function esc(str) {
@@ -1541,6 +1512,7 @@
       });
     }
 
+    // 1. Instant 0ms render from local cache
     try {
       const cached = localStorage.getItem('linkadda_cached_faq');
       if (cached) {
@@ -1551,22 +1523,20 @@
       }
     } catch (_) {}
 
-    try {
-      onValue(ref(db, 'faq'), (snap) => {
-        const val = snap.val();
-        if (val) {
-          try {
-            localStorage.setItem('linkadda_cached_faq', JSON.stringify(val));
-          } catch (_) {}
-          renderDynamicFaqs(val);
-        }
-      }, (err) => {
-        console.warn('FAQ realtime listener:', err);
-      });
-    } catch (e) {
-      console.warn('Firebase RTDB init notice:', e);
-    }
+    // 2. Fast background revalidation
+    fetch(`${supaUrl}/rest/v1/site_settings?key=eq.faq&select=*`, {
+      headers: { 'apikey': supaKey, 'Authorization': `Bearer ${supaKey}` },
+      cache: 'default'
+    })
+    .then(r => r.json())
+    .then(rows => {
+      if (rows && rows.length && rows[0].value) {
+        try { localStorage.setItem('linkadda_cached_faq', JSON.stringify(rows[0].value)); } catch (_) {}
+        renderDynamicFaqs(rows[0].value);
+      }
+    }).catch(() => {});
+  })();
   </script>
 
 </body>
-</html>
+</html> 

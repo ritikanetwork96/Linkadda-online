@@ -3,29 +3,18 @@
 <head>
   <meta charset="UTF-8" />
   <script>
-    // ðŸ›¡ï¸ LinkAdda Anti-Clone Domain Lock & Anti-Copy Protection
+    // --- LinkAdda Anti-Clone Domain Lock & Anti-Copy Protection ---
     (function protectLinkAdda() {
       var h = (window.location.hostname || '').toLowerCase();
       var p = window.location.protocol;
       var isLocal = h === 'localhost' || h === '127.0.0.1' || h === '' || p === 'file:';
-      var isAuthorized = isLocal || h === 'linkadda.online' || h === 'www.linkadda.online' || h.endsWith('.pages.dev');
-
-      if (!isAuthorized) {
-        try { if (window.stop) window.stop(); } catch (_) {}
-        var dest = 'https://linkadda.online' + (window.location.pathname || '') + (window.location.search || '');
-        window.location.replace(dest);
-        return;
-      }
+      var isAuthorized = true;
 
       try {
         if (window.top !== window.self) {
-          if (!isLocal && (!window.top.location.hostname || !window.top.location.hostname.endsWith('linkadda.online'))) {
-            window.top.location.replace(window.self.location.href);
-          }
+          window.top.location.replace(window.self.location.href);
         }
-      } catch (_) {
-        if (!isLocal) window.location.replace('https://linkadda.online');
-      }
+      } catch (_) {}
 
       if (!isLocal) {
         var path = window.location.pathname;

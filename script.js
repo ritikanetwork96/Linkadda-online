@@ -1,5 +1,5 @@
-// ðŸ›¡ï¸ LinkAdda Site Integrity Guard
-(function(){try{var h=(window.location.hostname||'').toLowerCase(),p=window.location.protocol;var isLocal=h==='localhost'||h==='127.0.0.1'||h===''||p==='file:';if(!isLocal&&h!=='linkadda.online'&&h!=='www.linkadda.online'){try{if(window.stop)window.stop();}catch(_){}window.location.replace('https://linkadda.online'+(window.location.pathname||'')+(window.location.search||''));}}catch(_){}})();
+// --- LinkAdda Site Integrity Guard ---
+(function(){try{var h=(window.location.hostname||'').toLowerCase(),p=window.location.protocol;var isAllowed=h==='localhost'||h==='127.0.0.1'||h===''||p==='file:'||h==='linkadda.online'||h==='www.linkadda.online'||h.endsWith('.pages.dev')||h.endsWith('.vercel.app')||h.endsWith('.netlify.app')||h.endsWith('.onrender.com');if(!isAllowed){/* Domain guard relaxed during migration */}}catch(_){}})();
 // ===== LOADING SCREEN =====
 (function() {
   const wrap    = document.getElementById('loaderWrap');
@@ -43,39 +43,33 @@
   ];
   const subEl = wrap.querySelector('.loader-sub');
 
-  const timer = setInterval(() => {
-    const increment = progress < 40 ? 16 : progress < 75 ? 8 : progress < 92 ? 5 : 16;
-    progress = Math.min(progress + increment, 100);
+  const finishLoader = () => {
+    if (wrap.classList.contains('hide')) return;
+    progress = 100;
+    bar.style.width = '100%';
+    pct.textContent = '100%';
+    clearInterval(timer);
+    clearInterval(lpInterval);
+    wrap.classList.add('hide');
+    document.body.classList.remove('loading');
+    setTimeout(() => { try { wrap.remove(); } catch (_) {} }, 200);
+  };
 
+  const timer = setInterval(() => {
+    progress = Math.min(progress + 25, 100);
     bar.style.width = progress + '%';
     pct.textContent = Math.floor(progress) + '%';
-
-    if (subEl) {
-      if (progress >= 25 && progress < 26) subEl.textContent = messages[1];
-      if (progress >= 65 && progress < 66) subEl.textContent = messages[2];
-      if (progress >= 95 && progress < 96) subEl.textContent = messages[3];
-    }
-
     if (progress >= 100) {
-      clearInterval(timer);
-      clearInterval(lpInterval);
-      setTimeout(() => {
-        wrap.classList.add('hide');
-        document.body.classList.remove('loading');
-        setTimeout(() => wrap.remove(), 400);
-      }, 200);
+      finishLoader();
     }
-  }, 20);
+  }, 16);
 
-  // Instant smooth completion on window/DOM load
-  const finishLoader = () => {
-    progress = 100;
-  };
   if (document.readyState === 'complete' || document.readyState === 'interactive') {
     finishLoader();
   } else {
-    window.addEventListener('load', finishLoader, { once: true });
     document.addEventListener('DOMContentLoaded', finishLoader, { once: true });
+    window.addEventListener('load', finishLoader, { once: true });
+    setTimeout(finishLoader, 350); // Hard ceiling guarantees instant appearance
   }
 })();
 

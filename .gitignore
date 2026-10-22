@@ -88,3 +88,5 @@ scratch_*.mjs
 migration-report.json
 migration-report.md
 *.bak
+*.ps1
+backup_*.json

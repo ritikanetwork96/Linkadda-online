@@ -11,16 +11,8 @@ export const APP_CONFIG = {
   publicBaseUrl: '/',
 };
 
-export const FIREBASE_CONFIG = {
-  apiKey: 'AIzaSyAWEhBIIQSUd9emGnmBgxZrvOBB4TiVXig',
-  authDomain: 'linkadda-online.firebaseapp.com',
-  databaseURL: 'https://linkadda-online-default-rtdb.firebaseio.com',
-  projectId: 'linkadda-online',
-  storageBucket: 'linkadda-online.firebasestorage.app',
-  messagingSenderId: '286997279270',
-  appId: '1:286997279270:web:1535177b16a09b9545ace7',
-  measurementId: 'G-9M9EB6JS74',
-};
+// Legacy config retained for type safety
+export const FIREBASE_CONFIG = {};
 
 // RustFS S3-compatible public config (No secrets on frontend!)
 export const RUSTFS_CONFIG = {
@@ -29,11 +21,10 @@ export const RUSTFS_CONFIG = {
   region: 'us-east-1',
 };
 
-// Supabase config for media storage
+// Supabase public config (Anon Key only — Zero secrets on frontend!)
 export const SUPABASE_CONFIG = {
-  url: 'https://dsleaglxbedljdxrikdn.supabase.co',
-  anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRzbGVhZ2x4YmVkbGpkeHJpa2RuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTEyMjcwOTIsImV4cCI6MjEwNjgwMzA5Mn0.sRzSAOIcgdObrx-uInPI8CE-96I24Jqyhr3K--pxuIw',
-  serviceKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRzbGVhZ2x4YmVkbGpkeHJpa2RuIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MTIyNzA5MiwiZXhwIjoyMTA2ODAzMDkyfQ.DTf3qPhO2G7gb4LBSIIgxUF43Bs_h5rgQXY18dIZRZM',
+  url: 'https://esxiwfswnbacmpjxqgsn.supabase.co',
+  anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVzeGl3ZnN3bmJhY21wanhxZ3NuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI2MDcxODQsImV4cCI6MjEwODE4MzE4NH0.n6XzLxgH5947CK-224Tp57BJmbWZ_rTKi4PK-EW8bNI',
   bucket: 'linkadda-media',
 };
 

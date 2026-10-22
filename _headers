@@ -16,10 +16,6 @@
   Cache-Control: no-store, no-cache, must-revalidate, max-age=0
   X-Robots-Tag: noindex, nofollow, noarchive
 
-/database.rules.json
-  Cache-Control: no-store, no-cache, must-revalidate, max-age=0
-  X-Robots-Tag: noindex, nofollow, noarchive
-
 # Static JS & CSS: Edge caching with revalidation
 /*.js
   Cache-Control: public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800

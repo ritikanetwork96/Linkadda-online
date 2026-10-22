@@ -417,14 +417,37 @@ export async function syncAllFromFirebase(force = false) {
         token = await auth.currentUser.getIdToken();
       } catch (_) {}
     }
-    const tokenQuery = token ? `?auth=${encodeURIComponent(token)}` : '';
-    const base = 'https://linkadda-online-default-rtdb.firebaseio.com';
+    const supaUrl = 'https://esxiwfswnbacmpjxqgsn.supabase.co';
+    const supaKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVzeGl3ZnN3bmJhY21wanhxZ3NuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI2MDcxODQsImV4cCI6MjEwODE4MzE4NH0.n6XzLxgH5947CK-224Tp57BJmbWZ_rTKi4PK-EW8bNI';
+    const headers = { 'apikey': supaKey, 'Authorization': `Bearer ${supaKey}` };
 
     const results = await Promise.allSettled(
       targets.map(async (key) => {
-        const res = await fetch(`${base}/${key}.json${tokenQuery}`, { cache: 'no-store' });
-        if (!res.ok) return null;
-        return { key, data: await res.json() };
+        try {
+          if (key === 'products' || key === 'categories' || key === 'orders') {
+            const res = await fetch(`${supaUrl}/rest/v1/${key}?select=*`, { headers, cache: 'no-store' });
+            if (!res.ok) return null;
+            const rows = await res.json();
+            const data = {};
+            if (Array.isArray(rows)) rows.forEach(r => { data[r.id] = { ...(r.data || {}), ...r, id: r.id }; });
+            return { key, data };
+          }
+          if (key === 'visitors' || key === 'events') {
+            const res = await fetch(`${supaUrl}/rest/v1/${key}?select=*&order=created_at.desc&limit=1000`, { headers, cache: 'no-store' });
+            if (!res.ok) return null;
+            const rows = await res.json();
+            const data = {};
+            if (Array.isArray(rows)) rows.forEach(r => { data[r.id] = { ...(r.data || {}), ...r, id: r.id }; });
+            return { key, data };
+          }
+          const res = await fetch(`${supaUrl}/rest/v1/site_settings?key=eq.${encodeURIComponent(key)}&select=*`, { headers, cache: 'no-store' });
+          if (!res.ok) return null;
+          const rows = await res.json();
+          if (rows && rows.length && rows[0].value) return { key, data: rows[0].value };
+          return null;
+        } catch (_) {
+          return null;
+        }
       })
     );
 
@@ -651,12 +674,15 @@ export async function deleteRecord(node, id) {
     } catch (err) {
       console.warn(`Failed to delete ${node}/${targetKey} from RTDB:`, err?.message || err);
     }
-    // Direct REST delete fallback ensures 100% removal from Firebase
+    // Direct REST delete fallback ensures 100% removal from Supabase
     if (node === 'orders') {
       try {
-        fetch(`https://linkadda-online-default-rtdb.firebaseio.com/orders/${targetKey}.json`, { method: 'DELETE' }).catch(() => {});
+        const supaUrl = 'https://esxiwfswnbacmpjxqgsn.supabase.co';
+        const supaKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVzeGl3ZnN3bmJhY21wanhxZ3NuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI2MDcxODQsImV4cCI6MjEwODE4MzE4NH0.n6XzLxgH5947CK-224Tp57BJmbWZ_rTKi4PK-EW8bNI';
+        const hdrs = { 'apikey': supaKey, 'Authorization': `Bearer ${supaKey}` };
+        fetch(`${supaUrl}/rest/v1/orders?id=eq.${encodeURIComponent(targetKey)}`, { method: 'DELETE', headers: hdrs }).catch(() => {});
         if (alternateId && alternateId !== targetKey) {
-          fetch(`https://linkadda-online-default-rtdb.firebaseio.com/orders/${alternateId}.json`, { method: 'DELETE' }).catch(() => {});
+          fetch(`${supaUrl}/rest/v1/orders?id=eq.${encodeURIComponent(alternateId)}`, { method: 'DELETE', headers: hdrs }).catch(() => {});
         }
       } catch (_) {}
     }

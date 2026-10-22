@@ -752,7 +752,7 @@ function renderMediaFallback(label = 'No image selected') {
 
 function resolveAdminMediaUrl(url) {
   let clean = String(url || '').trim();
-  const SUPABASE_CDN_ROOT = 'https://dsleaglxbedljdxrikdn.supabase.co/storage/v1/object/public/linkadda-media';
+  const SUPABASE_CDN_ROOT = 'https://esxiwfswnbacmpjxqgsn.supabase.co/storage/v1/object/public/linkadda-media';
   if (!clean) return '';
   if (clean.includes('rustfs-mi5c.srv1942099.hstgr.cloud') || clean.includes('supabase.co/storage/v1/object/public/')) {
     const pathPart = clean.split('/linkadda-media/').pop() || clean.split('/media/').pop() || clean.split('/').pop();
@@ -846,7 +846,7 @@ function renderMediaStudioCard(item, index) {
         ${isVideo
           ? `<video src="${escapeHtml(resolvedUrl)}" preload="metadata" muted playsinline></video>
              <div class="media-vid-overlay-play"><i data-lucide="play" style="width:18px;height:18px;"></i></div>`
-          : `<img src="${escapeHtml(resolvedUrl)}" data-raw-src="${escapeHtml(rawUrl)}" alt="Media ${index + 1}" loading="lazy" onerror="if(!this._failed){this._failed=true; if(this.getAttribute('data-raw-src').startsWith('images/')){this.src='/' + this.getAttribute('data-raw-src');}else{this.src='https://dsleaglxbedljdxrikdn.supabase.co/storage/v1/object/public/linkadda-media/products/' + this.getAttribute('data-raw-src');}}" />`
+          : `<img src="${escapeHtml(resolvedUrl)}" data-raw-src="${escapeHtml(rawUrl)}" alt="Media ${index + 1}" loading="lazy" onerror="if(!this._failed){this._failed=true; if(this.getAttribute('data-raw-src').startsWith('images/')){this.src='/' + this.getAttribute('data-raw-src');}else{this.src='https://esxiwfswnbacmpjxqgsn.supabase.co/storage/v1/object/public/linkadda-media/products/' + this.getAttribute('data-raw-src');}}" />`
         }
       </div>
 
@@ -2938,7 +2938,7 @@ function recordTimestamp(item) {
   if (typeof item.timestamp === 'number' && item.timestamp > 0) return item.timestamp;
   if (typeof item.createdAt === 'number' && item.createdAt > 0) return item.createdAt;
   if (typeof item.updatedAt === 'number' && item.updatedAt > 0) return item.updatedAt;
-  const raw = item.timestamp || item.createdAt || item.updatedAt || item.date;
+  const raw = item.timestamp || item.createdAt || item.created_at || item.updatedAt || item.updated_at || item.date;
   if (!raw) return 0;
   if (typeof raw === 'number') return raw;
   const num = Number(raw);
@@ -3877,7 +3877,7 @@ function resolveMediaSource(value) {
   let raw = String(value || '').trim();
   if (!raw) return '';
   
-  const SUPABASE_CDN_ROOT = 'https://dsleaglxbedljdxrikdn.supabase.co/storage/v1/object/public/linkadda-media';
+  const SUPABASE_CDN_ROOT = 'https://esxiwfswnbacmpjxqgsn.supabase.co/storage/v1/object/public/linkadda-media';
   if (raw.includes('rustfs-mi5c.srv1942099.hstgr.cloud') || raw.includes('s3.linkadda.shop/linkadda-media') || (raw.includes('supabase.co') && !raw.includes('dsleaglxbedljdxrikdn'))) {
     const pathPart = raw.split('/linkadda-media/').pop() || raw.split('/media/').pop() || raw.split('/').pop();
     return `${SUPABASE_CDN_ROOT}/${pathPart.replace(/^\/+/, '')}`;

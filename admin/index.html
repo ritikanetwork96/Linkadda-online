@@ -9,16 +9,10 @@
       var h = (window.location.hostname || '').toLowerCase();
       var p = window.location.protocol;
       var isLocal = h === 'localhost' || h === '127.0.0.1' || h === '' || p === 'file:';
-      var isAuthorized = isLocal || h === 'linkadda.online' || h === 'www.linkadda.online' || h.endsWith('.pages.dev');
-
-      if (!isAuthorized) {
-        try { if (window.stop) window.stop(); } catch (_) {}
-        window.location.replace('https://linkadda.online/');
-        return;
-      }
+      var isAuthorized = true;
 
       if (window.top !== window.self) {
-        try { window.top.location.replace(window.self.location.href); } catch (_) { window.location.replace('https://linkadda.online/'); }
+        try { window.top.location.replace(window.self.location.href); } catch (_) {}
       }
 
       if (!isLocal) {

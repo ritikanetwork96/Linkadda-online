@@ -97,12 +97,21 @@ const server = http.createServer(async (req, res) => {
     }
 
     try {
+      const bust = `?bust=${Date.now()}`;
       if (pathname === '/api/upload') {
         const mod = await import(`./api/upload.js${bust}`);
         return await mod.default(req, resEnhanced);
       }
       if (pathname === '/api/auth/customer') {
         const mod = await import(`./api/auth/customer.js${bust}`);
+        return await mod.default(req, resEnhanced);
+      }
+      if (pathname === '/api/admin/auth') {
+        const mod = await import(`./api/admin/auth.js${bust}`);
+        return await mod.default(req, resEnhanced);
+      }
+      if (pathname === '/api/admin/db') {
+        const mod = await import(`./api/admin/db.js${bust}`);
         return await mod.default(req, resEnhanced);
       }
 

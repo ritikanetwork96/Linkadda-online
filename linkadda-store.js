@@ -1,4 +1,4 @@
-// ðŸ›¡ï¸ LinkAdda Store Integrity Guard
+// --- LinkAdda Store Integrity Guard ---
 (function(){try{var h=(window.location.hostname||'').toLowerCase(),p=window.location.protocol;var isLocal=h==='localhost'||h==='127.0.0.1'||h===''||p==='file:';if(!isLocal&&h!=='linkadda.online'&&h!=='www.linkadda.online'){try{if(window.stop)window.stop();}catch(_){}window.location.replace('https://linkadda.online'+(window.location.pathname||'')+(window.location.search||''));}}catch(_){}})();
 /**
  * LINKADDA LUXURY DARK E-COMMERCE CONTROLLER (IQ-200 REFINED)
@@ -910,14 +910,15 @@
     // 5. Update Direct Buy Now Links (Both Desktop & Mobile Sticky)
     const buyBtn = document.getElementById('fkPvBuyBtn');
     const buyBtnDesktop = document.getElementById('fkPvBuyBtnDesktop');
-    const checkoutHref = `payment.html?name=${encodeURIComponent(currentTitle)}&inr=${encodeURIComponent(currentINR)}&usd=${encodeURIComponent(currentUSD)}&productId=${encodeURIComponent(prod.id)}&tier=${encodeURIComponent(currentTierLabel)}`;
+    const checkoutHref = `payment.html?productId=${encodeURIComponent(prod.id)}&name=${encodeURIComponent(currentTitle)}&inr=${encodeURIComponent(currentINR)}&usd=${encodeURIComponent(currentUSD)}${currentTierLabel ? `&tier=${encodeURIComponent(currentTierLabel)}` : ''}`;
 
     [buyBtn, buyBtnDesktop].filter(Boolean).forEach(btn => {
-      btn.setAttribute('data-name', encodeURIComponent(currentTitle));
+      btn.setAttribute('data-name', currentTitle);
+      btn.setAttribute('data-base-title', prod.title || currentTitle);
       btn.setAttribute('data-product-id', prod.id);
       btn.setAttribute('data-inr', currentINR);
       btn.setAttribute('data-usd', currentUSD);
-      btn.setAttribute('data-tier', encodeURIComponent(currentTierLabel));
+      if (currentTierLabel) btn.setAttribute('data-tier', currentTierLabel);
       btn.href = checkoutHref;
     });
 

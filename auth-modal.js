@@ -73,16 +73,13 @@ export async function resolveUnifiedCustomer(email, incomingData = {}) {
       const timeoutPromise = (ms) => new Promise(r => setTimeout(r, ms));
       const fetchApi = fetch(getApiEndpoint(`/api/auth/customer?email=${encodeURIComponent(cleanEmail)}`), { cache: 'no-store' })
         .then(r => r.ok ? r.json() : null).catch(() => null);
-      const fetchRtdb = fetch(`https://linkadda-online-default-rtdb.firebaseio.com/customers/${uid}.json`)
-        .then(r => r.ok ? r.json() : null).catch(() => null);
 
-      const [apiRes, rtdbRes] = await Promise.race([
-        Promise.all([fetchApi, fetchRtdb]),
-        timeoutPromise(600).then(() => [null, null])
+      const [apiRes] = await Promise.race([
+        Promise.all([fetchApi]),
+        timeoutPromise(600).then(() => [null])
       ]);
 
       if (apiRes?.customer) existing = { ...existing, ...apiRes.customer };
-      if (rtdbRes && !rtdbRes.error) existing = { ...existing, ...rtdbRes };
     } catch (_) {}
   }
 
@@ -195,42 +192,30 @@ async function syncCustomerToDatabase(user) {
     }).catch(() => {});
   } catch (_) {}
 
-  // 2. Direct RTDB sync to /events/customers/ (admin panel reads from here via realtime listener)
+  // 2. Direct Supabase sync to events table
   try {
-    const eventsUrl = `https://linkadda-online-default-rtdb.firebaseio.com/events/customers/${encodeURIComponent(user.uid)}.json`;
-    await fetch(eventsUrl, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        uid: user.uid,
-        email: user.email,
-        displayName: user.displayName,
-        hasSavedName: user.hasSavedName !== undefined ? user.hasSavedName : true,
-        provider: user.provider,
-        providers: user.providers || [user.provider],
-        createdAt: user.createdAt,
-        lastLoginAt: user.lastLoginAt,
-      }),
-    });
-  } catch (_) {}
-
-  // 3. Also sync to standard /customers/ (when rules allow direct writes)
-  try {
-    const url = `https://linkadda-online-default-rtdb.firebaseio.com/customers/${encodeURIComponent(user.uid)}.json`;
-    await fetch(url, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        uid: user.uid,
-        email: user.email,
-        displayName: user.displayName,
-        hasSavedName: user.hasSavedName !== undefined ? user.hasSavedName : true,
-        provider: user.provider,
-        providers: user.providers || [user.provider],
-        createdAt: user.createdAt,
-        lastLoginAt: user.lastLoginAt,
-      }),
-    });
+    const supaUrl = 'https://esxiwfswnbacmpjxqgsn.supabase.co';
+    const supaKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVzeGl3ZnN3bmJhY21wanhxZ3NuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI2MDcxODQsImV4cCI6MjEwODE4MzE4NH0.n6XzLxgH5947CK-224Tp57BJmbWZ_rTKi4PK-EW8bNI';
+    fetch(`${supaUrl}/rest/v1/events`, {
+      method: 'POST',
+      headers: {
+        'apikey': supaKey,
+        'Authorization': `Bearer ${supaKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify([{
+        event_type: 'customer_login',
+        visitor_id: user.uid,
+        data: {
+          uid: user.uid,
+          email: user.email,
+          displayName: user.displayName,
+          provider: user.provider,
+          createdAt: user.createdAt,
+          lastLoginAt: user.lastLoginAt,
+        }
+      }])
+    }).catch(() => {});
   } catch (_) {}
 }
 
@@ -973,24 +958,16 @@ export async function syncUserOrdersWithFirebase() {
         let isApproved = false;
         let link = '';
 
-        const res = await fetch(`https://linkadda-online-default-rtdb.firebaseio.com/orders/${encodeURIComponent(ord.orderId)}.json`);
-        if (res.ok) {
-          remoteOrder = await res.json();
-        }
+        const supaUrl = 'https://esxiwfswnbacmpjxqgsn.supabase.co';
+        const supaKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVzeGl3ZnN3bmJhY21wanhxZ3NuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI2MDcxODQsImV4cCI6MjEwODE4MzE4NH0.n6XzLxgH5947CK-224Tp57BJmbWZ_rTKi4PK-EW8bNI';
+        const supaHdrs = { 'apikey': supaKey, 'Authorization': `Bearer ${supaKey}` };
 
-        // Fallback check to order_approvals node for instantaneous sync
-        if (!remoteOrder || (!remoteOrder.status && !remoteOrder.orderStatus)) {
-          try {
-            const appRes = await fetch(`https://linkadda-online-default-rtdb.firebaseio.com/order_approvals/${encodeURIComponent(ord.orderId)}.json`);
-            if (appRes.ok) {
-              const appData = await appRes.json();
-              if (appData && (appData.status === 'approved' || appData.verified)) {
-                remoteOrder = appData;
-                isApproved = true;
-                link = appData.telegramLink || appData.channelLink || appData.downloadLink || appData.orderLink || '';
-              }
-            }
-          } catch (_) {}
+        const res = await fetch(`${supaUrl}/rest/v1/orders?id=eq.${encodeURIComponent(ord.orderId)}&select=*`, { headers: supaHdrs });
+        if (res.ok) {
+          const rows = await res.json();
+          if (rows && rows.length) {
+            remoteOrder = rows[0].data || rows[0];
+          }
         }
 
         if (remoteOrder) {
@@ -1013,14 +990,15 @@ export async function syncUserOrdersWithFirebase() {
               link = remoteOrder.telegramLink || remoteOrder.channelLink || remoteOrder.groupLink || remoteOrder.downloadLink || remoteOrder.fileUrl || remoteOrder.orderLink || ord.telegramLink || ord.channelLink || ord.downloadLink || ord.fileUrl || ord.orderLink || '';
             }
 
-            // If order doesn't have link, fetch from original product in RTDB
+            // If order doesn't have link, fetch from original product in Supabase
             if (!link && (remoteOrder.productId || ord.productId)) {
               try {
                 const pId = remoteOrder.productId || ord.productId;
-                const pRes = await fetch(`https://linkadda-online-default-rtdb.firebaseio.com/products/${encodeURIComponent(pId)}.json`);
+                const pRes = await fetch(`${supaUrl}/rest/v1/products?id=eq.${encodeURIComponent(pId)}&select=*`, { headers: supaHdrs });
                 if (pRes.ok) {
-                  const prodData = await pRes.json();
-                  if (prodData) {
+                  const pRows = await pRes.json();
+                  if (pRows && pRows.length) {
+                    const prodData = pRows[0].data || pRows[0];
                     link = prodData.telegramLink || prodData.channelLink || prodData.downloadLink || prodData.fileUrl || prodData.orderLink || '';
                   }
                 }

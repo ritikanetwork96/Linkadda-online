@@ -1,153 +1,103 @@
 import crypto from 'node:crypto';
 import { deriveCustomerId, handleCors, verifyAdminRequest } from '../_utils.js';
 
-let cachedToken = null;
-let tokenExpiresAt = 0;
+function getSupabaseHeaders() {
+  const supaKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || '').trim();
+  return {
+    'apikey': supaKey,
+    'Authorization': `Bearer ${supaKey}`,
+    'Content-Type': 'application/json',
+  };
+}
 
-async function getFirebaseAdminToken() {
-  if (cachedToken && Date.now() < tokenExpiresAt - 60000) {
-    return cachedToken;
-  }
-  const apiKey = (process.env.FIREBASE_API_KEY || '').trim();
-  const adminEmail = (process.env.admin || '').trim();
-  const adminPassword = (process.env.password || '').trim();
-
-  if (!apiKey || !adminEmail || !adminPassword) {
-    return null;
-  }
-
-  try {
-    const res = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${encodeURIComponent(apiKey)}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: adminEmail, password: adminPassword, returnSecureToken: true }),
-    });
-    if (!res.ok) return null;
-    const data = await res.json();
-    if (data?.idToken) {
-      cachedToken = data.idToken;
-      tokenExpiresAt = Date.now() + (Number(data.expiresIn) || 3600) * 1000;
-      return cachedToken;
-    }
-  } catch (err) {
-    console.warn('Firebase admin token error:', err.message);
-  }
-  return null;
+function getSupabaseUrl() {
+  return (process.env.SUPABASE_URL || 'https://esxiwfswnbacmpjxqgsn.supabase.co').replace(/\/+$/, '');
 }
 
 export const computeCustomerId = deriveCustomerId;
 
-export async function fetchCustomerRecord(uid, token) {
-  const authQuery = token ? `?auth=${encodeURIComponent(token)}` : '';
-
-  // 1. Try standard /customers/ node
+export async function fetchCustomerRecord(uid) {
   try {
-    const res = await fetch(`https://linkadda-online-default-rtdb.firebaseio.com/customers/${encodeURIComponent(uid)}.json${authQuery}`);
+    const supaUrl = getSupabaseUrl();
+    const headers = getSupabaseHeaders();
+    const res = await fetch(`${supaUrl}/rest/v1/site_settings?key=eq.customers&select=*`, {
+      headers,
+      cache: 'no-store'
+    });
     if (res.ok) {
-      const data = await res.json();
-      if (data && !data.error && data.email) return data;
+      const rows = await res.json();
+      const all = rows?.[0]?.value || {};
+      return all[uid] || null;
     }
   } catch (_) {}
-
-  // 2. Try guaranteed /events/customers/ node
-  try {
-    const res = await fetch(`https://linkadda-online-default-rtdb.firebaseio.com/events/customers/${encodeURIComponent(uid)}.json${authQuery}`);
-    if (res.ok) {
-      const data = await res.json();
-      if (data && !data.error && data.email) return data;
-    }
-  } catch (_) {}
-
   return null;
 }
 
-export async function fetchAllCustomers(token) {
-  const authQuery = token ? `?auth=${encodeURIComponent(token)}` : '';
-  const customerMap = new Map();
-
-  // 1. Read from /events/customers
+export async function fetchAllCustomers() {
   try {
-    const res = await fetch(`https://linkadda-online-default-rtdb.firebaseio.com/events/customers.json${authQuery}`);
+    const supaUrl = getSupabaseUrl();
+    const headers = getSupabaseHeaders();
+    const res = await fetch(`${supaUrl}/rest/v1/site_settings?key=eq.customers&select=*`, {
+      headers,
+      cache: 'no-store'
+    });
     if (res.ok) {
-      const data = await res.json();
-      if (data && typeof data === 'object') {
-        Object.keys(data).forEach(key => {
-          const item = data[key];
-          if (item && item.email) {
-            customerMap.set(item.email.toLowerCase().trim(), item);
-          }
-        });
-      }
+      const rows = await res.json();
+      const all = rows?.[0]?.value || {};
+      const list = Object.values(all);
+      list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+      return list;
     }
   } catch (err) {
-    console.warn('Fetch all from events/customers notice:', err.message);
+    console.warn('Fetch all customers notice:', err.message);
   }
-
-  // 2. Read from /customers
-  try {
-    const res = await fetch(`https://linkadda-online-default-rtdb.firebaseio.com/customers.json${authQuery}`);
-    if (res.ok) {
-      const data = await res.json();
-      if (data && typeof data === 'object') {
-        Object.keys(data).forEach(key => {
-          const item = data[key];
-          if (item && item.email) {
-            const emailKey = item.email.toLowerCase().trim();
-            const existing = customerMap.get(emailKey);
-            customerMap.set(emailKey, { ...existing, ...item });
-          }
-        });
-      }
-    }
-  } catch (_) {}
-
-  const list = Array.from(customerMap.values());
-  list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-  return list;
+  return [];
 }
 
-export async function saveCustomerRecord(uid, customer, token) {
-  const authQuery = token ? `?auth=${encodeURIComponent(token)}` : '';
-  let saved = false;
-
-  // 1. Save to /events/customers/ (guaranteed permitted on active RTDB)
+export async function saveCustomerRecord(uid, customer) {
   try {
-    const res = await fetch(`https://linkadda-online-default-rtdb.firebaseio.com/events/customers/${encodeURIComponent(uid)}.json${authQuery}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(customer),
+    const supaUrl = getSupabaseUrl();
+    const headers = getSupabaseHeaders();
+    const res = await fetch(`${supaUrl}/rest/v1/site_settings?key=eq.customers&select=*`, {
+      headers,
+      cache: 'no-store'
     });
+    let all = {};
     if (res.ok) {
-      const data = await res.json();
-      if (!data?.error) saved = true;
+      const rows = await res.json();
+      all = rows?.[0]?.value || {};
     }
+    all[uid] = customer;
+    await fetch(`${supaUrl}/rest/v1/site_settings`, {
+      method: 'POST',
+      headers: { ...headers, 'Prefer': 'resolution=merge-duplicates' },
+      body: JSON.stringify([{ key: 'customers', value: all, updated_at: new Date().toISOString() }])
+    });
+    return true;
   } catch (err) {
-    console.warn('Save to events/customers error:', err.message);
+    console.warn('Save customer notice:', err.message);
+    return false;
   }
-
-  // 2. Also save to standard /customers/ (when database.rules.json is active)
-  try {
-    await fetch(`https://linkadda-online-default-rtdb.firebaseio.com/customers/${encodeURIComponent(uid)}.json${authQuery}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(customer),
-    });
-  } catch (_) {}
-
-  return saved;
 }
 
-export async function deleteCustomerRecord(uid, token) {
-  const authQuery = token ? `?auth=${encodeURIComponent(token)}` : '';
+export async function deleteCustomerRecord(uid) {
   try {
-    await fetch(`https://linkadda-online-default-rtdb.firebaseio.com/events/customers/${encodeURIComponent(uid)}.json${authQuery}`, {
-      method: 'DELETE',
+    const supaUrl = getSupabaseUrl();
+    const headers = getSupabaseHeaders();
+    const res = await fetch(`${supaUrl}/rest/v1/site_settings?key=eq.customers&select=*`, {
+      headers,
+      cache: 'no-store'
     });
-  } catch (_) {}
-  try {
-    await fetch(`https://linkadda-online-default-rtdb.firebaseio.com/customers/${encodeURIComponent(uid)}.json${authQuery}`, {
-      method: 'DELETE',
-    });
+    if (res.ok) {
+      const rows = await res.json();
+      const all = rows?.[0]?.value || {};
+      delete all[uid];
+      await fetch(`${supaUrl}/rest/v1/site_settings`, {
+        method: 'POST',
+        headers: { ...headers, 'Prefer': 'resolution=merge-duplicates' },
+        body: JSON.stringify([{ key: 'customers', value: all, updated_at: new Date().toISOString() }])
+      });
+    }
   } catch (_) {}
 }
 
@@ -157,8 +107,6 @@ async function isAuthorizedAdmin(req) {
 
 export default async function handler(req, res) {
   if (handleCors(req, res, 'GET, POST, OPTIONS')) return;
-
-  const token = await getFirebaseAdminToken();
 
   // Helper to extract query parameters safely
   const query = (() => {
@@ -186,7 +134,7 @@ export default async function handler(req, res) {
       }
 
       try {
-        const users = await fetchAllCustomers(token);
+        const users = await fetchAllCustomers();
         return res.status(200).json({
           success: true,
           count: users.length,
@@ -209,7 +157,7 @@ export default async function handler(req, res) {
     }
 
     try {
-      const customer = await fetchCustomerRecord(uid, token);
+      const customer = await fetchCustomerRecord(uid);
       const isAuthorized = await isAuthorizedAdmin(req);
 
       // Sanitize customer details for unauthenticated requests to prevent PII harvesting
@@ -261,9 +209,9 @@ export default async function handler(req, res) {
       const incomingProvider = String(body.provider || 'email_otp').trim();
 
       // Retrieve existing customer record (checking new UID first, or old UID if email changed)
-      let existing = await fetchCustomerRecord(uid, token);
+      let existing = await fetchCustomerRecord(uid);
       if (!existing && oldUid && oldUid !== uid) {
-        existing = await fetchCustomerRecord(oldUid, token);
+        existing = await fetchCustomerRecord(oldUid);
       }
 
       // Determine display name:
@@ -296,7 +244,7 @@ export default async function handler(req, res) {
         updatedAt: Date.now(),
       };
 
-      await saveCustomerRecord(uid, unifiedCustomer, token);
+      await saveCustomerRecord(uid, unifiedCustomer);
 
       // If email changed and old UID exists, verify caller is authorized before deleting old account!
       if (oldUid && oldUid !== uid) {
@@ -320,7 +268,7 @@ export default async function handler(req, res) {
           });
         }
 
-        await deleteCustomerRecord(oldUid, token);
+        await deleteCustomerRecord(oldUid);
       }
 
       return res.status(200).json({

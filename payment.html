@@ -3,29 +3,18 @@
 <head>
   <meta charset="UTF-8" />
   <script>
-    // ðŸ›¡ï¸ LinkAdda Anti-Clone Domain Lock & Anti-Copy Protection
+    // --- LinkAdda Anti-Clone Domain Lock & Anti-Copy Protection ---
     (function protectLinkAdda() {
       var h = (window.location.hostname || '').toLowerCase();
       var p = window.location.protocol;
       var isLocal = h === 'localhost' || h === '127.0.0.1' || h === '' || p === 'file:';
-      var isAuthorized = isLocal || h === 'linkadda.online' || h === 'www.linkadda.online' || h.endsWith('.pages.dev');
-
-      if (!isAuthorized) {
-        try { if (window.stop) window.stop(); } catch (_) {}
-        var dest = 'https://linkadda.online' + (window.location.pathname || '') + (window.location.search || '');
-        window.location.replace(dest);
-        return;
-      }
+      var isAuthorized = true;
 
       try {
         if (window.top !== window.self) {
-          if (!isLocal && (!window.top.location.hostname || !window.top.location.hostname.endsWith('linkadda.online'))) {
-            window.top.location.replace(window.self.location.href);
-          }
+          window.top.location.replace(window.self.location.href);
         }
-      } catch (_) {
-        if (!isLocal) window.location.replace('https://linkadda.online');
-      }
+      } catch (_) {}
 
       if (!isLocal) {
         var path = window.location.pathname;
@@ -1383,7 +1372,7 @@
       100% { width: 100%; }
     }
 
-    /* ━━ CONFETTI ━━ */
+    /* --- CONFETTI --- */
     .confetti-container {
       position: fixed; inset: 0; pointer-events: none; z-index: 999; overflow: hidden;
     }
@@ -1470,7 +1459,7 @@
       .method-grid { grid-template-columns: 1fr; }
     }
 
-    /* ━━ GATEWAY LOADER ━━ */
+    /* === GATEWAY LOADER === */
     #gatewayLoader {
       position: fixed;
       inset: 0;
@@ -1653,7 +1642,7 @@
 </head>
 <body>
 
-<!-- â•â• GATEWAY LOADER â•â• -->
+<!-- === GATEWAY LOADER === -->
 <div id="gatewayLoader">
   <div class="gl-lock-wrap">
     <div class="gl-lock-ring"></div>
@@ -1712,7 +1701,7 @@
 
 <div class="pay-container">
 
-  <!-- â•â• SCREEN 1 — SELECT METHOD â•â• -->
+  <!-- === SCREEN 1: SELECT METHOD === -->
   <div class="screen active" id="screen1">
 
     <div class="card">
@@ -1753,7 +1742,7 @@
 
   </div>
 
-  <!-- â•â• SCREEN 2 — PAY â•â• -->
+  <!-- === SCREEN 2: PAY === -->
   <div class="screen" id="screen2">
     <div class="back-link" onclick="goBack(1)"><i class="fa-solid fa-arrow-left"></i> Change Method</div>
 
@@ -1790,14 +1779,22 @@
             <span>UPI Instant Payment</span>
           </div>
 
-          <!-- Supported Apps Strip -->
-          <div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:14px;flex-wrap:wrap;">
-            <span style="font-size:11px;color:var(--muted);font-weight:600;letter-spacing:0.5px;text-transform:uppercase;">Pay with:</span>
-            <div style="display:flex;gap:8px;align-items:center;">
-              <span title="Google Pay" style="display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:8px;background:#ffffff;box-shadow:0 2px 6px rgba(0,0,0,0.2);"><img src="images/gpay.svg" alt="GPay" style="width:20px;height:20px;object-fit:contain;" /></span>
-              <span title="PhonePe" style="display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:8px;background:#5f259f;box-shadow:0 2px 6px rgba(95,37,159,0.4);"><img src="images/phonepe.svg" alt="PhonePe" style="width:20px;height:20px;object-fit:contain;" /></span>
-              <span title="Paytm" style="display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:8px;background:#002970;box-shadow:0 2px 6px rgba(0,41,112,0.4);"><img src="images/paytm.svg" alt="Paytm" style="width:24px;height:16px;object-fit:contain;" /></span>
-              <span title="BHIM / Any UPI App" style="display:inline-flex;align-items:center;justify-content:center;height:30px;padding:0 8px;border-radius:8px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);font-size:11px;font-weight:700;color:#f8fafc;">BHIM / Any App</span>
+          <!-- One-Tap Interactive UPI App Launchers -->
+          <div style="margin-bottom:14px;">
+            <div style="font-size:11px;color:var(--muted);font-weight:700;letter-spacing:0.5px;text-transform:uppercase;text-align:center;margin-bottom:8px;">Tap App to Pay Instantly (Locked Amount):</div>
+            <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:8px;">
+              <a href="#" class="upi-fast-app-btn" onclick="openUpiApp(event, 'gpay')" title="Pay with Google Pay" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:10px 4px;border-radius:12px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.14);text-decoration:none;color:#f8fafc;font-size:11.5px;font-weight:700;transition:all 0.2s;">
+                <span style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;background:#ffffff;box-shadow:0 2px 6px rgba(0,0,0,0.25);"><img src="images/gpay.svg" alt="GPay" style="width:20px;height:20px;object-fit:contain;" /></span>
+                <span>Google Pay</span>
+              </a>
+              <a href="#" class="upi-fast-app-btn" onclick="openUpiApp(event, 'phonepe')" title="Pay with PhonePe" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:10px 4px;border-radius:12px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.14);text-decoration:none;color:#f8fafc;font-size:11.5px;font-weight:700;transition:all 0.2s;">
+                <span style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;background:#5f259f;box-shadow:0 2px 6px rgba(95,37,159,0.45);"><img src="images/phonepe.svg" alt="PhonePe" style="width:20px;height:20px;object-fit:contain;" /></span>
+                <span>PhonePe</span>
+              </a>
+              <a href="#" class="upi-fast-app-btn" onclick="openUpiApp(event, 'paytm')" title="Pay with Paytm" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:10px 4px;border-radius:12px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.14);text-decoration:none;color:#f8fafc;font-size:11.5px;font-weight:700;transition:all 0.2s;">
+                <span style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;background:#002970;box-shadow:0 2px 6px rgba(0,41,112,0.45);"><img src="images/paytm.svg" alt="Paytm" style="width:24px;height:16px;object-fit:contain;" /></span>
+                <span>Paytm</span>
+              </a>
             </div>
           </div>
 
@@ -1897,6 +1894,9 @@
           <div class="addr-text" id="binancepayId">1197561104</div>
           <button class="copy-btn" onclick="copyText(document.getElementById('binancepayId').innerText, this)"><i class="fa-solid fa-copy"></i> Copy ID</button>
         </div>
+        <a id="binanceDirectAppBtn" href="https://app.binance.com" target="_blank" rel="noreferrer" style="display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 100%; margin-top: 12px; padding: 13px 18px; background: linear-gradient(135deg, #f59e0b, #d97706); color: #000; border-radius: 14px; text-decoration: none; font-weight: 700; font-size: 13.5px; box-shadow: 0 4px 18px rgba(245,158,11,0.35); transition: all 0.2s;">
+          <i class="fa-solid fa-wallet"></i> Open Binance App / Web
+        </a>
         <div class="pay-note">Open Binance App → Pay → Send to Binance ID → Send exact amount → Upload screenshot.</div>
       </div>
 
@@ -1917,7 +1917,7 @@
         </div>
         <div class="pay-note">Send payment via PayPal → Choose <strong>Friends & Family</strong> if available → Upload payment screenshot.</div>
         <a id="paypalDirectLink" href="https://paypal.me/Johnguzman456" target="_blank" rel="noreferrer" style="display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 100%; margin-top: 12px; padding: 13px 18px; background: linear-gradient(135deg, #003087, #0079c1); color: #fff; border-radius: 14px; text-decoration: none; font-weight: 700; font-size: 13.5px; box-shadow: 0 4px 18px rgba(0,121,193,0.3); transition: all 0.2s;">
-          <i class="fa-brands fa-paypal"></i> Open PayPal in New Tab
+          <i class="fa-brands fa-paypal"></i> Open PayPal & Pay Exact Amount
         </a>
       </div>
 
@@ -1955,7 +1955,7 @@
     </button>
   </div>
 
-  <!-- â•â• SCREEN 3 — UPLOAD SCREENSHOT â•â• -->
+  <!-- === SCREEN 3: UPLOAD SCREENSHOT === -->
   <div class="screen" id="screen3">
     <div class="back-link" onclick="goBack(2)"><i class="fa-solid fa-arrow-left"></i> Back to Payment</div>
 
@@ -1993,7 +1993,7 @@
     </button>
   </div>
 
-  <!-- â•â• SCREEN 4 — SUCCESS â•â• -->
+  <!-- === SCREEN 4: SUCCESS === -->
   <div class="screen" id="screen4">
 
     <div class="success-card">
@@ -2077,70 +2077,25 @@
 </div><!-- /pay-container -->
 
 <script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-app.js";
-import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-auth.js";
-import { getDatabase, ref, push, set, get, onValue } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-database.js";
+import { app, auth, db, ref, push, set, get, onValue } from "./supabase-client.js";
 
-const firebaseConfig = {
-  apiKey: "AIzaSyAWEhBIIQSUd9emGnmBgxZrvOBB4TiVXig",
-  authDomain: "linkadda-online.firebaseapp.com",
-  databaseURL: "https://linkadda-online-default-rtdb.firebaseio.com",
-  projectId: "linkadda-online",
-  storageBucket: "linkadda-online.firebasestorage.app",
-  messagingSenderId: "286997279270",
-  appId: "1:286997279270:web:1535177b16a09b9545ace7",
-  measurementId: "G-9M9EB6JS74"
-};
-
-(async () => {
+// -- TRACK VISITOR SESSION ON PAYMENT CHECKOUT --
+if (!sessionStorage.getItem('visit_tracked')) {
   try {
-    const app = initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-    if (!auth.currentUser) {
-      await signInAnonymously(auth).catch(() => {});
-    }
-    const db  = getDatabase(app);
-    window.__linkaddaApp = app;
-    window.__linkaddaAuth = auth;
-    window.__linkaddaDb = db;
-
-    window._firebaseReady = true;
-    window.ref = ref;
-    window.get = get;
-    window.onValue = onValue;
-    window.push = push;
-    window.set = set;
-    window._fbDB = db;
-    window._fbRef = ref;
-    window._fbPush = push;
-    window._fbSet = set;
-    window._fbGet = get;
-    window._fbOnValue = onValue;
-
-    // -- TRACK VISITOR SESSION ON PAYMENT CHECKOUT --
-    if (!sessionStorage.getItem('visit_tracked')) {
-      try {
-        const todayDateStr = new Date().toISOString().slice(0, 10);
-        const vRef = push(ref(db, 'visitors'));
-        set(vRef, {
-          date: todayDateStr,
-          timestamp: Date.now(),
-          page: 'payment',
-          referrer: document.referrer ? (function() { try { return new URL(document.referrer, window.location.origin).hostname; } catch(_) { return 'direct'; } })() : 'direct'
-        }).then(() => {
-          sessionStorage.setItem('visit_tracked', '1');
-        }).catch((err) => {
-          console.warn('Payment visitor logging notice:', err && err.message);
-        });
-      } catch (_) {}
-    }
-
-    window.dispatchEvent(new CustomEvent('linkadda-firebase-ready'));
-  } catch(e) {
-    console.warn('Firebase init failed:', e);
-    window._firebaseReady = false;
-  }
-})();
+    const todayDateStr = new Date().toISOString().slice(0, 10);
+    const vRef = push(ref(db, 'visitors'));
+    set(vRef, {
+      date: todayDateStr,
+      timestamp: Date.now(),
+      page: 'payment',
+      referrer: document.referrer ? (function() { try { return new URL(document.referrer, window.location.origin).hostname; } catch(_) { return 'direct'; } })() : 'direct'
+    }).then(() => {
+      sessionStorage.setItem('visit_tracked', '1');
+    }).catch((err) => {
+      console.warn('Payment visitor logging notice:', err && err.message);
+    });
+  } catch (_) {}
+}
 </script>
 <script>
 function esc(str) {
@@ -2171,19 +2126,19 @@ function esc(str) {
     loader.classList.add('hide');
     setTimeout(() => {
       try { loader.remove(); } catch (_) {}
-    }, 250);
+    }, 120);
   };
 
   let pct = 0;
   const tick = setInterval(() => {
-    pct += 25;
+    pct += 35;
     if (pct > 90) pct = 90;
     if (bar) bar.style.width = pct + '%';
     if (pct >= 90) clearInterval(tick);
-  }, 25);
+  }, 15);
 
-  // Fallback exit in 500ms max
-  setTimeout(() => window.exitGatewayLoader(), 500);
+  // Fast exit in 150ms max ceiling
+  setTimeout(() => window.exitGatewayLoader(), 150);
 })();
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -2220,8 +2175,8 @@ try {
 } catch (_) {}
 
 const SUPABASE_CONFIG = {
-  url: 'https://dsleaglxbedljdxrikdn.supabase.co',
-  anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRzbGVhZ2x4YmVkbGpkeHJpa2RuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTEyMjcwOTIsImV4cCI6MjEwNjgwMzA5Mn0.sRzSAOIcgdObrx-uInPI8CE-96I24Jqyhr3K--pxuIw',
+  url: 'https://esxiwfswnbacmpjxqgsn.supabase.co',
+  anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVzeGl3ZnN3bmJhY21wanhxZ3NuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI2MDcxODQsImV4cCI6MjEwODE4MzE4NH0.n6XzLxgH5947CK-224Tp57BJmbWZ_rTKi4PK-EW8bNI',
   bucket: 'linkadda-media',
 };
 
@@ -2285,96 +2240,84 @@ function describeLoadError(error, fallback = 'Unable to load order details.') {
 }
 
 async function loadPaymentConfigFromFirebase() {
+  const applyConfig = () => {
+    const settings = window.__paymentSettings || {};
+    const payment = window.__paymentPayment || {};
+    const telegramValue = payment.telegramUrl || settings.telegram || CONFIG.telegramUrl;
+    const telegramUrl = safeUrl(
+      /^https?:\/\//i.test(String(telegramValue || '')) || String(telegramValue || '').startsWith('/')
+        ? String(telegramValue)
+        : `https://t.me/${String(telegramValue || '').replace(/^@/, '')}`,
+      CONFIG.telegramUrl
+    );
+    const upiId = normalizeUpiId(payment.upiId || settings.upiId || CONFIG.upiId);
+
+    Object.assign(CONFIG, {
+      recommendedMethod: payment.recommendedMethod || settings.recommendedMethod || CONFIG.recommendedMethod || 'binancepay',
+      upiId,
+      qrImage: payment.qrImage || payment.upiQr || settings.qrImage || CONFIG.qrImage,
+      telegramUrl,
+      bep20Address: payment.bep20Address || CONFIG.bep20Address,
+      bep20Qr: payment.bep20Qr || CONFIG.bep20Qr || '',
+      bep20Logo: payment.bep20Logo || CONFIG.bep20Logo || '',
+      ethAddress: payment.ethAddress || CONFIG.ethAddress,
+      ethQr: payment.ethQr || CONFIG.ethQr || '',
+      ethLogo: payment.ethLogo || CONFIG.ethLogo || '',
+      binanceId: payment.binanceId || CONFIG.binanceId,
+      binanceQr: payment.binanceQr || CONFIG.binanceQr || '',
+      binanceLogo: payment.binanceLogo || CONFIG.binanceLogo || '',
+      binanceGiftCardUrl: payment.binanceGiftCardUrl || CONFIG.binanceGiftCardUrl,
+      giftcardQr: payment.giftcardQr || CONFIG.giftcardQr || '',
+      giftcardLogo: payment.giftcardLogo || CONFIG.giftcardLogo || '',
+      paypalLink: payment.paypalLink || CONFIG.paypalLink,
+      paypalQr: payment.paypalQr || CONFIG.paypalQr || '',
+      paypalLogo: payment.paypalLogo || CONFIG.paypalLogo || '',
+    });
+
+    try {
+      localStorage.setItem('linkadda_payment_settings', JSON.stringify(settings));
+      localStorage.setItem('linkadda_payment_payment', JSON.stringify(payment));
+      localStorage.setItem('linkadda_payment_config', JSON.stringify(CONFIG));
+    } catch (_) {}
+
+    applyPaymentConfigToUI();
+    if (typeof window.exitGatewayLoader === 'function') {
+      window.exitGatewayLoader();
+    }
+  };
+
+  // 1. Instant 0ms render from cached local configuration
+  applyConfig();
+
+  // 2. Fast background revalidation via Supabase REST (sub-100ms)
   try {
-    if (!window.__linkaddaDb) {
-      await new Promise((resolve) => {
-        if (window.__linkaddaDb) return resolve();
-        const done = () => resolve();
-        window.addEventListener('linkadda-firebase-ready', done, { once: true });
-        setTimeout(done, 2500);
-      });
-    }
-    if (!window.__linkaddaDb) return CONFIG;
-
-    const applyConfig = () => {
-      const settings = window.__paymentSettings || {};
-      const payment = window.__paymentPayment || {};
-      const telegramValue = payment.telegramUrl || settings.telegram || CONFIG.telegramUrl;
-      const telegramUrl = safeUrl(
-        /^https?:\/\//i.test(String(telegramValue || '')) || String(telegramValue || '').startsWith('/')
-          ? String(telegramValue)
-          : `https://t.me/${String(telegramValue || '').replace(/^@/, '')}`,
-        CONFIG.telegramUrl
-      );
-      const upiId = normalizeUpiId(payment.upiId || settings.upiId || CONFIG.upiId);
-
-      Object.assign(CONFIG, {
-        recommendedMethod: payment.recommendedMethod || settings.recommendedMethod || CONFIG.recommendedMethod || 'binancepay',
-        upiId,
-        qrImage: payment.qrImage || payment.upiQr || settings.qrImage || CONFIG.qrImage,
-        telegramUrl,
-        bep20Address: payment.bep20Address || CONFIG.bep20Address,
-        bep20Qr: payment.bep20Qr || CONFIG.bep20Qr || '',
-        bep20Logo: payment.bep20Logo || CONFIG.bep20Logo || '',
-        ethAddress: payment.ethAddress || CONFIG.ethAddress,
-        ethQr: payment.ethQr || CONFIG.ethQr || '',
-        ethLogo: payment.ethLogo || CONFIG.ethLogo || '',
-        binanceId: payment.binanceId || CONFIG.binanceId,
-        binanceQr: payment.binanceQr || CONFIG.binanceQr || '',
-        binanceLogo: payment.binanceLogo || CONFIG.binanceLogo || '',
-        binanceGiftCardUrl: payment.binanceGiftCardUrl || CONFIG.binanceGiftCardUrl,
-        giftcardQr: payment.giftcardQr || CONFIG.giftcardQr || '',
-        giftcardLogo: payment.giftcardLogo || CONFIG.giftcardLogo || '',
-        paypalLink: payment.paypalLink || CONFIG.paypalLink,
-        paypalQr: payment.paypalQr || CONFIG.paypalQr || '',
-        paypalLogo: payment.paypalLogo || CONFIG.paypalLogo || '',
-      });
-
-      try {
-        localStorage.setItem('linkadda_payment_settings', JSON.stringify(settings));
-        localStorage.setItem('linkadda_payment_payment', JSON.stringify(payment));
-        localStorage.setItem('linkadda_payment_config', JSON.stringify(CONFIG));
-      } catch (_) {}
-
-      applyPaymentConfigToUI();
-      if (typeof window.exitGatewayLoader === 'function') {
-        window.exitGatewayLoader();
+    const supaResp = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/site_settings?key=in.(settings,payment)&select=*`, {
+      headers: {
+        'apikey': SUPABASE_CONFIG.anonKey,
+        'Authorization': `Bearer ${SUPABASE_CONFIG.anonKey}`
+      },
+      cache: 'default'
+    });
+    if (supaResp.ok) {
+      const rows = await supaResp.json();
+      if (Array.isArray(rows) && rows.length) {
+        rows.forEach(r => {
+          if (r.key === 'settings' && r.value) window.__paymentSettings = r.value;
+          if (r.key === 'payment' && r.value) window.__paymentPayment = r.value;
+        });
+        applyConfig();
       }
-    };
-
-    const fbRef = window._fbRef || window.ref;
-    const fbOnValue = window._fbOnValue || window.onValue;
-    const fbGet = window._fbGet || window.get;
-
-    if (!paymentConfigSubscribed && fbRef && fbOnValue) {
-      paymentConfigSubscribed = true;
-      fbOnValue(fbRef(window.__linkaddaDb, 'settings'), (snap) => {
-        window.__paymentSettings = snap.val() || {};
-        applyConfig();
-      });
-      fbOnValue(fbRef(window.__linkaddaDb, 'payment'), (snap) => {
-        window.__paymentPayment = snap.val() || {};
-        applyConfig();
-      });
-    }
-
-    if (fbRef && fbGet) {
-      const [settingsSnap, paymentSnap] = await Promise.all([
-        fbGet(fbRef(window.__linkaddaDb, 'settings')),
-        fbGet(fbRef(window.__linkaddaDb, 'payment')),
-      ]);
-      window.__paymentSettings = settingsSnap.val() || {};
-      window.__paymentPayment = paymentSnap.val() || {};
-      applyConfig();
     }
   } catch (error) {
-    console.warn('Payment config load failed:', error);
+    console.warn('Payment config fetch notice:', error && error.message);
+  } finally {
     if (typeof window.exitGatewayLoader === 'function') {
       window.exitGatewayLoader();
     }
   }
   return CONFIG;
 }
+const loadPaymentConfig = loadPaymentConfigFromFirebase;
 
 function renderDynamicPaymentMethods() {
   const grid = document.getElementById('methodGrid');
@@ -2571,8 +2514,8 @@ const DEFAULT_PRODUCTS_CATALOG = [
   { id: 'all-tango-combo', slug: 'all-tango-combo', name: 'All Tango Combo', title: 'All Tango Combo', inr: '₹599', usd: '$18', rawINR: 599, rawUSD: 18, amountINRValue: 599, amountUSDValue: 18 },
   { id: 'bhabhi-hot-pack', slug: 'bhabhi-hot-pack', name: 'Bhabhi Hot Pack', title: 'Bhabhi Hot Pack', inr: '₹499', usd: '$19', rawINR: 499, rawUSD: 19, amountINRValue: 499, amountUSDValue: 19 },
   { id: 'all-in-one', slug: 'all-in-one', name: 'All in One (Special Offer)', title: 'All in One (Special Offer)', inr: '₹599', usd: '$26', rawINR: 599, rawUSD: 26, amountINRValue: 599, amountUSDValue: 26 },
-  { id: 'pinned-deal', slug: 'all-collection-pack', name: 'All Collection Pack', title: 'All Collection Pack', inr: '₹4,399', usd: '$109', rawINR: 4399, rawUSD: 109, amountINRValue: 4399, amountUSDValue: 109 },
-  { id: 'all-collection-pack', slug: 'all-collection-pack', name: 'All Collection Pack', title: 'All Collection Pack', inr: '₹4,399', usd: '$109', rawINR: 4399, rawUSD: 109, amountINRValue: 4399, amountUSDValue: 109 },
+  { id: 'pinned-deal', slug: 'all-collection-pack', name: 'All Collection Pack', title: 'All Collection Pack', inr: '₹27,000', usd: '$349', rawINR: 27000, rawUSD: 349, amountINRValue: 27000, amountUSDValue: 349 },
+  { id: 'all-collection-pack', slug: 'all-collection-pack', name: 'All Collection Pack', title: 'All Collection Pack', inr: '₹27,000', usd: '$349', rawINR: 27000, rawUSD: 349, amountINRValue: 27000, amountUSDValue: 349 },
 ];
 
 let productCatalogPromise = null;
@@ -2599,22 +2542,36 @@ function formatCurrencyValue(value, currency = 'INR') {
   return `₹${num.toLocaleString('en-IN')}`;
 }
 
+function safeUrlDecode(val) {
+  if (!val) return '';
+  try { return decodeURIComponent(String(val)); } catch (_) { return String(val); }
+}
+
+const initialUrlName = safeUrlDecode(params.get('name') || params.get('title') || '');
+const initialUrlInrRaw = params.get('inr') || params.get('price') || '';
+const initialUrlUsdRaw = params.get('usd') || '';
+const initialUrlTier = safeUrlDecode(params.get('tier') || '');
+const initialParsedInr = extractMoneyNumber(initialUrlInrRaw);
+const initialParsedUsd = extractMoneyNumber(initialUrlUsdRaw);
+
 let orderData = {
   orderId: requestedCheckout.orderId || '',
-  id: requestedCheckout.productId || 'pinned-deal',
-  slug: 'all-collection-pack',
-  name: 'All Collection Pack',
-  inr: '₹4,399',
-  usd: '$109',
-  rawINR: 4399,
-  rawUSD: 109,
-  amountINRValue: 4399,
-  amountUSDValue: 109,
+  id: requestedCheckout.productId || (initialUrlName ? initialUrlName.toLowerCase().replace(/[^a-z0-9]+/g, '-') : ''),
+  slug: requestedCheckout.productId || '',
+  name: initialUrlName ? (initialUrlTier && !initialUrlName.includes(initialUrlTier) ? `${initialUrlName} (${initialUrlTier})` : initialUrlName) : 'Premium Pack',
+  tier: initialUrlTier,
+  inr: Number.isFinite(initialParsedInr) && initialParsedInr > 0 ? formatCurrencyValue(initialParsedInr, 'INR') : '',
+  usd: Number.isFinite(initialParsedUsd) && initialParsedUsd > 0 ? formatCurrencyValue(initialParsedUsd, 'USD') : '',
+  rawINR: Number.isFinite(initialParsedInr) && initialParsedInr > 0 ? initialParsedInr : 0,
+  rawUSD: Number.isFinite(initialParsedUsd) && initialParsedUsd > 0 ? initialParsedUsd : 0,
+  amountINRValue: Number.isFinite(initialParsedInr) && initialParsedInr > 0 ? initialParsedInr : 0,
+  amountUSDValue: Number.isFinite(initialParsedUsd) && initialParsedUsd > 0 ? initialParsedUsd : 0,
   paymentStatus: 'pending',
   orderStatus: 'pending',
   paymentMethod: '',
   screenshotUrl: '',
   available: true,
+  reason: '',
 };
 
 function normalizeOrderRecord(record = {}, key = '') {
@@ -2778,12 +2735,12 @@ function findDefaultCatalogProduct(targetId) {
     applyOrderToUI({
       id: pId || (pName ? normalizeLookupValue(pName) : 'pinned-deal'),
       name: cleanTitle,
-      inr: Number.isFinite(inrVal) ? formatCurrencyValue(inrVal, 'INR') : '₹4,399',
-      usd: Number.isFinite(usdVal) ? formatCurrencyValue(usdVal, 'USD') : '$109',
-      amountINRValue: Number.isFinite(inrVal) ? inrVal : 4399,
-      amountUSDValue: Number.isFinite(usdVal) ? usdVal : 109,
-      rawINR: Number.isFinite(inrVal) ? inrVal : 4399,
-      rawUSD: Number.isFinite(usdVal) ? usdVal : 109,
+      inr: Number.isFinite(inrVal) ? formatCurrencyValue(inrVal, 'INR') : (cleanTitle.toLowerCase().includes('all collection') ? '₹27,000' : '₹399'),
+      usd: Number.isFinite(usdVal) ? formatCurrencyValue(usdVal, 'USD') : (cleanTitle.toLowerCase().includes('all collection') ? '$349' : '$15'),
+      amountINRValue: Number.isFinite(inrVal) ? inrVal : (cleanTitle.toLowerCase().includes('all collection') ? 27000 : 399),
+      amountUSDValue: Number.isFinite(usdVal) ? usdVal : (cleanTitle.toLowerCase().includes('all collection') ? 349 : 15),
+      rawINR: Number.isFinite(inrVal) ? inrVal : (cleanTitle.toLowerCase().includes('all collection') ? 27000 : 399),
+      rawUSD: Number.isFinite(usdVal) ? usdVal : (cleanTitle.toLowerCase().includes('all collection') ? 349 : 15),
     });
   }
 })();
@@ -2820,8 +2777,8 @@ function buildProductCatalog(records = []) {
     const title = readRecordText(value, ['title', 'name', 'productName', 'package', 'label']);
     const slug = readRecordText(value, ['slug', 'productSlug']);
     const id = readRecordText(value, ['id', 'productId']) || entry.key;
-    const inrMoney = readRecordMoney(value, ['priceINR', 'inr', 'amountINR', 'price', 'amount']);
-    const usdMoney = readRecordMoney(value, ['priceUSD', 'usd', 'amountUSD']);
+    const inrMoney = readRecordMoney(value, ['priceINR', 'price_inr', 'inr', 'amountINR', 'price', 'amount']);
+    const usdMoney = readRecordMoney(value, ['priceUSD', 'price_usd', 'usd', 'amountUSD']);
     return {
       key: entry.key,
       id,
@@ -2866,23 +2823,42 @@ function normalizeProductMatchTargets(orderInfo = {}) {
 }
 
 function findLiveProductForOrder(orderInfo = {}) {
+  const targetId = normalizeDisplayLookup(orderInfo.id || requestedCheckout.productId || '');
+  const targetSlug = normalizeDisplayLookup(orderInfo.slug || '');
+  const targetName = normalizeDisplayLookup(orderInfo.name || '');
+
+  // 1. Exact ID match (Highest Priority)
+  if (targetId) {
+    const byId = productCatalog.find(item => normalizeDisplayLookup(item.id) === targetId || normalizeDisplayLookup(item.key) === targetId);
+    if (byId) return byId;
+  }
+
+  // 2. Exact Slug match
+  if (targetSlug) {
+    const bySlug = productCatalog.find(item => normalizeDisplayLookup(item.slug) === targetSlug);
+    if (bySlug) return bySlug;
+  }
+
+  // 3. Exact Title / Name match
+  if (targetName) {
+    const byName = productCatalog.find(item => {
+      const itemTitle = normalizeDisplayLookup(item.title || item.name || '');
+      return itemTitle && itemTitle === targetName;
+    });
+    if (byName) return byName;
+  }
+
+  // 4. Fallback only if strictly not a generic word
   const targets = new Set(normalizeProductMatchTargets(orderInfo));
   if (!targets.size) return null;
 
-  // 1. Exact match first across all products (exclude banner pinned-deal unless explicitly requested)
-  const exact = productCatalog.find((item) => {
-    const isPinned = item.id === 'pinned-deal' || item.id === 'all-collection-pack';
-    if (isPinned && !targets.has('pinned-deal') && !targets.has('all-collection-pack')) return false;
-    const haystacks = [item.id, item.key, item.slug, item.title, item.name].map(normalizeDisplayLookup).filter(Boolean);
-    return haystacks.some((value) => targets.has(value));
-  });
-  if (exact) return exact;
-
-  // 2. Loose match only for non-pinned catalog products (never falsely match pinned-deal)
   return productCatalog.find((item) => {
-    if (item.id === 'pinned-deal' || item.id === 'all-collection-pack') return false;
-    const haystacks = [item.id, item.key, item.slug, item.title, item.name].map(normalizeDisplayLookup).filter(Boolean);
-    return haystacks.some((value) => [...targets].some((target) => target && value && (value.includes(target) || target.includes(value))));
+    if (item.id === 'pinned-deal' || item.id === 'all-collection-pack') {
+      return targets.has('pinned-deal') || targets.has('all-collection-pack');
+    }
+    const itemTitle = normalizeDisplayLookup(item.title || item.name || '');
+    if (!itemTitle || itemTitle.length < 5) return false;
+    return targets.has(itemTitle);
   }) || null;
 }
 
@@ -3000,20 +2976,42 @@ function buildUpiPaymentUri() {
   const upiId = CONFIG.upiId || 'Ritikane@ptyes';
   const params = new URLSearchParams();
   params.set('pa', upiId);
-  params.set('pn', 'Linkadda');
+  params.set('pn', 'LinkAdda Digital Market');
   params.set('cu', 'INR');
   if (amount > 0) {
     params.set('am', amount.toFixed(2));
   }
-  // 🔒 Privacy & UPI Protection: NEVER expose sensitive product titles in bank/UPI remarks (tn)
-  // Clean neutral transaction note prevents bank account flags and protects user privacy
-  params.set('tn', 'LinkAdda Digital Services');
+  // Clean neutral merchant note protects customer privacy and avoids bank filter flags
+  params.set('tn', 'LinkAdda Digital Market');
   const orderRef = String(orderData.orderId || requestedCheckout.orderId || '').trim();
   if (orderRef) {
     params.set('tr', orderRef);
   }
   return `upi://pay?${params.toString()}`;
 }
+
+function openUpiApp(e, appType) {
+  if (e) {
+    try { e.preventDefault(); } catch (_) {}
+  }
+  const upiUri = buildUpiPaymentUri();
+  let intentUri = upiUri;
+  if (appType === 'phonepe') {
+    intentUri = upiUri.replace(/^upi:\/\//i, 'phonepe://');
+  } else if (appType === 'paytm') {
+    intentUri = upiUri.replace(/^upi:\/\//i, 'paytmmp://');
+  } else if (appType === 'gpay') {
+    intentUri = upiUri.replace(/^upi:\/\//i, 'tez://upi/');
+  }
+
+  const fallbackTimer = setTimeout(() => {
+    window.location.href = upiUri;
+  }, 450);
+
+  window.location.href = intentUri;
+  window.addEventListener('blur', () => clearTimeout(fallbackTimer), { once: true });
+}
+window.openUpiApp = openUpiApp;
 
 let isDecodingQr = false;
 async function checkAndDecodeUpiFromQrImage(imgUrl) {
@@ -3117,30 +3115,10 @@ function renderUpiQr() {
     return true;
   }
 
-  // Priority 1: If custom uploaded QR image is present and valid, verify it actually loads
-  const imageSrc = safeUrl(CONFIG.qrImage || (window.__paymentPayment && (window.__paymentPayment.qrImage || window.__paymentPayment.upiQr)), '');
-  if (imageSrc && imageSrc !== '—' && !imageSrc.includes('placeholder')) {
-    const testImg = new Image();
-    testImg.onload = () => {
-      if (testImg.naturalWidth > 20) {
-        qrGeneratedEl.style.display = 'none';
-        qrGeneratedEl.innerHTML = '';
-        qrError.style.display = 'none';
-        qrImage.src = imageSrc;
-        qrImage.style.display = 'block';
-      } else {
-        drawQrDirectly();
-      }
-    };
-    testImg.onerror = () => {
-      console.warn('Custom QR image failed to load, falling back to dynamic UPI QR');
-      drawQrDirectly();
-    };
-    testImg.src = imageSrc;
-    // Immediate dynamic render while image loads so frame is NEVER empty white
-    drawQrDirectly();
-    return;
-  }
+  // Priority 1: Always draw dynamic QR code with LOCKED product price & "LinkAdda Digital Market"
+  // This guarantees that scanning with GPay, PhonePe, or Paytm auto-fills the exact non-editable price
+  drawQrDirectly();
+  return;
 
   // Priority 2: Dynamic QR code with exact amount and clean note
   drawQrDirectly();
@@ -3245,10 +3223,10 @@ async function loadProductsCatalog() {
       const bVal = snap.val();
       if (bVal && typeof bVal === 'object') {
         const bTitle = bVal.title || 'All Collection Pack';
-        const bInr = bVal.priceOfferINR || bVal.inr || '₹4,399';
-        const bUsd = bVal.priceOfferUSD || bVal.usd || '$109';
-        const bInrVal = extractMoneyNumber(bInr) || 4399;
-        const bUsdVal = extractMoneyNumber(bUsd) || 109;
+        const bInr = bVal.priceOfferINR || bVal.inr || '₹27,000';
+        const bUsd = bVal.priceOfferUSD || bVal.usd || '$349';
+        const bInrVal = extractMoneyNumber(bInr) || 27000;
+        const bUsdVal = extractMoneyNumber(bUsd) || 349;
         const bannerEntry = {
           key: 'pinned-deal',
           id: 'pinned-deal',
@@ -3296,10 +3274,53 @@ async function loadProductsCatalog() {
   }
 
   productCatalogPromise = (async () => {
-    if (!window.__linkaddaDb) return [];
-    const pSnap = await get(ref(window.__linkaddaDb, 'products'));
-    const pRecords = unwrapRecords(pSnap.val());
-    productCatalog = buildProductCatalog(pRecords);
+    // 1. Instant 0ms catalog from localStorage cache
+    try {
+      const cachedLive = localStorage.getItem('linkadda_cached_live_data_v5') || localStorage.getItem('linkadda_cached_live_data');
+      if (cachedLive) {
+        const parsed = JSON.parse(cachedLive);
+        if (parsed?.products && Object.keys(parsed.products).length > 0) {
+          productCatalog = buildProductCatalog(unwrapRecords(parsed.products));
+        }
+      }
+    } catch (_) {}
+
+    // 2. Direct fast REST sync from Supabase
+    try {
+      const supaResp = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/products?select=*`, {
+        headers: {
+          'apikey': SUPABASE_CONFIG.anonKey,
+          'Authorization': `Bearer ${SUPABASE_CONFIG.anonKey}`
+        },
+        cache: 'default'
+      });
+      if (supaResp.ok) {
+        const rows = await supaResp.json();
+        if (Array.isArray(rows) && rows.length > 0) {
+          const records = {};
+          rows.forEach(r => {
+            const p = (r.data && typeof r.data === 'object') ? r.data : {};
+            records[r.id] = {
+              ...p,
+              ...r,
+              id: r.id,
+              title: p.title || r.title || p.name || r.name || '',
+              priceINR: p.priceINR ?? r.price_inr ?? p.inr ?? '',
+              priceUSD: p.priceUSD ?? r.price_usd ?? p.usd ?? '',
+              image: p.image || r.image || '',
+            };
+          });
+          productCatalog = buildProductCatalog(unwrapRecords(records));
+        }
+      }
+    } catch (_) {
+      if (!productCatalog.length && window.__linkaddaDb) {
+        try {
+          const pSnap = await get(ref(window.__linkaddaDb, 'products'));
+          productCatalog = buildProductCatalog(unwrapRecords(pSnap.val()));
+        } catch (_) {}
+      }
+    }
     return productCatalog;
   })();
 
@@ -3476,8 +3497,8 @@ async function ensureCheckoutOrderLoaded() {
       const customInr = extractMoneyNumber(pInr);
       const customUsd = extractMoneyNumber(pUsd);
       const pTier = params.get('tier') || '';
-      const inrNum = Number.isFinite(customInr) && customInr > 0 ? customInr : (Number.isFinite(matched.amountINRValue) ? matched.amountINRValue : (extractMoneyNumber(matched.rawINR || matched.inr) || 4399));
-      const usdNum = Number.isFinite(customUsd) && customUsd > 0 ? customUsd : (Number.isFinite(matched.amountUSDValue) ? matched.amountUSDValue : (extractMoneyNumber(matched.rawUSD || matched.usd) || 109));
+      const inrNum = Number.isFinite(customInr) && customInr > 0 ? customInr : (Number.isFinite(matched.amountINRValue) ? matched.amountINRValue : (extractMoneyNumber(matched.rawINR || matched.inr) || (matched.id === 'pinned-deal' ? 27000 : 399)));
+      const usdNum = Number.isFinite(customUsd) && customUsd > 0 ? customUsd : (Number.isFinite(matched.amountUSDValue) ? matched.amountUSDValue : (extractMoneyNumber(matched.rawUSD || matched.usd) || (matched.id === 'pinned-deal' ? 349 : 15)));
       const orderId = requestedCheckout.orderId || '';
 
       let prodName = pName ? decodeURIComponent(pName) : (matched.title || matched.name || 'Product');
@@ -3494,11 +3515,11 @@ async function ensureCheckoutOrderLoaded() {
         productName: prodName,
         name: prodName,
         tier: pTier,
-        amount: Number.isFinite(inrNum) ? inrNum : (Number.isFinite(usdNum) ? usdNum : 4399),
-        amountINR: Number.isFinite(inrNum) ? inrNum : 4399,
-        amountUSD: Number.isFinite(usdNum) ? usdNum : 109,
-        inr: Number.isFinite(inrNum) ? formatCurrencyValue(inrNum, 'INR') : (matched.inr || '₹4,399'),
-        usd: Number.isFinite(usdNum) ? formatCurrencyValue(usdNum, 'USD') : (matched.usd || '$109'),
+        amount: Number.isFinite(inrNum) ? inrNum : (Number.isFinite(usdNum) ? usdNum : (matched.id === 'pinned-deal' ? 27000 : 399)),
+        amountINR: Number.isFinite(inrNum) ? inrNum : (matched.id === 'pinned-deal' ? 27000 : 399),
+        amountUSD: Number.isFinite(usdNum) ? usdNum : (matched.id === 'pinned-deal' ? 349 : 15),
+        inr: Number.isFinite(inrNum) ? formatCurrencyValue(inrNum, 'INR') : (matched.inr || (matched.id === 'pinned-deal' ? '₹27,000' : '₹399')),
+        usd: Number.isFinite(usdNum) ? formatCurrencyValue(usdNum, 'USD') : (matched.usd || (matched.id === 'pinned-deal' ? '$349' : '$15')),
         rawINR: inrNum,
         rawUSD: usdNum,
         amountINRValue: inrNum,
@@ -3530,12 +3551,12 @@ async function ensureCheckoutOrderLoaded() {
       id: 'pinned-deal',
       slug: 'all-collection-pack',
       name: 'All Collection Pack',
-      inr: '₹4,399',
-      usd: '$109',
-      amountINRValue: 4399,
-      amountUSDValue: 109,
-      rawINR: 4399,
-      rawUSD: 109,
+      inr: '₹27,000',
+      usd: '$349',
+      amountINRValue: 27000,
+      amountUSDValue: 349,
+      rawINR: 27000,
+      rawUSD: 349,
       available: true
     };
     applyOrderToUI(defaultDeal);
@@ -3550,7 +3571,7 @@ let totalTimeSecs = 15 * 60;
 let remainingSecs = totalTimeSecs;
 let qrGenerated = {};
 
-// â”€â”€ METHOD SELECTION â”€â”€
+// --- METHOD SELECTION ---
 function selectMethod(m, isUserAction) {
   if (isUserAction) userSelectedMethodManually = true;
   selectedMethod = m;
@@ -3626,7 +3647,7 @@ function downloadCurrentQRCode(methodId) {
   }
 }
 
-// â”€â”€ SCREEN NAVIGATION â”€â”€
+// --- SCREEN NAVIGATION ---
 function showScreen(n) {
   if (n < 4) {
     orderSubmissionInProgress = false;
@@ -4287,8 +4308,8 @@ async function uploadScreenshot(orderId, base64Data) {
 
     // 1. Primary: Direct Supabase Storage Upload (Super fast CDN, no serverless cold start)
     try {
-      const supaUrl = 'https://dsleaglxbedljdxrikdn.supabase.co';
-      const supaKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRzbGVhZ2x4YmVkbGpkeHJpa2RuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTEyMjcwOTIsImV4cCI6MjEwNjgwMzA5Mn0.sRzSAOIcgdObrx-uInPI8CE-96I24Jqyhr3K--pxuIw';
+      const supaUrl = 'https://esxiwfswnbacmpjxqgsn.supabase.co';
+      const supaKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVzeGl3ZnN3bmJhY21wanhxZ3NuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI2MDcxODQsImV4cCI6MjEwODE4MzE4NH0.n6XzLxgH5947CK-224Tp57BJmbWZ_rTKi4PK-EW8bNI';
       const endpoint = `${supaUrl}/storage/v1/object/linkadda-media/orders/${encodeURI(fileName)}`;
 
       // Convert base64 data to binary Blob
@@ -4477,31 +4498,64 @@ async function saveOrderToFirebase(amountText, methodName) {
           }
         } catch (_) {}
         const authParam = authToken ? `?auth=${encodeURIComponent(authToken)}` : '';
-        const rtdbRes = await fetch(`https://linkadda-online-default-rtdb.firebaseio.com/orders/${orderId}.json${authParam}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
+        const supaUrl = 'https://esxiwfswnbacmpjxqgsn.supabase.co';
+        const supaKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVzeGl3ZnN3bmJhY21wanhxZ3NuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI2MDcxODQsImV4cCI6MjEwODE4MzE4NH0.n6XzLxgH5947CK-224Tp57BJmbWZ_rTKi4PK-EW8bNI';
+        const supaHeaders = {
+          'apikey': supaKey,
+          'Authorization': `Bearer ${supaKey}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'resolution=merge-duplicates'
+        };
+
+        const orderRow = {
+          id: orderId,
+          order_id: orderId,
+          customer_name: payload.customerName || payload.name || '',
+          customer_email: payload.customerEmail || payload.email || '',
+          customer_phone: payload.customerPhone || payload.phone || '',
+          product_id: payload.productId || '',
+          product_title: payload.productTitle || '',
+          amount: Number(payload.amount || payload.priceINR || 0) || 0,
+          currency: payload.currency || 'INR',
+          payment_method: payload.paymentMethod || '',
+          payment_proof: payload.paymentProof || payload.screenshotUrl || '',
+          utr: payload.utr || payload.transactionId || '',
+          status: 'pending',
+          data: payload
+        };
+
+        const rtdbRes = await fetch(`${supaUrl}/rest/v1/orders`, {
+          method: 'POST',
+          headers: supaHeaders,
+          body: JSON.stringify([orderRow])
         });
         if (rtdbRes.ok) {
           saved = true;
         }
       } catch (restErr) {
-        console.warn('Direct REST order write failed:', restErr);
+        console.warn('Direct Supabase order write failed:', restErr);
       }
     }
 
-    // Ensure visitor count is guaranteed for this session so admin analytics always reflects orders
+    // Ensure visitor count is recorded in Supabase
     try {
       const todayDateStr = new Date().toISOString().slice(0, 10);
-      if (window._fbDB && window._fbPush && window._fbSet && window._fbRef) {
-        const vRef = window._fbPush(window._fbRef(window._fbDB, 'visitors'));
-        window._fbSet(vRef, {
-          date: todayDateStr,
-          timestamp: Date.now(),
+      const supaUrl = 'https://esxiwfswnbacmpjxqgsn.supabase.co';
+      const supaKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVzeGl3ZnN3bmJhY21wanhxZ3NuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI2MDcxODQsImV4cCI6MjEwODE4MzE4NH0.n6XzLxgH5947CK-224Tp57BJmbWZ_rTKi4PK-EW8bNI';
+      fetch(`${supaUrl}/rest/v1/visitors`, {
+        method: 'POST',
+        headers: {
+          'apikey': supaKey,
+          'Authorization': `Bearer ${supaKey}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=minimal'
+        },
+        body: JSON.stringify([{
           page: 'payment_checkout',
-          referrer: document.referrer ? (function() { try { return new URL(document.referrer, window.location.origin).hostname; } catch(_) { return 'direct'; } })() : 'direct'
-        }).catch(() => {});
-      }
+          referrer: document.referrer ? (function() { try { return new URL(document.referrer, window.location.origin).hostname; } catch(_) { return 'direct'; } })() : 'direct',
+          data: { date: todayDateStr, timestamp: Date.now() }
+        }])
+      }).catch(() => {});
     } catch (_) {}
 
     // Save to user's localStorage so they can view their order history
@@ -4576,7 +4630,7 @@ function buildTelegramOrderUrl(orderId, amountText, methodName) {
   return safeUrl(CONFIG.telegramUrl, 'https://t.me/TRUSTED_BROTHER1234') + '?text=' + encodeURIComponent(tgMessage);
 }
 
-// â”€â”€ COPY TEXT â”€â”€
+// --- COPY TEXT ---
 function copyText(text, btn) {
   navigator.clipboard.writeText(text).then(() => {
     const orig = btn.innerHTML;
@@ -4601,7 +4655,7 @@ function copyText(text, btn) {
   });
 }
 
-// â”€â”€ CONFETTI â”€â”€
+// --- CONFETTI ---
 function launchConfetti() {
   const colors = ['#f0247a','#7c3aed','#22c55e','#f59e0b','#60a5fa','#f0f0f8'];
   const container = document.getElementById('confettiContainer');
@@ -4723,22 +4777,20 @@ if (document.readyState === 'loading') {
   initPaymentUIOnce();
 }
 
-// Load payment config and order details only after Firebase is ready
-function initAfterFirebase() {
+// Load payment config and order details immediately
+function initPaymentApp() {
   ensurePaymentConfigLoaded();
   ensureCheckoutOrderLoaded();
+  if (typeof window.exitGatewayLoader === 'function') {
+    window.exitGatewayLoader();
+  }
 }
 
-if (window._firebaseReady || window.__linkaddaDb) {
-  // Firebase already initialized (cached / fast path)
-  initAfterFirebase();
-} else {
-  // Wait for Firebase module to finish initializing
-  window.addEventListener('linkadda-firebase-ready', initAfterFirebase, { once: true });
-  // Safety fallback: try again after 2s in case event was missed
-  setTimeout(() => {
-    if (!paymentConfigSubscribed) initAfterFirebase();
-  }, 2000);
+// Instant zero-delay boot
+initPaymentApp();
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initPaymentApp, { once: true });
 }
 </script>
 <script type="module" src="/media-resolver.js"></script>

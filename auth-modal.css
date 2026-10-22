@@ -3,7 +3,7 @@
    Designed for High-End E-Commerce Experience (Dark & Light Modes)
    ========================================================================== */
 
-/* â”â” 1. HEADER USER BUTTON â”â” */
+/* --- 1. HEADER USER BUTTON --- */
 .fk-user-btn-wrap {
   display: inline-flex;
   align-items: center;
@@ -63,7 +63,7 @@
   color: #881337 !important;
 }
 
-/* â”â” 2. SLIDE-OUT E-COMMERCE PROFILE DRAWER â”â” */
+/* --- 2. SLIDE-OUT E-COMMERCE PROFILE DRAWER --- */
 .profile-drawer-backdrop {
   position: fixed;
   inset: 0;
@@ -285,7 +285,7 @@
   border-radius: 6px;
 }
 
-/* â”â” 3. METRICS 3-COLUMN GRID â”â” */
+/* --- 3. METRICS 3-COLUMN GRID --- */
 .profile-metrics-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -357,7 +357,7 @@
   color: #64748b;
 }
 
-/* â”â” 4. PREFERENCES & SETTINGS SECTION â”â” */
+/* --- 4. PREFERENCES & SETTINGS SECTION --- */
 .profile-section-title {
   font-size: 0.8rem;
   text-transform: uppercase;

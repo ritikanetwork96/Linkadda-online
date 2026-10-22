@@ -103,43 +103,9 @@ export function getFallbackDisplayName(email) {
 
 export const formatFallbackName = getFallbackDisplayName;
 
-let cachedAdminToken = null;
-let adminTokenExpiresAt = 0;
-
-export async function getFirebaseAdminToken() {
-  if (cachedAdminToken && Date.now() < adminTokenExpiresAt - 60000) {
-    return cachedAdminToken;
-  }
-  const apiKey = (process.env.FIREBASE_API_KEY || process.env.VITE_FIREBASE_API_KEY || '').trim();
-  const adminEmail = (process.env.admin || process.env.ADMIN_EMAIL || process.env.ADMIN || 'botforword@gmail.com').trim();
-  const adminPassword = (process.env.password || process.env.ADMIN_PASSWORD || process.env.PASSWORD || '').trim();
-
-  if (!apiKey || !adminEmail || !adminPassword) {
-    return null;
-  }
-
-  try {
-    const res = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${encodeURIComponent(apiKey)}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: adminEmail, password: adminPassword, returnSecureToken: true }),
-    });
-    if (!res.ok) return null;
-    const data = await res.json();
-    if (data?.idToken) {
-      cachedAdminToken = data.idToken;
-      adminTokenExpiresAt = Date.now() + (Number(data.expiresIn) || 3600) * 1000;
-      return cachedAdminToken;
-    }
-  } catch (err) {
-    console.warn('Firebase admin token error:', err.message);
-  }
-  return null;
-}
-
 /**
  * Validates whether an incoming HTTP request is authenticated as Master Admin.
- * Verifies Bearer Firebase ID Token against Google Identity Toolkit, or against master AUTH_SECRET.
+ * Verifies Bearer HMAC session token, dedicated AUTH_SECRET, or admin password.
  */
 export async function verifyAdminRequest(req) {
   const authHeader = req?.headers?.authorization || req?.headers?.Authorization || '';
@@ -154,26 +120,22 @@ export async function verifyAdminRequest(req) {
   const adminPassword = (process.env.password || process.env.ADMIN_PASSWORD || process.env.PASSWORD || '').trim();
   if (adminPassword && token === adminPassword) return true;
 
-  // 3. Verify Firebase ID Token via Google Identity Toolkit
-  const apiKey = (process.env.FIREBASE_API_KEY || process.env.VITE_FIREBASE_API_KEY || '').trim();
-  if (apiKey) {
+  // 3. HMAC-signed Admin session token (timestamp.signature)
+  if (token.includes('.')) {
     try {
-      const res = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${encodeURIComponent(apiKey)}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ idToken: token }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        const email = data?.users?.[0]?.email?.toLowerCase()?.trim();
-        const targetAdminEmail = (process.env.admin || process.env.ADMIN_EMAIL || process.env.ADMIN || 'botforword@gmail.com').toLowerCase().trim();
-        if (email && (email === targetAdminEmail || email === 'botforword@gmail.com')) {
+      const [expiresStr, sig] = token.split('.');
+      const expiresAt = Number(expiresStr);
+      if (expiresAt && Date.now() < expiresAt) {
+        const targetEmail = (process.env.admin || process.env.ADMIN_EMAIL || process.env.ADMIN || 'botforword@gmail.com').trim().toLowerCase();
+        const secret = getAuthSecret();
+        const expectedSig = crypto.createHmac('sha256', secret).update(`${targetEmail}:${expiresAt}`).digest('hex');
+        const bufA = Buffer.from(sig);
+        const bufB = Buffer.from(expectedSig);
+        if (bufA.length === bufB.length && crypto.timingSafeEqual(bufA, bufB)) {
           return true;
         }
       }
-    } catch (e) {
-      console.warn('verifyAdminRequest identity error:', e.message);
-    }
+    } catch (_) {}
   }
 
   return false;

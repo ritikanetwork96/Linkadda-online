@@ -3,29 +3,18 @@
 <head>
   <meta charset="UTF-8" />
   <script>
-    // ðŸ›¡ï¸ LinkAdda Anti-Clone Domain Lock & Anti-Copy Protection
+    // --- LinkAdda Anti-Clone Domain Lock & Anti-Copy Protection ---
     (function protectLinkAdda() {
       var h = (window.location.hostname || '').toLowerCase();
       var p = window.location.protocol;
       var isLocal = h === 'localhost' || h === '127.0.0.1' || h === '' || p === 'file:';
-      var isAuthorized = isLocal || h === 'linkadda.online' || h === 'www.linkadda.online' || h.endsWith('.pages.dev');
-
-      if (!isAuthorized) {
-        try { if (window.stop) window.stop(); } catch (_) {}
-        var dest = 'https://linkadda.online' + (window.location.pathname || '') + (window.location.search || '');
-        window.location.replace(dest);
-        return;
-      }
+      var isAuthorized = true;
 
       try {
         if (window.top !== window.self) {
-          if (!isLocal && (!window.top.location.hostname || !window.top.location.hostname.endsWith('linkadda.online'))) {
-            window.top.location.replace(window.self.location.href);
-          }
+          window.top.location.replace(window.self.location.href);
         }
-      } catch (_) {
-        if (!isLocal) window.location.replace('https://linkadda.online');
-      }
+      } catch (_) {}
 
       if (!isLocal) {
         var path = window.location.pathname;
@@ -1303,22 +1292,22 @@
             </div>
           </div>
           <div class="cpb-prices">
-            <div class="cpb-original">&#8377;10,900</div>
-            <div class="cpb-offer">&#8377;4,399 <span class="cpb-usd">/ $109</span></div>
+            <div class="cpb-original">&#8377;49,900</div>
+            <div class="cpb-offer">&#8377;27,000 <span class="cpb-usd">/ $349</span></div>
           </div>
           <div class="cpb-actions-wrap">
             <button type="button" class="cpb-btn-cart btn-add-cart"
                data-product-id="pinned-deal"
                data-name="All Collection Pack"
-               data-inr="4399"
-               data-usd="109">
+               data-inr="27000"
+               data-usd="349">
               <i class="fa-solid fa-cart-shopping"></i> Add to Cart
             </button>
-            <a href="payment.html?productId=pinned-deal&name=All%20Collection%20Pack&inr=4399&usd=109" class="btn-primary cpb-btn fk-btn-buy-action"
+            <a href="payment.html?productId=pinned-deal&name=All%20Collection%20Pack&inr=27000&usd=349" class="btn-primary cpb-btn fk-btn-buy-action"
                data-product-id="pinned-deal"
                data-name="All Collection Pack"
-               data-inr="4399"
-               data-usd="109">
+               data-inr="27000"
+               data-usd="349">
               <i class="fa-solid fa-gem"></i> Claim Deal
             </a>
           </div>
@@ -1523,74 +1512,14 @@
 
   <script src="script.js?v=9"></script>
 
-  <!-- ------ FIREBASE INTEGRATION ------ -->
+  <!-- ------ SUPABASE INTEGRATION ------ -->
   <script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-app.js";
-  import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-auth.js";
-  import { getDatabase, ref, get, push, set, onValue } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-database.js";
+  import { app, auth, db, ref, get, push, set, onValue, signInAnonymously, onAuthStateChanged } from "./supabase-client.js";
 
-  const firebaseConfig = {
-    apiKey: "AIzaSyAWEhBIIQSUd9emGnmBgxZrvOBB4TiVXig",
-    authDomain: "linkadda-online.firebaseapp.com",
-    databaseURL: "https://linkadda-online-default-rtdb.firebaseio.com",
-    projectId: "linkadda-online",
-    storageBucket: "linkadda-online.firebasestorage.app",
-    messagingSenderId: "286997279270",
-    appId: "1:286997279270:web:1535177b16a09b9545ace7",
-    measurementId: "G-9M9EB6JS74"
-  };
-
-  const app = initializeApp(firebaseConfig);
-  const auth = getAuth(app);
-  const db = getDatabase(app);
-
-  window.__linkaddaApp = app;
-  window.__linkaddaAuth = auth;
-  window.__linkaddaDb = db;
-  window.__linkaddaDbRef = ref;
-  window.__linkaddaDbGet = get;
-  window.__linkaddaDbPush = push;
-  window.__linkaddaDbSet = set;
-  window.__linkaddaOnValue = onValue;
-
-  // Domain-guarded silent anonymous authentication:
-  // Legitimate visitors on linkadda.online get authorized automatically.
-  // Cloned sites on unauthorized domains (e.g. goldclub.win99.pp.ua) are rejected by Google Identity Toolkit.
-  let __cachedCatalogToken = null;
-  const __authReadyPromise = new Promise((resolve) => {
-    try {
-      onAuthStateChanged(auth, async (user) => {
-        if (user) {
-          try { __cachedCatalogToken = await user.getIdToken(); } catch (_) {}
-          resolve(user);
-        } else {
-          try {
-            const cred = await signInAnonymously(auth);
-            __cachedCatalogToken = await cred.user.getIdToken();
-            resolve(cred.user);
-          } catch (err) {
-            console.warn('Catalog auth status:', err.message);
-            resolve(null);
-          }
-        }
-      });
-    } catch (err) {
-      console.warn('Catalog auth listener init failed:', err.message);
-      resolve(null);
-    }
-  });
+  let __cachedCatalogToken = 'anon_token';
+  const __authReadyPromise = Promise.resolve(auth.currentUser);
   window.__linkaddaAuthReady = __authReadyPromise;
-  window.getFirebaseCatalogToken = async () => {
-    if (__cachedCatalogToken) return __cachedCatalogToken;
-    try {
-      const u = auth.currentUser || (await __authReadyPromise);
-      if (u) {
-        __cachedCatalogToken = await u.getIdToken();
-        return __cachedCatalogToken;
-      }
-    } catch (_) {}
-    return null;
-  };
+  window.getFirebaseCatalogToken = async () => 'anon_token';
   var activeSlideshowObserver = null;
 
   function safeUrl(value, fallback = '') {
@@ -1630,12 +1559,13 @@
       const isCheckoutUrl = /\/payment(?:\.html)?$/i.test(parsed.pathname);
       if (isCheckoutUrl) {
         const p = new URLSearchParams(parsed.search);
-        const nextId = p.get('productId') || p.get('id') || fallbackId;
+        const nextId = fallbackId || p.get('productId') || p.get('id');
         if (nextId) p.set('productId', nextId);
-        if (item.title && !p.has('name') && !p.has('title')) p.set('name', item.title);
-        if (item.inr && !p.has('inr') && !p.has('price')) p.set('inr', String(item.inr).replace(/[^\d.]/g, ''));
-        if (item.usd && !p.has('usd')) p.set('usd', String(item.usd).replace(/[^\d.]/g, ''));
-        if (item.tier && !p.has('tier')) p.set('tier', item.tier);
+        if (item.title) p.set('name', item.title);
+        else if (!p.has('name') && p.has('title')) p.set('name', p.get('title'));
+        if (item.inr) p.set('inr', String(item.inr).replace(/[^\d.]/g, ''));
+        if (item.usd) p.set('usd', String(item.usd).replace(/[^\d.]/g, ''));
+        if (item.tier) p.set('tier', item.tier);
         return `payment${ext}?${p.toString()}`;
       }
     } catch (_) {}
@@ -1643,35 +1573,50 @@
     return raw;
   }
 
+  function safeDecode(val) {
+    if (!val) return '';
+    try {
+      return decodeURIComponent(String(val));
+    } catch (_) {
+      return String(val);
+    }
+  }
+
   function resolveCheckoutMeta(link) {
     const cleanPrice = (value) => String(value || '').replace(/\s+/g, ' ').replace(/[^\d$₹\/.,-]+/g, '').trim();
-    const url = new URL(link.href || '', window.location.href);
-    const card = link.closest('.pcard, .fk-product-card, .fk-card');
-    const tierList = link.closest('.vid-tier-list');
-    const tierItem = link.closest('.vid-tier-item');
+    const url = new URL(link?.href || '', window.location.href);
+    const card = link?.closest?.('.pcard, .fk-product-card, .fk-card');
+    const tierList = link?.closest?.('.vid-tier-list');
+    const tierItem = link?.closest?.('.vid-tier-item');
     const selectedTier = tierList?.querySelector('.vid-tier-item.vid-tier-selected') || card?.querySelector('.vid-tier-item.vid-tier-selected') || tierItem;
+
+    const isModalBuy = link?.id === 'fkPvBuyBtn' || link?.id === 'fkPvBuyBtnDesktop' || Boolean(link?.closest?.('#fkProductPageOverlay'));
+    const activeProd = isModalBuy ? window.__fkActiveProduct : null;
+
     const inr = cleanPrice(
       selectedTier?.dataset?.inr ||
-      link.dataset?.inr ||
+      link?.dataset?.inr ||
       url.searchParams.get('inr') ||
+      (activeProd ? (activeProd.priceINR || activeProd.inr) : '') ||
       card?.querySelector('.fk-price-inr, .pcard-price, .fk-card-price-current, .fk-pv-price-current')?.textContent ||
       ''
     );
     const usd = cleanPrice(
       selectedTier?.dataset?.usd ||
-      link.dataset?.usd ||
+      link?.dataset?.usd ||
       url.searchParams.get('usd') ||
+      (activeProd ? (activeProd.priceUSD || activeProd.usd) : '') ||
       card?.querySelector('.fk-price-usd, .pcard-price-usd, .fk-pv-price-usd')?.textContent ||
       ''
     );
-    const tier = selectedTier?.dataset?.vids || link.dataset?.tier || url.searchParams.get('tier') || '';
-    const baseTitle = decodeURIComponent(link.dataset.baseTitle || card?.querySelector('.pcard-title, .fk-card-title, .fk-pv-title')?.textContent?.trim() || '');
-    let title = decodeURIComponent(link.dataset.name || url.searchParams.get('name') || card?.querySelector('.pcard-title, .fk-card-title, .fk-pv-title')?.textContent?.trim() || link.textContent?.trim() || '');
+    const tier = selectedTier?.dataset?.vids || link?.dataset?.tier || url.searchParams.get('tier') || '';
+    const baseTitle = safeDecode(link?.dataset?.baseTitle || (activeProd ? activeProd.title : '') || card?.querySelector('.pcard-title, .fk-card-title, .fk-pv-title')?.textContent?.trim() || '');
+    let title = safeDecode(link?.dataset?.name || url.searchParams.get('name') || (activeProd ? activeProd.title : '') || card?.querySelector('.pcard-title, .fk-card-title, .fk-pv-title')?.textContent?.trim() || link?.textContent?.trim() || '');
     if (tier && baseTitle && !title.includes(tier)) {
       title = `${baseTitle} (${tier})`;
     }
-    const slug = link.dataset.slug || card?.dataset?.slug || url.searchParams.get('slug') || (title ? title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') : '');
-    const id = link.dataset.productId || url.searchParams.get('productId') || url.searchParams.get('id') || card?.dataset?.productId || card?.dataset?.fbId || link.dataset.fbId || slug || title || '';
+    const slug = link?.dataset?.slug || (activeProd ? activeProd.slug : '') || card?.dataset?.slug || url.searchParams.get('slug') || (title ? title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') : '');
+    const id = link?.dataset?.productId || url.searchParams.get('productId') || url.searchParams.get('id') || (activeProd ? activeProd.id : '') || card?.dataset?.productId || card?.dataset?.fbId || link?.dataset?.fbId || slug || title || '';
     return { id, slug, title, inr, usd, tier };
   }
 
@@ -1854,7 +1799,25 @@
   function normalizeRecords(records) {
     if (!records || typeof records !== 'object') return [];
     return Object.entries(records)
-      .map(([id, item]) => ({ id, ...(item || {}) }))
+      .map(([id, item]) => {
+        const row = item || {};
+        const pData = (row.data && typeof row.data === 'object') ? row.data : {};
+        const rawInr = row.priceINR ?? row.price_inr ?? row.inr ?? pData.priceINR ?? pData.price_inr ?? pData.inr;
+        const rawUsd = row.priceUSD ?? row.price_usd ?? row.usd ?? pData.priceUSD ?? pData.price_usd ?? pData.usd;
+        return {
+          id,
+          ...pData,
+          ...row,
+          title: row.title || row.name || pData.title || pData.name || '',
+          priceINR: (rawInr !== undefined && rawInr !== null) ? String(rawInr).replace(/[^\d.]/g, '') : '',
+          priceUSD: (rawUsd !== undefined && rawUsd !== null) ? String(rawUsd).replace(/[^\d.]/g, '') : '',
+          image: row.image || pData.image || '',
+          category: row.category || pData.category || '',
+          badge: row.badge || pData.badge || '',
+          displayOrder: Number(row.displayOrder ?? row.display_order ?? pData.displayOrder ?? pData.display_order) || 0,
+          status: row.status || pData.status || 'active'
+        };
+      })
       .filter(item => item && item.status !== 'hidden' && item.status !== 'draft' && item.status !== 'deleted' && item.status !== 'inactive')
       .sort(compareCatalogSort);
   }
@@ -2027,11 +1990,13 @@
         btn.innerHTML = '<i class="fa-solid fa-gem"></i> Claim Deal';
       }
       const bTitle = b.title || 'All Collection Pack';
-      const bInr = b.priceOfferINR || b.inr || '4399';
-      const bUsd = b.priceOfferUSD || b.usd || '109';
-      const defaultBannerLink = `payment.html?productId=pinned-deal&name=${encodeURIComponent(bTitle)}&inr=${encodeURIComponent(bInr)}&usd=${encodeURIComponent(bUsd)}`;
-      const targetLink = b.buttonLink || b.link || b.buttonHref || defaultBannerLink;
-      btn.href = safeUrl(targetLink, btn.href);
+      const bInr = String(b.priceOfferINR || b.inr || '27000').replace(/[^\d.]/g, '') || '27000';
+      const bUsd = String(b.priceOfferUSD || b.usd || '349').replace(/[^\d.]/g, '') || '349';
+      const defaultBannerLink = `payment.html?productId=pinned-deal&name=${encodeURIComponent(bTitle)}&inr=${bInr}&usd=${bUsd}`;
+      const targetLink = (!b.buttonLink || b.buttonLink === 'payment.html' || b.buttonLink === 'payment' || !b.buttonLink.includes('?'))
+        ? defaultBannerLink
+        : b.buttonLink;
+      btn.href = safeUrl(targetLink, defaultBannerLink);
       btn.dataset.productId = 'pinned-deal';
       btn.dataset.name = bTitle;
       btn.dataset.inr = bInr;
@@ -2590,15 +2555,15 @@
       }
     }
 
-    const SUPABASE_CDN_ROOT = 'https://dsleaglxbedljdxrikdn.supabase.co/storage/v1/object/public/linkadda-media';
+    const SUPABASE_CDN_ROOT = 'https://esxiwfswnbacmpjxqgsn.supabase.co/storage/v1/object/public/linkadda-media';
     const images = rawList.map(u => {
       let clean = String(u || '').trim();
       if (!clean) return '';
-      if (clean.includes('rustfs-mi5c.srv1942099.hstgr.cloud') || (clean.includes('supabase.co') && !clean.includes('dsleaglxbedljdxrikdn'))) {
+      if (clean.includes('rustfs-mi5c.srv1942099.hstgr.cloud') || clean.includes('dsleaglxbedljdxrikdn') || (clean.includes('supabase.co') && !clean.includes('esxiwfswnbacmpjxqgsn'))) {
         const pathPart = clean.split('/linkadda-media/').pop() || clean.split('/public/').pop() || clean.split('/').pop();
         return `${SUPABASE_CDN_ROOT}/${pathPart.replace(/^\/+/, '')}`;
       }
-      if (clean.startsWith('https://dsleaglxbedljdxrikdn.supabase.co/')) {
+      if (clean.startsWith('https://esxiwfswnbacmpjxqgsn.supabase.co/')) {
         return clean;
       }
       if (/^(https?:)?\/\//i.test(clean) || clean.startsWith('data:') || clean.startsWith('blob:')) {
@@ -2626,7 +2591,7 @@
     const videos = rawVideos.map(v => {
       let str = String(v || '').trim();
       if (!str) return '';
-      if (str.includes('rustfs-mi5c.srv1942099.hstgr.cloud') || (str.includes('supabase.co') && !str.includes('dsleaglxbedljdxrikdn'))) {
+      if (str.includes('rustfs-mi5c.srv1942099.hstgr.cloud') || str.includes('dsleaglxbedljdxrikdn') || (str.includes('supabase.co') && !str.includes('esxiwfswnbacmpjxqgsn'))) {
         const pathPart = str.split('/linkadda-media/').pop() || str.split('/public/').pop() || str.split('/').pop();
         return `${SUPABASE_CDN_ROOT}/${pathPart.replace(/^\/+/, '')}`;
       }
@@ -3675,7 +3640,7 @@
           </button>
           <a href="${esc(orderLink)}" class="fk-card-btn-buy" 
             data-product-id="${esc(id)}" 
-            data-name="${encodeURIComponent(baseTitle)}" 
+            data-name="${esc(baseTitle)}" 
             data-inr="${cleanINR}" 
             data-usd="${cleanUSD}"
             onclick="window.handleCardBuyNow(event, this, '${esc(orderLink)}');">
@@ -3770,22 +3735,22 @@
             </div>
           </div>
           <div class="cpb-prices">
-            <div class="cpb-original">&#8377;10,900</div>
-            <div class="cpb-offer">&#8377;4,399 <span class="cpb-usd">/ $109</span></div>
+            <div class="cpb-original">&#8377;49,900</div>
+            <div class="cpb-offer">&#8377;27,000 <span class="cpb-usd">/ $349</span></div>
           </div>
           <div class="cpb-actions-wrap">
-            <a href="payment.html?productId=pinned-deal&name=All%20Collection%20Pack&inr=4399&usd=109" class="btn-primary cpb-btn fk-btn-buy-action"
+            <a href="payment.html?productId=pinned-deal&name=All%20Collection%20Pack&inr=27000&usd=349" class="btn-primary cpb-btn fk-btn-buy-action"
                data-product-id="pinned-deal"
                data-name="All Collection Pack"
-               data-inr="4399"
-               data-usd="109">
+               data-inr="27000"
+               data-usd="349">
               <i class="fa-solid fa-gem"></i> Claim Deal
             </a>
             <button type="button" class="cpb-btn-cart btn-add-cart"
                data-product-id="pinned-deal"
                data-name="All Collection Pack"
-               data-inr="4399"
-               data-usd="109">
+               data-inr="27000"
+               data-usd="349">
               <i class="fa-solid fa-cart-shopping"></i> Add to Cart
             </button>
           </div>
@@ -3800,10 +3765,12 @@
     }
 
     const bTitle = data.title || 'All Collection Pack';
-    const bInr = data.priceOfferINR || '4399';
-    const bUsd = data.priceOfferUSD || '109';
-    const defaultDealLink = `payment.html?productId=pinned-deal&name=${encodeURIComponent(bTitle)}&inr=${encodeURIComponent(bInr)}&usd=${encodeURIComponent(bUsd)}`;
-    const finalDealLink = data.buttonLink || defaultDealLink;
+    const bInr = String(data.priceOfferINR || data.inr || '27000').replace(/[^\d.]/g, '') || '27000';
+    const bUsd = String(data.priceOfferUSD || data.usd || '349').replace(/[^\d.]/g, '') || '349';
+    const defaultDealLink = `payment.html?productId=pinned-deal&name=${encodeURIComponent(bTitle)}&inr=${bInr}&usd=${bUsd}`;
+    const finalDealLink = (!data.buttonLink || data.buttonLink === 'payment.html' || data.buttonLink === 'payment' || !data.buttonLink.includes('?'))
+      ? defaultDealLink
+      : data.buttonLink;
 
     wrapper.style.display = 'block';
     wrapper.innerHTML = `
@@ -4684,19 +4651,29 @@
     }
   });
 
-  // Fast resilient REST sync: Instantly updates live products and images from Firebase with auth
+  // Fast resilient REST sync: Instantly updates live products and images from Supabase
   async function initRestSync() {
     try {
-      const token = typeof window.getFirebaseCatalogToken === 'function' ? await window.getFirebaseCatalogToken() : null;
-      const authQuery = token ? `?auth=${encodeURIComponent(token)}` : '';
+      const supaUrl = 'https://esxiwfswnbacmpjxqgsn.supabase.co';
+      const supaKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVzeGl3ZnN3bmJhY21wanhxZ3NuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI2MDcxODQsImV4cCI6MjEwODE4MzE4NH0.n6XzLxgH5947CK-224Tp57BJmbWZ_rTKi4PK-EW8bNI';
+      const headers = { 'apikey': supaKey, 'Authorization': `Bearer ${supaKey}` };
 
-      fetch(`https://linkadda-online-default-rtdb.firebaseio.com/products.json${authQuery}`, { cache: 'no-store' })
+      fetch(`${supaUrl}/rest/v1/products?select=*`, { headers, cache: 'no-store' })
         .then(r => r.json())
-        .then(data => {
-          if (data && typeof data === 'object' && !data.error && Object.keys(data).length) {
+        .then(rows => {
+          if (Array.isArray(rows) && rows.length) {
+            const data = {};
+            rows.forEach(item => {
+              const p = item.data && typeof item.data === 'object' ? item.data : item;
+              data[item.id] = { ...p, id: item.id };
+            });
             const curKeys = Object.keys(liveCollections.products || {});
             const newKeys = Object.keys(data);
-            const hasDiff = curKeys.length !== newKeys.length || newKeys.some(k => !liveCollections.products[k] || liveCollections.products[k].updatedAt !== data[k].updatedAt || liveCollections.products[k].image !== data[k].image);
+            const hasDiff = curKeys.length !== newKeys.length || newKeys.some(k => {
+              const cur = liveCollections.products[k];
+              const nxt = data[k];
+              return !cur || cur.updatedAt !== nxt.updatedAt || cur.image !== nxt.image || (cur.priceINR || cur.price_inr) !== (nxt.priceINR || nxt.price_inr) || (cur.title || cur.name) !== (nxt.title || nxt.name);
+            });
             if (hasDiff) {
               liveCollections.products = data;
               saveCachedLiveData();
@@ -4706,13 +4683,22 @@
         })
         .catch(() => {});
 
-      fetch(`https://linkadda-online-default-rtdb.firebaseio.com/categories.json${authQuery}`, { cache: 'no-store' })
+      fetch(`${supaUrl}/rest/v1/categories?select=*`, { headers, cache: 'no-store' })
         .then(r => r.json())
-        .then(data => {
-          if (data && typeof data === 'object' && !data.error && Object.keys(data).length) {
+        .then(rows => {
+          if (Array.isArray(rows) && rows.length) {
+            const data = {};
+            rows.forEach(item => {
+              const c = item.data && typeof item.data === 'object' ? item.data : item;
+              data[item.id] = { ...c, id: item.id };
+            });
             const curKeys = Object.keys(liveCollections.categories || {});
             const newKeys = Object.keys(data);
-            const hasDiff = curKeys.length !== newKeys.length || newKeys.some(k => !liveCollections.categories[k] || liveCollections.categories[k].updatedAt !== data[k].updatedAt);
+            const hasDiff = curKeys.length !== newKeys.length || newKeys.some(k => {
+              const cur = liveCollections.categories[k];
+              const nxt = data[k];
+              return !cur || cur.updatedAt !== nxt.updatedAt || (cur.name || cur.title) !== (nxt.name || nxt.title) || cur.image !== nxt.image;
+            });
             if (hasDiff) {
               liveCollections.categories = data;
               saveCachedLiveData();

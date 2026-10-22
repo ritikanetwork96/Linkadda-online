@@ -1,6 +1,15 @@
 /* ===== RESET & BASE ===== */
 *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
+/* Anti-Theft & Media Drag Protection */
+img, video, .pcard img, .fk-product-card img, .vid-thumb, .vid-player-wrap {
+  -webkit-user-drag: none;
+  -khtml-user-drag: none;
+  -moz-user-drag: none;
+  -o-user-drag: none;
+  user-drag: none;
+}
+
 :root {
   --primary: #e84393;
   --primary-dark: #c0226f;
