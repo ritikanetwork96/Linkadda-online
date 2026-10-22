@@ -1308,22 +1308,22 @@
             </div>
           </div>
           <div class="cpb-prices">
-            <div class="cpb-original">&#8377;35,000+</div>
-            <div class="cpb-offer">&#8377;29,700 <span class="cpb-usd">/ $1499</span></div>
+            <div class="cpb-original">&#8377;49,900</div>
+            <div class="cpb-offer">&#8377;27,000 <span class="cpb-usd">/ $349</span></div>
           </div>
           <div class="cpb-actions-wrap">
             <button type="button" class="cpb-btn-cart btn-add-cart"
                data-product-id="pinned-deal"
                data-name="All Collection Pack"
-               data-inr="29700"
-               data-usd="1499">
+               data-inr="27000"
+               data-usd="349">
               <i class="fa-solid fa-cart-shopping"></i> Add to Cart
             </button>
-            <a href="payment.html?productId=pinned-deal&name=All%20Collection%20Pack&inr=29700&usd=1499" class="btn-primary cpb-btn fk-btn-buy-action"
+            <a href="payment.html?productId=pinned-deal&name=All%20Collection%20Pack&inr=27000&usd=349" class="btn-primary cpb-btn fk-btn-buy-action"
                data-product-id="pinned-deal"
                data-name="All Collection Pack"
-               data-inr="29700"
-               data-usd="1499">
+               data-inr="27000"
+               data-usd="349">
               <i class="fa-solid fa-gem"></i> Claim Deal
             </a>
           </div>
@@ -2006,10 +2006,10 @@
         btn.innerHTML = '<i class="fa-solid fa-gem"></i> Claim Deal';
       }
       const bTitle = b.title || 'All Collection Pack';
-      const bInr = String(b.priceOfferINR || b.inr || '29700').replace(/[^\d.]/g, '') || '29700';
-      const bUsd = String(b.priceOfferUSD || b.usd || '1499').replace(/[^\d.]/g, '') || '1499';
+      const bInr = String(b.priceOfferINR || b.inr || '27000').replace(/[^\d.]/g, '') || '27000';
+      const bUsd = String(b.priceOfferUSD || b.usd || '349').replace(/[^\d.]/g, '') || '349';
       const defaultBannerLink = `payment.html?productId=pinned-deal&name=${encodeURIComponent(bTitle)}&inr=${bInr}&usd=${bUsd}`;
-      const targetLink = (!b.buttonLink || b.buttonLink === 'payment.html' || b.buttonLink === 'payment' || !b.buttonLink.includes('?'))
+      const targetLink = (!b.buttonLink || b.buttonLink === 'payment.html' || b.buttonLink === 'payment' || !b.buttonLink.includes('?') || b.buttonLink.includes('pinned-deal') || b.buttonLink.includes('All%20Collection') || b.buttonLink.includes('All+Collection'))
         ? defaultBannerLink
         : b.buttonLink;
       btn.href = safeUrl(targetLink, defaultBannerLink);
@@ -3754,22 +3754,22 @@
             </div>
           </div>
           <div class="cpb-prices">
-            <div class="cpb-original">&#8377;35,000+</div>
-            <div class="cpb-offer">&#8377;29,700 <span class="cpb-usd">/ $1499</span></div>
+            <div class="cpb-original">&#8377;49,900</div>
+            <div class="cpb-offer">&#8377;27,000 <span class="cpb-usd">/ $349</span></div>
           </div>
           <div class="cpb-actions-wrap">
-            <a href="payment.html?productId=pinned-deal&name=All%20Collection%20Pack&inr=29700&usd=1499" class="btn-primary cpb-btn fk-btn-buy-action"
+            <a href="payment.html?productId=pinned-deal&name=All%20Collection%20Pack&inr=27000&usd=349" class="btn-primary cpb-btn fk-btn-buy-action"
                data-product-id="pinned-deal"
                data-name="All Collection Pack"
-               data-inr="29700"
-               data-usd="1499">
+               data-inr="27000"
+               data-usd="349">
               <i class="fa-solid fa-gem"></i> Claim Deal
             </a>
             <button type="button" class="cpb-btn-cart btn-add-cart"
                data-product-id="pinned-deal"
                data-name="All Collection Pack"
-               data-inr="29700"
-               data-usd="1499">
+               data-inr="27000"
+               data-usd="349">
               <i class="fa-solid fa-cart-shopping"></i> Add to Cart
             </button>
           </div>
@@ -3784,19 +3784,23 @@
     }
 
     const bTitle = data.title || 'All Collection Pack';
-    const bInr = String(data.priceOfferINR || data.inr || '29700').replace(/[^\d.]/g, '') || '29700';
-    const bUsd = String(data.priceOfferUSD || data.usd || '1499').replace(/[^\d.]/g, '') || '1499';
+    const bInr = String(data.priceOfferINR || data.inr || '27000').replace(/[^\d.]/g, '') || '27000';
+    const bUsd = String(data.priceOfferUSD || data.usd || '349').replace(/[^\d.]/g, '') || '349';
     const defaultDealLink = `payment.html?productId=pinned-deal&name=${encodeURIComponent(bTitle)}&inr=${bInr}&usd=${bUsd}`;
     const finalDealLink = (!data.buttonLink || data.buttonLink === 'payment.html' || data.buttonLink === 'payment' || !data.buttonLink.includes('?') || data.buttonLink.includes('pinned-deal') || data.buttonLink.includes('All%20Collection') || data.buttonLink.includes('All+Collection'))
       ? defaultDealLink
       : data.buttonLink;
+
+    const bannerIconOrImg = (data.image || data.icon || data.thumbnail)
+      ? `<img src="${esc(data.image || data.icon || data.thumbnail)}" alt="${esc(bTitle)}" style="width:100%;height:100%;object-fit:cover;border-radius:14px;" />`
+      : `<i class="fa-solid fa-gem"></i>`;
 
     wrapper.style.display = 'block';
     wrapper.innerHTML = `
       <div class="collection-pack-banner">
         <div class="cpb-pin"><i class="fa-solid fa-thumbtack"></i> PINNED DEAL</div>
         <div class="cpb-left">
-          <div class="cpb-icon"><i class="fa-solid fa-gem"></i></div>
+          <div class="cpb-icon">${bannerIconOrImg}</div>
           <div>
             <h3 class="cpb-title">${esc(bTitle)}</h3>
             <p class="cpb-desc">${esc(data.description || '')}</p>

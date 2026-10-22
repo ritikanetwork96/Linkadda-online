@@ -1951,11 +1951,11 @@
         </div>
         <div class="or-divider">or click PayPal link</div>
         <div class="addr-box">
-          <div class="addr-text" id="paypalLink">https://paypal.me/Johnguzman456</div>
+          <div class="addr-text" id="paypalLink">—</div>
           <button class="copy-btn" onclick="copyText(document.getElementById('paypalLink').innerText, this)"><i class="fa-solid fa-copy"></i> Copy Link</button>
         </div>
         <div class="pay-note">Send payment via PayPal → Choose <strong>Friends & Family</strong> if available → Upload payment screenshot.</div>
-        <a id="paypalDirectLink" href="https://paypal.me/Johnguzman456" target="_blank" rel="noreferrer" style="display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 100%; margin-top: 12px; padding: 13px 18px; background: linear-gradient(135deg, #003087, #0079c1); color: #fff; border-radius: 14px; text-decoration: none; font-weight: 700; font-size: 13.5px; box-shadow: 0 4px 18px rgba(0,121,193,0.3); transition: all 0.2s;">
+        <a id="paypalDirectLink" href="#" target="_blank" rel="noreferrer" style="display: none; align-items: center; justify-content: center; gap: 8px; width: 100%; margin-top: 12px; padding: 13px 18px; background: linear-gradient(135deg, #003087, #0079c1); color: #fff; border-radius: 14px; text-decoration: none; font-weight: 700; font-size: 13.5px; box-shadow: 0 4px 18px rgba(0,121,193,0.3); transition: all 0.2s;">
           <i class="fa-brands fa-paypal"></i> Open PayPal & Pay Exact Amount
         </a>
       </div>
@@ -2195,7 +2195,7 @@ const CONFIG = {
   ethAddress: '0x7186b11f8fD49fe472Af49Cda490f168e09Fef0a',
   binanceId: '1197561104',
   binanceGiftCardUrl: 'https://www.g2a.com/binance-gift-card-205-usdt-key-i10000337768061',
-  paypalLink: 'https://paypal.me/Johnguzman456',
+  paypalLink: '',
 };
 
 // Immediate cached payment config application (0ms instant render)
@@ -2203,11 +2203,17 @@ try {
   const cachedSettings = localStorage.getItem('linkadda_payment_settings');
   const cachedPayment = localStorage.getItem('linkadda_payment_payment');
   if (cachedSettings) window.__paymentSettings = JSON.parse(cachedSettings);
-  if (cachedPayment) window.__paymentPayment = JSON.parse(cachedPayment);
+  if (cachedPayment) {
+    window.__paymentPayment = JSON.parse(cachedPayment);
+    if (window.__paymentPayment?.paypalLink?.includes('Johnguzman456')) {
+      window.__paymentPayment.paypalLink = '';
+    }
+  }
 
   const cachedConfig = localStorage.getItem('linkadda_payment_config');
   if (cachedConfig) {
     const parsed = JSON.parse(cachedConfig);
+    if (parsed.paypalLink?.includes('Johnguzman456')) parsed.paypalLink = '';
     Object.assign(CONFIG, parsed);
     if (CONFIG.recommendedMethod) selectedMethod = CONFIG.recommendedMethod;
   }
@@ -2290,11 +2296,13 @@ async function loadPaymentConfigFromFirebase() {
       CONFIG.telegramUrl
     );
     const upiId = normalizeUpiId(payment.upiId || settings.upiId || CONFIG.upiId);
+    const rawPaypal = String(payment.paypalLink || CONFIG.paypalLink || '').trim();
+    const cleanPaypal = rawPaypal.includes('Johnguzman456') ? '' : rawPaypal;
 
     Object.assign(CONFIG, {
       recommendedMethod: payment.recommendedMethod || settings.recommendedMethod || CONFIG.recommendedMethod || 'binancepay',
       upiId,
-      qrImage: payment.qrImage || payment.upiQr || settings.qrImage || CONFIG.qrImage,
+      qrImage: payment.qrImage || payment.upiQr || settings.qrImage || CONFIG.qrImage || '',
       telegramUrl,
       bep20Address: payment.bep20Address || CONFIG.bep20Address,
       bep20Qr: payment.bep20Qr || CONFIG.bep20Qr || '',
@@ -2308,7 +2316,7 @@ async function loadPaymentConfigFromFirebase() {
       binanceGiftCardUrl: payment.binanceGiftCardUrl || CONFIG.binanceGiftCardUrl,
       giftcardQr: payment.giftcardQr || CONFIG.giftcardQr || '',
       giftcardLogo: payment.giftcardLogo || CONFIG.giftcardLogo || '',
-      paypalLink: payment.paypalLink || CONFIG.paypalLink,
+      paypalLink: cleanPaypal,
       paypalQr: payment.paypalQr || CONFIG.paypalQr || '',
       paypalLogo: payment.paypalLogo || CONFIG.paypalLogo || '',
     });
@@ -2328,14 +2336,16 @@ async function loadPaymentConfigFromFirebase() {
   // 1. Instant 0ms render from cached local configuration
   applyConfig();
 
-  // 2. Fast background revalidation via Supabase REST (sub-100ms)
+  // 2. Fast background revalidation via Supabase REST (no-store ensures fresh admin uploads)
   try {
-    const supaResp = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/site_settings?key=in.(settings,payment)&select=*`, {
+    const supaResp = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/site_settings?select=*`, {
       headers: {
         'apikey': SUPABASE_CONFIG.anonKey,
-        'Authorization': `Bearer ${SUPABASE_CONFIG.anonKey}`
+        'Authorization': `Bearer ${SUPABASE_CONFIG.anonKey}`,
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache'
       },
-      cache: 'default'
+      cache: 'no-store'
     });
     if (supaResp.ok) {
       const rows = await supaResp.json();
@@ -2343,6 +2353,30 @@ async function loadPaymentConfigFromFirebase() {
         rows.forEach(r => {
           if (r.key === 'settings' && r.value) window.__paymentSettings = r.value;
           if (r.key === 'payment' && r.value) window.__paymentPayment = r.value;
+          if (r.key === 'banner' && r.value) {
+            window.__paymentBanner = r.value;
+            const bVal = r.value;
+            const bInr = bVal.priceOfferINR || bVal.inr;
+            const bUsd = bVal.priceOfferUSD || bVal.usd;
+            const bInrVal = extractMoneyNumber(bInr);
+            const bUsdVal = extractMoneyNumber(bUsd);
+            const currId = normalizeLookupValue(orderData.id || requestedCheckout.productId);
+            const currName = normalizeLookupValue(orderData.name);
+            const isDeal = currId === 'pinned-deal' || currId === 'all-collection-pack' || currName.includes('all-collection');
+            if (isDeal && Number.isFinite(bInrVal) && bInrVal > 0) {
+              orderData.inr = formatCurrencyValue(bInrVal, 'INR');
+              orderData.rawINR = bInrVal;
+              orderData.amountINRValue = bInrVal;
+            }
+            if (isDeal && Number.isFinite(bUsdVal) && bUsdVal > 0) {
+              orderData.usd = formatCurrencyValue(bUsdVal, 'USD');
+              orderData.rawUSD = bUsdVal;
+              orderData.amountUSDValue = bUsdVal;
+            }
+            if (isDeal && bVal.title) {
+              orderData.name = bVal.title;
+            }
+          }
         });
         applyConfig();
       }
@@ -2449,10 +2483,18 @@ function renderDynamicPaymentMethods() {
     status: item.status || 'active',
   }));
 
-  // Merge, mark recommended, filter disabled
+  // Merge, mark recommended, filter disabled and unconfigured dummy methods
   const allMethods = [...builtInMethods, ...customList]
     .map(m => ({ ...m, isRecommended: m.id === recommendedId }))
-    .filter(m => !disabled.includes(m.id) && m.status !== 'disabled');
+    .filter(m => {
+      if (disabled.includes(m.id) || m.status === 'disabled') return false;
+      // Filter out paypal if no real paypal link is set by admin
+      if (m.id === 'paypal') {
+        const link = (payment.paypalLink || CONFIG.paypalLink || '').trim();
+        if (!link || link.includes('Johnguzman456')) return false;
+      }
+      return true;
+    });
 
   // Sort: recommended always first
   allMethods.sort((a, b) => (b.isRecommended ? 1 : 0) - (a.isRecommended ? 1 : 0));
@@ -2460,9 +2502,9 @@ function renderDynamicPaymentMethods() {
   // Auto-sync selectedMethod to recommended UNLESS user manually chose a different one
   if (!userSelectedMethodManually) {
     const rec = allMethods.find(m => m.isRecommended);
-    if (rec && rec.id !== selectedMethod) {
+    if (rec) {
       selectedMethod = rec.id;
-    } else if (!selectedMethod && allMethods.length > 0) {
+    } else if (allMethods.length > 0) {
       selectedMethod = allMethods[0].id;
     }
   }
@@ -2553,8 +2595,8 @@ const DEFAULT_PRODUCTS_CATALOG = [
   { id: 'all-tango-combo', slug: 'all-tango-combo', name: 'All Tango Combo', title: 'All Tango Combo', inr: '₹599', usd: '$18', rawINR: 599, rawUSD: 18, amountINRValue: 599, amountUSDValue: 18, isDefault: true },
   { id: 'bhabhi-hot-pack', slug: 'bhabhi-hot-pack', name: 'Bhabhi Hot Pack', title: 'Bhabhi Hot Pack', inr: '₹499', usd: '$19', rawINR: 499, rawUSD: 19, amountINRValue: 499, amountUSDValue: 19, isDefault: true },
   { id: 'all-in-one', slug: 'all-in-one', name: 'All in One (Special Offer)', title: 'All in One (Special Offer)', inr: '₹599', usd: '$26', rawINR: 599, rawUSD: 26, amountINRValue: 599, amountUSDValue: 26, isDefault: true },
-  { id: 'pinned-deal', slug: 'all-collection-pack', name: 'All Collection Pack', title: 'All Collection Pack', inr: '₹29,700', usd: '$1499', rawINR: 29700, rawUSD: 1499, amountINRValue: 29700, amountUSDValue: 1499, isDefault: true },
-  { id: 'all-collection-pack', slug: 'all-collection-pack', name: 'All Collection Pack', title: 'All Collection Pack', inr: '₹29,700', usd: '$1499', rawINR: 29700, rawUSD: 1499, amountINRValue: 29700, amountUSDValue: 1499, isDefault: true },
+  { id: 'pinned-deal', slug: 'all-collection-pack', name: 'All Collection Pack', title: 'All Collection Pack', inr: '₹27,000', usd: '$349', rawINR: 27000, rawUSD: 349, amountINRValue: 27000, amountUSDValue: 349, isDefault: true },
+  { id: 'all-collection-pack', slug: 'all-collection-pack', name: 'All Collection Pack', title: 'All Collection Pack', inr: '₹27,000', usd: '$349', rawINR: 27000, rawUSD: 349, amountINRValue: 27000, amountUSDValue: 349, isDefault: true },
 ];
 
 let productCatalogPromise = null;
@@ -2736,8 +2778,8 @@ function findDefaultCatalogProduct(targetId) {
       prodName = `${prodName} (${pTier})`;
     }
     const isAllColl = prodName.toLowerCase().includes('all collection') || String(pId).toLowerCase().includes('pinned') || String(pId).toLowerCase().includes('all-collection');
-    const finalInr = Number.isFinite(inrVal) && inrVal > 0 ? inrVal : (isAllColl ? 29700 : 399);
-    const finalUsd = Number.isFinite(usdVal) && usdVal > 0 ? usdVal : (isAllColl ? 1499 : 15);
+    const finalInr = Number.isFinite(inrVal) && inrVal > 0 ? inrVal : (isAllColl ? 27000 : 399);
+    const finalUsd = Number.isFinite(usdVal) && usdVal > 0 ? usdVal : (isAllColl ? 349 : 15);
     applyOrderToUI({
       id: pId || (pName ? normalizeLookupValue(pName) : 'pinned-deal'),
       name: prodName,
@@ -2777,8 +2819,8 @@ function findDefaultCatalogProduct(targetId) {
     const usdVal = extractMoneyNumber(pUsd);
     const isAllColl = cleanTitle.toLowerCase().includes('all collection') || String(pId).toLowerCase().includes('pinned') || String(pId).toLowerCase().includes('all-collection');
     const hasUrlPrices = (Number.isFinite(inrVal) && inrVal > 0) || (Number.isFinite(usdVal) && usdVal > 0);
-    const finalInr = Number.isFinite(inrVal) ? inrVal : (isAllColl ? 29700 : 399);
-    const finalUsd = Number.isFinite(usdVal) ? usdVal : (isAllColl ? 1499 : 15);
+    const finalInr = Number.isFinite(inrVal) ? inrVal : (isAllColl ? 27000 : 399);
+    const finalUsd = Number.isFinite(usdVal) ? usdVal : (isAllColl ? 349 : 15);
     applyOrderToUI({
       id: pId || (pName ? normalizeLookupValue(pName) : 'pinned-deal'),
       name: cleanTitle,
@@ -3197,12 +3239,29 @@ function renderUpiQr() {
     return true;
   }
 
-  // Priority 1: Always draw dynamic QR code with LOCKED product price & "LinkAdda Digital Market"
-  // This guarantees that scanning with GPay, PhonePe, or Paytm auto-fills the exact non-editable price
-  drawQrDirectly();
-  return;
+  // Priority 1: If admin uploaded/selected a custom QR image, SHOW IT DIRECTLY!
+  const customQrImage = CONFIG.qrImage || (window.__paymentPayment && (window.__paymentPayment.qrImage || window.__paymentPayment.upiQr));
+  if (customQrImage && String(customQrImage).trim() !== '') {
+    qrGeneratedEl.style.display = 'none';
+    qrError.style.display = 'none';
+    qrImage.style.display = 'block';
+    qrImage.style.maxWidth = '200px';
+    qrImage.style.maxHeight = '200px';
+    qrImage.style.width = 'auto';
+    qrImage.style.height = 'auto';
+    qrImage.style.objectFit = 'contain';
+    qrImage.style.margin = '0 auto';
+    qrImage.style.borderRadius = '12px';
+    qrImage.src = customQrImage;
+    qrImage.onerror = () => {
+      // Gracefully fall back to dynamic generated QR if admin's image URL fails to load
+      drawQrDirectly();
+    };
+    checkAndDecodeUpiFromQrImage(customQrImage);
+    return;
+  }
 
-  // Priority 2: Dynamic QR code with exact amount and clean note
+  // Priority 2: Draw generated dynamic UPI QR code with locked amount
   drawQrDirectly();
 }
 
@@ -3275,17 +3334,38 @@ function updateOrderSummaryUI() {
 }
 
 function paymentAmountForMethod(method) {
-  return method === 'upi'
-    ? (formatCurrencyValue(orderData.amountINRValue ?? orderData.rawINR ?? orderData.inr, 'INR') || orderData.inr || '—')
-    : `${Number.isFinite(orderData.amountUSDValue)
-      ? String(orderData.amountUSDValue).replace(/\.00$/, '')
-      : (extractMoneyNumber(orderData.rawUSD || orderData.usd).toString().replace(/\.00$/, '') || '0.00')} USDT`;
+  const customMethods = (window.__paymentPayment && window.__paymentPayment.customMethods) || {};
+  const isCustom = Boolean(customMethods[method]);
+  const customMethod = isCustom ? customMethods[method] : null;
+
+  if (method === 'upi' || (isCustom && customMethod.type === 'upi')) {
+    return formatCurrencyValue(orderData.amountINRValue ?? orderData.rawINR ?? orderData.inr, 'INR') || orderData.inr || '—';
+  }
+  if (method === 'paypal' || (isCustom && customMethod.type === 'paypal')) {
+    const usdVal = Number.isFinite(orderData.amountUSDValue)
+      ? orderData.amountUSDValue
+      : extractMoneyNumber(orderData.rawUSD || orderData.usd);
+    return Number.isFinite(usdVal) && usdVal > 0 ? `$${usdVal} USD` : '$0.00 USD';
+  }
+  const cryptoVal = Number.isFinite(orderData.amountUSDValue)
+    ? String(orderData.amountUSDValue).replace(/\.00$/, '')
+    : (extractMoneyNumber(orderData.rawUSD || orderData.usd).toString().replace(/\.00$/, '') || '0.00');
+  return `${cryptoVal} USDT`;
 }
 
 function paymentCurrencyLabel(method) {
-  return method === 'upi'
-    ? 'via UPI · Indian Rupees'
-    : `${formatCurrencyValue(orderData.amountUSDValue ?? orderData.rawUSD ?? orderData.usd, 'USD') || orderData.usd || '—'} USD equivalent`;
+  const customMethods = (window.__paymentPayment && window.__paymentPayment.customMethods) || {};
+  const isCustom = Boolean(customMethods[method]);
+  const customMethod = isCustom ? customMethods[method] : null;
+
+  if (method === 'upi' || (isCustom && customMethod.type === 'upi')) {
+    return 'via UPI · Indian Rupees';
+  }
+  if (method === 'paypal' || (isCustom && customMethod.type === 'paypal')) {
+    const inrEq = formatCurrencyValue(orderData.amountINRValue ?? orderData.rawINR ?? orderData.inr, 'INR');
+    return inrEq ? `(${inrEq} INR equivalent)` : 'via PayPal International';
+  }
+  return `${formatCurrencyValue(orderData.amountUSDValue ?? orderData.rawUSD ?? orderData.usd, 'USD') || orderData.usd || '—'} USD equivalent`;
 }
 
 async function loadProductsCatalog() {
@@ -3399,11 +3479,13 @@ async function loadProductsCatalog() {
     try {
       const supaHeaders = {
         'apikey': SUPABASE_CONFIG.anonKey,
-        'Authorization': `Bearer ${SUPABASE_CONFIG.anonKey}`
+        'Authorization': `Bearer ${SUPABASE_CONFIG.anonKey}`,
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache'
       };
 
       const [supaResp, bannerResp] = await Promise.allSettled([
-        fetch(`${SUPABASE_CONFIG.url}/rest/v1/products?select=*`, { headers: supaHeaders, cache: 'default' }),
+        fetch(`${SUPABASE_CONFIG.url}/rest/v1/products?select=*`, { headers: supaHeaders, cache: 'no-store' }),
         fetch(`${SUPABASE_CONFIG.url}/rest/v1/site_settings?key=eq.banner&select=*`, { headers: supaHeaders, cache: 'no-store' }),
       ]);
 
@@ -3432,10 +3514,10 @@ async function loadProductsCatalog() {
         if (Array.isArray(bannerRows) && bannerRows.length > 0 && bannerRows[0]?.value) {
           const bVal = bannerRows[0].value;
           const bTitle = bVal.title || 'All Collection Pack';
-          const bInr = bVal.priceOfferINR || bVal.inr || '₹29,700';
-          const bUsd = bVal.priceOfferUSD || bVal.usd || '$1499';
-          const bInrVal = extractMoneyNumber(bInr) || 29700;
-          const bUsdVal = extractMoneyNumber(bUsd) || 1499;
+          const bInr = bVal.priceOfferINR || bVal.inr || '₹27,000';
+          const bUsd = bVal.priceOfferUSD || bVal.usd || '$349';
+          const bInrVal = extractMoneyNumber(bInr) || 27000;
+          const bUsdVal = extractMoneyNumber(bUsd) || 349;
           const bannerEntry = {
             key: 'pinned-deal',
             id: 'pinned-deal',
@@ -3448,6 +3530,7 @@ async function loadProductsCatalog() {
             rawUSD: bUsdVal,
             amountINRValue: bInrVal,
             amountUSDValue: bUsdVal,
+            image: bVal.image || bVal.thumbnail || '',
             status: bVal.status || 'active',
             record: bVal,
             isDefault: false,
@@ -3459,7 +3542,7 @@ async function loadProductsCatalog() {
           const currId = normalizeLookupValue(orderData.id || requestedCheckout.productId);
           const currName = normalizeLookupValue(orderData.name);
           const isExplicitPinnedDeal = currId === 'pinned-deal' || currId === 'all-collection-pack' || currName === 'all-collection-pack' || currName === 'all-collection';
-          if (isExplicitPinnedDeal && !orderData.hasExplicitUrlPrices) {
+          if (isExplicitPinnedDeal) {
             applyOrderToUI({
               id: 'pinned-deal',
               slug: 'all-collection-pack',
@@ -3470,6 +3553,7 @@ async function loadProductsCatalog() {
               rawUSD: bUsdVal,
               amountINRValue: bInrVal,
               amountUSDValue: bUsdVal,
+              image: bVal.image || bVal.thumbnail || '',
             });
           }
         }
@@ -4081,9 +4165,16 @@ async function gotoPayScreen() {
             generateQR('binancepayQR', 'https://app.binance.com/en/send-crypto-payment?recipientId=' + CONFIG.binanceId, 180);
           }
         } else if (selectedMethod === 'paypal') {
-          setText('paypalLink', CONFIG.paypalLink);
+          setText('paypalLink', CONFIG.paypalLink || '—');
           const paypalDirectLink = document.getElementById('paypalDirectLink');
-          if (paypalDirectLink && CONFIG.paypalLink) paypalDirectLink.href = CONFIG.paypalLink;
+          if (paypalDirectLink) {
+            if (CONFIG.paypalLink) {
+              paypalDirectLink.href = CONFIG.paypalLink;
+              paypalDirectLink.style.display = 'inline-flex';
+            } else {
+              paypalDirectLink.style.display = 'none';
+            }
+          }
           const paypalQrImg = document.getElementById('paypalQrImg');
           const paypalQr = CONFIG.paypalQr || (window.__paymentPayment && (window.__paymentPayment.paypalQr || window.__paymentPayment.paypalLogo)) || CONFIG.paypalLogo;
           if (paypalQrImg && paypalQr) {
