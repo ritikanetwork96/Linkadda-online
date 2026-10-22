@@ -1021,14 +1021,14 @@
       <!-- Injected via JavaScript -->
     </div>
     <div class="orders-drawer-footer" id="ordersDrawerFooter">
-      <a href="https://t.me/TRUSTED_BROTHER1234" target="_blank" class="btn-primary" style="width:100%;display:flex;align-items:center;justify-content:center;gap:8px;text-decoration:none;">
+      <a href="https://t.me/VIP_KINK" target="_blank" class="btn-primary" style="width:100%;display:flex;align-items:center;justify-content:center;gap:8px;text-decoration:none;">
         <i class="fa-brands fa-telegram"></i> Telegram Support for Orders
       </a>
     </div>
   </aside>
 
   <!-- Floating Telegram Support Button (Always visible on screen) -->
-  <a href="https://t.me/TRUSTED_BROTHER1234" target="_blank" class="floating-tg-dock" id="floatingTgDock" aria-label="Contact Telegram Support" title="Chat with Us on Telegram">
+  <a href="https://t.me/VIP_KINK" target="_blank" class="floating-tg-dock" id="floatingTgDock" aria-label="Contact Telegram Support" title="Chat with Us on Telegram">
     <i class="fa-brands fa-telegram"></i>
     <span class="floating-tg-pulse"></span>
   </a>
@@ -1372,7 +1372,7 @@
           <!-- Heading & Username Handle -->
           <h3 class="contact-lux-title">Official Telegram Support</h3>
           <div class="contact-lux-handle">
-            <i class="fa-solid fa-at"></i> TRUSTED_BROTHER1234
+            <i class="fa-solid fa-at"></i> VIP_KINK
           </div>
           <p class="contact-lux-desc">
             Direct chat for instant pack delivery, custom bundle requests, payment verification, and 24/7 customer assistance.
@@ -1396,7 +1396,7 @@
 
           <!-- Action Button -->
           <div class="contact-lux-actions">
-            <a href="https://t.me/TRUSTED_BROTHER1234" target="_blank" rel="noopener" class="btn-contact-telegram">
+            <a href="https://t.me/VIP_KINK" target="_blank" rel="noopener" class="btn-contact-telegram">
               <i class="fa-brands fa-telegram"></i>
               <span>Message on Telegram</span>
               <i class="fa-solid fa-arrow-up-right-from-square contact-ext-icon"></i>
@@ -1487,10 +1487,10 @@
 
         <div class="footer-links">
           <h4>Connect & Help</h4>
-          <a href="https://t.me/TRUSTED_BROTHER1234" target="_blank" rel="noopener" class="footer-tg-link">
+          <a href="https://t.me/VIP_KINK" target="_blank" rel="noopener" class="footer-tg-link">
             <i class="fa-brands fa-telegram"></i> Telegram Support
           </a>
-          <a href="https://t.me/TRUSTED_BROTHER1234" target="_blank" rel="noopener">
+          <a href="https://t.me/VIP_KINK" target="_blank" rel="noopener">
             <i class="fa-solid fa-headset"></i> 24/7 Order DM
           </a>
           <div class="footer-delivery-badge">
@@ -1769,8 +1769,8 @@
     testimonialsHtml: document.querySelector('.testi-grid')?.innerHTML || '',
     liveGridHtml: document.getElementById('categoriesGrid')?.innerHTML || '',
     payment: {
-      telegramUrl: 'https://t.me/TRUSTED_BROTHER1234',
-      telegramChannel: 'https://t.me/TRUSTED_BROTHER1234',
+      telegramUrl: 'https://t.me/VIP_KINK',
+      telegramChannel: 'https://t.me/VIP_KINK',
     },
   };
 
@@ -2093,7 +2093,7 @@
   function applyPaymentLinks(p) {
     const telegramUrl = p?.telegramUrl || defaultSiteState.payment.telegramUrl;
     const telegramChannel = p?.telegramChannel || defaultSiteState.payment.telegramChannel;
-    document.querySelectorAll('a[href*="TRUSTED_BROTHER"]').forEach(a => { a.href = telegramUrl; });
+    document.querySelectorAll('a[href*="VIP_KINK"], a[href*="TRUSTED_BROTHER"]').forEach(a => { a.href = telegramUrl; });
   }
 
   // Load cached settings immediately (0ms)
@@ -3197,7 +3197,7 @@
       const orderId = esc(String(ord.orderId || 'VIP-ORDER').slice(-10).toUpperCase());
       const accessLink = ord.downloadLink || ord.fileUrl || ord.orderLink || '';
       const tgMsg = `Hi Admin, I have placed order #${orderId} (${ord.productName || 'VIP Content Pack'}). Please verify and approve my payment.`;
-      const tgUrl = `https://t.me/TRUSTED_BROTHER1234?text=${encodeURIComponent(tgMsg)}`;
+      const tgUrl = `https://t.me/VIP_KINK?text=${encodeURIComponent(tgMsg)}`;
 
       const thumbImg = findProductMediaForOrder(ord);
       const thumbHtml = thumbImg
@@ -3242,7 +3242,7 @@
             <span class="order-paid-amount">${esc(ord.amountDisplay || '₹399')}</span>
             ${isConfirmed ? `
               <div style="display:flex;gap:6px;align-items:center;">
-                ${(accessLink && !accessLink.includes('TRUSTED_BROTHER1234')) ? `
+                ${(accessLink && !accessLink.includes('VIP_KINK')) ? `
                   <a href="${esc(accessLink)}" target="_blank" rel="noopener" class="order-track-btn confirmed" style="background:#10b981;color:#fff;border-color:#10b981;">
                     <i class="fa-brands fa-telegram"></i> Open VIP Link
                   </a>
@@ -3250,8 +3250,8 @@
                     <i class="fa-regular fa-clone"></i> Copy
                   </button>
                 ` : `
-                  <a href="https://t.me/TRUSTED_BROTHER1234?text=${encodeURIComponent('Hi Admin, my order #' + orderId + ' is approved. Please provide my Telegram access link.')}" target="_blank" rel="noopener" class="order-track-btn confirmed" style="background:#0088cc;color:#fff;border-color:#0088cc;">
-                    <i class="fa-brands fa-telegram"></i> Get Link (@TRUSTED_BROTHER1234)
+                  <a href="https://t.me/VIP_KINK?text=${encodeURIComponent('Hi Admin, my order #' + orderId + ' is approved. Please provide my Telegram access link.')}" target="_blank" rel="noopener" class="order-track-btn confirmed" style="background:#0088cc;color:#fff;border-color:#0088cc;">
+                    <i class="fa-brands fa-telegram"></i> Get Link (@VIP_KINK)
                   </a>
                 `}
               </div>
@@ -6269,7 +6269,7 @@
             <span class="fk-hub-arrow"><i class="fa-solid fa-arrow-right"></i></span>
           </div>
 
-          <a href="https://t.me/TRUSTED_BROTHER1234" target="_blank" rel="noopener" class="fk-hub-card help-tile">
+          <a href="https://t.me/VIP_KINK" target="_blank" rel="noopener" class="fk-hub-card help-tile">
             <div class="fk-hub-icon-wrap help">
               <i class="fa-brands fa-telegram"></i>
             </div>
@@ -6402,14 +6402,14 @@
               <i class="fa-solid fa-chevron-right opt-chevron"></i>
             </a>
 
-            <a href="https://t.me/TRUSTED_BROTHER1234" target="_blank" rel="noopener" class="profile-option-item">
+            <a href="https://t.me/VIP_KINK" target="_blank" rel="noopener" class="profile-option-item">
               <div class="profile-option-left">
                 <div class="profile-opt-icon-wrap telegram">
                   <i class="fa-brands fa-telegram"></i>
                 </div>
                 <div class="profile-option-text">
                   <strong class="opt-title">Direct Telegram Concierge</strong>
-                  <span class="opt-sub">@TRUSTED_BROTHER1234 (24/7 Live Desk)</span>
+                  <span class="opt-sub">@VIP_KINK (24/7 Live Desk)</span>
                 </div>
               </div>
               <i class="fa-solid fa-chevron-right opt-chevron"></i>

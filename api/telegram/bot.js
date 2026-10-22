@@ -155,7 +155,7 @@ export async function notifyAdminsNewOrder(order) {
         `📦 <b>Product:</b> ${productTitle}\n` +
         `💰 <b>Amount:</b> ${amount}\n\n` +
         `🔍 Admin is currently reviewing your payment proof and transaction reference. <b>You will receive an instant notification right here once verified.</b>\n\n` +
-        `For 24/7 priority support: @TRUSTED_BROTHER1234`,
+        `For 24/7 priority support: @VIP_KINK`,
       parse_mode: 'HTML'
     });
   }
@@ -188,7 +188,7 @@ async function processOrderApproval(orderId, adminUser) {
       }
     } catch (_) {}
   }
-  if (channelLink.includes('TRUSTED_BROTHER1234')) channelLink = '';
+  if (channelLink.includes('VIP_KINK') || channelLink.includes('TRUSTED_BROTHER1234')) channelLink = '';
 
   // Update order in Supabase
   await fetch(`${url}/rest/v1/orders?id=eq.${encodeURIComponent(orderId)}`, {
@@ -212,7 +212,7 @@ async function processOrderApproval(orderId, adminUser) {
           `📦 <b>Product:</b> ${order.product_title || 'VIP Pack'}\n\n` +
           `🔗 <b>Your VIP Access Link:</b>\n` +
           `👉 <b>${channelLink}</b>\n\n` +
-          `For lifetime link replacement and 24/7 helpdesk: @TRUSTED_BROTHER1234`,
+          `For lifetime link replacement and 24/7 helpdesk: @VIP_KINK`,
         parse_mode: 'HTML',
         reply_markup: {
           inline_keyboard: [
@@ -226,11 +226,11 @@ async function processOrderApproval(orderId, adminUser) {
         text: 
           `🎉 <b>Congratulations! Your Order #${orderId} has been Approved!</b>\n\n` +
           `📦 <b>Product:</b> ${order.product_title || 'VIP Pack'}\n\n` +
-          `To claim your VIP content access, please message <b>Admin @TRUSTED_BROTHER1234</b> on Telegram below:`,
+          `To claim your VIP content access, please message <b>Admin @VIP_KINK</b> on Telegram below:`,
         parse_mode: 'HTML',
         reply_markup: {
           inline_keyboard: [
-            [{ text: '💬 Get Link from Admin (@TRUSTED_BROTHER1234)', url: `https://t.me/TRUSTED_BROTHER1234?text=${encodeURIComponent(`Hi Admin, my order #${orderId} is approved. Please provide my Telegram access link.`)}` }]
+            [{ text: '💬 Get Link from Admin (@VIP_KINK)', url: `https://t.me/VIP_KINK?text=${encodeURIComponent(`Hi Admin, my order #${orderId} is approved. Please provide my Telegram access link.`)}` }]
           ]
         }
       });
@@ -277,7 +277,7 @@ async function processOrderRejection(orderId, adminUser) {
       parse_mode: 'HTML',
       reply_markup: {
         inline_keyboard: [
-          [{ text: '💬 Contact Support (@TRUSTED_BROTHER1234)', url: `https://t.me/TRUSTED_BROTHER1234?text=${encodeURIComponent(`Hi Admin, my order #${orderId} was rejected. Here is my payment receipt.`)}` }]
+          [{ text: '💬 Contact Support (@VIP_KINK)', url: `https://t.me/VIP_KINK?text=${encodeURIComponent(`Hi Admin, my order #${orderId} was rejected. Here is my payment receipt.`)}` }]
         ]
       }
     });
@@ -310,7 +310,7 @@ export async function broadcastNewProduct(product) {
   const keyboard = {
     inline_keyboard: [
       [{ text: '🛒 Open Shop & Buy Now', web_app: { url: webAppUrl } }],
-      [{ text: '💬 Support Desk (@TRUSTED_BROTHER1234)', url: 'https://t.me/TRUSTED_BROTHER1234' }]
+      [{ text: '💬 Support Desk (@VIP_KINK)', url: 'https://t.me/VIP_KINK' }]
     ]
   };
 
@@ -424,7 +424,7 @@ export default async function handler(req, res) {
             reply_markup: {
               inline_keyboard: [
                 [{ text: '🛍️ Open Store (VIP Content)', web_app: { url: appUrl } }],
-                [{ text: '💬 Support Desk (@TRUSTED_BROTHER1234)', url: 'https://t.me/TRUSTED_BROTHER1234' }]
+                [{ text: '💬 Support Desk (@VIP_KINK)', url: 'https://t.me/VIP_KINK' }]
               ]
             }
           });

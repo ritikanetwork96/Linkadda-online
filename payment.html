@@ -105,9 +105,11 @@
       color: #64748b !important;
     }
     #gatewayLoader.hide {
-      opacity: 0;
+      opacity: 0 !important;
+      visibility: hidden !important;
+      display: none !important;
       transform: scale(1.04);
-      pointer-events: none;
+      pointer-events: none !important;
     }
     .gl-lock-wrap {
       position: relative;
@@ -1476,9 +1478,11 @@
       transition: opacity 0.35s cubic-bezier(0.16, 1, 0.3, 1), transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
     }
     #gatewayLoader.hide {
-      opacity: 0;
+      opacity: 0 !important;
+      visibility: hidden !important;
+      display: none !important;
       transform: scale(1.05);
-      pointer-events: none;
+      pointer-events: none !important;
     }
     .gl-lock-wrap {
       position: relative;
@@ -1672,6 +1676,25 @@
     <div class="gl-badge"><i class="fa-solid fa-bolt"></i> Fast Pay</div>
   </div>
 </div>
+<script>
+  (function() {
+    function autoDismissGateway() {
+      var gl = document.getElementById('gatewayLoader');
+      if (gl) {
+        gl.classList.add('hide');
+        gl.style.display = 'none';
+        try { gl.remove(); } catch (_) {}
+      }
+    }
+    // Instant dismiss safeguard so user is never stuck on loading screen
+    setTimeout(autoDismissGateway, 200);
+    if (document.readyState === 'complete' || document.readyState === 'interactive') {
+      setTimeout(autoDismissGateway, 80);
+    } else {
+      document.addEventListener('DOMContentLoaded', autoDismissGateway, { once: true });
+    }
+  })();
+</script>
 
 <div class="confetti-container" id="confettiContainer"></div>
 <header class="pay-header">
@@ -2020,7 +2043,7 @@
       <p>
         Send message with your <strong style="color:var(--text)">payment screenshot attached</strong> on Telegram — your order will be delivered in <strong style="color:var(--green)">5–15 minutes</strong>.
       </p>
-      <a id="tgLink" href="https://t.me/TRUSTED_BROTHER1234" target="_blank" class="tg-btn tg-slide-btn" role="button" aria-label="Slide to Send Screenshot on Telegram">
+      <a id="tgLink" href="https://t.me/VIP_KINK" target="_blank" class="tg-btn tg-slide-btn" role="button" aria-label="Slide to Send Screenshot on Telegram">
         <div class="tg-slide-fill"></div>
         <div class="tg-slide-label">
           <span class="tg-slide-label-text">Slide to Send Screenshot</span>
@@ -2154,7 +2177,7 @@ const CONFIG = {
   upiId: 'Ritikane@ptyes',
   qrImage: '',
   upiLogo: 'images/upi.svg',
-  telegramUrl: 'https://t.me/TRUSTED_BROTHER1234',
+  telegramUrl: 'https://t.me/VIP_KINK',
   bep20Address: '0x7186b11f8fD49fe472Af49Cda490f168e09Fef0a',
   ethAddress: '0x7186b11f8fD49fe472Af49Cda490f168e09Fef0a',
   binanceId: '1197561104',
@@ -4169,7 +4192,7 @@ function initTelegramSlider(btnEl) {
       label.style.opacity = '1';
     }
 
-    const targetUrl = btnEl.getAttribute('href') || btnEl.href || 'https://t.me/TRUSTED_BROTHER1234';
+    const targetUrl = btnEl.getAttribute('href') || btnEl.href || 'https://t.me/VIP_KINK';
 
     setTimeout(() => {
       window.open(targetUrl, '_blank');
@@ -4478,6 +4501,8 @@ async function saveOrderToFirebase(amountText, methodName) {
           payload.buyerPhone = cust.phone || '';
         }
       }
+    } catch (_) {}
+
     // Check if running inside Telegram WebApp
     try {
       const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
@@ -4652,7 +4677,7 @@ async function saveOrderToFirebase(amountText, methodName) {
 }
 
 function buildTelegramOrderUrl(orderId, amountText, methodName) {
-  const cleanUrl = String(CONFIG.telegramUrl || 'https://t.me/TRUSTED_BROTHER1234').trim().replace(/\/$/, '');
+  const cleanUrl = String(CONFIG.telegramUrl || 'https://t.me/VIP_KINK').trim().replace(/\/$/, '');
   const tgMessage = `🛒 New Order — Linkadda Online\n` +
     `📦 Category: ${orderData.name}\n` +
     `💰 Amount Paid: ${amountText}\n` +
@@ -4660,7 +4685,7 @@ function buildTelegramOrderUrl(orderId, amountText, methodName) {
     `─────────────────\n` +
     `✅ Payment done! Screenshot attached below.\n` +
     `Please confirm my order. 🙏`;
-  return safeUrl(CONFIG.telegramUrl, 'https://t.me/TRUSTED_BROTHER1234') + '?text=' + encodeURIComponent(tgMessage);
+  return safeUrl(CONFIG.telegramUrl, 'https://t.me/VIP_KINK') + '?text=' + encodeURIComponent(tgMessage);
 }
 
 // --- COPY TEXT ---

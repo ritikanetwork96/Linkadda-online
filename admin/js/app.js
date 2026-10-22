@@ -1335,8 +1335,8 @@ function renderProductEditor(record = {}, schema = null) {
                 <label for="channelLink" style="font-weight: 700; color: #38bdf8;">
                   <i class="fa-brands fa-telegram" style="color: #38bdf8;"></i> Product Channel / Group Link (Optional)
                 </label>
-                <input class="input" type="text" name="channelLink" id="channelLink" value="${escapeHtml(data.channelLink || data.deliveryLink || '')}" placeholder="https://t.me/+joinchat... or Mega Link (Leave blank if user must contact @TRUSTED_BROTHER1234)" style="border-color: rgba(56, 189, 248, 0.4);" />
-                <small class="field-hint">If provided, customer receives this direct access link upon approval. If left empty, customer is directed to contact Admin on Telegram (@TRUSTED_BROTHER1234).</small>
+                <input class="input" type="text" name="channelLink" id="channelLink" value="${escapeHtml(data.channelLink || data.deliveryLink || '')}" placeholder="https://t.me/+joinchat... or Mega Link (Leave blank if user must contact @VIP_KINK)" style="border-color: rgba(56, 189, 248, 0.4);" />
+                <small class="field-hint">If provided, customer receives this direct access link upon approval. If left empty, customer is directed to contact Admin on Telegram (@VIP_KINK).</small>
               </div>
             </div>
           </div>
@@ -5825,7 +5825,7 @@ function renderSingleEditorPage(node, schema, data = {}) {
 
                 <div>
                   <label style="display: block; font-size: 11.5px; font-weight: 700; text-transform: uppercase; color: var(--muted); margin-bottom: 6px;">Secondary Button Link</label>
-                  <input type="text" name="secondaryButtonLink" value="${escapeHtml(record.secondaryButtonLink || 'https://t.me/TRUSTED_BROTHER1234')}" class="input" style="width: 100%; padding: 10px 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 13px;" />
+                  <input type="text" name="secondaryButtonLink" value="${escapeHtml(record.secondaryButtonLink || 'https://t.me/VIP_KINK')}" class="input" style="width: 100%; padding: 10px 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 13px;" />
                 </div>
               ` : ''}
             </div>
@@ -6755,7 +6755,7 @@ function renderSettingsManagementView(data = {}, fullData = {}) {
           <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 18px;">
             <div style="grid-column: 1 / -1;">
               <label style="display: block; font-size: 12px; font-weight: 700; text-transform: uppercase; color: #38bdf8; margin-bottom: 6px; letter-spacing: 0.04em;">Official Telegram Support Link / Username ⭐</label>
-              <input type="text" name="telegram" value="${escapeHtml(settings.telegram || 'https://t.me/TRUSTED_BROTHER1234')}" class="input" style="width: 100%; padding: 12px 14px; background: var(--bg); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 8px; color: var(--text); font-size: 13px; font-weight: 600;" placeholder="https://t.me/TRUSTED_BROTHER1234" required />
+              <input type="text" name="telegram" value="${escapeHtml(settings.telegram || 'https://t.me/VIP_KINK')}" class="input" style="width: 100%; padding: 12px 14px; background: var(--bg); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 8px; color: var(--text); font-size: 13px; font-weight: 600;" placeholder="https://t.me/VIP_KINK" required />
               <div style="margin-top: 6px; padding: 8px 12px; border-radius: 6px; background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.15); color: #bae6fd; font-size: 11.5px; line-height: 1.4;">
                 <i data-lucide="info" style="width: 13px; height: 13px; vertical-align: middle; margin-right: 4px;"></i>
                 Changing this link will <strong>instantly update all "Order via Telegram" and "Contact Support" buttons</strong> across the entire storefront and checkout pages in real time.
@@ -7090,8 +7090,8 @@ function renderPaymentManagementView(data = {}, fullData = {}) {
     recommendedMethod: 'binancepay',
     upiId: 'Ritikane@ptyes',
     qrImage: '',
-    telegramUrl: 'https://t.me/TRUSTED_BROTHER1234',
-    telegramChannel: 'https://t.me/TRUSTED_BROTHER1234',
+    telegramUrl: 'https://t.me/VIP_KINK',
+    telegramChannel: 'https://t.me/VIP_KINK',
     bep20Address: '0x7186b11f8fD49fe472Af49Cda490f168e09Fef0a',
     ethAddress: '0x7186b11f8fD49fe472Af49Cda490f168e09Fef0a',
     binanceId: '969887942',
@@ -9897,8 +9897,8 @@ function attachGlobalHandlers() {
         recommendedMethod: 'binancepay',
         upiId: 'Ritikane@ptyes',
         qrImage: '',
-        telegramUrl: 'https://t.me/TRUSTED_BROTHER1234',
-        telegramChannel: 'https://t.me/TRUSTED_BROTHER1234',
+        telegramUrl: 'https://t.me/VIP_KINK',
+        telegramChannel: 'https://t.me/VIP_KINK',
         bep20Address: '0x7186b11f8fD49fe472Af49Cda490f168e09Fef0a',
         ethAddress: '0x7186b11f8fD49fe472Af49Cda490f168e09Fef0a',
         binanceId: '969887942',
@@ -10533,7 +10533,7 @@ function attachGlobalHandlers() {
 
         // Find product to check if Admin configured a specific Channel / Group link
         let productLink = order.channelLink || order.downloadLink || order.fileUrl || '';
-        if (productLink && productLink.includes('TRUSTED_BROTHER1234')) {
+        if (productLink && (productLink.includes('VIP_KINK') || productLink.includes('VIP_KINK'))) {
           productLink = ''; // Clean legacy fallback
         }
         let matchedProduct = null;
@@ -10547,7 +10547,7 @@ function attachGlobalHandlers() {
 
         if (matchedProduct && !productLink) {
           productLink = String(matchedProduct.channelLink || matchedProduct.deliveryLink || '').trim();
-          if (productLink.includes('TRUSTED_BROTHER1234')) productLink = '';
+          if ((productLink.includes('VIP_KINK') || productLink.includes('VIP_KINK'))) productLink = '';
         }
 
         const approvedPayload = {
@@ -10574,7 +10574,7 @@ function attachGlobalHandlers() {
             channelLink: productLink || '',
             downloadLink: productLink || '',
             hasDirectLink: Boolean(productLink),
-            adminTelegram: 'https://t.me/TRUSTED_BROTHER1234',
+            adminTelegram: 'https://t.me/VIP_KINK',
             status: 'approved',
             approvedAt: Date.now(),
             customerEmail: order.customerEmail || order.email || order.buyerEmail || ''
@@ -10636,7 +10636,7 @@ function attachGlobalHandlers() {
                   Direct URL: <a href="${escapeHtml(productLink)}" style="color: #38bdf8; word-break: break-all;">${escapeHtml(productLink)}</a>
                 </p>
                 <div style="border-top: 1px solid rgba(255,255,255,0.08); margin-top: 24px; padding-top: 16px; text-align: center;">
-                  <p style="color: #64748b; font-size: 11px; margin: 0;">&copy; ${new Date().getFullYear()} LinkAdda Online &bull; 24/7 VIP Support: @TRUSTED_BROTHER1234</p>
+                  <p style="color: #64748b; font-size: 11px; margin: 0;">&copy; ${new Date().getFullYear()} LinkAdda Online &bull; 24/7 VIP Support: @VIP_KINK</p>
                 </div>
               </div>
             `
