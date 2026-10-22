@@ -58,7 +58,9 @@ export function handleCors(req, res, methods = 'GET, POST, OPTIONS') {
     origin.endsWith('.linkadda.shop') ||
     origin.startsWith('http://localhost:') ||
     origin.startsWith('http://127.0.0.1:') ||
-    origin.includes('vercel.app');
+    origin.includes('vercel.app') ||
+    origin.includes('onrender.com') ||
+    origin.includes('pages.dev');
 
   const allowOrigin = isAllowed ? (origin || 'https://linkadda.online') : 'https://linkadda.online';
   res.setHeader('Access-Control-Allow-Origin', allowOrigin);

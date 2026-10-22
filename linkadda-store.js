@@ -1,5 +1,5 @@
 // --- LinkAdda Store Integrity Guard ---
-(function(){try{var h=(window.location.hostname||'').toLowerCase(),p=window.location.protocol;var isLocal=h==='localhost'||h==='127.0.0.1'||h===''||p==='file:';if(!isLocal&&h!=='linkadda.online'&&h!=='www.linkadda.online'){try{if(window.stop)window.stop();}catch(_){}window.location.replace('https://linkadda.online'+(window.location.pathname||'')+(window.location.search||''));}}catch(_){}})();
+// Domain guard relaxed for multi-host and Render support
 /**
  * LINKADDA LUXURY DARK E-COMMERCE CONTROLLER (IQ-200 REFINED)
  * Features:

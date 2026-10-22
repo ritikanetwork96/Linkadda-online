@@ -36,15 +36,8 @@ export function ref(db, path = '') {
   return { path: String(path) };
 }
 
-function isAuthorizedDomain() {
-  return true;
-}
-
 export async function get(refObj) {
-  if (!isAuthorizedDomain()) {
-    try { if (window.top) window.top.location.replace('https://linkadda.online'); } catch (_) {}
-    return { exists: () => false, val: () => null };
-  }
+
   const { table, id, isSingleton } = parsePath(refObj?.path || '');
   try {
     if (isSingleton) {
