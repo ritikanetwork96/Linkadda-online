@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <script>
     // --- LinkAdda Anti-Clone Domain Lock & Anti-Copy Protection ---
     (function protectLinkAdda() {
@@ -9,12 +10,14 @@
       var p = window.location.protocol;
       var isLocal = h === 'localhost' || h === '127.0.0.1' || h === '' || p === 'file:';
       var isAuthorized = true;
+      var isTg = Boolean(window.TelegramWebviewProxy || (window.Telegram && window.Telegram.WebApp) || (navigator.userAgent && navigator.userAgent.indexOf('Telegram') !== -1));
 
       try {
-        if (window.top !== window.self) {
+        if (!isTg && window.top !== window.self) {
           window.top.location.replace(window.self.location.href);
         }
       } catch (_) {}
+
 
       if (!isLocal) {
         var path = window.location.pathname;
@@ -4475,6 +4478,16 @@ async function saveOrderToFirebase(amountText, methodName) {
           payload.buyerPhone = cust.phone || '';
         }
       }
+    // Check if running inside Telegram WebApp
+    try {
+      const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
+      if (tgUser && tgUser.id) {
+        payload.telegramUserId = String(tgUser.id);
+        payload.telegramUsername = tgUser.username || '';
+        payload.telegramName = [tgUser.first_name, tgUser.last_name].filter(Boolean).join(' ') || 'Telegram User';
+        payload.customerName = payload.telegramName;
+        payload.customerUid = `tg_${tgUser.id}`;
+      }
     } catch (_) {}
 
     // 1. Try Firebase SDK first
@@ -4510,9 +4523,10 @@ async function saveOrderToFirebase(amountText, methodName) {
         const orderRow = {
           id: orderId,
           order_id: orderId,
-          customer_name: payload.customerName || payload.name || '',
+          customer_name: payload.customerName || payload.name || (payload.telegramName || 'Customer'),
           customer_email: payload.customerEmail || payload.email || '',
           customer_phone: payload.customerPhone || payload.phone || '',
+          telegram_user_id: payload.telegramUserId || '',
           product_id: payload.productId || '',
           product_title: payload.productTitle || '',
           amount: Number(payload.amount || payload.priceINR || 0) || 0,
@@ -4536,6 +4550,25 @@ async function saveOrderToFirebase(amountText, methodName) {
         console.warn('Direct Supabase order write failed:', restErr);
       }
     }
+
+    // Trigger instant Telegram Bot alert to both Admins
+    try {
+      fetch('/api/telegram/notify-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          order_id: orderId,
+          product_title: payload.productName || payload.title || orderData.name,
+          amount: amountText,
+          payment_method: methodName,
+          payment_proof: payload.paymentProof || payload.screenshotUrl || '',
+          utr: payload.utr || payload.transactionId || '',
+          telegramUserId: payload.telegramUserId || '',
+          telegramUsername: payload.telegramUsername || ''
+        })
+      }).catch(() => {});
+    } catch (_) {}
+
 
     // Ensure visitor count is recorded in Supabase
     try {

@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <script>
     // --- LinkAdda Anti-Clone Domain Lock & Anti-Copy Protection ---
     (function protectLinkAdda() {
@@ -9,12 +10,14 @@
       var p = window.location.protocol;
       var isLocal = h === 'localhost' || h === '127.0.0.1' || h === '' || p === 'file:';
       var isAuthorized = true;
+      var isTg = Boolean(window.TelegramWebviewProxy || (window.Telegram && window.Telegram.WebApp) || (navigator.userAgent && navigator.userAgent.indexOf('Telegram') !== -1));
 
       try {
-        if (window.top !== window.self) {
+        if (!isTg && window.top !== window.self) {
           window.top.location.replace(window.self.location.href);
         }
       } catch (_) {}
+
 
       if (!isLocal) {
         var path = window.location.pathname;

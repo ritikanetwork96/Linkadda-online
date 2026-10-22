@@ -11048,9 +11048,22 @@ function attachGlobalHandlers() {
         }
 
         try {
-          if (id) await updateRecord(node, id, next);
-          else await createRecord(node, next);
+          if (id) {
+            await updateRecord(node, id, next);
+          } else {
+            await createRecord(node, next);
+            if (node === 'products') {
+              try {
+                fetch('/api/telegram/broadcast', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(next)
+                }).catch(() => {});
+              } catch (_) {}
+            }
+          }
           const afterRefs = recordAssetRefs(next);
+
           const removedRefs = beforeRefs.filter((refValue) => !afterRefs.includes(normalizeAssetValue(refValue)));
           if (removedRefs.length) {
             setTimeout(() => {

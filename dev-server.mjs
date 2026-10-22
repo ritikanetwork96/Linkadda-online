@@ -114,6 +114,11 @@ const server = http.createServer(async (req, res) => {
         const mod = await import(`./api/admin/db.js${bust}`);
         return await mod.default(req, resEnhanced);
       }
+      if (pathname.startsWith('/api/telegram')) {
+        const mod = await import(`./api/telegram/bot.js${bust}`);
+        return await mod.default(req, resEnhanced);
+      }
+
 
       res.statusCode = 404;
       res.setHeader('Content-Type', 'application/json');
