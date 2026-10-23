@@ -426,8 +426,18 @@ export async function syncAllFromFirebase(force = false) {
         try {
           if (key === 'products' || key === 'categories' || key === 'orders') {
             let rows = [];
-            // Try secure admin proxy for orders first
-            if (key === 'orders') {
+            // Direct lightning-fast Supabase REST fetch (<50ms)
+            try {
+              const orderParam = key === 'orders' ? '&order=created_at.desc' : '';
+              const res = await fetch(`${supaUrl}/rest/v1/${key}?select=*${orderParam}`, { headers, cache: 'no-store' });
+              if (res.ok) {
+                const fetched = await res.json();
+                if (Array.isArray(fetched) && fetched.length > 0) rows = fetched;
+              }
+            } catch (_) {}
+
+            // Admin proxy fallback only if direct REST returned 0 rows
+            if (!rows.length && key === 'orders') {
               try {
                 const rawSess = localStorage.getItem('linkadda_admin_session');
                 const token = rawSess ? JSON.parse(rawSess)?.token : '';
@@ -435,7 +445,8 @@ export async function syncAllFromFirebase(force = false) {
                   const dbRes = await fetch('/api/admin/db', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                    body: JSON.stringify({ action: 'list', table: 'orders' })
+                    body: JSON.stringify({ action: 'list', table: 'orders' }),
+                    signal: AbortSignal.timeout(3000)
                   });
                   if (dbRes.ok) {
                     const json = await dbRes.json();
@@ -443,13 +454,6 @@ export async function syncAllFromFirebase(force = false) {
                   }
                 }
               } catch (_) {}
-            }
-            if (!rows.length) {
-              const res = await fetch(`${supaUrl}/rest/v1/${key}?select=*`, { headers, cache: 'no-store' });
-              if (res.ok) {
-                const fetched = await res.json();
-                if (Array.isArray(fetched)) rows = fetched;
-              }
             }
             if (!rows.length) return null;
             const data = {};
@@ -469,7 +473,7 @@ export async function syncAllFromFirebase(force = false) {
             return { key, data };
           }
           if (key === 'visitors' || key === 'events') {
-            const res = await fetch(`${supaUrl}/rest/v1/${key}?select=*&order=created_at.desc&limit=1000`, { headers, cache: 'no-store' });
+            const res = await fetch(`${supaUrl}/rest/v1/${key}?select=*&order=created_at.desc&limit=150`, { headers, cache: 'no-store' });
             if (!res.ok) return null;
             const rows = await res.json();
             const data = {};
@@ -905,12 +909,48 @@ if (typeof window !== 'undefined') {
     }
   });
 
-  // 2. High-speed 3.5s polling ensures incoming orders, Telegram bot approvals, visitors, and events reflect in real time
+  // 2. High-speed 4s lightweight orders sync (zero lag, only re-renders on real changes)
+  setInterval(async () => {
+    try {
+      const supaUrl = 'https://esxiwfswnbacmpjxqgsn.supabase.co';
+      const supaKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVzeGl3ZnN3bmJhY21wanhxZ3NuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI2MDcxODQsImV4cCI6MjEwODE4MzE4NH0.n6XzLxgH5947CK-224Tp57BJmbWZ_rTKi4PK-EW8bNI';
+      const res = await fetch(`${supaUrl}/rest/v1/orders?select=*&order=created_at.desc&limit=50`, {
+        headers: { 'apikey': supaKey, 'Authorization': `Bearer ${supaKey}` },
+        cache: 'no-store',
+        signal: AbortSignal.timeout(3500)
+      });
+      if (!res.ok) return;
+      const rows = await res.json();
+      if (!Array.isArray(rows) || !rows.length) return;
+      let hasOrderChange = false;
+      if (!STORE.orders || typeof STORE.orders !== 'object') STORE.orders = {};
+      rows.forEach(r => {
+        const d = { ...(r.data || {}) };
+        if (r.status === 'approved' || r.status === 'rejected' || r.status === 'paid' || r.status === 'completed') {
+          d.status = r.status;
+          d.orderStatus = r.status;
+          d.paymentStatus = r.status;
+          d.verified = r.status === 'approved' || r.status === 'paid';
+          d.isPaid = r.status === 'approved' || r.status === 'paid';
+        }
+        const existing = STORE.orders[r.id];
+        if (!existing || existing.status !== r.status || existing.updated_at !== r.updated_at) {
+          hasOrderChange = true;
+        }
+        STORE.orders[r.id] = { ...d, ...r, id: r.id };
+      });
+      if (hasOrderChange) {
+        emitImmediate();
+      }
+    } catch (_) {}
+  }, 4000);
+
+  // 3. Calm 15s background sync for full catalog & site settings
   setInterval(async () => {
     syncAllFromFirebase().catch(() => {});
-  }, 3500);
+  }, 15000);
 
-  // 3. Instant sync whenever admin focuses the browser window or changes tab
+  // 4. Instant full sync whenever admin focuses the browser window or changes tab
   window.addEventListener('focus', () => {
     syncAllFromFirebase(true).catch(() => {});
   });
