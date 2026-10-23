@@ -16,7 +16,7 @@ export function getAppUrl(req = null) {
       return `${proto}://${host}`.replace(/\/+$/, '');
     }
   }
-  const base = process.env.APP_URL || process.env.RENDER_EXTERNAL_URL || 'https://linkadda.online';
+  const base = process.env.RENDER_EXTERNAL_URL || process.env.APP_URL || 'https://linkadda-online.onrender.com';
   return base.replace(/\/+$/, '');
 }
 
@@ -714,15 +714,15 @@ export async function broadcastNewProduct(rawProduct) {
     } else if (image.startsWith('products/') || image.startsWith('categories/')) {
       image = `https://esxiwfswnbacmpjxqgsn.supabase.co/storage/v1/object/public/linkadda-media/${image}`;
     } else if (image.startsWith('/')) {
-      image = `https://linkadda.online${image}`;
+      image = `${getAppUrl()}${image}`;
     } else {
-      image = `https://linkadda.online/${image}`;
+      image = `${getAppUrl()}/${image}`;
     }
   }
 
   // 5. Safe HTTPS URLs for Telegram WebApp
   const appUrl = getAppUrl();
-  const tgAppUrl = appUrl.startsWith('https://') ? appUrl : 'https://linkadda.online';
+  const tgAppUrl = appUrl.startsWith('https://') ? appUrl : 'https://linkadda-online.onrender.com';
 
   const prodParam = encodeURIComponent(lookupId || title);
   const nameParam = encodeURIComponent(title);
@@ -885,7 +885,7 @@ export async function broadcastCustomMessage({ message, photo, buttonText, butto
   }
 
   const appUrl = getAppUrl();
-  const tgAppUrl = appUrl.startsWith('https://') ? appUrl : 'https://linkadda.online';
+  const tgAppUrl = appUrl.startsWith('https://') ? appUrl : 'https://linkadda-online.onrender.com';
   const cleanPhoto = photo && typeof photo === 'string' && photo.trim().startsWith('http') ? photo.trim() : null;
   const cleanBtnText = buttonText && typeof buttonText === 'string' && buttonText.trim() ? buttonText.trim() : null;
   const rawBtnUrl = buttonUrl && typeof buttonUrl === 'string' && buttonUrl.trim() ? buttonUrl.trim() : tgAppUrl;
@@ -982,7 +982,8 @@ export default async function handler(req, res) {
   const action = url.searchParams.get('action') || '';
 
   // Setup Webhook endpoint
-  if (req.method === 'GET' && action === 'setup-webhook') {
+  // Setup / Re-register Webhook endpoint
+  if ((req.method === 'GET' || req.method === 'POST') && (action === 'setup-webhook' || action === 're-register-webhook')) {
     const appUrl = getAppUrl(req);
     const webhookUrl = `${appUrl}/api/telegram/bot`;
     const setRes = await callTelegram('setWebhook', {
@@ -990,14 +991,48 @@ export default async function handler(req, res) {
       drop_pending_updates: false,
       allowed_updates: ['message', 'callback_query']
     });
-    return res.status(200).json({ webhookUrl, result: setRes });
+    // Rebind Telegram mini app button
+    await callTelegram('setChatMenuButton', {
+      menu_button: {
+        type: 'web_app',
+        text: '🛍️ Open Store',
+        web_app: { url: appUrl }
+      }
+    });
+    const webhookInfo = await callTelegram('getWebhookInfo');
+    return res.status(200).json({ ok: setRes?.ok, webhookUrl, result: setRes, webhook: webhookInfo?.result || webhookInfo });
   }
 
   // Get active bot configuration & status for Admin Panel
   if (req.method === 'GET' && (action === 'get-bot-config' || action === 'info')) {
     try {
       const cfg = await getActiveBotConfig(true);
-      const webhookInfo = await callTelegram('getWebhookInfo');
+      let webhookInfo = await callTelegram('getWebhookInfo');
+      const appUrl = getAppUrl(req);
+      const expectedWebhook = `${appUrl}/api/telegram/bot`;
+
+      // ⚡ Auto-Connect: If webhook URL is missing or empty, automatically connect it to this server!
+      const currentHookUrl = webhookInfo?.result?.url || '';
+      if (!currentHookUrl && cfg.token) {
+        try {
+          const autoRes = await callTelegram('setWebhook', {
+            url: expectedWebhook,
+            drop_pending_updates: false,
+            allowed_updates: ['message', 'callback_query']
+          });
+          if (autoRes?.ok) {
+            await callTelegram('setChatMenuButton', {
+              menu_button: {
+                type: 'web_app',
+                text: '🛍️ Open Store',
+                web_app: { url: appUrl }
+              }
+            });
+            webhookInfo = await callTelegram('getWebhookInfo');
+          }
+        } catch (_) {}
+      }
+
       const token = cfg.token || '';
       const maskedToken = token.length > 10 ? `${token.slice(0, 6)}...${token.slice(-4)}` : '***';
       const allUsers = await getAllBotUsers();
@@ -1014,7 +1049,7 @@ export default async function handler(req, res) {
         webhook: webhookInfo?.result || webhookInfo,
         admins: getAdminChatIds(),
         usersCount: allUsers.length,
-        appUrl: getAppUrl(req)
+        appUrl
       });
     } catch (e) {
       return res.status(500).json({ ok: false, error: e.message });

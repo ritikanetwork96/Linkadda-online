@@ -1,7 +1,7 @@
 # Cloudflare Pages Global Security & Performance Headers
 /*
   X-Content-Type-Options: nosniff
-  Content-Security-Policy: frame-ancestors 'self' https://linkadda.online https://www.linkadda.online https://web.telegram.org https://*.telegram.org;
+  Content-Security-Policy: frame-ancestors 'self' https://linkadda-online.onrender.com https://*.onrender.com https://web.telegram.org https://*.telegram.org;
   Referrer-Policy: strict-origin-when-cross-origin
   X-XSS-Protection: 1; mode=block
   Strict-Transport-Security: max-age=31536000; includeSubDomains; preload

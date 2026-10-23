@@ -1,5 +1,5 @@
 // --- LinkAdda Site Integrity Guard ---
-(function(){try{var h=(window.location.hostname||'').toLowerCase(),p=window.location.protocol;var isAllowed=h==='localhost'||h==='127.0.0.1'||h===''||p==='file:'||h==='linkadda.online'||h==='www.linkadda.online'||h.endsWith('.pages.dev')||h.endsWith('.vercel.app')||h.endsWith('.netlify.app')||h.endsWith('.onrender.com');if(!isAllowed){/* Domain guard relaxed during migration */}}catch(_){}})();
+(function(){try{var h=(window.location.hostname||'').toLowerCase(),p=window.location.protocol;var isAllowed=h==='localhost'||h==='127.0.0.1'||h===''||p==='file:'||h==='linkadda-online.onrender.com'||h.endsWith('.pages.dev')||h.endsWith('.vercel.app')||h.endsWith('.netlify.app')||h.endsWith('.onrender.com');if(!isAllowed){/* Domain guard relaxed during migration */}}catch(_){}})();
 // ===== LOADING SCREEN =====
 (function() {
   const wrap    = document.getElementById('loaderWrap');

@@ -532,7 +532,7 @@ export async function saveCustomerName(newName) {
   let user = getCustomerSession();
   if (!user || !user.email) {
     const emailInput = document.getElementById('authEmailInput');
-    const fallbackEmail = currentEmail || (emailInput ? emailInput.value.trim() : '') || 'customer@linkadda.online';
+    const fallbackEmail = currentEmail || (emailInput ? emailInput.value.trim() : '') || 'customer@linkadda-online.onrender.com';
     const computedUid = await getCustomerId(fallbackEmail);
     user = {
       uid: computedUid,

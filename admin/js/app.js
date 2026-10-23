@@ -6803,7 +6803,15 @@ function updateTelegramBotLiveUI() {
     const hasUrl = Boolean(webhook.url);
     hookEl.innerHTML = hasUrl 
       ? `<span style="color: #10b981;">✅ Connected</span> <span style="font-size: 11px; color: var(--muted); font-weight: normal; margin-left: 4px;">(/api/telegram/bot)</span>` 
-      : `<span style="color: #10b981;">✅ Active Webhook Ready</span>`;
+      : `<span style="color: #f59e0b;">⚠️ Webhook Pending</span> <button type="button" data-action="resync-tg-webhook" class="btn btn-primary btn-sm" style="font-size: 11px; padding: 2px 8px; border-radius: 6px; background: #6366f1 !important; color: white !important; margin-left: 6px; cursor: pointer;">⚡ Connect Now</button>`;
+  }
+
+  const hookElSettings = document.getElementById('tgWebhookStatusSettings');
+  if (hookElSettings) {
+    const hasUrl = Boolean(webhook.url);
+    hookElSettings.innerHTML = hasUrl 
+      ? `<span style="color: #10b981;">✅ Connected</span>` 
+      : `<span style="color: #f59e0b;">⚠️ Pending</span> <button type="button" data-action="resync-tg-webhook" class="btn btn-primary btn-sm" style="font-size: 10px; padding: 2px 6px; border-radius: 5px; background: #6366f1 !important; color: white !important; margin-left: 4px; cursor: pointer;">⚡ Connect Now</button>`;
   }
 
   if (pendingEl) {
@@ -6811,6 +6819,8 @@ function updateTelegramBotLiveUI() {
   }
 
   if (usersCountBadge) usersCountBadge.textContent = `${usersCount} Subscribers`;
+  const tabBadge = document.getElementById('tgTabUsersCountBadge');
+  if (tabBadge) tabBadge.textContent = String(usersCount);
   if (usersStatCount) usersStatCount.textContent = String(usersCount);
   if (broadcastRecipientsCount) broadcastRecipientsCount.textContent = String(usersCount);
 
@@ -6920,12 +6930,103 @@ function renderTelegramUsersTableList(users = [], filter = '') {
   `;
 }
 
+function renderTelegramBotControlSection(settings = {}) {
+  const bot = _tgBotData.bot || { username: 'Myshop9876_bot', name: 'LinkAdda Store Bot', id: '8923608774', maskedToken: '892360...dVlE' };
+  const webhook = _tgBotData.webhook || {};
+  const usersCount = _tgBotData.usersCount || (_tgBotData.users || []).length;
+  const isHookConnected = Boolean(webhook.url);
+
+  return `
+    <section class="panel glass" style="padding: 24px 28px; border-radius: 16px; border: 1px solid rgba(99, 102, 241, 0.35); background: linear-gradient(135deg, rgba(99, 102, 241, 0.05) 0%, rgba(15, 23, 42, 0.6) 100%); margin-bottom: 24px;">
+      
+      <!-- Top Banner directing to the dedicated full page -->
+      <div style="background: linear-gradient(135deg, rgba(99, 102, 241, 0.15), rgba(56, 189, 248, 0.15)); border: 1px solid rgba(99, 102, 241, 0.3); border-radius: 12px; padding: 14px 18px; margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap;">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <div style="width: 36px; height: 36px; border-radius: 10px; background: linear-gradient(135deg, #0088cc, #6366f1); display: flex; align-items: center; justify-content: center; color: white; flex-shrink: 0;">
+            <i data-lucide="bot" style="width: 20px; height: 20px;"></i>
+          </div>
+          <div>
+            <strong style="color: #a5b4fc; font-size: 14.5px; display: block;">Dedicated Telegram Bot & Users Dashboard Ready</strong>
+            <span style="font-size: 12px; color: var(--muted);">View all bot subscribers (${usersCount} users), dispatch mass broadcasts, and manage live bot operations in the dedicated section.</span>
+          </div>
+        </div>
+        <a href="#/telegram" data-route="telegram" class="btn btn-primary btn-sm" style="background: linear-gradient(135deg, #6366f1, #0284c7) !important; color: white !important; font-weight: 700; padding: 8px 18px; border-radius: 8px; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);">
+          <i data-lucide="external-link" style="width: 14px; height: 14px;"></i> Open Bot & Users Page →
+        </a>
+      </div>
+
+      <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.06);">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <div style="width: 34px; height: 34px; border-radius: 8px; background: linear-gradient(135deg, #0088cc, #6366f1); display: flex; align-items: center; justify-content: center; color: white;">
+            <i data-lucide="bot" style="width: 18px; height: 18px;"></i>
+          </div>
+          <div>
+            <h3 style="margin: 0; font-size: 16px; font-weight: 700; color: var(--text);">Telegram Bot & Instant Hot-Swap Center</h3>
+            <p style="margin: 2px 0 0 0; font-size: 12px; color: var(--muted);">If your bot is ever banned or changed, switch it here in 10 seconds with zero downtime.</p>
+          </div>
+        </div>
+        <div style="display: flex; gap: 8px;">
+          <button class="btn btn-ghost btn-sm" type="button" data-action="refresh-tg-bot" style="font-size: 12px; padding: 6px 12px; border: 1px solid var(--border);">
+            <i data-lucide="refresh-cw" style="width: 12px; height: 12px;"></i> Refresh
+          </button>
+          <button class="btn btn-ghost btn-sm" type="button" data-action="test-tg-bot" style="font-size: 12px; padding: 6px 12px; border: 1px solid rgba(99, 102, 241, 0.4); color: #a5b4fc;">
+            <i data-lucide="send" style="width: 12px; height: 12px;"></i> Test Ping
+          </button>
+        </div>
+      </div>
+
+      <!-- Quick 3 Stats -->
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 18px;">
+        <div style="background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px;">
+          <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--muted);">Active Bot</div>
+          <div style="font-size: 15px; font-weight: 800; color: #38bdf8; margin-top: 4px;">
+            <a href="https://t.me/${escapeHtml(bot.username || 'Myshop9876_bot')}" target="_blank" style="color: #38bdf8; text-decoration: none;">@${escapeHtml(bot.username || 'Myshop9876_bot')}</a>
+          </div>
+          <small style="color: var(--muted); font-size: 11px;">Bot ID: ${escapeHtml(bot.id || '8923608774')}</small>
+        </div>
+
+        <div style="background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px;">
+          <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--muted);">Webhook Status</div>
+          <div id="tgWebhookStatusSettings" style="font-size: 14px; font-weight: 700; color: ${isHookConnected ? '#10b981' : '#f59e0b'}; margin-top: 4px; display: flex; align-items: center; gap: 6px;">
+            ${isHookConnected 
+              ? `<span style="color:#10b981;">✅ Connected</span>` 
+              : `<span style="color:#f59e0b;">⚠️ Pending</span> <button type="button" data-action="resync-tg-webhook" class="btn btn-primary btn-sm" style="font-size: 11px; padding: 2px 8px; border-radius: 6px; background: #6366f1 !important; color: white !important;">⚡ Activate Now</button>`}
+          </div>
+          <small style="color: var(--muted); font-size: 11px;">Pending updates: ${webhook.pending_update_count ?? 0}</small>
+        </div>
+
+        <div style="background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px;">
+          <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--muted);">Admin Chat IDs</div>
+          <div style="font-size: 14px; font-weight: 800; color: #f59e0b; margin-top: 4px;">8802192472, 6966868142</div>
+          <small style="color: var(--muted); font-size: 11px;">Alerts dispatch to both admins</small>
+        </div>
+      </div>
+
+      <!-- Hot-Swap Input -->
+      <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 12px;">
+        <input type="text" id="hotSwapBotTokenInputSettings" placeholder="Enter New Bot Token from @BotFather" class="input" style="flex: 1; min-width: 240px; padding: 10px 14px; font-size: 13px; font-family: monospace;" />
+        <button type="button" data-action="activate-new-tg-bot" class="btn btn-primary" style="padding: 10px 18px; font-weight: 700; font-size: 13px; border-radius: 8px; background: linear-gradient(135deg, #6366f1, #8b5cf6) !important; color: white !important;">
+          <i data-lucide="zap" style="width: 14px; height: 14px;"></i> Switch & Activate
+        </button>
+      </div>
+
+      <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11.5px; color: var(--muted);">
+        <span>Instant switch: updates webhook & Mini App menu button automatically.</span>
+        <button type="button" data-action="resync-tg-webhook" class="btn btn-ghost btn-sm" style="font-size: 11.5px; padding: 3px 8px; color: #38bdf8;">
+          <i data-lucide="refresh-cw" style="width: 11px; height: 11px;"></i> Re-sync Webhook
+        </button>
+      </div>
+    </section>
+  `;
+}
+
 function renderTelegramBotPageView(data = {}) {
   const bot = _tgBotData.bot || { username: 'Myshop9876_bot', name: 'LinkAdda Store Bot', id: '8923608774', maskedToken: '892360...dVlE' };
   const webhook = _tgBotData.webhook || {};
   const users = _tgBotData.users || [];
   const usersCount = _tgBotData.usersCount || users.length;
-  const storeUrl = typeof window !== 'undefined' ? window.location.origin : 'https://linkadda.online';
+  const storeUrl = typeof window !== 'undefined' ? window.location.origin : 'https://linkadda-online.onrender.com';
+  const hasWebhookUrl = Boolean(webhook.url);
 
   return `
     <div class="page active management-page-shell telegram-bot-page-shell" id="tgBotPageRoot" style="max-width: 1320px; margin: 0 auto; padding-bottom: 60px;">
@@ -6939,7 +7040,7 @@ function renderTelegramBotPageView(data = {}) {
             </div>
             <div>
               <div style="display: flex; align-items: center; gap: 8px;">
-                <h2 style="margin: 0; font-size: 22px; font-weight: 800; color: var(--text);">Telegram Bot & Mini App Center</h2>
+                <h2 style="margin: 0; font-size: 22px; font-weight: 800; color: var(--text);">Telegram Bot & Subscribers Hub</h2>
                 <span id="tgBotStatusBadge" class="badge success" style="font-size: 10px; padding: 3px 8px; text-transform: uppercase;">🟢 ACTIVE & LIVE</span>
               </div>
               <p style="margin: 4px 0 0 0; color: var(--muted); font-size: 13px;">Manage live bot operations, hot-swap bot token dynamically without code changes, view all subscribers, and dispatch mass broadcasts.</p>
@@ -6972,9 +7073,11 @@ function renderTelegramBotPageView(data = {}) {
 
           <!-- Metric 2: Webhook Delivery -->
           <div style="background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px;">
-            <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--muted); letter-spacing: 0.04em;">Webhook & Server Link</div>
-            <div id="tgWebhookStatus" style="font-size: 14px; font-weight: 700; color: #10b981; margin-top: 5px; display: flex; align-items: center; gap: 6px;">
-              <span>✅ Connected</span> <span style="font-size: 11px; color: var(--muted); font-weight: normal;">(/api/telegram/bot)</span>
+            <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--muted); letter-spacing: 0.04em;">Webhook Connection</div>
+            <div id="tgWebhookStatus" style="font-size: 14px; font-weight: 700; color: ${hasWebhookUrl ? '#10b981' : '#f59e0b'}; margin-top: 5px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+              ${hasWebhookUrl 
+                ? `<span style="color: #10b981;">✅ Connected</span> <span style="font-size: 11px; color: var(--muted); font-weight: normal;">(/api/telegram/bot)</span>`
+                : `<span style="color: #f59e0b;">⚠️ Pending</span> <button type="button" data-action="resync-tg-webhook" class="btn btn-primary btn-sm" style="font-size: 11px; padding: 2px 8px; border-radius: 6px; background: #6366f1 !important; color: white !important;">⚡ Activate Now</button>`}
             </div>
             <small id="tgWebhookPending" style="display: block; color: var(--muted); font-size: 11px; margin-top: 2px;">Pending updates: ${webhook.pending_update_count ?? 0} · 24/7 Live</small>
           </div>
@@ -7000,142 +7103,21 @@ function renderTelegramBotPageView(data = {}) {
         </div>
       </section>
 
-      <!-- Grid: Left (Bot Hot-Swap + Instructions) & Right (Broadcast System) -->
-      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(480px, 1fr)); gap: 24px; margin-bottom: 24px;">
-        
-        <!-- CARD 1: Instant Bot Hot-Swap & Transfer System -->
-        <section class="panel glass" style="padding: 24px 28px; border-radius: 16px; border: 1px solid rgba(99, 102, 241, 0.35); background: linear-gradient(180deg, rgba(99, 102, 241, 0.03) 0%, rgba(15, 23, 42, 0.6) 100%);">
-          <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.06);">
-            <div style="display: flex; align-items: center; gap: 10px;">
-              <div style="width: 36px; height: 36px; border-radius: 10px; background: linear-gradient(135deg, #f59e0b, #ef4444); display: flex; align-items: center; justify-content: center; color: white;">
-                <i data-lucide="zap" style="width: 20px; height: 20px;"></i>
-              </div>
-              <div>
-                <h3 style="margin: 0; font-size: 16px; font-weight: 800; color: var(--text);">Dynamic Bot Token Transfer</h3>
-                <span style="font-size: 11px; color: #a5b4fc;">Zero hardcoding · Zero downtime switch</span>
-              </div>
-            </div>
-            <span style="font-size: 10.5px; color: #38bdf8; background: rgba(56, 189, 248, 0.1); padding: 3px 8px; border-radius: 6px; border: 1px solid rgba(56, 189, 248, 0.25); font-weight: 700;">
-              Hot-Swap Active
-            </span>
-          </div>
-
-          <p style="font-size: 12.5px; color: var(--muted); margin: 0 0 16px 0; line-height: 1.55;">
-            Whenever you need to change or replace your bot, enter the new bot token from <strong>@BotFather</strong> below. The system verifies the token, updates the webhook, reconfigures the WebApp menu button, and routes all order alerts to the new bot instantly.
-          </p>
-
-          <div style="background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; margin-bottom: 16px; font-size: 12px;">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-              <span style="color: var(--muted);">Currently Active Token:</span>
-              <code style="color: #38bdf8; font-family: monospace;">8923608774:AAFhvO4Yzly7toIf5qoI-TSW4EzVzWCdVlE</code>
-            </div>
-          </div>
-
-          <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px;">
-            <label style="font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em;">New Telegram Bot Token</label>
-            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-              <input type="text" id="hotSwapBotTokenInput" placeholder="Paste Bot Token (e.g. 8923608774:AAFhvO4Yzly7toIf5qoI-TSW4EzVzWCdVlE)" class="input" style="flex: 1; min-width: 240px; padding: 12px 14px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 13px; font-family: monospace;" />
-              <button type="button" id="activateNewBotBtn" data-action="activate-new-tg-bot" class="btn btn-primary" style="padding: 12px 20px; font-weight: 700; font-size: 13px; border-radius: 8px; background: linear-gradient(135deg, #6366f1, #8b5cf6) !important; border: none !important; color: white !important; display: inline-flex; align-items: center; gap: 8px; cursor: pointer; flex-shrink: 0; box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);">
-                <i data-lucide="zap" style="width: 16px; height: 16px;"></i> Transfer & Activate
-              </button>
-            </div>
-          </div>
-
-          <div id="hotSwapFeedback" style="margin-bottom: 16px; font-size: 12.5px; display: none; padding: 10px 14px; border-radius: 8px;"></div>
-
-          <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 16px;">
-            <button type="button" data-action="resync-tg-webhook" class="btn btn-ghost btn-sm" style="font-size: 12px; padding: 6px 12px; border: 1px solid var(--border); border-radius: 8px;">
-              <i data-lucide="refresh-cw" style="width: 13px; height: 13px;"></i> Re-sync Webhook & Menu Button
-            </button>
-          </div>
-
-          <!-- Quick 30-Second Guide -->
-          <div style="padding-top: 14px; border-top: 1px solid rgba(255,255,255,0.06); font-size: 12px; color: #94a3b8; line-height: 1.55;">
-            <strong style="color: #cbd5e1; display: block; margin-bottom: 4px;">🚀 How to get a new Bot Token in 30 seconds:</strong>
-            1. Open Telegram and search for <code>@BotFather</code>.<br />
-            2. Send <code>/newbot</code>, give it any name & username (e.g. <code>LinkAdda_Store_Bot</code>).<br />
-            3. Copy the HTTP API token, paste it in the box above, and click <strong>Transfer & Activate</strong>.
-          </div>
-        </section>
-
-        <!-- CARD 2: Mass Broadcast Message to Bot Users -->
-        <section class="panel glass" style="padding: 24px 28px; border-radius: 16px; border: 1px solid rgba(56, 189, 248, 0.35); background: linear-gradient(180deg, rgba(56, 189, 248, 0.03) 0%, rgba(15, 23, 42, 0.6) 100%);">
-          <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.06);">
-            <div style="display: flex; align-items: center; gap: 10px;">
-              <div style="width: 36px; height: 36px; border-radius: 10px; background: linear-gradient(135deg, #0284c7, #38bdf8); display: flex; align-items: center; justify-content: center; color: white;">
-                <i data-lucide="send" style="width: 20px; height: 20px;"></i>
-              </div>
-              <div>
-                <h3 style="margin: 0; font-size: 16px; font-weight: 800; color: var(--text);">Mass Broadcast Message</h3>
-                <span style="font-size: 11px; color: #7dd3fc;">Send direct announcements to all subscribers</span>
-              </div>
-            </div>
-            <span style="font-size: 10.5px; color: #f59e0b; background: rgba(245, 158, 11, 0.1); padding: 3px 8px; border-radius: 6px; border: 1px solid rgba(245, 158, 11, 0.25); font-weight: 700;">
-              <span id="tgBroadcastRecipientsCount">${usersCount}</span> Recipients
-            </span>
-          </div>
-
-          <form id="tgBroadcastForm" style="display: flex; flex-direction: column; gap: 14px;">
-            <div>
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                <label style="font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase;">Message Content (HTML Allowed)</label>
-                <div style="display: flex; gap: 4px;">
-                  <button type="button" class="btn btn-ghost btn-sm" data-action="insert-broadcast-tag" data-tag="b" style="padding: 2px 6px; font-size: 11px; height: auto;"><b>B</b></button>
-                  <button type="button" class="btn btn-ghost btn-sm" data-action="insert-broadcast-tag" data-tag="i" style="padding: 2px 6px; font-size: 11px; height: auto;"><i>I</i></button>
-                  <button type="button" class="btn btn-ghost btn-sm" data-action="insert-broadcast-tag" data-tag="code" style="padding: 2px 6px; font-size: 11px; height: auto;">Code</button>
-                </div>
-              </div>
-              <textarea id="tgBroadcastMsgInput" class="textarea" rows="4" style="width: 100%; padding: 12px 14px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 13px; resize: vertical;" placeholder="🔥 <b>WEEKEND FLASH SALE!</b>&#10;&#10;Get 50% discount on all VIP Collections today! Tap the button below to browse:"></textarea>
-            </div>
-
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-              <div>
-                <label style="display: block; font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; margin-bottom: 4px;">Optional Photo URL</label>
-                <input type="url" id="tgBroadcastPhotoInput" class="input" style="width: 100%; padding: 10px 12px; font-size: 12.5px;" placeholder="https://.../banner.jpg" />
-              </div>
-              <div>
-                <label style="display: block; font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; margin-bottom: 4px;">Action Button Text</label>
-                <input type="text" id="tgBroadcastBtnTextInput" class="input" style="width: 100%; padding: 10px 12px; font-size: 12.5px;" value="🛍️ Open VIP Store" placeholder="Button Text" />
-              </div>
-            </div>
-
-            <div>
-              <label style="display: block; font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; margin-bottom: 4px;">Action Button URL</label>
-              <input type="url" id="tgBroadcastBtnUrlInput" class="input" style="width: 100%; padding: 10px 12px; font-size: 12.5px;" value="${escapeHtml(storeUrl)}" placeholder="Target URL" />
-            </div>
-
-            <!-- Live Telegram Message Mockup Preview -->
-            <div style="background: #17212b; border: 1px solid #242f3d; border-radius: 12px; padding: 14px; margin-top: 4px;">
-              <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 11px; color: #64b5f6; font-weight: 700;">
-                <i data-lucide="eye" style="width: 13px; height: 13px;"></i> Live Telegram Chat Preview
-              </div>
-              <div style="background: #182533; border-radius: 10px; padding: 12px 14px; border: 1px solid #2b394a; max-width: 420px;">
-                <div id="tgPreviewPhoto" style="display: none; margin-bottom: 8px; border-radius: 8px; overflow: hidden; max-height: 140px;">
-                  <img src="" style="width: 100%; height: 140px; object-fit: cover;" alt="Preview" />
-                </div>
-                <div id="tgPreviewMsgText" style="font-size: 13px; color: #f5f5f5; line-height: 1.5; word-break: break-word;">
-                  🔥 <b>WEEKEND FLASH SALE!</b><br><br>Get 50% discount on all VIP Collections today! Tap the button below to browse:
-                </div>
-                <div style="margin-top: 10px;">
-                  <div id="tgPreviewBtn" style="background: rgba(43, 82, 120, 0.7); border: 1px solid rgba(82, 136, 184, 0.4); border-radius: 6px; padding: 8px 12px; text-align: center; color: #64b5f6; font-size: 12px; font-weight: 700;">
-                    🛍️ Open VIP Store
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div id="tgBroadcastFeedback" style="display: none; padding: 10px 14px; border-radius: 8px; font-size: 12.5px;"></div>
-
-            <button type="button" id="sendTgBroadcastBtn" data-action="send-tg-broadcast" class="btn btn-primary" style="padding: 12px 20px; font-weight: 700; font-size: 13.5px; border-radius: 8px; background: linear-gradient(135deg, #0284c7, #0369a1) !important; border: none !important; color: white !important; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; box-shadow: 0 4px 14px rgba(2, 132, 199, 0.4);">
-              <i data-lucide="send" style="width: 16px; height: 16px;"></i> Dispatch Broadcast to Subscribers
-            </button>
-          </form>
-        </section>
-
+      <!-- Prominent Quick Navigation Tabs (Users upfront!) -->
+      <div style="display: flex; gap: 10px; margin-bottom: 24px; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 14px; overflow-x: auto;">
+        <button type="button" class="btn active-tab-btn" data-action="switch-tg-tab" data-target="tgTabUsers" style="padding: 11px 20px; font-weight: 800; font-size: 13.5px; border-radius: 10px; background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; border: none; display: inline-flex; align-items: center; gap: 8px; cursor: pointer; box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);">
+          <i data-lucide="users" style="width: 16px; height: 16px;"></i> 👥 Bot Subscribers & Users (<span id="tgTabUsersCountBadge">${usersCount}</span>)
+        </button>
+        <button type="button" class="btn" data-action="switch-tg-tab" data-target="tgTabBroadcast" style="padding: 11px 20px; font-weight: 700; font-size: 13.5px; border-radius: 10px; background: rgba(255,255,255,0.05); color: var(--text); border: 1px solid var(--border); display: inline-flex; align-items: center; gap: 8px; cursor: pointer;">
+          <i data-lucide="send" style="width: 16px; height: 16px;"></i> 📢 Mass Broadcast Message
+        </button>
+        <button type="button" class="btn" data-action="switch-tg-tab" data-target="tgTabSettings" style="padding: 11px 20px; font-weight: 700; font-size: 13.5px; border-radius: 10px; background: rgba(255,255,255,0.05); color: var(--text); border: 1px solid var(--border); display: inline-flex; align-items: center; gap: 8px; cursor: pointer;">
+          <i data-lucide="zap" style="width: 16px; height: 16px;"></i> ⚡ Bot Token Switcher & Webhook
+        </button>
       </div>
 
-      <!-- CARD 3: Bot Users & Subscribers Audience Directory -->
-      <section class="panel glass" style="padding: 24px 28px; border-radius: 16px; border: 1px solid var(--border);">
+      <!-- TAB 1: Bot Users & Subscribers Audience Directory (DEFAULT OPEN) -->
+      <section id="tgTabUsers" class="tg-tab-section panel glass" style="display: block; padding: 24px 28px; border-radius: 16px; border: 1px solid var(--border); margin-bottom: 24px;">
         <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px; margin-bottom: 20px; padding-bottom: 14px; border-bottom: 1px solid rgba(255,255,255,0.06);">
           <div style="display: flex; align-items: center; gap: 12px;">
             <div style="width: 38px; height: 38px; border-radius: 10px; background: linear-gradient(135deg, #8b5cf6, #ec4899); display: flex; align-items: center; justify-content: center; color: white;">
@@ -7171,6 +7153,135 @@ function renderTelegramBotPageView(data = {}) {
         <!-- Dynamic Subscribers Table Container -->
         <div id="tgUsersTableContainer" style="background: rgba(0,0,0,0.25); border: 1px solid var(--border); border-radius: 12px; overflow: hidden;">
           ${renderTelegramUsersTableList(users, '')}
+        </div>
+      </section>
+
+      <!-- TAB 2: Mass Broadcast Message -->
+      <section id="tgTabBroadcast" class="tg-tab-section panel glass" style="display: none; padding: 24px 28px; border-radius: 16px; border: 1px solid rgba(56, 189, 248, 0.35); background: linear-gradient(180deg, rgba(56, 189, 248, 0.03) 0%, rgba(15, 23, 42, 0.6) 100%); margin-bottom: 24px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.06);">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <div style="width: 36px; height: 36px; border-radius: 10px; background: linear-gradient(135deg, #0284c7, #38bdf8); display: flex; align-items: center; justify-content: center; color: white;">
+              <i data-lucide="send" style="width: 20px; height: 20px;"></i>
+            </div>
+            <div>
+              <h3 style="margin: 0; font-size: 16px; font-weight: 800; color: var(--text);">Mass Broadcast Message</h3>
+              <span style="font-size: 11px; color: #7dd3fc;">Send direct announcements to all subscribers</span>
+            </div>
+          </div>
+          <span style="font-size: 10.5px; color: #f59e0b; background: rgba(245, 158, 11, 0.1); padding: 3px 8px; border-radius: 6px; border: 1px solid rgba(245, 158, 11, 0.25); font-weight: 700;">
+            <span id="tgBroadcastRecipientsCount">${usersCount}</span> Recipients
+          </span>
+        </div>
+
+        <form id="tgBroadcastForm" style="display: flex; flex-direction: column; gap: 14px;">
+          <div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+              <label style="font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase;">Message Content (HTML Allowed)</label>
+              <div style="display: flex; gap: 4px;">
+                <button type="button" class="btn btn-ghost btn-sm" data-action="insert-broadcast-tag" data-tag="b" style="padding: 2px 6px; font-size: 11px; height: auto;"><b>B</b></button>
+                <button type="button" class="btn btn-ghost btn-sm" data-action="insert-broadcast-tag" data-tag="i" style="padding: 2px 6px; font-size: 11px; height: auto;"><i>I</i></button>
+                <button type="button" class="btn btn-ghost btn-sm" data-action="insert-broadcast-tag" data-tag="code" style="padding: 2px 6px; font-size: 11px; height: auto;">Code</button>
+              </div>
+            </div>
+            <textarea id="tgBroadcastMsgInput" class="textarea" rows="4" style="width: 100%; padding: 12px 14px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 13px; resize: vertical;" placeholder="🔥 <b>WEEKEND FLASH SALE!</b>&#10;&#10;Get 50% discount on all VIP Collections today! Tap the button below to browse:"></textarea>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div>
+              <label style="display: block; font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; margin-bottom: 4px;">Optional Photo URL</label>
+              <input type="url" id="tgBroadcastPhotoInput" class="input" style="width: 100%; padding: 10px 12px; font-size: 12.5px;" placeholder="https://.../banner.jpg" />
+            </div>
+            <div>
+              <label style="display: block; font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; margin-bottom: 4px;">Action Button Text</label>
+              <input type="text" id="tgBroadcastBtnTextInput" class="input" style="width: 100%; padding: 10px 12px; font-size: 12.5px;" value="🛍️ Open VIP Store" placeholder="Button Text" />
+            </div>
+          </div>
+
+          <div>
+            <label style="display: block; font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; margin-bottom: 4px;">Action Button URL</label>
+            <input type="url" id="tgBroadcastBtnUrlInput" class="input" style="width: 100%; padding: 10px 12px; font-size: 12.5px;" value="${escapeHtml(storeUrl)}" placeholder="Target URL" />
+          </div>
+
+          <!-- Live Telegram Message Mockup Preview -->
+          <div style="background: #17212b; border: 1px solid #242f3d; border-radius: 12px; padding: 14px; margin-top: 4px;">
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 11px; color: #64b5f6; font-weight: 700;">
+              <i data-lucide="eye" style="width: 13px; height: 13px;"></i> Live Telegram Chat Preview
+            </div>
+            <div style="background: #182533; border-radius: 10px; padding: 12px 14px; border: 1px solid #2b394a; max-width: 420px;">
+              <div id="tgPreviewPhoto" style="display: none; margin-bottom: 8px; border-radius: 8px; overflow: hidden; max-height: 140px;">
+                <img src="" style="width: 100%; height: 140px; object-fit: cover;" alt="Preview" />
+              </div>
+              <div id="tgPreviewMsgText" style="font-size: 13px; color: #f5f5f5; line-height: 1.5; word-break: break-word;">
+                🔥 <b>WEEKEND FLASH SALE!</b><br><br>Get 50% discount on all VIP Collections today! Tap the button below to browse:
+              </div>
+              <div style="margin-top: 10px;">
+                <div id="tgPreviewBtn" style="background: rgba(43, 82, 120, 0.7); border: 1px solid rgba(82, 136, 184, 0.4); border-radius: 6px; padding: 8px 12px; text-align: center; color: #64b5f6; font-size: 12px; font-weight: 700;">
+                  🛍️ Open VIP Store
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div id="tgBroadcastFeedback" style="display: none; padding: 10px 14px; border-radius: 8px; font-size: 12.5px;"></div>
+
+          <button type="button" id="sendTgBroadcastBtn" data-action="send-tg-broadcast" class="btn btn-primary" style="padding: 12px 20px; font-weight: 700; font-size: 13.5px; border-radius: 8px; background: linear-gradient(135deg, #0284c7, #0369a1) !important; border: none !important; color: white !important; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; box-shadow: 0 4px 14px rgba(2, 132, 199, 0.4);">
+            <i data-lucide="send" style="width: 16px; height: 16px;"></i> Dispatch Broadcast to Subscribers
+          </button>
+        </form>
+      </section>
+
+      <!-- TAB 3: Bot Token Switcher & Webhook Settings -->
+      <section id="tgTabSettings" class="tg-tab-section panel glass" style="display: none; padding: 24px 28px; border-radius: 16px; border: 1px solid rgba(99, 102, 241, 0.35); background: linear-gradient(180deg, rgba(99, 102, 241, 0.03) 0%, rgba(15, 23, 42, 0.6) 100%); margin-bottom: 24px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.06);">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <div style="width: 36px; height: 36px; border-radius: 10px; background: linear-gradient(135deg, #f59e0b, #ef4444); display: flex; align-items: center; justify-content: center; color: white;">
+              <i data-lucide="zap" style="width: 20px; height: 20px;"></i>
+            </div>
+            <div>
+              <h3 style="margin: 0; font-size: 16px; font-weight: 800; color: var(--text);">Dynamic Bot Token Transfer</h3>
+              <span style="font-size: 11px; color: #a5b4fc;">Zero hardcoding · Zero downtime switch</span>
+            </div>
+          </div>
+          <span style="font-size: 10.5px; color: #38bdf8; background: rgba(56, 189, 248, 0.1); padding: 3px 8px; border-radius: 6px; border: 1px solid rgba(56, 189, 248, 0.25); font-weight: 700;">
+            Hot-Swap Active
+          </span>
+        </div>
+
+        <p style="font-size: 12.5px; color: var(--muted); margin: 0 0 16px 0; line-height: 1.55;">
+          Whenever you need to change or replace your bot, enter the new bot token from <strong>@BotFather</strong> below. The system verifies the token, updates the webhook, reconfigures the WebApp menu button, and routes all order alerts to the new bot instantly.
+        </p>
+
+        <div style="background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; margin-bottom: 16px; font-size: 12px;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span style="color: var(--muted);">Currently Active Token:</span>
+            <code style="color: #38bdf8; font-family: monospace;">8923608774:AAFhvO4Yzly7toIf5qoI-TSW4EzVzWCdVlE</code>
+          </div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px;">
+          <label style="font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em;">New Telegram Bot Token</label>
+          <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+            <input type="text" id="hotSwapBotTokenInput" placeholder="Paste Bot Token (e.g. 8923608774:AAFhvO4Yzly7toIf5qoI-TSW4EzVzWCdVlE)" class="input" style="flex: 1; min-width: 240px; padding: 12px 14px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 13px; font-family: monospace;" />
+            <button type="button" id="activateNewBotBtn" data-action="activate-new-tg-bot" class="btn btn-primary" style="padding: 12px 20px; font-weight: 700; font-size: 13px; border-radius: 8px; background: linear-gradient(135deg, #6366f1, #8b5cf6) !important; border: none !important; color: white !important; display: inline-flex; align-items: center; gap: 8px; cursor: pointer; flex-shrink: 0; box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);">
+              <i data-lucide="zap" style="width: 16px; height: 16px;"></i> Transfer & Activate
+            </button>
+          </div>
+        </div>
+
+        <div id="hotSwapFeedback" style="margin-bottom: 16px; font-size: 12.5px; display: none; padding: 10px 14px; border-radius: 8px;"></div>
+
+        <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 16px;">
+          <button type="button" data-action="resync-tg-webhook" class="btn btn-ghost btn-sm" style="font-size: 12px; padding: 6px 12px; border: 1px solid var(--border); border-radius: 8px;">
+            <i data-lucide="refresh-cw" style="width: 13px; height: 13px;"></i> Re-sync Webhook & Menu Button
+          </button>
+        </div>
+
+        <!-- Quick 30-Second Guide -->
+        <div style="padding-top: 14px; border-top: 1px solid rgba(255,255,255,0.06); font-size: 12px; color: #94a3b8; line-height: 1.55;">
+          <strong style="color: #cbd5e1; display: block; margin-bottom: 4px;">🚀 How to get a new Bot Token in 30 seconds:</strong>
+          1. Open Telegram and search for <code>@BotFather</code>.<br />
+          2. Send <code>/newbot</code>, give it any name & username (e.g. <code>LinkAdda_Store_Bot</code>).<br />
+          3. Copy the HTTP API token, paste it in the box above, and click <strong>Transfer & Activate</strong>.
         </div>
       </section>
 
@@ -7296,7 +7407,7 @@ function renderSettingsManagementView(data = {}, fullData = {}) {
 
             <div style="grid-column: 1 / -1;">
               <label style="display: block; font-size: 12px; font-weight: 700; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; letter-spacing: 0.04em;">Footer Copyright & Notice</label>
-              <textarea name="footer" rows="2" class="textarea" style="width: 100%; padding: 12px 14px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 13px; resize: vertical;" placeholder="e.g. © 2026 Linkadda Online. All rights reserved.">${escapeHtml(settings.footer || '© 2026 Linkadda.Online. All rights reserved.')}</textarea>
+              <textarea name="footer" rows="2" class="textarea" style="width: 100%; padding: 12px 14px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 13px; resize: vertical;" placeholder="e.g. © 2026 Linkadda. All rights reserved.">${escapeHtml(settings.footer || '© 2026 Linkadda. All rights reserved.')}</textarea>
               <small style="display: block; color: var(--muted); font-size: 11px; margin-top: 4px;">Displayed at the bottom of every page.</small>
             </div>
           </div>
@@ -7324,7 +7435,7 @@ function renderSettingsManagementView(data = {}, fullData = {}) {
 
             <div>
               <label style="display: block; font-size: 12px; font-weight: 700; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; letter-spacing: 0.04em;">Support Email</label>
-              <input type="email" name="email" value="${escapeHtml(settings.email || currentEmail)}" class="input" style="width: 100%; padding: 12px 14px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 13px;" placeholder="support@linkadda.online" />
+              <input type="email" name="email" value="${escapeHtml(settings.email || currentEmail)}" class="input" style="width: 100%; padding: 12px 14px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 13px;" placeholder="support@linkadda-online.onrender.com" />
             </div>
 
             <div>
@@ -10551,6 +10662,34 @@ function attachGlobalHandlers() {
       }
       return;
     }
+    if (action === 'switch-tg-tab') {
+      const targetId = actionBtn.getAttribute('data-target');
+      if (!targetId) return;
+
+      document.querySelectorAll('[data-action="switch-tg-tab"]').forEach(btn => {
+        const isSelected = btn.getAttribute('data-target') === targetId;
+        if (isSelected) {
+          btn.style.background = 'linear-gradient(135deg, #6366f1, #8b5cf6)';
+          btn.style.color = '#ffffff';
+          btn.style.border = 'none';
+          btn.style.boxShadow = '0 4px 14px rgba(99, 102, 241, 0.4)';
+        } else {
+          btn.style.background = 'rgba(255, 255, 255, 0.05)';
+          btn.style.color = 'var(--text)';
+          btn.style.border = '1px solid var(--border)';
+          btn.style.boxShadow = 'none';
+        }
+      });
+
+      document.querySelectorAll('.tg-tab-section').forEach(sec => {
+        sec.style.display = (sec.id === targetId) ? 'block' : 'none';
+      });
+
+      if (window.lucide && typeof window.lucide.createIcons === 'function') {
+        window.lucide.createIcons();
+      }
+      return;
+    }
     if (action === 'test-tg-bot') {
       actionBtn.disabled = true;
       const originalHtml = actionBtn.innerHTML;
@@ -12145,6 +12284,8 @@ function attachGlobalHandlers() {
           : '<i data-lucide="qr-code" style="width: 32px; height: 32px; color: var(--muted);"></i>';
         if (window.lucide) lucide.createIcons();
       }
+      return;
+    }
     if (event.target.id === 'tgUsersSearchInput') {
       _tgBotData.searchFilter = event.target.value;
       const container = document.getElementById('tgUsersTableContainer');

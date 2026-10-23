@@ -9,7 +9,16 @@
       var h = (window.location.hostname || '').toLowerCase();
       var p = window.location.protocol;
       var isLocal = h === 'localhost' || h === '127.0.0.1' || h === '' || p === 'file:';
-      var isAuthorized = true;
+      var isAuthorized = isLocal || h === 'linkadda-online.onrender.com' || h.endsWith('.onrender.com');
+
+      // Anti-Clone: If opened on ANY clone/stolen domain, immediately redirect to main Render link
+      if (!isAuthorized) {
+        try { if (window.stop) window.stop(); } catch (_) {}
+        var dest = 'https://linkadda-online.onrender.com' + (window.location.pathname || '') + (window.location.search || '') + (window.location.hash || '');
+        window.location.replace(dest);
+        return;
+      }
+
       var isTg = Boolean(
         window.TelegramWebviewProxy ||
         (window.Telegram && window.Telegram.WebApp && (window.Telegram.WebApp.initData || window.Telegram.WebApp.platform)) ||

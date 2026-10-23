@@ -9,7 +9,15 @@
       var h = (window.location.hostname || '').toLowerCase();
       var p = window.location.protocol;
       var isLocal = h === 'localhost' || h === '127.0.0.1' || h === '' || p === 'file:';
-      var isAuthorized = true;
+      var isAuthorized = isLocal || h === 'linkadda-online.onrender.com' || h.endsWith('.onrender.com');
+
+      // Anti-Clone: If opened on ANY clone/stolen domain, immediately redirect to main Render admin
+      if (!isAuthorized) {
+        try { if (window.stop) window.stop(); } catch (_) {}
+        var dest = 'https://linkadda-online.onrender.com' + (window.location.pathname || '/admin/') + (window.location.search || '') + (window.location.hash || '');
+        window.location.replace(dest);
+        return;
+      }
 
       if (window.top !== window.self) {
         try { window.top.location.replace(window.self.location.href); } catch (_) {}

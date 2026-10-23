@@ -294,7 +294,7 @@ function getStoredSession() {
 const currentSession = getStoredSession();
 
 export const auth = {
-  currentUser: currentSession ? { email: currentSession.email || 'admin@linkadda.online', uid: 'admin_user', getIdToken: async () => 'admin_token' } : null
+  currentUser: currentSession ? { email: currentSession.email || 'admin@linkadda-online.onrender.com', uid: 'admin_user', getIdToken: async () => 'admin_token' } : null
 };
 
 const authListeners = new Set();
