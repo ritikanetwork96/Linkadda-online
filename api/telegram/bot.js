@@ -60,7 +60,9 @@ function readBotStore() {
       lastActivatedAt: new Date().toISOString()
     },
     admins: DEFAULT_ADMIN_IDS,
-    users: {}
+    users: {},
+    pendingDeletions: {},
+    orderLinks: {}
   };
 }
 
@@ -338,7 +340,166 @@ export async function getAllBotUsers() {
 }
 
 /**
- * Schedule automated Telegram message self-destruction / deletion (e.g. 2 minutes = 120s)
+ * ── SMART 2-MINUTE READ / 3-HOUR SAFETY AUTO-DELETE ENGINE ──────────────────────
+ */
+
+/**
+ * Register a message in the persistent pendingDeletions queue
+ * Default TTL: 3 Hours (10800 seconds) if unread.
+ */
+export function queueMessageForDeletion(chatId, messageId, meta = {}) {
+  if (!chatId || !messageId) return;
+  try {
+    const store = readBotStore();
+    if (!store.pendingDeletions) store.pendingDeletions = {};
+
+    const key = `${chatId}_${messageId}`;
+    const now = Date.now();
+    const maxTtlMs = 3 * 60 * 60 * 1000; // 3 hours
+
+    store.pendingDeletions[key] = {
+      chatId: String(chatId),
+      messageId: Number(messageId),
+      orderId: meta.orderId ? String(meta.orderId) : null,
+      productTitle: meta.productTitle || '',
+      sentAt: now,
+      deleteAt: now + maxTtlMs, // 3 hours from now if unread
+      status: 'unread',
+      readAt: null
+    };
+
+    writeBotStore(store);
+
+    // Schedule check in memory
+    setTimeout(() => {
+      checkAndExecuteSingleDeletion(key).catch(() => {});
+    }, maxTtlMs);
+  } catch (err) {
+    console.warn('queueMessageForDeletion error:', err.message);
+  }
+}
+
+/**
+ * Triggered when user reads/views the message or becomes active in the chat
+ * Switches delete timer to exactly 2 Minutes (120 seconds)!
+ */
+export function markUserMessagesAsRead(chatId, specificOrderId = null) {
+  if (!chatId) return [];
+  try {
+    const store = readBotStore();
+    if (!store.pendingDeletions) return [];
+
+    const now = Date.now();
+    const twoMinutesMs = 2 * 60 * 1000; // 2 minutes (120s)
+    const modifiedKeys = [];
+
+    for (const [key, item] of Object.entries(store.pendingDeletions)) {
+      if (String(item.chatId) === String(chatId)) {
+        if (specificOrderId && item.orderId && String(item.orderId) !== String(specificOrderId)) {
+          continue;
+        }
+        if (item.status === 'unread') {
+          item.status = 'read';
+          item.readAt = now;
+          // Set to expire exactly 2 minutes from the moment of read
+          item.deleteAt = now + twoMinutesMs;
+          modifiedKeys.push(key);
+
+          // Direct timer for 120 seconds
+          setTimeout(() => {
+            checkAndExecuteSingleDeletion(key).catch(() => {});
+          }, twoMinutesMs);
+        }
+      }
+    }
+
+    if (modifiedKeys.length > 0) {
+      writeBotStore(store);
+      console.log(`[Auto-Delete] Marked ${modifiedKeys.length} messages as READ for user ${chatId}. Auto-delete in 2 minutes.`);
+    }
+
+    return modifiedKeys;
+  } catch (err) {
+    console.warn('markUserMessagesAsRead error:', err.message);
+    return [];
+  }
+}
+
+/**
+ * Execute deletion for a single queued message
+ */
+async function checkAndExecuteSingleDeletion(key) {
+  try {
+    const store = readBotStore();
+    if (!store.pendingDeletions || !store.pendingDeletions[key]) return;
+
+    const item = store.pendingDeletions[key];
+    if (Date.now() >= item.deleteAt - 1000) {
+      try {
+        await callTelegram('deleteMessage', {
+          chat_id: item.chatId,
+          message_id: item.messageId
+        });
+        console.log(`[Auto-Delete] Deleted message #${item.messageId} in chat ${item.chatId} (status: ${item.status})`);
+      } catch (err) {
+        console.warn(`[Auto-Delete] Message #${item.messageId} deletion notice:`, err.message);
+      }
+      delete store.pendingDeletions[key];
+      writeBotStore(store);
+    }
+  } catch (e) {
+    console.warn('checkAndExecuteSingleDeletion error:', e.message);
+  }
+}
+
+/**
+ * Periodic cleanup worker (runs every 15s) to guarantee no deletion is missed even across restarts
+ */
+export async function processPendingDeletions() {
+  try {
+    const store = readBotStore();
+    if (!store.pendingDeletions) return;
+
+    const now = Date.now();
+    let changed = false;
+
+    for (const [key, item] of Object.entries(store.pendingDeletions)) {
+      if (now >= item.deleteAt) {
+        try {
+          await callTelegram('deleteMessage', {
+            chat_id: item.chatId,
+            message_id: item.messageId
+          });
+          console.log(`[Auto-Delete Worker] Deleted message #${item.messageId} for chat ${item.chatId} (expired)`);
+        } catch (err) {
+          console.warn(`[Auto-Delete Worker] Failed deleting #${item.messageId}:`, err.message);
+        }
+        delete store.pendingDeletions[key];
+        changed = true;
+      }
+    }
+
+    if (changed) {
+      writeBotStore(store);
+    }
+  } catch (err) {
+    console.warn('processPendingDeletions error:', err.message);
+  }
+}
+
+// Background cleanup interval (runs immediately on boot + every 15s)
+if (typeof setInterval !== 'undefined') {
+  setTimeout(() => {
+    processPendingDeletions().catch(() => {});
+  }, 2000);
+
+  setInterval(() => {
+    processPendingDeletions().catch(() => {});
+  }, 15000);
+}
+
+/**
+ * Backward compatibility helper for direct delayed deletion
  */
 export function scheduleMessageDeletion(chatId, messageId, delaySeconds = 120) {
   if (!chatId || !messageId) return;
@@ -582,31 +743,50 @@ async function processOrderApproval(orderId, adminUser) {
   } catch (_) {}
 
   // Notify customer on Telegram if customer TG User ID exists
-  const customerTgId = order.telegram_user_id || order.data?.telegramUserId;
+  const customerTgId = order.telegram_user_id || order.data?.telegramUserId || order.telegramUserId;
   if (customerTgId) {
+    const appUrl = getAppUrl();
+    const productTitle = order.product_title || order.title || order.data?.product_title || 'VIP Pack';
+
     if (channelLink) {
-      await callTelegram('sendMessage', {
+      const accessUrl = `${appUrl}/api/telegram/bot?action=access&orderId=${encodeURIComponent(orderId)}`;
+      const approvalText = 
+        `🎉 <b>Congratulations! Your Order #${orderId} is Approved!</b>\n\n` +
+        `📦 <b>Product:</b> <b>${escapeTelegramHtml(productTitle)}</b>\n` +
+        `⚡ <b>Access Status:</b> <b>Unlocked & Active</b>\n\n` +
+        `🔗 <b>Direct VIP Access:</b>\n` +
+        `👉 <a href="${accessUrl}"><b>Tap to Open VIP Access</b></a>\n\n` +
+        `⏳ <b>Security Auto-Delete:</b>\n` +
+        `• Message automatically deletes <b>2 minutes</b> after you open/read it.\n` +
+        `• If unread, it automatically self-destructs after <b>3 hours</b>.\n\n` +
+        `💬 <b>24/7 Lifetime Support:</b> @VIP_KINK`;
+
+      const sendRes = await callTelegram('sendMessage', {
         chat_id: customerTgId,
-        text: 
-          `🎉 <b>Congratulations! Your Order #${orderId} is Approved!</b>\n\n` +
-          `📦 <b>Product:</b> ${escapeTelegramHtml(order.product_title || 'VIP Pack')}\n` +
-          `🔒 <b>Status:</b> Ready to view\n\n` +
-          `⚠️ <b>Security & Privacy Notice:</b>\n` +
-          `Tap the button below to view your VIP link. Once you tap to read it, it will remain visible for <b>exactly 2 minutes</b> and will then permanently self-destruct (auto-delete) from your chat!`,
+        text: approvalText,
         parse_mode: 'HTML',
         reply_markup: {
           inline_keyboard: [
-            [{ text: '👁️ Tap to View Link (2 Min Auto-Delete)', callback_data: `view_link_${orderId}` }],
+            [{ text: '🚀 Open VIP Access Link', url: accessUrl }],
+            [{ text: '🛍️ Open Store', web_app: { url: appUrl } }],
             [{ text: '💬 Support Desk (@VIP_KINK)', url: 'https://t.me/VIP_KINK' }]
           ]
         }
       });
+
+      // Register in smart deletion engine (3-hour TTL if unread; switches to 2 mins upon activity/read)
+      if (sendRes?.ok && sendRes?.result?.message_id) {
+        queueMessageForDeletion(customerTgId, sendRes.result.message_id, {
+          orderId,
+          productTitle
+        });
+      }
     } else {
       await callTelegram('sendMessage', {
         chat_id: customerTgId,
         text: 
           `🎉 <b>Congratulations! Your Order #${orderId} has been Approved!</b>\n\n` +
-          `📦 <b>Product:</b> ${order.product_title || 'VIP Pack'}\n\n` +
+          `📦 <b>Product:</b> ${escapeTelegramHtml(productTitle)}\n\n` +
           `To claim your VIP content access, please message <b>Admin @VIP_KINK</b> on Telegram below:`,
         parse_mode: 'HTML',
         reply_markup: {
@@ -1055,6 +1235,53 @@ export default async function handler(req, res) {
     });
   }
 
+  // ── VIP Direct Link Instant Access & Auto-Delete Trigger (0ms Redirect) ─────
+  if (action === 'access' || url.pathname.endsWith('/access')) {
+    const orderId = url.searchParams.get('orderId') || '';
+    const store = readBotStore();
+    const linkInfo = store.orderLinks?.[orderId] || {};
+    let targetUrl = linkInfo.channelLink || '';
+    let customerTgId = linkInfo.customerTgId || null;
+
+    // If not cached locally, look up order in Supabase
+    if ((!targetUrl || !customerTgId) && orderId) {
+      try {
+        const { url: sbUrl, key: sbKey } = getSupabaseConfig();
+        const fetchRes = await fetch(`${sbUrl}/rest/v1/orders?or=(id.eq.${encodeURIComponent(orderId)},order_id.eq.${encodeURIComponent(orderId)})&select=*`, {
+          headers: { apikey: sbKey, Authorization: `Bearer ${sbKey}` }
+        });
+        if (fetchRes.ok) {
+          const rows = await fetchRes.json();
+          if (rows && rows[0]) {
+            if (!targetUrl) {
+              targetUrl = rows[0].channel_link || rows[0].data?.channelLink || '';
+            }
+            if (!customerTgId) {
+              customerTgId = rows[0].telegram_user_id || rows[0].data?.telegramUserId || rows[0].telegramUserId || null;
+            }
+          }
+        }
+      } catch (_) {}
+    }
+
+    if (!targetUrl) {
+      targetUrl = 'https://t.me/VIP_KINK';
+    }
+
+    // Trigger instant 2-minute auto-deletion now that customer has opened/accessed the link!
+    if (customerTgId) {
+      markUserMessagesAsRead(customerTgId, orderId);
+    }
+
+    // Ultra-fast HTTP 302 Redirect (<1ms)
+    if (typeof res.redirect === 'function') {
+      return res.redirect(targetUrl);
+    } else {
+      res.writeHead(302, { Location: targetUrl });
+      return res.end();
+    }
+  }
+
   // Get active bot configuration & status for Admin Panel
   if (req.method === 'GET' && (action === 'get-bot-config' || action === 'info')) {
     try {
@@ -1126,13 +1353,17 @@ export default async function handler(req, res) {
   if (req.method === 'POST' && (action === 'record-user' || (req.body && req.body.action === 'record-user'))) {
     try {
       const u = req.body || {};
-      if (u && (u.id || u.telegramUserId)) {
+      const uid = u.id || u.telegramUserId;
+      if (uid) {
         await recordBotUser({
-          id: u.id || u.telegramUserId,
+          id: uid,
           username: u.username || u.telegramUsername || '',
           first_name: u.first_name || u.firstName || u.name || '',
           last_name: u.last_name || u.lastName || ''
         }, u.source || 'mini_app_visit');
+
+        // Customer opened WebApp -> Mark unread messages as READ (2-minute auto-delete starts)
+        markUserMessagesAsRead(uid);
       }
       return res.status(200).json({ ok: true });
     } catch (e) {
@@ -1236,7 +1467,7 @@ export default async function handler(req, res) {
     try {
       const update = req.body || {};
 
-      // 1. Handle Messages (e.g. /start)
+      // 1. Handle Messages (e.g. /start or incoming chat)
       if (update.message) {
         const msg = update.message;
         const text = (msg.text || '').trim();
@@ -1244,6 +1475,11 @@ export default async function handler(req, res) {
 
         if (fromUser) {
           recordBotUser(fromUser).catch(() => {});
+        }
+
+        // ⚡ User entered bot / sent message -> Trigger 2-minute auto-delete on any unread VIP messages!
+        if (msg.chat && msg.chat.id) {
+          markUserMessagesAsRead(msg.chat.id);
         }
 
         if (text === '/start' || text.startsWith('/start')) {
@@ -1308,6 +1544,11 @@ export default async function handler(req, res) {
         const userIdStr = String(user.id);
         const authorizedAdmins = getAdminChatIds();
 
+        // ⚡ User clicked any inline button -> Trigger 2-minute auto-delete on any unread VIP messages!
+        if (user && user.id) {
+          markUserMessagesAsRead(user.id);
+        }
+
         // ── A. Customer Click: Unlock & View VIP Link (Method A: 2-Minute Self-Destruct Timer) ──
         if (data.startsWith('view_link_')) {
           const orderId = data.replace('view_link_', '');
@@ -1356,6 +1597,7 @@ export default async function handler(req, res) {
             });
 
             // Schedule deletion after exactly 120 seconds (2 minutes)
+            markUserMessagesAsRead(cq.message.chat.id, orderId);
             scheduleMessageDeletion(cq.message.chat.id, cq.message.message_id, 120);
           }
 
