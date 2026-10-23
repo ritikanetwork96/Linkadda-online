@@ -18,6 +18,7 @@
 /*.jsonc / 302
 /wrangler.jsonc / 302
 /vercel.json / 302
+/data/* / 302
 /README.md / 302
 
 # 3. Supabase Storage Global Edge CDN Redirect

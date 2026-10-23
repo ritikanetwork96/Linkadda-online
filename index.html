@@ -4771,8 +4771,8 @@
         })
         .catch(() => {});
 
-      // 3. Sync live site_settings (pinned deal banner, hero, faq, testimonials)
-      fetch(`${supaUrl}/rest/v1/site_settings?select=*`, { headers, cache: 'no-store' })
+      // 3. Sync live site_settings (pinned deal banner, hero, faq, testimonials) - strictly public keys
+      fetch(`${supaUrl}/rest/v1/site_settings?key=in.(banner,hero,faq,testimonials)&select=key,value`, { headers, cache: 'no-store' })
         .then(r => r.json())
         .then(rows => {
           if (Array.isArray(rows) && rows.length) {

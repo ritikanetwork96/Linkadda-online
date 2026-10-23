@@ -6727,13 +6727,27 @@ let _tgBotData = {
   searchFilter: ''
 };
 
+function getAdminAuthHeaders() {
+  try {
+    const raw = localStorage.getItem('linkadda_admin_session');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && parsed.token) {
+        return { 'Authorization': `Bearer ${parsed.token}` };
+      }
+    }
+  } catch (_) {}
+  return {};
+}
+
 async function loadTelegramBotAdminFullData(force = false) {
   if (_tgBotData.isLoading && !force) return;
   _tgBotData.isLoading = true;
   try {
+    const authHeaders = getAdminAuthHeaders();
     const [cfgRes, usersRes] = await Promise.all([
-      fetch('/api/telegram/bot?action=get-bot-config').then(r => r.json()).catch(() => null),
-      fetch('/api/telegram/bot?action=get-users').then(r => r.json()).catch(() => null)
+      fetch('/api/telegram/bot?action=get-bot-config', { headers: authHeaders }).then(r => r.json()).catch(() => null),
+      fetch('/api/telegram/bot?action=get-users', { headers: authHeaders }).then(r => r.json()).catch(() => null)
     ]);
 
     if (cfgRes && cfgRes.ok) {
@@ -10678,7 +10692,7 @@ function attachGlobalHandlers() {
       try {
         const res = await fetch('/api/telegram/bot?action=switch-bot', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...getAdminAuthHeaders() },
           body: JSON.stringify({
             token,
             adminUser: userEmail?.textContent || userName?.textContent || 'Admin Panel'
@@ -10755,7 +10769,10 @@ function attachGlobalHandlers() {
       const originalHtml = actionBtn.innerHTML;
       actionBtn.innerHTML = `<span class="spin-loader" style="width:14px;height:14px;border:2px solid #818cf8;border-top-color:transparent;border-radius:50%;display:inline-block;animation:authSpin 0.75s linear infinite;margin-right:6px;"></span> Sending...`;
       try {
-        const res = await fetch('/api/telegram/bot?action=test-bot', { method: 'POST' });
+        const res = await fetch('/api/telegram/bot?action=test-bot', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...getAdminAuthHeaders() }
+        });
         const result = await res.json();
         if (result.ok) {
           showToast(`🔔 Test notification delivered to ${result.sentCount || 0} admin Telegram accounts!`, 'success');
@@ -10783,7 +10800,10 @@ function attachGlobalHandlers() {
       const originalHtml = actionBtn.innerHTML;
       actionBtn.innerHTML = `<span class="spin-loader" style="width:13px;height:13px;border:2px solid #818cf8;border-top-color:transparent;border-radius:50%;display:inline-block;animation:authSpin 0.75s linear infinite;margin-right:6px;"></span> Re-syncing...`;
       try {
-        const res = await fetch('/api/telegram/bot?action=re-register-webhook', { method: 'POST' });
+        const res = await fetch('/api/telegram/bot?action=re-register-webhook', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...getAdminAuthHeaders() }
+        });
         const result = await res.json();
         if (result.ok) {
           if (result.webhook) _tgBotData.webhook = result.webhook;
@@ -10892,7 +10912,7 @@ function attachGlobalHandlers() {
 
         const res = await fetch('/api/telegram/bot?action=broadcast-message', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...getAdminAuthHeaders() },
           body: JSON.stringify(payload)
         });
         const result = await res.json();
@@ -11601,7 +11621,7 @@ function attachGlobalHandlers() {
         try {
           fetch('/api/telegram/bot?action=approve-order', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', ...getAdminAuthHeaders() },
             body: JSON.stringify({
               orderId: id,
               adminUser: {
@@ -11771,7 +11791,7 @@ function attachGlobalHandlers() {
         try {
           fetch('/api/telegram/bot?action=reject-order', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', ...getAdminAuthHeaders() },
             body: JSON.stringify({
               orderId: targetOrderId,
               adminUser: {

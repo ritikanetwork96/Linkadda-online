@@ -40,22 +40,23 @@ DROP POLICY IF EXISTS "Public can insert settings" ON public.site_settings;
 DROP POLICY IF EXISTS "Public can update settings" ON public.site_settings;
 DROP POLICY IF EXISTS "Public can delete settings" ON public.site_settings;
 
+-- Public can view public site settings (hiding private bot token, subscribers, and customer directory)
 CREATE POLICY "Public can view settings" ON public.site_settings
   FOR SELECT TO anon, authenticated
-  USING (true);
+  USING (key NOT IN ('telegram_bot', 'tg_bot_users', 'customers'));
 
--- 5. ORDERS: Public can ONLY INSERT an order during checkout.
---    CRITICAL: Public CANNOT update orders (cannot mark orders 'paid' or 'approved').
+-- 5. ORDERS: Public can ONLY INSERT a pending order during checkout.
+--    CRITICAL: Public CANNOT insert pre-approved orders, cannot mark orders 'paid' or 'approved'.
 --    CRITICAL: Public CANNOT delete orders.
 DROP POLICY IF EXISTS "Public can insert orders" ON public.orders;
 DROP POLICY IF EXISTS "Public can view orders" ON public.orders;
 DROP POLICY IF EXISTS "Public can update orders" ON public.orders;
 DROP POLICY IF EXISTS "Public can delete orders" ON public.orders;
 
--- Anyone can place an order at checkout
+-- Anyone can place an order at checkout (strictly pending status)
 CREATE POLICY "Public can insert orders" ON public.orders
   FOR INSERT TO anon, authenticated
-  WITH CHECK (true);
+  WITH CHECK (status = 'pending');
 
 -- Public can only look up an order if they know its exact ID
 CREATE POLICY "Public can view own order by id" ON public.orders

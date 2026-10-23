@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { handleCors } from '../_utils.js';
+import { handleCors, verifyAdminRequest } from '../_utils.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -634,12 +634,35 @@ async function ensureScreenshotUploaded(orderId, rawScreenshot) {
   return '';
 }
 
+// In-memory deduplication map for order notifications to prevent spam loops
+const recentOrderNotifications = new Map();
+const ORDER_NOTIFY_DEBOUNCE_MS = 45000;
+
 /**
  * Send New Order Notification to BOTH Admins with Screenshot + [Approve] [Reject] buttons
  */
 export async function notifyAdminsNewOrder(order) {
   const adminIds = getAdminChatIds();
-  const orderId = String(order.order_id || order.id || order.orderId || 'ORD-' + Date.now());
+  const orderId = String(order.order_id || order.id || order.orderId || '').trim();
+  if (!orderId) {
+    return { ok: false, error: 'Missing order ID' };
+  }
+
+  // Deduplication guard: ignore duplicate calls for the same order within 45s
+  const now = Date.now();
+  if (recentOrderNotifications.has(orderId)) {
+    const lastSent = recentOrderNotifications.get(orderId);
+    if (now - lastSent < ORDER_NOTIFY_DEBOUNCE_MS) {
+      return { ok: true, deduplicated: true, message: 'Notification already dispatched' };
+    }
+  }
+  recentOrderNotifications.set(orderId, now);
+  if (recentOrderNotifications.size > 200) {
+    for (const [k, v] of recentOrderNotifications.entries()) {
+      if (now - v > 120000) recentOrderNotifications.delete(k);
+    }
+  }
+
   const productTitle = order.product_title || order.productTitle || order.title || order.name || 'VIP Content Pack';
   
   // Format amount cleanly without double symbols
@@ -1274,8 +1297,11 @@ export default async function handler(req, res) {
   const url = new URL(req.url, 'http://localhost');
   const action = url.searchParams.get('action') || '';
 
-  // Setup / Re-register Webhook endpoint
+  // Setup / Re-register Webhook endpoint (Admin only)
   if ((action === 'setup-webhook' || action === 're-register-webhook') || (req.body && req.body.action === 're-register-webhook')) {
+    if (!await verifyAdminRequest(req)) {
+      return res.status(401).json({ ok: false, error: 'Unauthorized: Admin authentication required.' });
+    }
     const appUrl = getAppUrl(req);
     const webhookUrl = `${appUrl}/api/telegram/bot`;
     const setRes = await callTelegram('setWebhook', {
@@ -1306,13 +1332,19 @@ export default async function handler(req, res) {
 
   // ── VIP Direct Link Instant Access & Auto-Delete Trigger (0ms Redirect) ─────
   if (action === 'access' || url.pathname.endsWith('/access')) {
-    const orderId = url.searchParams.get('orderId') || '';
+    const orderId = String(url.searchParams.get('orderId') || '').trim();
+    if (!orderId) {
+      res.statusCode = 400;
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.end('<h3>Order ID missing</h3>');
+      return;
+    }
     const store = readBotStore();
     const linkInfo = store.orderLinks?.[orderId] || {};
     let targetUrl = linkInfo.channelLink || '';
     let customerTgId = linkInfo.customerTgId || null;
 
-    // If not cached locally, look up order in Supabase
+    // If not cached locally, look up order in Supabase and verify it was actually APPROVED
     if ((!targetUrl || !customerTgId) && orderId) {
       try {
         const { url: sbUrl, key: sbKey } = getSupabaseConfig();
@@ -1322,19 +1354,26 @@ export default async function handler(req, res) {
         if (fetchRes.ok) {
           const rows = await fetchRes.json();
           if (rows && rows[0]) {
-            if (!targetUrl) {
-              targetUrl = rows[0].channel_link || rows[0].data?.channelLink || '';
-            }
-            if (!customerTgId) {
-              customerTgId = rows[0].telegram_user_id || rows[0].data?.telegramUserId || rows[0].telegramUserId || null;
+            const isApproved = rows[0].status === 'approved' || rows[0].status === 'verified';
+            if (isApproved) {
+              if (!targetUrl) {
+                targetUrl = rows[0].channel_link || rows[0].data?.channelLink || '';
+              }
+              if (!customerTgId) {
+                customerTgId = rows[0].telegram_user_id || rows[0].data?.telegramUserId || rows[0].telegramUserId || null;
+              }
             }
           }
         }
       } catch (_) {}
     }
 
+    // Security Guard: Never leak default VIP channel if order is invalid or unapproved
     if (!targetUrl) {
-      targetUrl = 'https://t.me/VIP_KINK';
+      res.statusCode = 403;
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.end(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>VIP Access</title><meta name="viewport" content="width=device-width, initial-scale=1"></head><body style="margin:0;font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#0f172a;color:#f8fafc;display:flex;align-items:center;justify-content:center;height:100vh;padding:20px;box-sizing:border-box;"><div style="background:#1e293b;border:1px solid #334155;border-radius:16px;padding:32px 24px;max-width:420px;text-align:center;box-shadow:0 20px 40px rgba(0,0,0,0.5);"><div style="font-size:42px;margin-bottom:12px;">🔒</div><h2 style="margin:0 0 8px;font-size:20px;color:#f43f5e;">Access Not Ready</h2><p style="margin:0 0 20px;color:#94a3b8;font-size:14px;line-height:1.5;">This order has not been approved yet or is invalid. If you already completed payment, please wait for admin verification.</p><a href="/" style="display:inline-block;background:#38bdf8;color:#0f172a;padding:10px 20px;border-radius:10px;text-decoration:none;font-weight:700;font-size:14px;">Return to Store</a></div></body></html>`);
+      return;
     }
 
     // Trigger instant 2-minute auto-deletion now that customer has opened/accessed the link!
@@ -1351,8 +1390,11 @@ export default async function handler(req, res) {
     }
   }
 
-  // Get active bot configuration & status for Admin Panel
+  // Get active bot configuration & status for Admin Panel (Admin only)
   if (req.method === 'GET' && (action === 'get-bot-config' || action === 'info')) {
+    if (!await verifyAdminRequest(req)) {
+      return res.status(401).json({ ok: false, error: 'Unauthorized: Admin authentication required.' });
+    }
     try {
       const cfg = await getActiveBotConfig();
       const appUrl = getAppUrl(req);
@@ -1408,8 +1450,11 @@ export default async function handler(req, res) {
     }
   }
 
-  // Get all registered bot users / subscribers
+  // Get all registered bot users / subscribers (Admin only)
   if (req.method === 'GET' && (action === 'get-users' || action === 'users')) {
+    if (!await verifyAdminRequest(req)) {
+      return res.status(401).json({ ok: false, error: 'Unauthorized: Admin authentication required.' });
+    }
     try {
       const users = await getAllBotUsers();
       return res.status(200).json({ ok: true, users, totalCount: users.length });
@@ -1440,8 +1485,11 @@ export default async function handler(req, res) {
     }
   }
 
-  // Broadcast custom message to all subscribers
+  // Broadcast custom message to all subscribers (Admin only)
   if (req.method === 'POST' && (action === 'broadcast-message' || (req.body && req.body.action === 'broadcast-message'))) {
+    if (!await verifyAdminRequest(req)) {
+      return res.status(401).json({ ok: false, error: 'Unauthorized: Admin authentication required.' });
+    }
     try {
       const payload = req.body || {};
       const bcRes = await broadcastCustomMessage(payload);
@@ -1451,8 +1499,11 @@ export default async function handler(req, res) {
     }
   }
 
-  // Hot-Swap: Switch to a new Telegram bot instantly
+  // Hot-Swap: Switch to a new Telegram bot instantly (Admin only)
   if (req.method === 'POST' && (action === 'switch-bot' || (req.body && req.body.action === 'switch-bot'))) {
+    if (!await verifyAdminRequest(req)) {
+      return res.status(401).json({ ok: false, error: 'Unauthorized: Admin authentication required.' });
+    }
     try {
       const { token, adminUser } = req.body || {};
       const result = await switchTelegramBot(token, adminUser || 'Admin Panel', req);
@@ -1462,8 +1513,11 @@ export default async function handler(req, res) {
     }
   }
 
-  // Test notification: Fire alert to all admins via active bot
+  // Test notification: Fire alert to all admins via active bot (Admin only)
   if (req.method === 'POST' && (action === 'test-bot' || (req.body && req.body.action === 'test-bot'))) {
+    if (!await verifyAdminRequest(req)) {
+      return res.status(401).json({ ok: false, error: 'Unauthorized: Admin authentication required.' });
+    }
     try {
       const cfg = await getActiveBotConfig();
       const adminIds = getAdminChatIds();
@@ -1504,8 +1558,11 @@ export default async function handler(req, res) {
     }
   }
 
-  // Manual Trigger: Broadcast New Product
+  // Manual Trigger: Broadcast New Product (Admin only)
   if (req.method === 'POST' && (action === 'broadcast' || url.pathname.endsWith('/broadcast'))) {
+    if (!await verifyAdminRequest(req)) {
+      return res.status(401).json({ ok: false, error: 'Unauthorized: Admin authentication required.' });
+    }
     try {
       const product = req.body || {};
       const bcRes = await broadcastNewProduct(product);
@@ -1515,8 +1572,11 @@ export default async function handler(req, res) {
     }
   }
 
-  // Manual Trigger: Approve Order (e.g. from Admin Panel)
+  // Manual Trigger: Approve Order (e.g. from Admin Panel - Admin only)
   if (req.method === 'POST' && (action === 'approve-order' || (req.body && req.body.action === 'approve-order'))) {
+    if (!await verifyAdminRequest(req)) {
+      return res.status(401).json({ ok: false, error: 'Unauthorized: Admin authentication required.' });
+    }
     try {
       const { orderId, adminUser } = req.body || {};
       if (!orderId) return res.status(400).json({ error: 'Missing orderId' });
@@ -1527,8 +1587,11 @@ export default async function handler(req, res) {
     }
   }
 
-  // Manual Trigger: Reject Order (e.g. from Admin Panel)
+  // Manual Trigger: Reject Order (e.g. from Admin Panel - Admin only)
   if (req.method === 'POST' && (action === 'reject-order' || (req.body && req.body.action === 'reject-order'))) {
+    if (!await verifyAdminRequest(req)) {
+      return res.status(401).json({ ok: false, error: 'Unauthorized: Admin authentication required.' });
+    }
     try {
       const { orderId, adminUser } = req.body || {};
       if (!orderId) return res.status(400).json({ error: 'Missing orderId' });

@@ -137,21 +137,22 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
-  // ━━ SECURITY: BLOCK DOTFILES & SENSITIVE FILES (.env, .git, config, rules) ━━
+  // ━━ SECURITY: BLOCK SENSITIVE FILES, DATA DIRECTORY, SERVER CODE & DOTFILES ━━
   const normalizedPath = path.normalize(pathname).replace(/\\/g, '/');
   const lowerPath = normalizedPath.toLowerCase();
   const BLOCKED_SYSTEM_FILES = ['database.rules.json', 'package.json', 'package-lock.json', 'vercel.json', '.gitignore', 'dev-server.mjs'];
+  const BLOCKED_DIRS = ['/data/', '/data', '/api/', '/.git/', '/.gemini/'];
+  const BLOCKED_EXTENSIONS = ['.env', '.git', '.sql', '.json', '.mjs', '.cjs', '.md', '.log', '.sh', '.bat', '.cmd', '.map'];
 
-  if (
-    lowerPath.includes('/.') ||
-    lowerPath.startsWith('/.') ||
-    lowerPath.includes('.env') ||
-    lowerPath.includes('.git') ||
-    BLOCKED_SYSTEM_FILES.some(b => lowerPath.endsWith('/' + b) || lowerPath === '/' + b)
-  ) {
+  const isBlockedDir = BLOCKED_DIRS.some(d => lowerPath === d || lowerPath.startsWith(d.endsWith('/') ? d : d + '/'));
+  const isBlockedExt = BLOCKED_EXTENSIONS.some(ext => lowerPath.endsWith(ext) && !lowerPath.endsWith('manifest.json'));
+  const isBlockedSystem = BLOCKED_SYSTEM_FILES.some(b => lowerPath.endsWith('/' + b) || lowerPath === '/' + b);
+  const isHidden = lowerPath.includes('/.') || lowerPath.startsWith('/.');
+
+  if (isHidden || isBlockedDir || isBlockedExt || isBlockedSystem) {
     res.statusCode = 403;
-    res.setHeader('Content-Type', 'text/plain');
-    res.end('403 Forbidden: Access to sensitive system file is restricted.');
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify({ error: '403 Forbidden: Direct access to system data or source file is restricted.' }));
     return;
   }
 

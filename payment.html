@@ -2363,9 +2363,9 @@ async function loadPaymentConfigFromFirebase() {
   // 1. Instant 0ms render from cached local configuration
   applyConfig();
 
-  // 2. Fast background revalidation via Supabase REST (no-store ensures fresh admin uploads)
+  // 2. Fast background revalidation via Supabase REST (no-store ensures fresh admin uploads) - strictly public keys
   try {
-    const supaResp = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/site_settings?select=*`, {
+    const supaResp = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/site_settings?key=in.(settings,payment,banner)&select=key,value`, {
       headers: {
         'apikey': SUPABASE_CONFIG.anonKey,
         'Authorization': `Bearer ${SUPABASE_CONFIG.anonKey}`,
