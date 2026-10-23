@@ -425,9 +425,33 @@ export async function syncAllFromFirebase(force = false) {
       targets.map(async (key) => {
         try {
           if (key === 'products' || key === 'categories' || key === 'orders') {
-            const res = await fetch(`${supaUrl}/rest/v1/${key}?select=*`, { headers, cache: 'no-store' });
-            if (!res.ok) return null;
-            const rows = await res.json();
+            let rows = [];
+            // Try secure admin proxy for orders first
+            if (key === 'orders') {
+              try {
+                const rawSess = localStorage.getItem('linkadda_admin_session');
+                const token = rawSess ? JSON.parse(rawSess)?.token : '';
+                if (token) {
+                  const dbRes = await fetch('/api/admin/db', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                    body: JSON.stringify({ action: 'list', table: 'orders' })
+                  });
+                  if (dbRes.ok) {
+                    const json = await dbRes.json();
+                    if (Array.isArray(json.rows)) rows = json.rows;
+                  }
+                }
+              } catch (_) {}
+            }
+            if (!rows.length) {
+              const res = await fetch(`${supaUrl}/rest/v1/${key}?select=*`, { headers, cache: 'no-store' });
+              if (res.ok) {
+                const fetched = await res.json();
+                if (Array.isArray(fetched)) rows = fetched;
+              }
+            }
+            if (!rows.length) return null;
             const data = {};
             if (Array.isArray(rows)) {
               rows.forEach(r => {

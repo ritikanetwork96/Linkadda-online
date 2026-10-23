@@ -1543,6 +1543,64 @@ export default async function handler(req, res) {
   if (req.method === 'POST' && (action === 'notify-order' || url.pathname.endsWith('/notify-order'))) {
     try {
       const order = req.body || {};
+      const orderId = String(order.order_id || order.id || order.orderId || '').trim();
+
+      // 1. Guaranteed server-side order upsert to Supabase with Service Role Key
+      if (orderId) {
+        try {
+          const { url: sbUrl, key: sbKey } = getSupabaseConfig();
+          const rawAmt = order.numericAmount || String(order.amount || '').replace(/[^0-9.]/g, '');
+          const cleanAmt = Number(rawAmt) || 0;
+          const prodTitle = order.product_title || order.productTitle || order.productName || order.title || order.name || 'VIP Pack';
+          const method = order.payment_method || order.method || 'UPI / QR';
+          const proof = order.payment_proof || order.screenshotUrl || '';
+          const utr = order.utr || order.transactionId || '';
+          const custName = order.customer_name || order.customerName || order.name || order.buyerName || (order.telegramUsername ? `@${order.telegramUsername}` : 'Customer');
+
+          const orderRow = {
+            id: orderId,
+            order_id: orderId,
+            customer_name: custName,
+            customer_email: order.customer_email || order.customerEmail || order.email || '',
+            customer_phone: order.customer_phone || order.customerPhone || order.phone || '',
+            product_id: order.product_id || order.productId || '',
+            product_title: prodTitle,
+            amount: cleanAmt,
+            currency: order.currency || (String(order.amount || '').startsWith('$') ? 'USD' : 'INR'),
+            payment_method: method,
+            payment_proof: proof,
+            utr: utr,
+            status: order.status || 'pending',
+            data: {
+              ...order,
+              id: orderId,
+              orderId,
+              productTitle: prodTitle,
+              amount: order.amount || cleanAmt,
+              paymentMethod: method,
+              paymentProof: proof,
+              utr,
+              status: order.status || 'pending',
+              timestamp: Date.now()
+            },
+            updated_at: new Date().toISOString()
+          };
+
+          await fetch(`${sbUrl}/rest/v1/orders`, {
+            method: 'POST',
+            headers: {
+              'apikey': sbKey,
+              'Authorization': `Bearer ${sbKey}`,
+              'Content-Type': 'application/json',
+              'Prefer': 'resolution=merge-duplicates'
+            },
+            body: JSON.stringify([orderRow])
+          });
+        } catch (dbErr) {
+          console.warn('Server-side order upsert notice in notify-order:', dbErr.message);
+        }
+      }
+
       const tgId = order.telegramUserId || (order.data && (order.data.telegramUserId || order.data.telegram_user_id));
       if (tgId) {
         recordBotUser({

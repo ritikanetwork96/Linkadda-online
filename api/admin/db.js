@@ -59,6 +59,23 @@ export default async function handler(req, res) {
       return Number.isFinite(num) ? num : 0;
     }
 
+    if (action === 'get' || action === 'list') {
+      if (isSingleton) {
+        const getRes = await fetch(`${supaUrl}/rest/v1/site_settings?key=eq.${encodeURIComponent(id || '')}&select=*`, { headers, cache: 'no-store' });
+        const rows = getRes.ok ? await getRes.json() : [];
+        const val = rows && rows.length ? rows[0].value : null;
+        return res.status(200).json({ success: true, data: val });
+      }
+
+      const orderParam = table === 'products' ? '&order=display_order.asc' : '&order=created_at.desc';
+      const endpoint = id
+        ? `${supaUrl}/rest/v1/${table}?id=eq.${encodeURIComponent(id)}&select=*`
+        : `${supaUrl}/rest/v1/${table}?select=*${orderParam}`;
+      const getRes = await fetch(endpoint, { headers, cache: 'no-store' });
+      const rows = getRes.ok ? await getRes.json() : [];
+      return res.status(200).json({ success: true, rows });
+    }
+
     if (action === 'set') {
       if (isSingleton) {
         const setRes = await fetch(`${supaUrl}/rest/v1/site_settings`, {

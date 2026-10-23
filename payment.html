@@ -4907,12 +4907,11 @@ async function saveOrderToFirebase(amountText, methodName) {
           customer_name: payload.customerName || payload.name || (payload.telegramName || 'Customer'),
           customer_email: payload.customerEmail || payload.email || '',
           customer_phone: payload.customerPhone || payload.phone || '',
-          telegram_user_id: payload.telegramUserId || '',
           product_id: payload.productId || '',
-          product_title: payload.productTitle || '',
+          product_title: payload.productTitle || payload.productName || payload.title || orderData.name || 'VIP Pack',
           amount: Number(payload.amount || payload.priceINR || 0) || 0,
           currency: payload.currency || 'INR',
-          payment_method: payload.paymentMethod || '',
+          payment_method: payload.paymentMethod || methodName || '',
           payment_proof: payload.paymentProof || payload.screenshotUrl || '',
           utr: payload.utr || payload.transactionId || '',
           status: 'pending',
@@ -4932,15 +4931,18 @@ async function saveOrderToFirebase(amountText, methodName) {
       }
     }
 
-    // Trigger instant Telegram Bot alert to both Admins
+    // Trigger instant Telegram Bot alert to both Admins & guarantee server-side order write
     try {
       fetch('/api/telegram/notify-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          ...payload,
+          id: orderId,
           order_id: orderId,
           product_title: payload.productName || payload.title || orderData.name,
           amount: amountText,
+          numericAmount: resolvedNumericAmount,
           payment_method: methodName,
           payment_proof: payload.paymentProof || payload.screenshotUrl || '',
           utr: payload.utr || payload.transactionId || '',

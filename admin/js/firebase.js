@@ -71,13 +71,39 @@ export async function get(refObj) {
     }
 
     // Entire collection
-    const orderParam = table === 'products' ? '&order=display_order.asc' : (table === 'orders' || table === 'visitors' || table === 'events' ? '&order=created_at.desc' : '');
-    const res = await fetch(`${supaUrl}/rest/v1/${table}?select=*${orderParam}`, {
-      headers,
-      cache: 'no-store'
-    });
-    if (!res.ok) return { exists: () => false, val: () => null };
-    const rows = await res.json();
+    let rows = [];
+    // 1. Try secure admin proxy for orders / tables if admin session exists
+    const token = getAdminToken();
+    if (token && (table === 'orders' || table === 'visitors' || table === 'events')) {
+      try {
+        const proxyRes = await fetch('/api/admin/db', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ action: 'list', table })
+        });
+        if (proxyRes.ok) {
+          const json = await proxyRes.json();
+          if (Array.isArray(json.rows)) rows = json.rows;
+        }
+      } catch (_) {}
+    }
+
+    // 2. Direct fallback
+    if (!rows.length) {
+      const orderParam = table === 'products' ? '&order=display_order.asc' : (table === 'orders' || table === 'visitors' || table === 'events' ? '&order=created_at.desc' : '');
+      const res = await fetch(`${supaUrl}/rest/v1/${table}?select=*${orderParam}`, {
+        headers,
+        cache: 'no-store'
+      });
+      if (res.ok) {
+        const rJson = await res.json();
+        if (Array.isArray(rJson)) rows = rJson;
+      }
+    }
+    if (!rows.length && !token) return { exists: () => false, val: () => null };
     const data = {};
     if (Array.isArray(rows)) {
       rows.forEach(r => {
