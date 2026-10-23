@@ -552,16 +552,34 @@ async function processOrderApproval(orderId, adminUser) {
     approvedBy: adminName
   };
 
-  // Update order in Supabase
-  await fetch(`${url}/rest/v1/orders?or=(id.eq.${encodeURIComponent(orderId)},order_id.eq.${encodeURIComponent(orderId)})`, {
-    method: 'PATCH',
-    headers,
-    body: JSON.stringify({
-      status: 'approved',
-      updated_at: new Date().toISOString(),
-      data: approvedData
-    })
-  });
+  // Update order in Supabase (non-blocking 1.5s timeout)
+  (async () => {
+    try {
+      await fetch(`${url}/rest/v1/orders?or=(id.eq.${encodeURIComponent(orderId)},order_id.eq.${encodeURIComponent(orderId)})`, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({
+          status: 'approved',
+          updated_at: new Date().toISOString(),
+          data: approvedData
+        }),
+        signal: AbortSignal.timeout(1500)
+      });
+    } catch (_) {}
+  })();
+
+  // Save order link in bot_store.json so view_link callback is 0ms instant
+  try {
+    const store = readBotStore();
+    if (!store.orderLinks) store.orderLinks = {};
+    store.orderLinks[orderId] = {
+      channelLink: channelLink || '',
+      productTitle: order.product_title || 'VIP Pack',
+      customerTgId: order.telegram_user_id || order.data?.telegramUserId || null,
+      approvedAt: Date.now()
+    };
+    writeBotStore(store);
+  } catch (_) {}
 
   // Notify customer on Telegram if customer TG User ID exists
   const customerTgId = order.telegram_user_id || order.data?.telegramUserId;
@@ -570,15 +588,16 @@ async function processOrderApproval(orderId, adminUser) {
       await callTelegram('sendMessage', {
         chat_id: customerTgId,
         text: 
-          `🎉 <b>Congratulations! Your Order #${orderId} has been Approved!</b>\n\n` +
-          `📦 <b>Product:</b> ${order.product_title || 'VIP Pack'}\n\n` +
-          `🔗 <b>Your VIP Access Link:</b>\n` +
-          `👉 <b>${channelLink}</b>\n\n` +
-          `For lifetime link replacement and 24/7 helpdesk: @VIP_KINK`,
+          `🎉 <b>Congratulations! Your Order #${orderId} is Approved!</b>\n\n` +
+          `📦 <b>Product:</b> ${escapeTelegramHtml(order.product_title || 'VIP Pack')}\n` +
+          `🔒 <b>Status:</b> Ready to view\n\n` +
+          `⚠️ <b>Security & Privacy Notice:</b>\n` +
+          `Tap the button below to view your VIP link. Once you tap to read it, it will remain visible for <b>exactly 2 minutes</b> and will then permanently self-destruct (auto-delete) from your chat!`,
         parse_mode: 'HTML',
         reply_markup: {
           inline_keyboard: [
-            [{ text: '🚀 Join VIP Channel / Access Link', url: channelLink }]
+            [{ text: '👁️ Tap to View Link (2 Min Auto-Delete)', callback_data: `view_link_${orderId}` }],
+            [{ text: '💬 Support Desk (@VIP_KINK)', url: 'https://t.me/VIP_KINK' }]
           ]
         }
       });
@@ -1280,16 +1299,71 @@ export default async function handler(req, res) {
         }
       }
 
-      // 2. Handle Inline Button Clicks (Approve / Reject)
+      // 2. Handle Inline Button Clicks (Customer View Link OR Admin Approve/Reject)
       if (update.callback_query) {
         const cq = update.callback_query;
         const data = cq.data || '';
-        const adminUser = cq.from;
-        const adminIdStr = String(adminUser.id);
+        const user = cq.from;
+        const adminUser = user;
+        const userIdStr = String(user.id);
         const authorizedAdmins = getAdminChatIds();
 
-        // Security check: Only configured admins can approve/reject
-        if (!authorizedAdmins.includes(adminIdStr)) {
+        // ── A. Customer Click: Unlock & View VIP Link (Method A: 2-Minute Self-Destruct Timer) ──
+        if (data.startsWith('view_link_')) {
+          const orderId = data.replace('view_link_', '');
+          const store = readBotStore();
+          const linkInfo = store.orderLinks?.[orderId] || {};
+          const channelLink = linkInfo.channelLink || '';
+          const productTitle = linkInfo.productTitle || 'VIP Pack';
+
+          if (!channelLink) {
+            await callTelegram('answerCallbackQuery', {
+              callback_query_id: cq.id,
+              text: '⚠️ Link expired or not found. Please contact support @VIP_KINK.',
+              show_alert: true
+            });
+            return res.status(200).json({ ok: true });
+          }
+
+          // User just read/opened the link! Trigger 2-minute timer notice
+          await callTelegram('answerCallbackQuery', {
+            callback_query_id: cq.id,
+            text: '⏳ Link Unlocked! This message will automatically self-destruct in 2 minutes.',
+            show_alert: true
+          });
+
+          const revealedText = 
+            `🎉 <b>Your Order #${orderId} VIP Access Link</b>\n\n` +
+            `📦 <b>Product:</b> ${escapeTelegramHtml(productTitle)}\n\n` +
+            `🔗 <b>VIP Access Link:</b>\n` +
+            `👉 <b>${channelLink}</b>\n\n` +
+            `⏳ <b>SELF-DESTRUCT ACTIVE:</b>\n` +
+            `This message will be <b>permanently deleted in 2 minutes</b> from this chat!\n\n` +
+            `💬 24/7 Lifetime Replacement: @VIP_KINK`;
+
+          if (cq.message) {
+            await callTelegram('editMessageText', {
+              chat_id: cq.message.chat.id,
+              message_id: cq.message.message_id,
+              text: revealedText,
+              parse_mode: 'HTML',
+              reply_markup: {
+                inline_keyboard: [
+                  [{ text: '🚀 Join / Access VIP Link Now', url: channelLink }],
+                  [{ text: '💬 Support Desk (@VIP_KINK)', url: 'https://t.me/VIP_KINK' }]
+                ]
+              }
+            });
+
+            // Schedule deletion after exactly 120 seconds (2 minutes)
+            scheduleMessageDeletion(cq.message.chat.id, cq.message.message_id, 120);
+          }
+
+          return res.status(200).json({ ok: true });
+        }
+
+        // ── B. Admin Only Clicks (Approve / Reject) ──
+        if (!authorizedAdmins.includes(userIdStr)) {
           await callTelegram('answerCallbackQuery', {
             callback_query_id: cq.id,
             text: '⚠️ You are not an authorized Admin for this bot!',
