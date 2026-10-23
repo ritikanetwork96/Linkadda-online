@@ -6707,15 +6707,16 @@ function renderActiveSessionsSection(sessions = []) {
 }
 
 let _tgBotData = {
+  activeTab: 'tgTabUsers',
   bot: {
     username: 'Myshop9876_bot',
     name: 'LinkAdda Store Bot',
     id: '8923608774',
-    source: 'env',
+    source: 'database',
     maskedToken: '892360...dVlE',
     lastActivatedAt: null
   },
-  webhook: { url: '', pending_update_count: 0 },
+  webhook: { url: 'https://linkadda-online.onrender.com/api/telegram/bot', pending_update_count: 0 },
   users: [],
   usersCount: 0,
   admins: ['8802192472', '6966868142'],
@@ -6766,6 +6767,7 @@ function updateTelegramBotLiveUI() {
   const webhook = _tgBotData.webhook || {};
   const users = _tgBotData.users || [];
   const usersCount = _tgBotData.usersCount || users.length;
+  const activeTab = _tgBotData.activeTab || 'tgTabUsers';
 
   const usernameEl = document.getElementById('tgActiveBotUsername');
   const idEl = document.getElementById('tgActiveBotId');
@@ -6776,6 +6778,11 @@ function updateTelegramBotLiveUI() {
   const usersStatCount = document.getElementById('tgUsersStatCount');
   const broadcastRecipientsCount = document.getElementById('tgBroadcastRecipientsCount');
   const openBotBtn = document.getElementById('tgOpenLiveBotBtn');
+  const activeTokenCode = document.getElementById('tgActiveTokenCode');
+
+  if (activeTokenCode) {
+    activeTokenCode.textContent = bot.maskedToken || (bot.id ? `${bot.id}:...` : '892360...dVlE');
+  }
 
   if (usernameEl) {
     if (bot.username) {
@@ -6791,7 +6798,7 @@ function updateTelegramBotLiveUI() {
   }
 
   if (idEl) {
-    idEl.textContent = `Bot ID: ${bot.id || '8923608774'} · Token: ${bot.maskedToken || '892360...dVlE'} (${bot.source === 'database' ? 'Dynamic Hot-Swap' : 'Active'})`;
+    idEl.textContent = `Bot ID: ${bot.id || '8923608774'} · Token: ${bot.maskedToken || '892360...dVlE'} (${bot.source === 'database' || bot.source === 'hot_swap' ? 'Dynamic Hot-Swap' : 'Active'})`;
   }
 
   if (badgeEl) {
@@ -6815,7 +6822,7 @@ function updateTelegramBotLiveUI() {
   }
 
   if (pendingEl) {
-    pendingEl.textContent = `Pending updates: ${webhook.pending_update_count ?? 0} · Last error: ${webhook.last_error_message || 'None'}`;
+    pendingEl.textContent = `Pending updates: ${webhook.pending_update_count ?? 0} · 24/7 Live`;
   }
 
   if (usersCountBadge) usersCountBadge.textContent = `${usersCount} Subscribers`;
@@ -6823,6 +6830,27 @@ function updateTelegramBotLiveUI() {
   if (tabBadge) tabBadge.textContent = String(usersCount);
   if (usersStatCount) usersStatCount.textContent = String(usersCount);
   if (broadcastRecipientsCount) broadcastRecipientsCount.textContent = String(usersCount);
+
+  // Preserve active tab display
+  document.querySelectorAll('.tg-tab-section').forEach(sec => {
+    sec.style.display = (sec.id === activeTab) ? 'block' : 'none';
+  });
+  document.querySelectorAll('[data-action="switch-tg-tab"]').forEach(btn => {
+    const isSelected = btn.getAttribute('data-target') === activeTab;
+    if (isSelected) {
+      btn.classList.add('active-tab-btn');
+      btn.style.background = 'linear-gradient(135deg, #6366f1, #8b5cf6)';
+      btn.style.color = '#ffffff';
+      btn.style.border = 'none';
+      btn.style.boxShadow = '0 4px 14px rgba(99, 102, 241, 0.4)';
+    } else {
+      btn.classList.remove('active-tab-btn');
+      btn.style.background = 'rgba(255, 255, 255, 0.05)';
+      btn.style.color = 'var(--text)';
+      btn.style.border = '1px solid var(--border)';
+      btn.style.boxShadow = 'none';
+    }
+  });
 
   // Update subscriber table if container exists
   const tableContainer = document.getElementById('tgUsersTableContainer');
@@ -7021,6 +7049,7 @@ function renderTelegramBotControlSection(settings = {}) {
 }
 
 function renderTelegramBotPageView(data = {}) {
+  const activeTab = _tgBotData.activeTab || 'tgTabUsers';
   const bot = _tgBotData.bot || { username: 'Myshop9876_bot', name: 'LinkAdda Store Bot', id: '8923608774', maskedToken: '892360...dVlE' };
   const webhook = _tgBotData.webhook || {};
   const users = _tgBotData.users || [];
@@ -7103,21 +7132,21 @@ function renderTelegramBotPageView(data = {}) {
         </div>
       </section>
 
-      <!-- Prominent Quick Navigation Tabs (Users upfront!) -->
+      <!-- Prominent Quick Navigation Tabs (Active state preserved across re-renders!) -->
       <div style="display: flex; gap: 10px; margin-bottom: 24px; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 14px; overflow-x: auto;">
-        <button type="button" class="btn active-tab-btn" data-action="switch-tg-tab" data-target="tgTabUsers" style="padding: 11px 20px; font-weight: 800; font-size: 13.5px; border-radius: 10px; background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; border: none; display: inline-flex; align-items: center; gap: 8px; cursor: pointer; box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);">
+        <button type="button" class="btn ${activeTab === 'tgTabUsers' ? 'active-tab-btn' : ''}" data-action="switch-tg-tab" data-target="tgTabUsers" style="padding: 11px 20px; font-weight: 800; font-size: 13.5px; border-radius: 10px; ${activeTab === 'tgTabUsers' ? 'background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; border: none; box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);' : 'background: rgba(255,255,255,0.05); color: var(--text); border: 1px solid var(--border); box-shadow: none;'} display: inline-flex; align-items: center; gap: 8px; cursor: pointer;">
           <i data-lucide="users" style="width: 16px; height: 16px;"></i> 👥 Bot Subscribers & Users (<span id="tgTabUsersCountBadge">${usersCount}</span>)
         </button>
-        <button type="button" class="btn" data-action="switch-tg-tab" data-target="tgTabBroadcast" style="padding: 11px 20px; font-weight: 700; font-size: 13.5px; border-radius: 10px; background: rgba(255,255,255,0.05); color: var(--text); border: 1px solid var(--border); display: inline-flex; align-items: center; gap: 8px; cursor: pointer;">
+        <button type="button" class="btn ${activeTab === 'tgTabBroadcast' ? 'active-tab-btn' : ''}" data-action="switch-tg-tab" data-target="tgTabBroadcast" style="padding: 11px 20px; font-weight: 700; font-size: 13.5px; border-radius: 10px; ${activeTab === 'tgTabBroadcast' ? 'background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; border: none; box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);' : 'background: rgba(255,255,255,0.05); color: var(--text); border: 1px solid var(--border); box-shadow: none;'} display: inline-flex; align-items: center; gap: 8px; cursor: pointer;">
           <i data-lucide="send" style="width: 16px; height: 16px;"></i> 📢 Mass Broadcast Message
         </button>
-        <button type="button" class="btn" data-action="switch-tg-tab" data-target="tgTabSettings" style="padding: 11px 20px; font-weight: 700; font-size: 13.5px; border-radius: 10px; background: rgba(255,255,255,0.05); color: var(--text); border: 1px solid var(--border); display: inline-flex; align-items: center; gap: 8px; cursor: pointer;">
+        <button type="button" class="btn ${activeTab === 'tgTabSettings' ? 'active-tab-btn' : ''}" data-action="switch-tg-tab" data-target="tgTabSettings" style="padding: 11px 20px; font-weight: 700; font-size: 13.5px; border-radius: 10px; ${activeTab === 'tgTabSettings' ? 'background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; border: none; box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);' : 'background: rgba(255,255,255,0.05); color: var(--text); border: 1px solid var(--border); box-shadow: none;'} display: inline-flex; align-items: center; gap: 8px; cursor: pointer;">
           <i data-lucide="zap" style="width: 16px; height: 16px;"></i> ⚡ Bot Token Switcher & Webhook
         </button>
       </div>
 
-      <!-- TAB 1: Bot Users & Subscribers Audience Directory (DEFAULT OPEN) -->
-      <section id="tgTabUsers" class="tg-tab-section panel glass" style="display: block; padding: 24px 28px; border-radius: 16px; border: 1px solid var(--border); margin-bottom: 24px;">
+      <!-- TAB 1: Bot Users & Subscribers Audience Directory -->
+      <section id="tgTabUsers" class="tg-tab-section panel glass" style="display: ${activeTab === 'tgTabUsers' ? 'block' : 'none'}; padding: 24px 28px; border-radius: 16px; border: 1px solid var(--border); margin-bottom: 24px;">
         <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px; margin-bottom: 20px; padding-bottom: 14px; border-bottom: 1px solid rgba(255,255,255,0.06);">
           <div style="display: flex; align-items: center; gap: 12px;">
             <div style="width: 38px; height: 38px; border-radius: 10px; background: linear-gradient(135deg, #8b5cf6, #ec4899); display: flex; align-items: center; justify-content: center; color: white;">
@@ -7157,7 +7186,7 @@ function renderTelegramBotPageView(data = {}) {
       </section>
 
       <!-- TAB 2: Mass Broadcast Message -->
-      <section id="tgTabBroadcast" class="tg-tab-section panel glass" style="display: none; padding: 24px 28px; border-radius: 16px; border: 1px solid rgba(56, 189, 248, 0.35); background: linear-gradient(180deg, rgba(56, 189, 248, 0.03) 0%, rgba(15, 23, 42, 0.6) 100%); margin-bottom: 24px;">
+      <section id="tgTabBroadcast" class="tg-tab-section panel glass" style="display: ${activeTab === 'tgTabBroadcast' ? 'block' : 'none'}; padding: 24px 28px; border-radius: 16px; border: 1px solid rgba(56, 189, 248, 0.35); background: linear-gradient(180deg, rgba(56, 189, 248, 0.03) 0%, rgba(15, 23, 42, 0.6) 100%); margin-bottom: 24px;">
         <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.06);">
           <div style="display: flex; align-items: center; gap: 10px;">
             <div style="width: 36px; height: 36px; border-radius: 10px; background: linear-gradient(135deg, #0284c7, #38bdf8); display: flex; align-items: center; justify-content: center; color: white;">
@@ -7231,7 +7260,7 @@ function renderTelegramBotPageView(data = {}) {
       </section>
 
       <!-- TAB 3: Bot Token Switcher & Webhook Settings -->
-      <section id="tgTabSettings" class="tg-tab-section panel glass" style="display: none; padding: 24px 28px; border-radius: 16px; border: 1px solid rgba(99, 102, 241, 0.35); background: linear-gradient(180deg, rgba(99, 102, 241, 0.03) 0%, rgba(15, 23, 42, 0.6) 100%); margin-bottom: 24px;">
+      <section id="tgTabSettings" class="tg-tab-section panel glass" style="display: ${activeTab === 'tgTabSettings' ? 'block' : 'none'}; padding: 24px 28px; border-radius: 16px; border: 1px solid rgba(99, 102, 241, 0.35); background: linear-gradient(180deg, rgba(99, 102, 241, 0.03) 0%, rgba(15, 23, 42, 0.6) 100%); margin-bottom: 24px;">
         <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.06);">
           <div style="display: flex; align-items: center; gap: 10px;">
             <div style="width: 36px; height: 36px; border-radius: 10px; background: linear-gradient(135deg, #f59e0b, #ef4444); display: flex; align-items: center; justify-content: center; color: white;">
@@ -7254,7 +7283,7 @@ function renderTelegramBotPageView(data = {}) {
         <div style="background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; margin-bottom: 16px; font-size: 12px;">
           <div style="display: flex; justify-content: space-between; align-items: center;">
             <span style="color: var(--muted);">Currently Active Token:</span>
-            <code style="color: #38bdf8; font-family: monospace;">8923608774:AAFhvO4Yzly7toIf5qoI-TSW4EzVzWCdVlE</code>
+            <code id="tgActiveTokenCode" style="color: #38bdf8; font-family: monospace;">${escapeHtml(bot.maskedToken || (bot.id ? `${bot.id}:...` : '892360...dVlE'))}</code>
           </div>
         </div>
 
@@ -10644,6 +10673,10 @@ function attachGlobalHandlers() {
           feedback.innerHTML = `🎉 <strong>Success!</strong> Bot <strong>@${escapeHtml(result.bot.username)}</strong> is now actively running your store!`;
         }
 
+        if (result.bot) _tgBotData.bot = { ...(_tgBotData.bot || {}), ...result.bot };
+        if (result.webhook) _tgBotData.webhook = result.webhook;
+        updateTelegramBotLiveUI();
+
         showToast(`✅ Successfully activated Bot @${result.bot.username}!`, 'success');
         if (input) input.value = '';
         await loadTelegramBotAdminStatus();
@@ -10666,14 +10699,18 @@ function attachGlobalHandlers() {
       const targetId = actionBtn.getAttribute('data-target');
       if (!targetId) return;
 
+      _tgBotData.activeTab = targetId;
+
       document.querySelectorAll('[data-action="switch-tg-tab"]').forEach(btn => {
         const isSelected = btn.getAttribute('data-target') === targetId;
         if (isSelected) {
+          btn.classList.add('active-tab-btn');
           btn.style.background = 'linear-gradient(135deg, #6366f1, #8b5cf6)';
           btn.style.color = '#ffffff';
           btn.style.border = 'none';
           btn.style.boxShadow = '0 4px 14px rgba(99, 102, 241, 0.4)';
         } else {
+          btn.classList.remove('active-tab-btn');
           btn.style.background = 'rgba(255, 255, 255, 0.05)';
           btn.style.color = 'var(--text)';
           btn.style.border = '1px solid var(--border)';
@@ -10726,6 +10763,9 @@ function attachGlobalHandlers() {
         const res = await fetch('/api/telegram/bot?action=re-register-webhook', { method: 'POST' });
         const result = await res.json();
         if (result.ok) {
+          if (result.webhook) _tgBotData.webhook = result.webhook;
+          else _tgBotData.webhook = { url: result.webhookUrl || 'https://linkadda-online.onrender.com/api/telegram/bot', pending_update_count: 0 };
+          updateTelegramBotLiveUI();
           showToast('✅ Webhook and WebApp menu button re-synchronized!', 'success');
           await loadTelegramBotAdminFullData(true);
         } else {

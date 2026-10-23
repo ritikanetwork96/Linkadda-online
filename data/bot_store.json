@@ -1,0 +1,29 @@
+{
+  "activeToken": "8923608774:AAFhvO4Yzly7toIf5qoI-TSW4EzVzWCdVlE",
+  "bot": {
+    "username": "Myshop9876_bot",
+    "name": "LinkAdda Store Bot",
+    "id": "8923608774",
+    "source": "database",
+    "lastActivatedAt": "2026-10-23T20:00:00.000Z"
+  },
+  "admins": ["8802192472", "6966868142"],
+  "users": {
+    "8802192472": {
+      "id": "8802192472",
+      "firstName": "Admin (Primary)",
+      "username": "",
+      "source": "admin_account",
+      "createdAt": 1729700000000,
+      "updatedAt": 1729700000000
+    },
+    "6966868142": {
+      "id": "6966868142",
+      "firstName": "Admin (Alerts)",
+      "username": "",
+      "source": "admin_account",
+      "createdAt": 1729700000000,
+      "updatedAt": 1729700000000
+    }
+  }
+}
