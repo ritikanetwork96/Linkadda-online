@@ -288,6 +288,9 @@ export async function switchTelegramBot(newToken, adminUser = 'Admin Panel', req
 export async function recordBotUser(fromUser, source = 'bot_interaction') {
   if (!fromUser?.id) return;
   const uidStr = String(fromUser.id);
+  const adminIds = new Set(getAdminChatIds());
+  if (adminIds.has(uidStr)) return; // Never mix admin accounts into subscriber directory
+
   const store = readBotStore();
   if (!store.users) store.users = {};
 
@@ -319,18 +322,37 @@ export async function recordBotUser(fromUser, source = 'bot_interaction') {
 }
 
 /**
- * Fetch all registered bot users instantly (<1ms) for directory & broadcast
+ * Fetch all real registered bot subscribers (Admins strictly filtered out)
  */
 export async function getAllBotUsers() {
   try {
     const store = readBotStore();
+    const adminIds = new Set(getAdminChatIds());
     const usersMap = store.users || {};
-    const users = Object.values(usersMap);
+    const users = Object.values(usersMap).filter(u => u && u.id && !adminIds.has(String(u.id)) && u.source !== 'admin_account');
     return users.sort((a, b) => (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0));
   } catch (err) {
     console.error('getAllBotUsers error:', err);
     return [];
   }
+}
+
+/**
+ * Schedule automated Telegram message self-destruction / deletion (e.g. 2 minutes = 120s)
+ */
+export function scheduleMessageDeletion(chatId, messageId, delaySeconds = 120) {
+  if (!chatId || !messageId) return;
+  setTimeout(async () => {
+    try {
+      await callTelegram('deleteMessage', {
+        chat_id: chatId,
+        message_id: messageId
+      });
+      console.log(`[Auto-Delete] Deleted message #${messageId} in chat ${chatId} after ${delaySeconds}s`);
+    } catch (err) {
+      console.warn(`[Auto-Delete] Message #${messageId} deletion note:`, err.message);
+    }
+  }, Math.max(1, delaySeconds) * 1000);
 }
 
 /**
