@@ -5818,17 +5818,17 @@ function renderSingleEditorPage(node, schema, data = {}) {
               <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 14px;">
                 <div>
                   <label style="display: block; font-size: 11.5px; font-weight: 700; text-transform: uppercase; color: var(--muted); margin-bottom: 6px;">Original Price (Strikethrough)</label>
-                  <input type="text" name="priceOriginal" value="${escapeHtml(record.priceOriginal || '₹22,800')}" class="input" style="width: 100%; padding: 10px 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 13px;" placeholder="₹22,800" />
+                  <input type="text" name="priceOriginal" value="${escapeHtml(record.priceOriginal || '')}" class="input" style="width: 100%; padding: 10px 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 13px;" placeholder="e.g. ₹22,800 (Optional)" />
                 </div>
 
                 <div>
                   <label style="display: block; font-size: 11.5px; font-weight: 700; text-transform: uppercase; color: #10b981; margin-bottom: 6px;">Offer Price (INR) ⭐</label>
-                  <input type="text" name="priceOfferINR" value="${escapeHtml(record.priceOfferINR || '₹15,700')}" class="input" style="width: 100%; padding: 10px 12px; background: var(--bg); border: 1px solid rgba(16, 185, 129, 0.4); border-radius: 8px; color: var(--text); font-size: 13px; font-weight: 700;" placeholder="₹15,700" />
+                  <input type="text" name="priceOfferINR" value="${escapeHtml(record.priceOfferINR || record.inr || '')}" class="input" style="width: 100%; padding: 10px 12px; background: var(--bg); border: 1px solid rgba(16, 185, 129, 0.4); border-radius: 8px; color: var(--text); font-size: 13px; font-weight: 700;" placeholder="e.g. 15700 or ₹15,700" required />
                 </div>
 
                 <div>
                   <label style="display: block; font-size: 11.5px; font-weight: 700; text-transform: uppercase; color: #818cf8; margin-bottom: 6px;">Offer Price (USD)</label>
-                  <input type="text" name="priceOfferUSD" value="${escapeHtml(record.priceOfferUSD || '$109')}" class="input" style="width: 100%; padding: 10px 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 13px;" placeholder="$109" />
+                  <input type="text" name="priceOfferUSD" value="${escapeHtml(record.priceOfferUSD || record.usd || '')}" class="input" style="width: 100%; padding: 10px 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 13px;" placeholder="e.g. 109 or $109" />
                 </div>
               </div>
             </section>
@@ -6762,6 +6762,26 @@ async function loadTelegramBotAdminStatus() {
   return loadTelegramBotAdminFullData(true);
 }
 
+let _tgBotPollInterval = null;
+function syncTelegramBotRealtimePolling(current) {
+  if (current === 'telegram' || current === 'settings') {
+    loadTelegramBotAdminFullData(true);
+    if (!_tgBotPollInterval) {
+      _tgBotPollInterval = setInterval(() => {
+        const isTgActive = document.getElementById('tgBotPageRoot') || document.getElementById('tgTabUsers');
+        if (isTgActive && document.visibilityState !== 'hidden') {
+          loadTelegramBotAdminFullData(true);
+        }
+      }, 8000);
+    }
+  } else {
+    if (_tgBotPollInterval) {
+      clearInterval(_tgBotPollInterval);
+      _tgBotPollInterval = null;
+    }
+  }
+}
+
 function updateTelegramBotLiveUI() {
   const bot = _tgBotData.bot || {};
   const webhook = _tgBotData.webhook || {};
@@ -7170,6 +7190,9 @@ function renderTelegramBotPageView(data = {}) {
             </div>
             <button type="button" data-action="export-tg-users" class="btn btn-ghost btn-sm" style="font-size: 12px; padding: 8px 14px; border: 1px solid var(--border); border-radius: 8px;">
               <i data-lucide="copy" style="width: 13px; height: 13px;"></i> Copy User IDs
+            </button>
+            <button type="button" data-action="refresh-tg-users" class="btn btn-primary btn-sm" style="font-size: 12px; padding: 8px 14px; border-radius: 8px; display: inline-flex; align-items: center; gap: 6px; background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white;">
+              <i data-lucide="refresh-cw" style="width: 13px; height: 13px;"></i> Refresh Users
             </button>
           </div>
         </div>
@@ -10044,7 +10067,7 @@ function renderView(data) {
     }
     if (current === 'catalog' || current === 'products' || current === 'categories') initCatalogDragAndDrop();
     if (current === 'analytics') mountAnalyticsCharts();
-    if (current === 'settings' || current === 'telegram') loadTelegramBotAdminFullData();
+    syncTelegramBotRealtimePolling(current);
     if (notifyCount) {
       notifyCount.textContent = String(recentActivity(12).length);
     }
@@ -10788,6 +10811,23 @@ function attachGlobalHandlers() {
       const ids = users.map(u => String(u.id)).filter(Boolean).join('\n');
       navigator.clipboard.writeText(ids);
       showToast(`📋 Copied ${users.length} Telegram User IDs to clipboard!`, 'success');
+      return;
+    }
+    if (action === 'refresh-tg-users') {
+      const originalHtml = actionBtn.innerHTML;
+      actionBtn.disabled = true;
+      actionBtn.innerHTML = '<i data-lucide="loader-2" class="spin" style="width: 13px; height: 13px;"></i> Syncing...';
+      if (window.lucide) lucide.createIcons();
+      try {
+        await loadTelegramBotAdminFullData(true);
+        showToast(`⚡ Realtime Telegram bot subscribers refreshed! (${_tgBotData.users?.length || 0} users)`, 'success');
+      } catch (err) {
+        showToast('Refresh error: ' + err.message, 'danger');
+      } finally {
+        actionBtn.disabled = false;
+        actionBtn.innerHTML = originalHtml;
+        if (window.lucide) lucide.createIcons();
+      }
       return;
     }
     if (action === 'insert-broadcast-tag') {

@@ -54,7 +54,7 @@ export const NAV_ITEMS = [
   { key: 'reviews', label: 'Reviews', icon: 'star' },
   { key: 'media', label: 'Media', icon: 'image-plus' },
   { key: 'hero', label: 'Hero', icon: 'sparkles' },
-  { key: 'banner', label: 'Banner', icon: 'badge-percent' },
+  { key: 'banner', label: 'All Collection (Banner)', icon: 'badge-percent' },
   { key: 'faq', label: 'FAQ', icon: 'help-circle' },
   { key: 'testimonials', label: 'Testimonials', icon: 'messages-square' },
   { key: 'payment', label: 'Payment', icon: 'credit-card' },

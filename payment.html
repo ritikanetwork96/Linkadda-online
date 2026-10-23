@@ -2620,10 +2620,8 @@ const DEFAULT_PRODUCTS_CATALOG = [
   { id: 'lesbian-videos', slug: 'lesbian-videos', name: 'Lesbian Videos', title: 'Lesbian Videos', inr: '₹499', usd: '$35', rawINR: 499, rawUSD: 35, amountINRValue: 499, amountUSDValue: 35, isDefault: true },
   { id: '20-mix-videos', slug: '20-mix-videos', name: '20 Mix Videos', title: '20 Mix Videos', inr: '₹499', usd: '$16', rawINR: 499, rawUSD: 16, amountINRValue: 499, amountUSDValue: 16, isDefault: true },
   { id: 'all-tango-combo', slug: 'all-tango-combo', name: 'All Tango Combo', title: 'All Tango Combo', inr: '₹599', usd: '$18', rawINR: 599, rawUSD: 18, amountINRValue: 599, amountUSDValue: 18, isDefault: true },
-  { id: 'bhabhi-hot-pack', slug: 'bhabhi-hot-pack', name: 'Bhabhi Hot Pack', title: 'Bhabhi Hot Pack', inr: '₹499', usd: '$19', rawINR: 499, rawUSD: 19, amountINRValue: 499, amountUSDValue: 19, isDefault: true },
-  { id: 'all-in-one', slug: 'all-in-one', name: 'All in One (Special Offer)', title: 'All in One (Special Offer)', inr: '₹599', usd: '$26', rawINR: 599, rawUSD: 26, amountINRValue: 599, amountUSDValue: 26, isDefault: true },
-  { id: 'pinned-deal', slug: 'all-collection-pack', name: 'All Collection Pack', title: 'All Collection Pack', inr: '₹27,000', usd: '$349', rawINR: 27000, rawUSD: 349, amountINRValue: 27000, amountUSDValue: 349, isDefault: true },
-  { id: 'all-collection-pack', slug: 'all-collection-pack', name: 'All Collection Pack', title: 'All Collection Pack', inr: '₹27,000', usd: '$349', rawINR: 27000, rawUSD: 349, amountINRValue: 27000, amountUSDValue: 349, isDefault: true },
+  { id: 'pinned-deal', slug: 'all-collection-pack', name: 'All Collection Pack', title: 'All Collection Pack', inr: '', usd: '', rawINR: null, rawUSD: null, amountINRValue: null, amountUSDValue: null, isDefault: true },
+  { id: 'all-collection-pack', slug: 'all-collection-pack', name: 'All Collection Pack', title: 'All Collection Pack', inr: '', usd: '', rawINR: null, rawUSD: null, amountINRValue: null, amountUSDValue: null, isDefault: true },
 ];
 
 let productCatalogPromise = null;
@@ -2805,8 +2803,37 @@ function findDefaultCatalogProduct(targetId) {
       prodName = `${prodName} (${pTier})`;
     }
     const isAllColl = prodName.toLowerCase().includes('all collection') || String(pId).toLowerCase().includes('pinned') || String(pId).toLowerCase().includes('all-collection');
-    const finalInr = Number.isFinite(inrVal) && inrVal > 0 ? inrVal : (isAllColl ? 27000 : 399);
-    const finalUsd = Number.isFinite(usdVal) && usdVal > 0 ? usdVal : (isAllColl ? 349 : 15);
+    
+    // Live admin banner price ALWAYS takes absolute precedence for All Collection Pack!
+    let liveBannerInr = null;
+    let liveBannerUsd = null;
+    if (isAllColl) {
+      if (window.__paymentBanner) {
+        liveBannerInr = extractMoneyNumber(window.__paymentBanner.priceOfferINR || window.__paymentBanner.priceINR || window.__paymentBanner.inr);
+        liveBannerUsd = extractMoneyNumber(window.__paymentBanner.priceOfferUSD || window.__paymentBanner.priceUSD || window.__paymentBanner.usd);
+      }
+      if (!Number.isFinite(liveBannerInr) || liveBannerInr <= 0) {
+        try {
+          const rawLive = localStorage.getItem('linkadda_cached_live_data_v5') || localStorage.getItem('linkadda_cached_live_data');
+          if (rawLive) {
+            const pLive = JSON.parse(rawLive);
+            if (pLive?.banner) {
+              const bInr = extractMoneyNumber(pLive.banner.priceOfferINR || pLive.banner.priceINR || pLive.banner.inr);
+              const bUsd = extractMoneyNumber(pLive.banner.priceOfferUSD || pLive.banner.priceUSD || pLive.banner.usd);
+              if (Number.isFinite(bInr) && bInr > 0) liveBannerInr = bInr;
+              if (Number.isFinite(bUsd) && bUsd > 0) liveBannerUsd = bUsd;
+            }
+          }
+        } catch (_) {}
+      }
+    }
+
+    const finalInr = (isAllColl && Number.isFinite(liveBannerInr) && liveBannerInr > 0)
+      ? liveBannerInr
+      : (Number.isFinite(inrVal) && inrVal > 0 ? inrVal : (isAllColl ? 0 : 399));
+    const finalUsd = (isAllColl && Number.isFinite(liveBannerUsd) && liveBannerUsd > 0)
+      ? liveBannerUsd
+      : (Number.isFinite(usdVal) && usdVal > 0 ? usdVal : (isAllColl ? 0 : 15));
     applyOrderToUI({
       id: pId || (pName ? normalizeLookupValue(pName) : 'pinned-deal'),
       name: prodName,
@@ -2846,8 +2873,36 @@ function findDefaultCatalogProduct(targetId) {
     const usdVal = extractMoneyNumber(pUsd);
     const isAllColl = cleanTitle.toLowerCase().includes('all collection') || String(pId).toLowerCase().includes('pinned') || String(pId).toLowerCase().includes('all-collection');
     const hasUrlPrices = (Number.isFinite(inrVal) && inrVal > 0) || (Number.isFinite(usdVal) && usdVal > 0);
-    const finalInr = Number.isFinite(inrVal) ? inrVal : (isAllColl ? 27000 : 399);
-    const finalUsd = Number.isFinite(usdVal) ? usdVal : (isAllColl ? 349 : 15);
+    
+    let liveBannerInr = null;
+    let liveBannerUsd = null;
+    if (isAllColl) {
+      if (window.__paymentBanner) {
+        liveBannerInr = extractMoneyNumber(window.__paymentBanner.priceOfferINR || window.__paymentBanner.priceINR || window.__paymentBanner.inr);
+        liveBannerUsd = extractMoneyNumber(window.__paymentBanner.priceOfferUSD || window.__paymentBanner.priceUSD || window.__paymentBanner.usd);
+      }
+      if (!Number.isFinite(liveBannerInr) || liveBannerInr <= 0) {
+        try {
+          const rawLive = localStorage.getItem('linkadda_cached_live_data_v5') || localStorage.getItem('linkadda_cached_live_data');
+          if (rawLive) {
+            const pLive = JSON.parse(rawLive);
+            if (pLive?.banner) {
+              const bInr = extractMoneyNumber(pLive.banner.priceOfferINR || pLive.banner.priceINR || pLive.banner.inr);
+              const bUsd = extractMoneyNumber(pLive.banner.priceOfferUSD || pLive.banner.priceUSD || pLive.banner.usd);
+              if (Number.isFinite(bInr) && bInr > 0) liveBannerInr = bInr;
+              if (Number.isFinite(bUsd) && bUsd > 0) liveBannerUsd = bUsd;
+            }
+          }
+        } catch (_) {}
+      }
+    }
+
+    const finalInr = (isAllColl && Number.isFinite(liveBannerInr) && liveBannerInr > 0)
+      ? liveBannerInr
+      : (Number.isFinite(inrVal) ? inrVal : (isAllColl ? 0 : 399));
+    const finalUsd = (isAllColl && Number.isFinite(liveBannerUsd) && liveBannerUsd > 0)
+      ? liveBannerUsd
+      : (Number.isFinite(usdVal) ? usdVal : (isAllColl ? 0 : 15));
     applyOrderToUI({
       id: pId || (pName ? normalizeLookupValue(pName) : 'pinned-deal'),
       name: cleanTitle,
@@ -3003,10 +3058,10 @@ function mergeOrderWithProduct(orderInfo = {}, productRecord = null) {
   if (productRecord.isDefault) {
     const finalINRValue = (Number.isFinite(orderInfo.amountINRValue) && orderInfo.amountINRValue > 0)
       ? orderInfo.amountINRValue
-      : (Number.isFinite(productRecord.amountINRValue) && productRecord.amountINRValue > 0 ? productRecord.amountINRValue : 29700);
+      : (Number.isFinite(productRecord.amountINRValue) && productRecord.amountINRValue > 0 ? productRecord.amountINRValue : 0);
     const finalUSDValue = (Number.isFinite(orderInfo.amountUSDValue) && orderInfo.amountUSDValue > 0)
       ? orderInfo.amountUSDValue
-      : (Number.isFinite(productRecord.amountUSDValue) && productRecord.amountUSDValue > 0 ? productRecord.amountUSDValue : 1499);
+      : (Number.isFinite(productRecord.amountUSDValue) && productRecord.amountUSDValue > 0 ? productRecord.amountUSDValue : 0);
     const finalName = (orderInfo.name && orderInfo.name !== 'Product' && orderInfo.name !== 'Loading order details...')
       ? orderInfo.name
       : (productRecord.title || productRecord.name || 'Product');
@@ -3015,8 +3070,8 @@ function mergeOrderWithProduct(orderInfo = {}, productRecord = null) {
       id: orderInfo.id || productRecord.id || '',
       slug: orderInfo.slug || productRecord.slug || '',
       name: finalName,
-      inr: formatCurrencyValue(finalINRValue, 'INR'),
-      usd: formatCurrencyValue(finalUSDValue, 'USD'),
+      inr: finalINRValue ? formatCurrencyValue(finalINRValue, 'INR') : '',
+      usd: finalUSDValue ? formatCurrencyValue(finalUSDValue, 'USD') : '',
       rawINR: finalINRValue,
       rawUSD: finalUSDValue,
       amountINRValue: finalINRValue,
@@ -3027,23 +3082,28 @@ function mergeOrderWithProduct(orderInfo = {}, productRecord = null) {
   }
 
   // 3. For live database records:
-  // If user arrived with explicit URL prices, preserve them unless official tier is selected
+  // If this is the pinned deal banner (All Collection Pack), the admin live price ALWAYS wins!
+  const isPinnedDeal = productRecord.id === 'pinned-deal' || productRecord.id === 'all-collection-pack';
   const hasExplicitUrl = Boolean(orderInfo.hasExplicitUrlPrices);
   const officialINR = Number.isFinite(tierPriceINR) && tierPriceINR > 0
     ? tierPriceINR
-    : (hasExplicitUrl && Number.isFinite(orderInfo.amountINRValue) && orderInfo.amountINRValue > 0
-      ? orderInfo.amountINRValue
-      : (Number.isFinite(productRecord.amountINRValue) && productRecord.amountINRValue > 0
-        ? productRecord.amountINRValue
-        : extractMoneyNumber(productRecord.rawINR)));
+    : (isPinnedDeal && Number.isFinite(productRecord.amountINRValue) && productRecord.amountINRValue > 0
+      ? productRecord.amountINRValue
+      : (hasExplicitUrl && Number.isFinite(orderInfo.amountINRValue) && orderInfo.amountINRValue > 0
+        ? orderInfo.amountINRValue
+        : (Number.isFinite(productRecord.amountINRValue) && productRecord.amountINRValue > 0
+          ? productRecord.amountINRValue
+          : extractMoneyNumber(productRecord.rawINR))));
 
   const officialUSD = Number.isFinite(tierPriceUSD) && tierPriceUSD > 0
     ? tierPriceUSD
-    : (hasExplicitUrl && Number.isFinite(orderInfo.amountUSDValue) && orderInfo.amountUSDValue > 0
-      ? orderInfo.amountUSDValue
-      : (Number.isFinite(productRecord.amountUSDValue) && productRecord.amountUSDValue > 0
-        ? productRecord.amountUSDValue
-        : extractMoneyNumber(productRecord.rawUSD)));
+    : (isPinnedDeal && Number.isFinite(productRecord.amountUSDValue) && productRecord.amountUSDValue > 0
+      ? productRecord.amountUSDValue
+      : (hasExplicitUrl && Number.isFinite(orderInfo.amountUSDValue) && orderInfo.amountUSDValue > 0
+        ? orderInfo.amountUSDValue
+        : (Number.isFinite(productRecord.amountUSDValue) && productRecord.amountUSDValue > 0
+          ? productRecord.amountUSDValue
+          : extractMoneyNumber(productRecord.rawUSD))));
 
   const finalINRValue = Number.isFinite(officialINR) && officialINR > 0
     ? officialINR
@@ -3412,10 +3472,10 @@ async function loadProductsCatalog() {
       const bVal = snap.val();
       if (bVal && typeof bVal === 'object') {
         const bTitle = bVal.title || 'All Collection Pack';
-        const bInr = bVal.priceOfferINR || bVal.inr || '₹29,700';
-        const bUsd = bVal.priceOfferUSD || bVal.usd || '$1499';
-        const bInrVal = extractMoneyNumber(bInr) || 29700;
-        const bUsdVal = extractMoneyNumber(bUsd) || 1499;
+        const bInr = bVal.priceOfferINR || bVal.priceINR || bVal.inr || bVal.price || '';
+        const bUsd = bVal.priceOfferUSD || bVal.priceUSD || bVal.usd || '';
+        const bInrVal = extractMoneyNumber(bInr);
+        const bUsdVal = extractMoneyNumber(bUsd);
         const bannerEntry = {
           key: 'pinned-deal',
           id: 'pinned-deal',
@@ -3439,7 +3499,7 @@ async function loadProductsCatalog() {
         const currId = normalizeLookupValue(orderData.id || requestedCheckout.productId);
         const currName = normalizeLookupValue(orderData.name);
         const isExplicitPinnedDeal = currId === 'pinned-deal' || currId === 'all-collection-pack' || currName === 'all-collection-pack' || currName === 'all-collection';
-        if (isExplicitPinnedDeal && !orderData.hasExplicitUrlPrices) {
+        if (isExplicitPinnedDeal) {
           applyOrderToUI({
             id: 'pinned-deal',
             slug: 'all-collection-pack',
@@ -3475,10 +3535,10 @@ async function loadProductsCatalog() {
         if (parsed?.banner && typeof parsed.banner === 'object' && Object.keys(parsed.banner).length > 0) {
           const bVal = parsed.banner;
           const bTitle = bVal.title || 'All Collection Pack';
-          const bInr = bVal.priceOfferINR || bVal.inr || '₹29,700';
-          const bUsd = bVal.priceOfferUSD || bVal.usd || '$1499';
-          const bInrVal = extractMoneyNumber(bInr) || 29700;
-          const bUsdVal = extractMoneyNumber(bUsd) || 1499;
+          const bInr = bVal.priceOfferINR || bVal.priceINR || bVal.inr || bVal.price || '';
+          const bUsd = bVal.priceOfferUSD || bVal.priceUSD || bVal.usd || '';
+          const bInrVal = extractMoneyNumber(bInr);
+          const bUsdVal = extractMoneyNumber(bUsd);
           const bannerEntry = {
             key: 'pinned-deal',
             id: 'pinned-deal',
@@ -3541,10 +3601,10 @@ async function loadProductsCatalog() {
         if (Array.isArray(bannerRows) && bannerRows.length > 0 && bannerRows[0]?.value) {
           const bVal = bannerRows[0].value;
           const bTitle = bVal.title || 'All Collection Pack';
-          const bInr = bVal.priceOfferINR || bVal.inr || '₹27,000';
-          const bUsd = bVal.priceOfferUSD || bVal.usd || '$349';
-          const bInrVal = extractMoneyNumber(bInr) || 27000;
-          const bUsdVal = extractMoneyNumber(bUsd) || 349;
+          const bInr = bVal.priceOfferINR || bVal.priceINR || bVal.inr || bVal.price || '';
+          const bUsd = bVal.priceOfferUSD || bVal.priceUSD || bVal.usd || '';
+          const bInrVal = extractMoneyNumber(bInr);
+          const bUsdVal = extractMoneyNumber(bUsd);
           const bannerEntry = {
             key: 'pinned-deal',
             id: 'pinned-deal',
@@ -3770,8 +3830,21 @@ async function ensureCheckoutOrderLoaded() {
       const customUsd = extractMoneyNumber(pUsd);
       const hasCustomUrl = (Number.isFinite(customInr) && customInr > 0) || (Number.isFinite(customUsd) && customUsd > 0) || Boolean(pName);
       const isPinned = matched.id === 'pinned-deal' || matched.id === 'all-collection-pack';
-      const inrNum = Number.isFinite(customInr) && customInr > 0 ? customInr : (Number.isFinite(matched.amountINRValue) ? matched.amountINRValue : (extractMoneyNumber(matched.rawINR || matched.inr) || (isPinned ? 29700 : 399)));
-      const usdNum = Number.isFinite(customUsd) && customUsd > 0 ? customUsd : (Number.isFinite(matched.amountUSDValue) ? matched.amountUSDValue : (extractMoneyNumber(matched.rawUSD || matched.usd) || (isPinned ? 1499 : 15)));
+
+      // If it's the pinned deal, admin live banner price takes priority!
+      let liveBannerInr = null;
+      let liveBannerUsd = null;
+      if (isPinned && window.__paymentBanner) {
+        liveBannerInr = extractMoneyNumber(window.__paymentBanner.priceOfferINR || window.__paymentBanner.priceINR || window.__paymentBanner.inr);
+        liveBannerUsd = extractMoneyNumber(window.__paymentBanner.priceOfferUSD || window.__paymentBanner.priceUSD || window.__paymentBanner.usd);
+      }
+
+      const inrNum = (isPinned && Number.isFinite(liveBannerInr) && liveBannerInr > 0)
+        ? liveBannerInr
+        : (Number.isFinite(customInr) && customInr > 0 ? customInr : (Number.isFinite(matched.amountINRValue) ? matched.amountINRValue : (extractMoneyNumber(matched.rawINR || matched.inr) || (isPinned ? 0 : 399))));
+      const usdNum = (isPinned && Number.isFinite(liveBannerUsd) && liveBannerUsd > 0)
+        ? liveBannerUsd
+        : (Number.isFinite(customUsd) && customUsd > 0 ? customUsd : (Number.isFinite(matched.amountUSDValue) ? matched.amountUSDValue : (extractMoneyNumber(matched.rawUSD || matched.usd) || (isPinned ? 0 : 15))));
       const orderId = requestedCheckout.orderId || '';
 
       let prodName = pName ? decodeURIComponent(pName) : (matched.title || matched.name || 'Product');
@@ -3788,11 +3861,11 @@ async function ensureCheckoutOrderLoaded() {
         productName: prodName,
         name: prodName,
         tier: pTier,
-        amount: Number.isFinite(inrNum) ? inrNum : (Number.isFinite(usdNum) ? usdNum : (isPinned ? 29700 : 399)),
-        amountINR: Number.isFinite(inrNum) ? inrNum : (isPinned ? 29700 : 399),
-        amountUSD: Number.isFinite(usdNum) ? usdNum : (isPinned ? 1499 : 15),
-        inr: Number.isFinite(inrNum) ? formatCurrencyValue(inrNum, 'INR') : (matched.inr || (isPinned ? '₹29,700' : '₹399')),
-        usd: Number.isFinite(usdNum) ? formatCurrencyValue(usdNum, 'USD') : (matched.usd || (isPinned ? '$1499' : '$15')),
+        amount: Number.isFinite(inrNum) ? inrNum : (Number.isFinite(usdNum) ? usdNum : (isPinned ? 0 : 399)),
+        amountINR: Number.isFinite(inrNum) ? inrNum : (isPinned ? 0 : 399),
+        amountUSD: Number.isFinite(usdNum) ? usdNum : (isPinned ? 0 : 15),
+        inr: Number.isFinite(inrNum) && inrNum > 0 ? formatCurrencyValue(inrNum, 'INR') : (matched.inr || ''),
+        usd: Number.isFinite(usdNum) && usdNum > 0 ? formatCurrencyValue(usdNum, 'USD') : (matched.usd || ''),
         rawINR: inrNum,
         rawUSD: usdNum,
         amountINRValue: inrNum,
@@ -3823,16 +3896,22 @@ async function ensureCheckoutOrderLoaded() {
 
   // Safety guarantee: Ensure orderData is never left blank or Loading
   if (!orderData.name || orderData.name === 'Loading order details...' || orderData.inr === '—') {
+    let defaultInr = null;
+    let defaultUsd = null;
+    if (window.__paymentBanner) {
+      defaultInr = extractMoneyNumber(window.__paymentBanner.priceOfferINR || window.__paymentBanner.priceINR || window.__paymentBanner.inr);
+      defaultUsd = extractMoneyNumber(window.__paymentBanner.priceOfferUSD || window.__paymentBanner.priceUSD || window.__paymentBanner.usd);
+    }
     const defaultDeal = findDefaultCatalogProduct('pinned-deal') || {
       id: 'pinned-deal',
       slug: 'all-collection-pack',
       name: 'All Collection Pack',
-      inr: '₹29,700',
-      usd: '$1499',
-      amountINRValue: 29700,
-      amountUSDValue: 1499,
-      rawINR: 29700,
-      rawUSD: 1499,
+      inr: Number.isFinite(defaultInr) ? formatCurrencyValue(defaultInr, 'INR') : '',
+      usd: Number.isFinite(defaultUsd) ? formatCurrencyValue(defaultUsd, 'USD') : '',
+      amountINRValue: defaultInr,
+      amountUSDValue: defaultUsd,
+      rawINR: defaultInr,
+      rawUSD: defaultUsd,
       available: true
     };
     applyOrderToUI(defaultDeal);

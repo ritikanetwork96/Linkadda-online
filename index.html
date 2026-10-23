@@ -1335,22 +1335,17 @@
             </div>
           </div>
           <div class="cpb-prices">
-            <div class="cpb-original">&#8377;49,900</div>
-            <div class="cpb-offer">&#8377;27,000 <span class="cpb-usd">/ $349</span></div>
+            <div class="cpb-offer"><i class="fa-solid fa-spinner fa-spin" style="font-size:14px;color:#f0247a;"></i> <span style="font-size:12px;color:var(--muted);font-weight:normal;">Loading offer price...</span></div>
           </div>
           <div class="cpb-actions-wrap">
             <button type="button" class="cpb-btn-cart btn-add-cart"
                data-product-id="pinned-deal"
-               data-name="All Collection Pack"
-               data-inr="27000"
-               data-usd="349">
+               data-name="All Collection Pack">
               <i class="fa-solid fa-cart-shopping"></i> Add to Cart
             </button>
-            <a href="payment.html?productId=pinned-deal&name=All%20Collection%20Pack&inr=27000&usd=349" class="btn-primary cpb-btn fk-btn-buy-action"
+            <a href="payment.html?productId=pinned-deal&name=All%20Collection%20Pack" class="btn-primary cpb-btn fk-btn-buy-action"
                data-product-id="pinned-deal"
-               data-name="All Collection Pack"
-               data-inr="27000"
-               data-usd="349">
+               data-name="All Collection Pack">
               <i class="fa-solid fa-gem"></i> Claim Deal
             </a>
           </div>
@@ -2033,19 +2028,20 @@
         btn.innerHTML = '<i class="fa-solid fa-gem"></i> Claim Deal';
       }
       const bTitle = b.title || 'All Collection Pack';
-      const bInr = String(b.priceOfferINR || b.inr || '27000').replace(/[^\d.]/g, '') || '27000';
-      const bUsd = String(b.priceOfferUSD || b.usd || '349').replace(/[^\d.]/g, '') || '349';
-      const defaultBannerLink = `payment.html?productId=pinned-deal&name=${encodeURIComponent(bTitle)}&inr=${bInr}&usd=${bUsd}`;
+      const bInr = String(b.priceOfferINR || b.inr || '').replace(/[^\d.]/g, '');
+      const bUsd = String(b.priceOfferUSD || b.usd || '').replace(/[^\d.]/g, '');
+      const defaultBannerLink = `payment.html?productId=pinned-deal&name=${encodeURIComponent(bTitle)}${bInr ? `&inr=${bInr}` : ''}${bUsd ? `&usd=${bUsd}` : ''}`;
       const targetLink = (!b.buttonLink || b.buttonLink === 'payment.html' || b.buttonLink === 'payment' || !b.buttonLink.includes('?') || b.buttonLink.includes('pinned-deal') || b.buttonLink.includes('All%20Collection') || b.buttonLink.includes('All+Collection'))
         ? defaultBannerLink
         : b.buttonLink;
       btn.href = safeUrl(targetLink, defaultBannerLink);
       btn.dataset.productId = 'pinned-deal';
       btn.dataset.name = bTitle;
-      btn.dataset.inr = bInr;
-      btn.dataset.usd = bUsd;
+      if (bInr) btn.dataset.inr = bInr;
+      if (bUsd) btn.dataset.usd = bUsd;
     }
     sec.style.backgroundImage = b.image ? `url(${safeUrl(b.image)})` : defaultSiteState.banner.backgroundImage;
+    if (typeof renderPinnedBanner === 'function') renderPinnedBanner();
   }
 
   function applyFaq(data) {
@@ -3765,60 +3761,49 @@
   function renderPinnedBanner() {
     const wrapper = document.getElementById('pinnedDealWrapper');
     if (!wrapper) return;
-    const data = liveCollections.banner;
+    let data = liveCollections.banner;
     
-    // Default fallback state (if database has no custom banner config yet)
+    // Check local storage cache if data is not yet in memory
     if (!data || Object.keys(data).length === 0) {
-      wrapper.style.display = 'block';
-      wrapper.innerHTML = `
-        <div class="collection-pack-banner">
-          <div class="cpb-pin"><i class="fa-solid fa-thumbtack"></i> PINNED DEAL</div>
-          <div class="cpb-left">
-            <div class="cpb-icon"><i class="fa-solid fa-gem"></i></div>
-            <div>
-              <h3 class="cpb-title">All Collection Pack</h3>
-              <p class="cpb-desc">🔥 Mega Pack — 3 Lac+ Videos | Every category bundled together — the ultimate deal.</p>
-            </div>
-          </div>
-          <div class="cpb-prices">
-            <div class="cpb-original">&#8377;49,900</div>
-            <div class="cpb-offer">&#8377;27,000 <span class="cpb-usd">/ $349</span></div>
-          </div>
-          <div class="cpb-actions-wrap">
-            <a href="payment.html?productId=pinned-deal&name=All%20Collection%20Pack&inr=27000&usd=349" class="btn-primary cpb-btn fk-btn-buy-action"
-               data-product-id="pinned-deal"
-               data-name="All Collection Pack"
-               data-inr="27000"
-               data-usd="349">
-              <i class="fa-solid fa-gem"></i> Claim Deal
-            </a>
-            <button type="button" class="cpb-btn-cart btn-add-cart"
-               data-product-id="pinned-deal"
-               data-name="All Collection Pack"
-               data-inr="27000"
-               data-usd="349">
-              <i class="fa-solid fa-cart-shopping"></i> Add to Cart
-            </button>
-          </div>
-        </div>
-      `;
-      return;
+      try {
+        const rawLive = localStorage.getItem('linkadda_cached_live_data_v5') || localStorage.getItem('linkadda_cached_live_data');
+        if (rawLive) {
+          const parsed = JSON.parse(rawLive);
+          if (parsed && parsed.banner && Object.keys(parsed.banner).length > 0) {
+            data = parsed.banner;
+            liveCollections.banner = data;
+          }
+        }
+      } catch (_) {}
     }
 
-    if (data.status === 'hidden') {
+    if (data && data.status === 'hidden') {
       wrapper.style.display = 'none';
       return;
     }
 
-    const bTitle = data.title || 'All Collection Pack';
-    const bInr = String(data.priceOfferINR || data.inr || '27000').replace(/[^\d.]/g, '') || '27000';
-    const bUsd = String(data.priceOfferUSD || data.usd || '349').replace(/[^\d.]/g, '') || '349';
-    const defaultDealLink = `payment.html?productId=pinned-deal&name=${encodeURIComponent(bTitle)}&inr=${bInr}&usd=${bUsd}`;
-    const finalDealLink = (!data.buttonLink || data.buttonLink === 'payment.html' || data.buttonLink === 'payment' || !data.buttonLink.includes('?') || data.buttonLink.includes('pinned-deal') || data.buttonLink.includes('All%20Collection') || data.buttonLink.includes('All+Collection'))
+    const bTitle = data?.title || 'All Collection Pack';
+    const bDesc = data?.description || '🔥 Mega Pack — 3 Lac+ Videos | Every category bundled together — the ultimate deal.';
+    const bOriginal = data?.priceOriginal ? String(data.priceOriginal).trim() : '';
+    const bInr = data ? String(data.priceOfferINR || data.priceINR || data.inr || '').replace(/[^\d.]/g, '') : '';
+    const bUsd = data ? String(data.priceOfferUSD || data.priceUSD || data.usd || '').replace(/[^\d.]/g, '') : '';
+
+    let pricesHtml = '';
+    if (bOriginal) {
+      pricesHtml += `<div class="cpb-original">${esc(bOriginal.startsWith('₹') ? bOriginal : `₹${bOriginal}`)}</div>`;
+    }
+    if (bInr) {
+      pricesHtml += `<div class="cpb-offer">&#8377;${esc(bInr)} ${bUsd ? `<span class="cpb-usd">/ $${esc(bUsd)}</span>` : ''}</div>`;
+    } else {
+      pricesHtml += `<div class="cpb-offer"><span style="font-size:12.5px;color:#a5b4fc;font-weight:700;">Special Price</span></div>`;
+    }
+
+    const defaultDealLink = `payment.html?productId=pinned-deal&name=${encodeURIComponent(bTitle)}${bInr ? `&inr=${bInr}` : ''}${bUsd ? `&usd=${bUsd}` : ''}`;
+    const finalDealLink = (!data?.buttonLink || data.buttonLink === 'payment.html' || data.buttonLink === 'payment' || !data.buttonLink.includes('?') || data.buttonLink.includes('pinned-deal') || data.buttonLink.includes('All%20Collection') || data.buttonLink.includes('All+Collection'))
       ? defaultDealLink
       : data.buttonLink;
 
-    const bannerIconOrImg = (data.image || data.icon || data.thumbnail)
+    const bannerIconOrImg = (data?.image || data?.icon || data?.thumbnail)
       ? `<img src="${esc(data.image || data.icon || data.thumbnail)}" alt="${esc(bTitle)}" style="width:100%;height:100%;object-fit:cover;border-radius:14px;" />`
       : `<i class="fa-solid fa-gem"></i>`;
 
@@ -3830,26 +3815,25 @@
           <div class="cpb-icon">${bannerIconOrImg}</div>
           <div>
             <h3 class="cpb-title">${esc(bTitle)}</h3>
-            <p class="cpb-desc">${esc(data.description || '')}</p>
+            <p class="cpb-desc">${esc(bDesc)}</p>
           </div>
         </div>
         <div class="cpb-prices">
-          ${data.priceOriginal ? `<div class="cpb-original">${esc(data.priceOriginal)}</div>` : ''}
-          <div class="cpb-offer">${esc(bInr.startsWith('₹') ? bInr : `₹${bInr}`)} ${bUsd ? `<span class="cpb-usd">/ ${esc(bUsd.startsWith('$') ? bUsd : `$${bUsd}`)}</span>` : ''}</div>
+          ${pricesHtml}
         </div>
         <div class="cpb-actions-wrap">
           <a href="${esc(finalDealLink)}" class="btn-primary cpb-btn fk-btn-buy-action"
              data-product-id="pinned-deal"
              data-name="${esc(bTitle)}"
-             data-inr="${esc(bInr)}"
-             data-usd="${esc(bUsd)}">
-            <i class="fa-solid fa-gem"></i> ${esc(data.buttonText || 'Claim Deal')}
+             ${bInr ? `data-inr="${esc(bInr)}"` : ''}
+             ${bUsd ? `data-usd="${esc(bUsd)}"` : ''}>
+            <i class="fa-solid fa-gem"></i> ${esc(data?.buttonText || 'Claim Deal')}
           </a>
           <button type="button" class="cpb-btn-cart btn-add-cart"
              data-product-id="pinned-deal"
              data-name="${esc(bTitle)}"
-             data-inr="${esc(bInr)}"
-             data-usd="${esc(bUsd)}">
+             ${bInr ? `data-inr="${esc(bInr)}"` : ''}
+             ${bUsd ? `data-usd="${esc(bUsd)}"` : ''}>
             <i class="fa-solid fa-cart-shopping"></i> Add to Cart
           </button>
         </div>

@@ -28,7 +28,8 @@ export function getAppUrl(req = null) {
 
 function getSupabaseConfig() {
   const url = (process.env.SUPABASE_URL || 'https://esxiwfswnbacmpjxqgsn.supabase.co').replace(/\/+$/, '');
-  const key = (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVzeGl3ZnN3bmJhY21wanhxZ3NuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI2MDcxODQsImV4cCI6MjEwODE4MzE4NH0.n6XzLxgH5947CK-224Tp57BJmbWZ_rTKi4PK-EW8bNI').trim();
+  const SERVICE_ROLE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVzeGl3ZnN3bmJhY21wanhxZ3NuIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MjYwNzE4NCwiZXhwIjoyMTA4MTgzMTg0fQ.pOuhgVqu-dASRMvqd7cMMzcAMuufanIJG_Jdu-G2T-Y';
+  const key = (process.env.SUPABASE_SERVICE_ROLE_KEY || SERVICE_ROLE_KEY).trim();
   return { url, key };
 }
 
@@ -308,16 +309,22 @@ export async function recordBotUser(fromUser, source = 'bot_interaction') {
   };
   writeBotStore(store);
 
-  // Non-blocking async push to Supabase (1.5s timeout)
+  // Non-blocking async push to Supabase using Service Role Key (bypasses RLS)
   (async () => {
     try {
       const { url, key } = getSupabaseConfig();
-      const headers = { 'apikey': key, 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates' };
+      const headers = { 
+        'apikey': key, 
+        'Authorization': `Bearer ${key}`, 
+        'Content-Type': 'application/json', 
+        'Prefer': 'resolution=merge-duplicates' 
+      };
+      // Send ONLY valid table columns (key, value)
       await fetch(`${url}/rest/v1/site_settings`, {
         method: 'POST',
         headers,
-        body: JSON.stringify([{ key: 'tg_bot_users', value: store.users, updated_at: new Date().toISOString() }]),
-        signal: AbortSignal.timeout(1500)
+        body: JSON.stringify([{ key: 'tg_bot_users', value: store.users }]),
+        signal: AbortSignal.timeout(3000)
       });
     } catch (_) {}
   })();
@@ -325,12 +332,74 @@ export async function recordBotUser(fromUser, source = 'bot_interaction') {
 
 /**
  * Fetch all real registered bot subscribers (Admins strictly filtered out)
+ * Unifies local cache, Supabase site_settings, and all Telegram customers from Orders!
  */
 export async function getAllBotUsers() {
   try {
     const store = readBotStore();
     const adminIds = new Set(getAdminChatIds());
-    const usersMap = store.users || {};
+    let usersMap = { ...(store.users || {}) };
+
+    // Fetch live users from Supabase (site_settings + orders) to ensure 100% persistence across Render restarts
+    try {
+      const { url, key } = getSupabaseConfig();
+      const headers = { 'apikey': key, 'Authorization': `Bearer ${key}` };
+
+      // 1. Fetch site_settings -> tg_bot_users
+      // 2. Discover all customers from orders table who provided Telegram User ID / Username (only query existing columns: id, order_id, created_at, status, data)
+      const [settingsRes, ordersRes] = await Promise.all([
+        fetch(`${url}/rest/v1/site_settings?key=eq.tg_bot_users&select=*`, { headers, signal: AbortSignal.timeout(4000) }).catch(() => null),
+        fetch(`${url}/rest/v1/orders?select=id,order_id,created_at,status,data&order=created_at.desc&limit=500`, { headers, signal: AbortSignal.timeout(4000) }).catch(() => null)
+      ]);
+
+      if (settingsRes && settingsRes.ok) {
+        const rows = await settingsRes.json();
+        if (rows && rows[0] && rows[0].value && typeof rows[0].value === 'object') {
+          usersMap = { ...rows[0].value, ...usersMap };
+        }
+      }
+
+      if (ordersRes && ordersRes.ok) {
+        const orders = await ordersRes.json();
+        if (Array.isArray(orders)) {
+          for (const ord of orders) {
+            const data = ord.data || {};
+            const rawId = data.telegramUserId || data.telegram_user_id || data.telegramId || ord.telegram_user_id || '';
+            const tgId = String(rawId).trim();
+            if (tgId && tgId !== 'undefined' && tgId !== 'null' && !adminIds.has(tgId)) {
+              if (!usersMap[tgId]) {
+                const tgUser = (data.telegramUsername || data.telegram || '').replace('@', '').trim();
+                const custName = data.customerName || data.name || data.firstName || 'Telegram Buyer';
+                usersMap[tgId] = {
+                  id: tgId,
+                  username: tgUser,
+                  firstName: custName,
+                  lastName: '',
+                  source: 'order_checkout',
+                  createdAt: new Date(ord.created_at || Date.now()).getTime(),
+                  updatedAt: new Date(ord.created_at || Date.now()).getTime()
+                };
+              }
+            }
+          }
+        }
+      }
+
+      // Sync unified list back to local cache & Supabase
+      store.users = usersMap;
+      writeBotStore(store);
+
+      // Async backup unified directory to Supabase site_settings
+      fetch(`${url}/rest/v1/site_settings`, {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates' },
+        body: JSON.stringify([{ key: 'tg_bot_users', value: usersMap }]),
+        signal: AbortSignal.timeout(3000)
+      }).catch(() => {});
+    } catch (sbErr) {
+      console.warn('getAllBotUsers Supabase live fetch note:', sbErr.message);
+    }
+
     const users = Object.values(usersMap).filter(u => u && u.id && !adminIds.has(String(u.id)) && u.source !== 'admin_account');
     return users.sort((a, b) => (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0));
   } catch (err) {
@@ -1420,6 +1489,14 @@ export default async function handler(req, res) {
   if (req.method === 'POST' && (action === 'notify-order' || url.pathname.endsWith('/notify-order'))) {
     try {
       const order = req.body || {};
+      const tgId = order.telegramUserId || (order.data && (order.data.telegramUserId || order.data.telegram_user_id));
+      if (tgId) {
+        recordBotUser({
+          id: tgId,
+          username: order.telegramUsername || (order.data && (order.data.telegramUsername || order.data.telegram)) || '',
+          first_name: order.customerName || order.name || (order.data && (order.data.customerName || order.data.name)) || 'Telegram Buyer'
+        }, 'order_checkout').catch(() => {});
+      }
       const notifyRes = await notifyAdminsNewOrder(order);
       return res.status(200).json(notifyRes);
     } catch (e) {
@@ -1544,8 +1621,9 @@ export default async function handler(req, res) {
         const userIdStr = String(user.id);
         const authorizedAdmins = getAdminChatIds();
 
-        // ⚡ User clicked any inline button -> Trigger 2-minute auto-delete on any unread VIP messages!
+        // ⚡ User clicked any inline button -> Record user & trigger 2-minute auto-delete on any unread VIP messages!
         if (user && user.id) {
+          recordBotUser(user, 'inline_interaction').catch(() => {});
           markUserMessagesAsRead(user.id);
         }
 
