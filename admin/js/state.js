@@ -886,10 +886,10 @@ if (typeof window !== 'undefined') {
     }
   });
 
-  // 2. Continuous 8s fallback polling ensures incoming orders, visitors, and events stay fresh
+  // 2. High-speed 3.5s polling ensures incoming orders, Telegram bot approvals, visitors, and events reflect in real time
   setInterval(async () => {
     syncAllFromFirebase().catch(() => {});
-  }, 8000);
+  }, 3500);
 
   // 3. Instant sync whenever admin focuses the browser window or changes tab
   window.addEventListener('focus', () => {

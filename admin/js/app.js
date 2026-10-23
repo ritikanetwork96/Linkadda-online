@@ -485,7 +485,7 @@ function navMarkup() {
     }
     return `
       <a class="nav-link ${ui.route === item.key ? 'active' : ''}" href="#/${item.key}" data-route="${item.key}">
-        <i data-lucide="${escapeHtml(item.icon)}"></i>
+        <span class="nav-icon-box"><i data-lucide="${escapeHtml(item.icon)}"></i></span>
         <span>${escapeHtml(item.label)}</span>
         ${badgeHtml}
       </a>

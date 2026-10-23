@@ -1035,6 +1035,9 @@ export async function syncUserOrdersWithFirebase() {
             hasUpdates = true;
             if (wasPending) {
               addOrderConfirmedNotification(ord);
+              if (typeof showAppToast === 'function') {
+                showAppToast(`🎉 Great news! Order #${String(ord.orderId).slice(-6)} Approved! VIP access is ready.`);
+              }
             }
           }
         }
@@ -1071,6 +1074,24 @@ export async function syncUserOrdersWithFirebase() {
   } finally {
     syncOrdersInProgress = false;
   }
+}
+
+// ━━ CONTINUOUS BACKGROUND ORDER SYNC ACROSS STOREFRONT ━━
+if (typeof window !== 'undefined') {
+  setInterval(() => {
+    try {
+      const orders = getUserOrders();
+      if (Array.isArray(orders) && orders.some(o => o && (o.status === 'pending' || !o.status))) {
+        syncUserOrdersWithFirebase().catch(() => {});
+      }
+    } catch (_) {}
+  }, 5000);
+
+  window.addEventListener('storage', (e) => {
+    if (e.key === 'linkadda_order_approved_event' || e.key === 'linkadda_new_order_event') {
+      syncUserOrdersWithFirebase().catch(() => {});
+    }
+  });
 }
 
 export function addOrderConfirmedNotification(ord) {
