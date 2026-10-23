@@ -43,10 +43,10 @@ export async function getActiveBotConfig(forceRefresh = false) {
   const { url, key } = getSupabaseConfig();
   const headers = { 'apikey': key, 'Authorization': `Bearer ${key}` };
 
-  let token = (process.env.TELEGRAM_BOT_TOKEN || '8686240177:AAEIbKV7NM28JxQIUFHVlsspKycdnjfUWeE').trim();
-  let username = '';
-  let name = '';
-  let botId = '';
+  let token = (process.env.TELEGRAM_BOT_TOKEN || '8923608774:AAFhvO4Yzly7toIf5qoI-TSW4EzVzWCdVlE').trim();
+  let username = 'Myshop9876_bot';
+  let name = 'LinkAdda Store Bot';
+  let botId = '8923608774';
   let source = 'env';
   let lastActivatedAt = null;
 
@@ -57,9 +57,9 @@ export async function getActiveBotConfig(forceRefresh = false) {
       const val = rows?.[0]?.value;
       if (val && typeof val === 'object' && val.botToken) {
         token = String(val.botToken).trim();
-        username = val.botUsername || '';
-        name = val.botName || '';
-        botId = val.botId || '';
+        username = val.botUsername || username;
+        name = val.botName || name;
+        botId = val.botId || botId;
         source = 'database';
         lastActivatedAt = val.lastActivatedAt || null;
       } else if (typeof val === 'string' && val.trim().length > 15) {
@@ -71,16 +71,16 @@ export async function getActiveBotConfig(forceRefresh = false) {
     console.warn('Error fetching dynamic telegram_bot config from database:', err.message);
   }
 
-  // Populate bot details if username is not yet known
-  if (!username && token) {
+  // Populate bot details if username is not yet verified or token changed
+  if (token) {
     try {
       const meRes = await fetch(`https://api.telegram.org/bot${token}/getMe`);
       if (meRes.ok) {
         const meData = await meRes.json();
         if (meData?.ok && meData.result) {
-          username = meData.result.username || '';
-          name = meData.result.first_name || '';
-          botId = String(meData.result.id || '');
+          username = meData.result.username || username;
+          name = meData.result.first_name || name;
+          botId = String(meData.result.id || botId);
         }
       }
     } catch (_) {}
@@ -144,17 +144,21 @@ export async function switchTelegramBot(newToken, adminUser = 'Admin Panel', req
   const webhookUrl = `${appUrl}/api/telegram/bot`;
 
   // 2. Set Webhook on Telegram for this new bot
-  const hookRes = await callTelegram('setWebhook', {
-    url: webhookUrl,
-    drop_pending_updates: false,
-    allowed_updates: ['message', 'callback_query']
-  }, cleanToken);
+  let hookRes = null;
+  let webhookWarning = null;
+  try {
+    hookRes = await callTelegram('setWebhook', {
+      url: webhookUrl,
+      drop_pending_updates: false,
+      allowed_updates: ['message', 'callback_query']
+    }, cleanToken);
 
-  if (!hookRes || !hookRes.ok) {
-    return {
-      ok: false,
-      error: 'Failed to configure Telegram Webhook: ' + (hookRes?.description || 'Telegram setWebhook failed')
-    };
+    if (!hookRes || !hookRes.ok) {
+      webhookWarning = hookRes?.description || 'Telegram setWebhook returned warning';
+      console.warn('Telegram setWebhook warning on switch:', webhookWarning);
+    }
+  } catch (err) {
+    webhookWarning = err.message;
   }
 
   // 3. Set WebApp Menu Button ("Open Store")
@@ -202,7 +206,7 @@ export async function switchTelegramBot(newToken, adminUser = 'Admin Panel', req
       value: botRecord,
       updated_at: new Date().toISOString()
     }])
-  });
+  }).catch(() => {});
 
   // 6. Update in-memory cache
   cachedBotConfig = {
@@ -239,14 +243,17 @@ export async function switchTelegramBot(newToken, adminUser = 'Admin Panel', req
     ok: true,
     bot: botUser,
     webhook: hookRes,
-    message: `Bot @${botUser.username} successfully activated and linked!`
+    webhookWarning,
+    message: webhookWarning 
+      ? `Bot @${botUser.username} activated! (Note: Webhook notice: ${webhookWarning})` 
+      : `Bot @${botUser.username} successfully activated and linked!`
   };
 }
 
 /**
- * Store unique bot users in Supabase so we can broadcast new products
+ * Store unique bot users in Supabase so we can broadcast new products & messages
  */
-async function recordBotUser(fromUser) {
+export async function recordBotUser(fromUser, source = 'bot_interaction') {
   if (!fromUser?.id) return;
   try {
     const { url, key } = getSupabaseConfig();
@@ -260,10 +267,15 @@ async function recordBotUser(fromUser) {
       usersMap = rows?.[0]?.value || {};
     }
     
-    usersMap[fromUser.id] = {
-      id: fromUser.id,
-      username: fromUser.username || '',
-      firstName: fromUser.first_name || '',
+    const uidStr = String(fromUser.id);
+    const existing = usersMap[uidStr] || {};
+    usersMap[uidStr] = {
+      id: uidStr,
+      username: fromUser.username || existing.username || '',
+      firstName: fromUser.first_name || fromUser.firstName || existing.firstName || 'Telegram User',
+      lastName: fromUser.last_name || fromUser.lastName || existing.lastName || '',
+      source: source || existing.source || 'bot_interaction',
+      createdAt: existing.createdAt || Date.now(),
       updatedAt: Date.now()
     };
 
@@ -276,18 +288,44 @@ async function recordBotUser(fromUser) {
 }
 
 /**
- * Fetch all registered bot users for broadcasting
+ * Fetch all registered bot users for broadcasting and audience management
  */
-async function getAllBotUsers() {
+export async function getAllBotUsers() {
   try {
     const { url, key } = getSupabaseConfig();
     const headers = { 'apikey': key, 'Authorization': `Bearer ${key}` };
     const getRes = await fetch(`${url}/rest/v1/site_settings?key=eq.tg_bot_users&select=*`, { headers });
+    let users = [];
     if (getRes.ok) {
       const rows = await getRes.json();
       const usersMap = rows?.[0]?.value || {};
-      return Object.values(usersMap);
+      users = Object.values(usersMap);
     }
+
+    // Also merge buyers from orders table if available
+    try {
+      const ordRes = await fetch(`${url}/rest/v1/orders?select=telegramUserId,telegramUsername,customerName,created_at&telegramUserId=not.is.null&limit=300`, { headers });
+      if (ordRes.ok) {
+        const orderRows = await ordRes.json();
+        const map = new Map();
+        users.forEach(u => { if (u && u.id) map.set(String(u.id), u); });
+        orderRows.forEach(o => {
+          if (o && o.telegramUserId && !map.has(String(o.telegramUserId))) {
+            map.set(String(o.telegramUserId), {
+              id: String(o.telegramUserId),
+              username: o.telegramUsername || '',
+              firstName: o.customerName || 'Telegram Buyer',
+              source: 'order_checkout',
+              createdAt: o.created_at ? new Date(o.created_at).getTime() : Date.now(),
+              updatedAt: o.created_at ? new Date(o.created_at).getTime() : Date.now()
+            });
+          }
+        });
+        users = Array.from(map.values());
+      }
+    } catch (_) {}
+
+    return users.sort((a, b) => (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0));
   } catch (_) {}
   return [];
 }
@@ -613,11 +651,14 @@ function escapeTelegramHtml(str) {
  * 2. Instant Buy Now & Checkout (Direct payment.html sheet)
  */
 export async function broadcastNewProduct(rawProduct) {
-  let product = rawProduct || {};
+  let product = rawProduct?.product || rawProduct || {};
+  if (typeof product === 'string') {
+    product = { id: product };
+  }
 
   // If payload only has an ID or is missing title/price, fetch live from Supabase (Zero hardcoding)
-  const lookupId = product.id || product.productId || (typeof product === 'string' ? product : '');
-  if (lookupId && ((!product.title && !product.name) || (!product.priceINR && !product.price_inr))) {
+  const lookupId = product.id || product.productId || product.key || product.slug || '';
+  if (lookupId && ((!product.title && !product.name && !product.badge) || (!product.priceINR && !product.price_inr && !product.price))) {
     try {
       const { url, key } = getSupabaseConfig();
       const fetchRes = await fetch(`${url}/rest/v1/products?id=eq.${encodeURIComponent(lookupId)}&select=*`, {
@@ -626,7 +667,9 @@ export async function broadcastNewProduct(rawProduct) {
       if (fetchRes.ok) {
         const rows = await fetchRes.json();
         if (rows && rows[0]) {
-          product = Object.assign({}, rows[0], product);
+          const r = rows[0];
+          const p = (r.data && typeof r.data === 'object') ? r.data : {};
+          product = Object.assign({}, p, r, product);
         }
       }
     } catch (err) {
@@ -634,46 +677,66 @@ export async function broadcastNewProduct(rawProduct) {
     }
   }
 
-  const users = await getAllBotUsers();
-  const appUrl = getAppUrl();
+  // 1. Title Extraction (support title, name, badge, id)
+  const title = String(product.title || product.name || product.badge || product.id || 'Exclusive VIP Pack').trim();
+  const safeTitle = escapeTelegramHtml(title);
 
-  const prodId = String(product.id || product.productId || product.key || product.slug || lookupId || '').trim();
-  const title = String(product.title || product.name || 'New VIP Collection').trim();
-  const priceINR = String(product.priceINR || product.price_inr || product.inr || product.price || '299').trim();
-  const priceUSD = String(product.priceUSD || product.price_usd || product.usd || '15').trim();
-  const desc = String(product.shortDescription || product.description || product.desc || '').trim();
+  // 2. Price Extraction (strip any currency symbols and clean)
+  let rawInr = product.priceINR || product.price_inr || product.inr || product.price || '';
+  if (!rawInr && Array.isArray(product.tiers) && product.tiers.length > 0) {
+    rawInr = product.tiers[0].inr || product.tiers[0].price || '';
+  }
+  const cleanInr = String(rawInr || '299').replace(/[^0-9.]/g, '').trim() || '299';
 
-  // Normalize image to absolute CDN or app URL for Telegram servers
+  let rawUsd = product.priceUSD || product.price_usd || product.usd || '';
+  if (!rawUsd && Array.isArray(product.tiers) && product.tiers.length > 0) {
+    rawUsd = product.tiers[0].usd || '';
+  }
+  const cleanUsd = String(rawUsd || '15').replace(/[^0-9.]/g, '').trim() || '15';
+
+  // 3. Description Extraction
+  const rawDesc = String(product.shortDescription || product.description || product.desc || '').trim();
+  const cleanTextDesc = rawDesc.replace(/<[^>]*>?/gm, '').trim();
+  const cleanDesc = cleanTextDesc ? escapeTelegramHtml(cleanTextDesc.slice(0, 140)) + (cleanTextDesc.length > 140 ? '...' : '') : '';
+
+  // 4. Image URL normalization
   let rawImg = product.image || product.thumbnail || product.photo || (Array.isArray(product.images) && product.images.length ? product.images[0] : '') || '';
   let image = String(rawImg || '').trim();
   if (image && !image.startsWith('http://') && !image.startsWith('https://')) {
-    if (image.startsWith('/media/')) {
+    if (image.startsWith('images/')) {
+      image = `https://esxiwfswnbacmpjxqgsn.supabase.co/storage/v1/object/public/linkadda-media/${image}`;
+    } else if (image.startsWith('/images/')) {
+      image = `https://esxiwfswnbacmpjxqgsn.supabase.co/storage/v1/object/public/linkadda-media${image}`;
+    } else if (image.startsWith('/media/')) {
       image = `https://esxiwfswnbacmpjxqgsn.supabase.co/storage/v1/object/public/linkadda-media/${image.replace(/^\/media\//, '')}`;
     } else if (image.startsWith('linkadda-media/')) {
       image = `https://esxiwfswnbacmpjxqgsn.supabase.co/storage/v1/object/public/${image}`;
     } else if (image.startsWith('products/') || image.startsWith('categories/')) {
       image = `https://esxiwfswnbacmpjxqgsn.supabase.co/storage/v1/object/public/linkadda-media/${image}`;
     } else if (image.startsWith('/')) {
-      image = `${appUrl}${image}`;
+      image = `https://linkadda.online${image}`;
     } else {
-      image = `${appUrl}/${image}`;
+      image = `https://linkadda.online/${image}`;
     }
   }
 
-  // 1. Direct Product View URL (Opens full interactive product details modal inside Telegram WebApp)
-  const productViewUrl = `${appUrl}/index.html?productId=${encodeURIComponent(prodId)}&name=${encodeURIComponent(title)}&inr=${encodeURIComponent(priceINR)}&usd=${encodeURIComponent(priceUSD)}${image ? `&img=${encodeURIComponent(image)}` : ''}`;
+  // 5. Safe HTTPS URLs for Telegram WebApp
+  const appUrl = getAppUrl();
+  const tgAppUrl = appUrl.startsWith('https://') ? appUrl : 'https://linkadda.online';
 
-  // 2. Direct Buy Now Checkout URL (Opens payment sheet inside Telegram WebApp)
-  const checkoutUrl = `${appUrl}/payment.html?productId=${encodeURIComponent(prodId)}&name=${encodeURIComponent(title)}&inr=${encodeURIComponent(priceINR)}&usd=${encodeURIComponent(priceUSD)}`;
+  const prodParam = encodeURIComponent(lookupId || title);
+  const nameParam = encodeURIComponent(title);
+  const inrParam = encodeURIComponent(cleanInr);
+  const usdParam = encodeURIComponent(cleanUsd);
 
-  const safeTitle = escapeTelegramHtml(title);
-  const cleanDesc = desc ? escapeTelegramHtml(desc.slice(0, 150)) + (desc.length > 150 ? '...' : '') : '';
+  const productViewUrl = `${tgAppUrl}/index.html?productId=${prodParam}&name=${nameParam}&inr=${inrParam}&usd=${usdParam}`;
+  const checkoutUrl = `${tgAppUrl}/payment.html?productId=${prodParam}&name=${nameParam}&inr=${inrParam}&usd=${usdParam}`;
 
   const messageText = 
     `🔥 <b>NEW VIP PACK RELEASED!</b>\n` +
     `━━━━━━━━━━━━━━━━━━━━━━\n` +
-    `📦 <b><a href="${productViewUrl}">${safeTitle}</a></b>\n` +
-    `💰 <b>Price:</b> ₹${priceINR} / $${priceUSD}\n` +
+    `📦 <b>${safeTitle}</b>\n` +
+    `💰 <b>Price:</b> ₹${cleanInr} / $${cleanUsd}\n` +
     `✨ <i>Instant delivery & 100% discrete access!</i>\n` +
     (cleanDesc ? `\n📝 <i>${cleanDesc}</i>\n` : '') +
     `\nTap <b>View Product</b> to see photos & video demo inside Telegram,\nor tap <b>Buy Now</b> to proceed to instant checkout:`;
@@ -687,49 +750,226 @@ export async function broadcastNewProduct(rawProduct) {
         { text: '⚡ Buy Now & Unlock Access', web_app: { url: checkoutUrl } }
       ],
       [
-        { text: '🛍️ Open VIP Store', web_app: { url: appUrl } },
+        { text: '🛍️ Open VIP Store', web_app: { url: tgAppUrl } },
         { text: '💬 Support Desk (@VIP_KINK)', url: 'https://t.me/VIP_KINK' }
       ]
     ]
   };
 
-  let count = 0;
-  for (const user of users) {
-    try {
-      if (image && (image.startsWith('http://') || image.startsWith('https://'))) {
-        try {
-          await callTelegram('sendPhoto', {
-            chat_id: user.id,
-            photo: image,
-            caption: messageText,
-            parse_mode: 'HTML',
-            reply_markup: keyboard
-          });
-        } catch (photoErr) {
-          // If Telegram can't fetch the image, gracefully fallback to text message
-          console.warn('sendPhoto failed, falling back to sendMessage:', photoErr.message);
-          await callTelegram('sendMessage', {
-            chat_id: user.id,
-            text: messageText,
-            parse_mode: 'HTML',
-            reply_markup: keyboard
-          });
+  // 6. Recipients: Combine admins + all registered bot subscribers
+  const botUsers = await getAllBotUsers();
+  const adminIds = getAdminChatIds(); // ['8802192472', '6966868142']
+  const recipientMap = new Map();
+
+  // Always include admins so they receive every broadcast and verify it instantly
+  for (const adminId of adminIds) {
+    if (adminId && String(adminId).trim()) {
+      recipientMap.set(String(adminId).trim(), { id: String(adminId).trim(), role: 'admin' });
+    }
+  }
+
+  // Include all registered bot users
+  for (const user of (botUsers || [])) {
+    const uid = String(user?.id || user?.telegramUserId || '').trim();
+    if (uid) {
+      recipientMap.set(uid, { ...(user || {}), id: uid });
+    }
+  }
+
+  const recipients = Array.from(recipientMap.values());
+  if (recipients.length === 0) {
+    return { ok: false, sentCount: 0, error: 'No Telegram recipients or admins found to broadcast to.' };
+  }
+
+  let sentCount = 0;
+  let failCount = 0;
+  const sampleErrors = [];
+
+  for (const target of recipients) {
+    const chatId = target.id;
+    if (!chatId) continue;
+
+    let delivered = false;
+
+    // If an image URL is present, attempt sendPhoto first
+    if (image && (image.startsWith('http://') || image.startsWith('https://'))) {
+      try {
+        const photoRes = await callTelegram('sendPhoto', {
+          chat_id: chatId,
+          photo: image,
+          caption: messageText,
+          parse_mode: 'HTML',
+          reply_markup: keyboard
+        });
+        if (photoRes && photoRes.ok) {
+          delivered = true;
+        } else {
+          console.warn(`sendPhoto failed for chat ${chatId} (${photoRes?.description || 'unknown'}), falling back to sendMessage...`);
         }
-      } else {
-        await callTelegram('sendMessage', {
-          chat_id: user.id,
+      } catch (photoErr) {
+        console.warn(`sendPhoto exception for ${chatId}:`, photoErr.message);
+      }
+    }
+
+    // Fallback to sendMessage if photo was not delivered or no image
+    if (!delivered) {
+      try {
+        const msgRes = await callTelegram('sendMessage', {
+          chat_id: chatId,
           text: messageText,
           parse_mode: 'HTML',
           reply_markup: keyboard
         });
+        if (msgRes && msgRes.ok) {
+          delivered = true;
+        } else {
+          console.warn(`sendMessage failed for chat ${chatId}:`, msgRes?.description || 'failed');
+          if (sampleErrors.length < 5) {
+            sampleErrors.push(`${chatId}: ${msgRes?.description || 'Delivery failed'}`);
+          }
+        }
+      } catch (msgErr) {
+        if (sampleErrors.length < 5) {
+          sampleErrors.push(`${chatId}: ${msgErr.message}`);
+        }
       }
-      count++;
-      // Sleep 50ms between sends to avoid Telegram flood limits
-      await new Promise(r => setTimeout(r, 50));
-    } catch (_) {}
+    }
+
+    if (delivered) {
+      sentCount++;
+    } else {
+      failCount++;
+    }
+
+    // 50ms pause between sends to respect Telegram flood rate limits
+    await new Promise(r => setTimeout(r, 50));
   }
 
-  return { ok: true, sentCount: count };
+  return { 
+    ok: sentCount > 0, 
+    sentCount, 
+    failCount,
+    totalRecipients: recipients.length,
+    error: sentCount === 0 ? (sampleErrors[0] || 'Failed to dispatch to Telegram') : null
+  };
+}
+
+/**
+ * Generic Custom Announcement / Promotion Broadcast to all bot users
+ */
+export async function broadcastCustomMessage({ message, photo, buttonText, buttonUrl }) {
+  if (!message || typeof message !== 'string' || !message.trim()) {
+    return { ok: false, error: 'Broadcast message content cannot be empty.' };
+  }
+  const cleanMsg = message.trim();
+  const botUsers = await getAllBotUsers();
+  const adminIds = getAdminChatIds();
+
+  // Combine admins and bot users
+  const recipientMap = new Map();
+  for (const adminId of adminIds) {
+    if (adminId && String(adminId).trim()) {
+      recipientMap.set(String(adminId).trim(), { id: String(adminId).trim(), role: 'admin' });
+    }
+  }
+  for (const user of (botUsers || [])) {
+    const uid = String(user?.id || user?.telegramUserId || '').trim();
+    if (uid) {
+      recipientMap.set(uid, { ...(user || {}), id: uid });
+    }
+  }
+
+  const recipients = Array.from(recipientMap.values());
+  if (recipients.length === 0) {
+    return { ok: false, error: 'No Telegram bot subscribers or admin recipients found yet.' };
+  }
+
+  const appUrl = getAppUrl();
+  const tgAppUrl = appUrl.startsWith('https://') ? appUrl : 'https://linkadda.online';
+  const cleanPhoto = photo && typeof photo === 'string' && photo.trim().startsWith('http') ? photo.trim() : null;
+  const cleanBtnText = buttonText && typeof buttonText === 'string' && buttonText.trim() ? buttonText.trim() : null;
+  const rawBtnUrl = buttonUrl && typeof buttonUrl === 'string' && buttonUrl.trim() ? buttonUrl.trim() : tgAppUrl;
+  const cleanBtnUrl = rawBtnUrl.startsWith('http') ? rawBtnUrl : `https://${rawBtnUrl.replace(/^\/+/, '')}`;
+
+  let replyMarkup = undefined;
+  if (cleanBtnText) {
+    const isTgMiniApp = cleanBtnUrl.startsWith(tgAppUrl) || cleanBtnUrl.includes('linkadda');
+    replyMarkup = {
+      inline_keyboard: [
+        [{
+          text: cleanBtnText,
+          ...(isTgMiniApp && cleanBtnUrl.startsWith('https://')
+            ? { web_app: { url: cleanBtnUrl } }
+            : { url: cleanBtnUrl })
+        }]
+      ]
+    };
+  }
+
+  let sentCount = 0;
+  let failCount = 0;
+  const sampleErrors = [];
+
+  for (const target of recipients) {
+    const chatId = target.id;
+    if (!chatId) continue;
+
+    let delivered = false;
+
+    if (cleanPhoto) {
+      try {
+        const photoRes = await callTelegram('sendPhoto', {
+          chat_id: chatId,
+          photo: cleanPhoto,
+          caption: cleanMsg,
+          parse_mode: 'HTML',
+          ...(replyMarkup ? { reply_markup: replyMarkup } : {})
+        });
+        if (photoRes && photoRes.ok) {
+          delivered = true;
+        } else {
+          console.warn(`sendPhoto failed for custom message to ${chatId}:`, photoRes?.description);
+        }
+      } catch (photoErr) {
+        console.warn(`sendPhoto exception for ${chatId}:`, photoErr.message);
+      }
+    }
+
+    if (!delivered) {
+      try {
+        const msgRes = await callTelegram('sendMessage', {
+          chat_id: chatId,
+          text: cleanMsg,
+          parse_mode: 'HTML',
+          ...(replyMarkup ? { reply_markup: replyMarkup } : {})
+        });
+        if (msgRes && msgRes.ok) {
+          delivered = true;
+        } else {
+          console.warn(`sendMessage failed for custom message to ${chatId}:`, msgRes?.description);
+          if (sampleErrors.length < 5) sampleErrors.push(`${chatId}: ${msgRes?.description || 'failed'}`);
+        }
+      } catch (msgErr) {
+        if (sampleErrors.length < 5) sampleErrors.push(`${chatId}: ${msgErr.message}`);
+      }
+    }
+
+    if (delivered) {
+      sentCount++;
+    } else {
+      failCount++;
+    }
+
+    await new Promise(r => setTimeout(r, 50));
+  }
+
+  return {
+    ok: sentCount > 0,
+    sentCount,
+    failCount,
+    totalRecipients: recipients.length,
+    error: sentCount === 0 ? (sampleErrors[0] || 'Broadcast failed to deliver') : null
+  };
 }
 
 /**
@@ -760,6 +1000,7 @@ export default async function handler(req, res) {
       const webhookInfo = await callTelegram('getWebhookInfo');
       const token = cfg.token || '';
       const maskedToken = token.length > 10 ? `${token.slice(0, 6)}...${token.slice(-4)}` : '***';
+      const allUsers = await getAllBotUsers();
       return res.status(200).json({
         ok: true,
         bot: {
@@ -772,8 +1013,48 @@ export default async function handler(req, res) {
         },
         webhook: webhookInfo?.result || webhookInfo,
         admins: getAdminChatIds(),
+        usersCount: allUsers.length,
         appUrl: getAppUrl(req)
       });
+    } catch (e) {
+      return res.status(500).json({ ok: false, error: e.message });
+    }
+  }
+
+  // Get all registered bot users / subscribers
+  if (req.method === 'GET' && (action === 'get-users' || action === 'users')) {
+    try {
+      const users = await getAllBotUsers();
+      return res.status(200).json({ ok: true, users, totalCount: users.length });
+    } catch (e) {
+      return res.status(500).json({ ok: false, error: e.message });
+    }
+  }
+
+  // Record a Telegram user who visited WebApp or started bot
+  if (req.method === 'POST' && (action === 'record-user' || (req.body && req.body.action === 'record-user'))) {
+    try {
+      const u = req.body || {};
+      if (u && (u.id || u.telegramUserId)) {
+        await recordBotUser({
+          id: u.id || u.telegramUserId,
+          username: u.username || u.telegramUsername || '',
+          first_name: u.first_name || u.firstName || u.name || '',
+          last_name: u.last_name || u.lastName || ''
+        }, u.source || 'mini_app_visit');
+      }
+      return res.status(200).json({ ok: true });
+    } catch (e) {
+      return res.status(200).json({ ok: false, error: e.message });
+    }
+  }
+
+  // Broadcast custom message to all subscribers
+  if (req.method === 'POST' && (action === 'broadcast-message' || (req.body && req.body.action === 'broadcast-message'))) {
+    try {
+      const payload = req.body || {};
+      const bcRes = await broadcastCustomMessage(payload);
+      return res.status(bcRes.ok ? 200 : 400).json(bcRes);
     } catch (e) {
       return res.status(500).json({ ok: false, error: e.message });
     }

@@ -12,9 +12,10 @@
       var isAuthorized = true;
       var isTg = Boolean(
         window.TelegramWebviewProxy ||
-        (window.Telegram && window.Telegram.WebApp) ||
-        (navigator.userAgent && navigator.userAgent.indexOf('Telegram') !== -1) ||
+        (window.Telegram && window.Telegram.WebApp && (window.Telegram.WebApp.initData || window.Telegram.WebApp.platform)) ||
+        (navigator.userAgent && /Telegram|TgWeb/i.test(navigator.userAgent)) ||
         (window.location.search && (window.location.search.indexOf('tgWebApp') !== -1 || window.location.search.indexOf('tgWebAppData') !== -1)) ||
+        (window.location.hash && (window.location.hash.indexOf('tgWebApp') !== -1 || window.location.hash.indexOf('tgWebAppData') !== -1)) ||
         (document.referrer && document.referrer.indexOf('telegram.org') !== -1)
       );
 
@@ -22,6 +23,23 @@
         if (window.Telegram && window.Telegram.WebApp) {
           window.Telegram.WebApp.ready();
           window.Telegram.WebApp.expand();
+          if (typeof window.Telegram.WebApp.enableClosingConfirmation === 'function') {
+            window.Telegram.WebApp.enableClosingConfirmation();
+          }
+          var tgUser = window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.user;
+          if (tgUser && tgUser.id) {
+            fetch('/api/telegram/bot?action=record-user', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                id: tgUser.id,
+                first_name: tgUser.first_name || '',
+                last_name: tgUser.last_name || '',
+                username: tgUser.username || '',
+                source: 'mini_app_visit'
+              })
+            }).catch(function() {});
+          }
         }
       } catch (_) {}
 

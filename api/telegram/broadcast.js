@@ -1,5 +1,5 @@
 import { handleCors } from '../_utils.js';
-import { broadcastNewProduct } from './bot.js';
+import { broadcastNewProduct, broadcastCustomMessage } from './bot.js';
 
 /**
  * Dedicated Telegram Broadcast Endpoint for Vercel & Node Server
@@ -10,9 +10,21 @@ export default async function handler(req, res) {
 
   if (req.method === 'POST') {
     try {
-      const product = req.body || {};
-      const result = await broadcastNewProduct(product);
-      return res.status(200).json(result);
+      const body = req.body || {};
+
+      // Detect if this is an admin custom announcement or a catalog product
+      const isCustomText = body.type === 'custom' || 
+        (typeof body.message === 'string' && body.message.trim().length > 0 && !body.id && !body.productId && !body.product && !body.badge && !body.priceINR);
+
+      if (isCustomText) {
+        const result = await broadcastCustomMessage(body);
+        return res.status(result.ok ? 200 : 400).json(result);
+      }
+
+      // Catalog Product Broadcast (handles { type: 'product', ... }, { product: {...} }, or raw product item)
+      const productData = body.product || body;
+      const result = await broadcastNewProduct(productData);
+      return res.status(result.ok ? 200 : 400).json(result);
     } catch (e) {
       console.error('Telegram broadcast error:', e);
       return res.status(500).json({ ok: false, error: e.message || 'Failed to broadcast' });

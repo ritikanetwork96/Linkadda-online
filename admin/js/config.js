@@ -49,6 +49,7 @@ export const RTDB_NODES = {
 export const NAV_ITEMS = [
   { key: 'dashboard', label: 'Dashboard', icon: 'layout-dashboard' },
   { key: 'orders', label: 'Orders', icon: 'receipt-text' },
+  { key: 'telegram', label: 'Telegram Bot', icon: 'bot' },
   { key: 'catalog', label: 'Catalog', icon: 'package' },
   { key: 'reviews', label: 'Reviews', icon: 'star' },
   { key: 'media', label: 'Media', icon: 'image-plus' },
