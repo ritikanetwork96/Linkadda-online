@@ -19,10 +19,9 @@ if (dns.setDefaultResultOrder) {
 export function getAuthSecret() {
   const secret = (process.env.AUTH_SECRET || '').trim();
   if (secret) return secret;
-  if (!globalThis.__SECURE_RUN_SECRET) {
-    globalThis.__SECURE_RUN_SECRET = crypto.randomBytes(32).toString('hex');
-  }
-  return globalThis.__SECURE_RUN_SECRET;
+  // Stable deterministic secret fallback for serverless cold-starts
+  const seed = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.TELEGRAM_BOT_TOKEN || 'linkadda-secure-auth-secret-stable-key-2026';
+  return crypto.createHash('sha256').update(seed).digest('hex');
 }
 
 /**

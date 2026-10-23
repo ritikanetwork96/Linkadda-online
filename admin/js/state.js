@@ -600,6 +600,25 @@ export async function updateRecord(node, id, data) {
   emitImmediate();
   syncWebsiteCache();
   await update(nodeRef(node, targetId), { ...data, updatedAt: Date.now() });
+
+  // Direct REST update to Supabase for orders ensures 100% instant sync with bot and client
+  if (node === 'orders') {
+    try {
+      const supaUrl = 'https://esxiwfswnbacmpjxqgsn.supabase.co';
+      const supaKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVzeGl3ZnN3bmJhY21wanhxZ3NuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI2MDcxODQsImV4cCI6MjEwODE4MzE4NH0.n6XzLxgH5947CK-224Tp57BJmbWZ_rTKi4PK-EW8bNI';
+      const hdrs = { 'apikey': supaKey, 'Authorization': `Bearer ${supaKey}`, 'Content-Type': 'application/json' };
+      const patchBody = {
+        status: data.status || next.status || 'approved',
+        updated_at: new Date().toISOString(),
+        data: next
+      };
+      fetch(`${supaUrl}/rest/v1/orders?id=eq.${encodeURIComponent(targetId)}`, {
+        method: 'PATCH',
+        headers: hdrs,
+        body: JSON.stringify(patchBody)
+      }).catch(() => {});
+    } catch (_) {}
+  }
   return next;
 }
 

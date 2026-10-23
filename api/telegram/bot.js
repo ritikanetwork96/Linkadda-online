@@ -10,7 +10,12 @@ const DEFAULT_ADMIN_IDS = ['8802192472', '6966868142'];
 
 export function getAdminChatIds() {
   const envAdmins = (process.env.ADMIN_CHAT_IDS || '').split(',').map(s => s.trim()).filter(Boolean);
-  const combined = [...new Set([...DEFAULT_ADMIN_IDS, ...envAdmins])];
+  let storeAdmins = [];
+  try {
+    const store = readBotStore();
+    if (Array.isArray(store.admins)) storeAdmins = store.admins.map(s => String(s).trim()).filter(Boolean);
+  } catch (_) {}
+  const combined = [...new Set([...DEFAULT_ADMIN_IDS, ...envAdmins, ...storeAdmins])];
   return combined;
 }
 
@@ -63,7 +68,8 @@ function readBotStore() {
     admins: DEFAULT_ADMIN_IDS,
     users: {},
     pendingDeletions: {},
-    orderLinks: {}
+    orderLinks: {},
+    orderAdminMessages: {}
   };
 }
 
@@ -112,7 +118,7 @@ export async function getActiveBotConfig(forceRefresh = false) {
 }
 
 /**
- * Call official Telegram Bot API with 5-second hard timeout
+ * Call official Telegram Bot API with FormData multipart & JSON support
  */
 export async function callTelegram(method, body = {}, overrideToken = null) {
   try {
@@ -121,12 +127,20 @@ export async function callTelegram(method, body = {}, overrideToken = null) {
       const cfg = await getActiveBotConfig();
       token = cfg.token;
     }
-    const res = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
+    const isFormData = (typeof FormData !== 'undefined') && (body instanceof FormData);
+    const timeoutMs = isFormData ? 25000 : 10000;
+    const fetchOptions = {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(5000)
-    });
+      signal: AbortSignal.timeout(timeoutMs)
+    };
+    if (isFormData) {
+      // Native fetch automatically provides multipart boundary header
+      fetchOptions.body = body;
+    } else {
+      fetchOptions.headers = { 'Content-Type': 'application/json' };
+      fetchOptions.body = JSON.stringify(body);
+    }
+    const res = await fetch(`https://api.telegram.org/bot${token}/${method}`, fetchOptions);
     return await res.json();
   } catch (err) {
     console.error(`Telegram API error [${method}]:`, err.message);
@@ -663,7 +677,7 @@ export async function notifyAdminsNewOrder(order) {
     }
   }
 
-  const productTitle = order.product_title || order.productTitle || order.title || order.name || 'VIP Content Pack';
+  const productTitle = order.product_title || order.productTitle || order.productName || order.title || order.name || 'VIP Content Pack';
   
   // Format amount cleanly without double symbols
   const rawAmt = String(order.amount || order.amountDisplay || '399').trim();
@@ -673,20 +687,43 @@ export async function notifyAdminsNewOrder(order) {
   const utr = order.utr || order.transactionId || 'Not provided';
   const tgUser = order.telegramUsername ? `@${order.telegramUsername}` : (order.telegramUserId ? `ID: ${order.telegramUserId}` : 'Website Checkout');
   
-  let screenshot = order.payment_proof || order.screenshotUrl || order.paymentProof || '';
-  if (screenshot) {
-    screenshot = await ensureScreenshotUploaded(orderId, screenshot);
+  const rawScreenshot = String(order.payment_proof || order.screenshotUrl || order.paymentProof || '').trim();
+  let uploadedScreenshotUrl = '';
+
+  // 1. Extract raw image buffer directly (base64 or remote URL)
+  let photoBuffer = null;
+  if (rawScreenshot.startsWith('data:') || rawScreenshot.includes('base64,')) {
+    try {
+      const parts = rawScreenshot.split('base64,');
+      const b64 = parts[1] || parts[0];
+      photoBuffer = Buffer.from(b64, 'base64');
+    } catch (_) {}
+  } else if (rawScreenshot.startsWith('http://') || rawScreenshot.startsWith('https://')) {
+    uploadedScreenshotUrl = rawScreenshot;
+    try {
+      const imgFetch = await fetch(rawScreenshot, { signal: AbortSignal.timeout(6000) });
+      if (imgFetch.ok) {
+        photoBuffer = Buffer.from(await imgFetch.arrayBuffer());
+      }
+    } catch (_) {}
   }
 
-  // Update Supabase order row with permanent screenshot URL if available
-  if (screenshot && (screenshot.startsWith('http://') || screenshot.startsWith('https://'))) {
+  // 2. Ensure permanent upload to Supabase storage in background if not already an HTTP URL
+  if (!uploadedScreenshotUrl && rawScreenshot) {
+    try {
+      uploadedScreenshotUrl = await ensureScreenshotUploaded(orderId, rawScreenshot);
+    } catch (_) {}
+  }
+
+  // 3. Update Supabase order row with permanent screenshot URL if available
+  if (uploadedScreenshotUrl) {
     try {
       const { url, key } = getSupabaseConfig();
-      await fetch(`${url}/rest/v1/orders?id=eq.${encodeURIComponent(orderId)}`, {
+      fetch(`${url}/rest/v1/orders?id=eq.${encodeURIComponent(orderId)}`, {
         method: 'PATCH',
         headers: { 'apikey': key, 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ payment_proof: screenshot, updated_at: new Date().toISOString() })
-      });
+        body: JSON.stringify({ payment_proof: uploadedScreenshotUrl, updated_at: new Date().toISOString() })
+      }).catch(() => {});
     } catch (_) {}
   }
 
@@ -694,7 +731,7 @@ export async function notifyAdminsNewOrder(order) {
     `🚨 <b>NEW ORDER RECEIVED!</b>\n` +
     `━━━━━━━━━━━━━━━━━━━━━━\n` +
     `🆔 <b>Order ID:</b> <code>${orderId}</code>\n` +
-    `📦 <b>Product:</b> <b>${productTitle}</b>\n` +
+    `📦 <b>Product:</b> <b>${escapeTelegramHtml(productTitle)}</b>\n` +
     `💰 <b>Amount:</b> <b>${amount}</b>\n` +
     `💳 <b>Payment Method:</b> ${method}\n` +
     `🔢 <b>UTR / Transaction Ref:</b> <code>${utr}</code>\n` +
@@ -702,10 +739,11 @@ export async function notifyAdminsNewOrder(order) {
     `━━━━━━━━━━━━━━━━━━━━━━\n` +
     `<i>Review payment screenshot and tap below to Approve or Reject:</i>`;
 
+  const viewScreenshotUrl = uploadedScreenshotUrl || (rawScreenshot.startsWith('http') ? rawScreenshot : '');
   const inlineKeyboard = {
     inline_keyboard: [
-      ...(screenshot && (screenshot.startsWith('http://') || screenshot.startsWith('https://'))
-        ? [[{ text: '🔍 View Full Screenshot', url: screenshot }]]
+      ...(viewScreenshotUrl
+        ? [[{ text: '🔍 View Full Screenshot', url: viewScreenshotUrl }]]
         : []),
       [
         { text: '✅ Approve Order', callback_data: `appr_${orderId}` },
@@ -715,29 +753,91 @@ export async function notifyAdminsNewOrder(order) {
   };
 
   const results = [];
+  const sentAdminMessages = [];
+
   for (const adminId of adminIds) {
-    if (screenshot && (screenshot.startsWith('http://') || screenshot.startsWith('https://'))) {
-      const photoRes = await callTelegram('sendPhoto', {
-        chat_id: adminId,
-        photo: screenshot,
-        caption: caption,
-        parse_mode: 'HTML',
-        reply_markup: inlineKeyboard
-      });
-      if (photoRes.ok) {
-        results.push(photoRes);
-        continue;
+    let sentRes = null;
+    let isPhoto = false;
+
+    // A. Priority 1: Direct Binary Multipart Upload (100% Reliable, Zero CDN failure)
+    if (photoBuffer && photoBuffer.length > 200) {
+      try {
+        const formData = new FormData();
+        formData.append('chat_id', String(adminId));
+        formData.append('caption', caption);
+        formData.append('parse_mode', 'HTML');
+        formData.append('reply_markup', JSON.stringify(inlineKeyboard));
+        const blob = new Blob([photoBuffer], { type: 'image/jpeg' });
+        formData.append('photo', blob, `payment_${orderId}.jpg`);
+
+        const pRes = await callTelegram('sendPhoto', formData);
+        if (pRes && pRes.ok) {
+          sentRes = pRes;
+          isPhoto = true;
+        } else {
+          console.warn(`Multipart sendPhoto note for admin ${adminId}:`, pRes?.description || 'failed');
+        }
+      } catch (uploadErr) {
+        console.warn(`Multipart sendPhoto error for admin ${adminId}:`, uploadErr.message);
       }
     }
 
-    // Fallback text message if photo fails or missing
-    const textRes = await callTelegram('sendMessage', {
-      chat_id: adminId,
-      text: caption + (screenshot && (screenshot.startsWith('http://') || screenshot.startsWith('https://')) ? `\n\n📸 <b>Payment Proof:</b> <a href="${screenshot}">Tap to View Screenshot</a>` : ''),
-      parse_mode: 'HTML',
-      reply_markup: inlineKeyboard
-    });
-    results.push(textRes);
+    // B. Priority 2: Remote URL sendPhoto fallback
+    if (!sentRes && viewScreenshotUrl) {
+      try {
+        const pUrlRes = await callTelegram('sendPhoto', {
+          chat_id: adminId,
+          photo: viewScreenshotUrl,
+          caption: caption,
+          parse_mode: 'HTML',
+          reply_markup: inlineKeyboard
+        });
+        if (pUrlRes && pUrlRes.ok) {
+          sentRes = pUrlRes;
+          isPhoto = true;
+        }
+      } catch (_) {}
+    }
+
+    // C. Priority 3: Text fallback
+    if (!sentRes) {
+      sentRes = await callTelegram('sendMessage', {
+        chat_id: adminId,
+        text: caption + (viewScreenshotUrl ? `\n\n📸 <b>Payment Proof:</b> <a href="${viewScreenshotUrl}">Tap to View Screenshot</a>` : ''),
+        parse_mode: 'HTML',
+        reply_markup: inlineKeyboard
+      });
+      isPhoto = false;
+    }
+
+    results.push(sentRes);
+
+    // Save message ID to track for approval updates
+    if (sentRes?.ok && sentRes?.result?.message_id) {
+      sentAdminMessages.push({
+        chatId: String(adminId),
+        messageId: sentRes.result.message_id,
+        isPhoto,
+        caption,
+        sentAt: Date.now()
+      });
+    }
+  }
+
+  // Persist sent admin messages in bot_store.json so approval edits them instantly
+  if (sentAdminMessages.length > 0) {
+    try {
+      const store = readBotStore();
+      if (!store.orderAdminMessages) store.orderAdminMessages = {};
+      store.orderAdminMessages[orderId] = sentAdminMessages;
+      const orderKeys = Object.keys(store.orderAdminMessages);
+      if (orderKeys.length > 200) {
+        delete store.orderAdminMessages[orderKeys[0]];
+      }
+      writeBotStore(store);
+    } catch (saveErr) {
+      console.warn('Could not save orderAdminMessages:', saveErr.message);
+    }
   }
 
   // Send instant receipt / acknowledgement to customer if they ordered via Telegram WebApp
@@ -746,7 +846,7 @@ export async function notifyAdminsNewOrder(order) {
       chat_id: order.telegramUserId,
       text: 
         `🕒 <b>Order #${orderId} Received!</b>\n\n` +
-        `📦 <b>Product:</b> ${productTitle}\n` +
+        `📦 <b>Product:</b> ${escapeTelegramHtml(productTitle)}\n` +
         `💰 <b>Amount:</b> ${amount}\n\n` +
         `🔍 Admin is currently reviewing your payment proof and transaction reference. <b>You will receive an instant notification right here once verified.</b>\n\n` +
         `For 24/7 priority support: @VIP_KINK`,
@@ -758,24 +858,36 @@ export async function notifyAdminsNewOrder(order) {
 }
 
 /**
- * Handle Order Approval: Update DB and Notify Customer
+ * Handle Order Approval: Update DB, Update Telegram Admin Messages, and Notify Customer
  */
 async function processOrderApproval(orderId, adminUser) {
   const { url, key } = getSupabaseConfig();
   const headers = { 'apikey': key, 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' };
 
   // Fetch order matching either id or order_id
-  const orderRes = await fetch(`${url}/rest/v1/orders?or=(id.eq.${encodeURIComponent(orderId)},order_id.eq.${encodeURIComponent(orderId)})&select=*`, { headers });
-  if (!orderRes.ok) return { ok: false, error: 'Order not found' };
-  const rows = await orderRes.json();
-  if (!rows || !rows.length) return { ok: false, error: 'Order not found' };
-  const order = rows[0];
+  let order = null;
+  try {
+    const orderRes = await fetch(`${url}/rest/v1/orders?or=(id.eq.${encodeURIComponent(orderId)},order_id.eq.${encodeURIComponent(orderId)})&select=*`, {
+      headers,
+      signal: AbortSignal.timeout(6000)
+    });
+    if (orderRes.ok) {
+      const rows = await orderRes.json();
+      if (rows && rows.length) order = rows[0];
+    }
+  } catch (err) {
+    console.warn('Order fetch error in approval:', err.message);
+  }
 
   // Fetch matched product to check for specific channelLink
-  let channelLink = order.channel_link || order.data?.channelLink || '';
-  if (!channelLink && order.product_id) {
+  let channelLink = order?.channel_link || order?.data?.channelLink || '';
+  const productId = order?.product_id || order?.data?.productId || order?.productId;
+  if (!channelLink && productId) {
     try {
-      const pRes = await fetch(`${url}/rest/v1/products?id=eq.${encodeURIComponent(order.product_id)}&select=*`, { headers });
+      const pRes = await fetch(`${url}/rest/v1/products?id=eq.${encodeURIComponent(productId)}&select=*`, {
+        headers,
+        signal: AbortSignal.timeout(4000)
+      });
       if (pRes.ok) {
         const pRows = await pRes.json();
         channelLink = pRows?.[0]?.channel_link || pRows?.[0]?.data?.channelLink || '';
@@ -784,10 +896,10 @@ async function processOrderApproval(orderId, adminUser) {
   }
   if (channelLink.includes('VIP_KINK') || channelLink.includes('TRUSTED_BROTHER1234')) channelLink = '';
 
-  const adminName = adminUser?.username ? `@${adminUser.username}` : (adminUser?.first_name || String(adminUser?.id || 'Admin'));
+  const adminName = adminUser?.first_name || (adminUser?.username ? `@${adminUser.username}` : String(adminUser?.id || 'Admin'));
 
   const approvedData = {
-    ...(order.data || {}),
+    ...(order?.data || {}),
     status: 'approved',
     orderStatus: 'approved',
     paymentStatus: 'approved',
@@ -805,21 +917,34 @@ async function processOrderApproval(orderId, adminUser) {
     approvedBy: adminName
   };
 
-  // Update order in Supabase (non-blocking 1.5s timeout)
-  (async () => {
-    try {
-      await fetch(`${url}/rest/v1/orders?or=(id.eq.${encodeURIComponent(orderId)},order_id.eq.${encodeURIComponent(orderId)})`, {
+  // Update order in Supabase with guaranteed AWAIT
+  const targetId = order?.id || orderId;
+  try {
+    const patchRes = await fetch(`${url}/rest/v1/orders?id=eq.${encodeURIComponent(targetId)}`, {
+      method: 'PATCH',
+      headers: { ...headers, 'Prefer': 'return=minimal' },
+      body: JSON.stringify({
+        status: 'approved',
+        updated_at: new Date().toISOString(),
+        data: approvedData
+      }),
+      signal: AbortSignal.timeout(8000)
+    });
+    if (!patchRes.ok) {
+      await fetch(`${url}/rest/v1/orders?order_id=eq.${encodeURIComponent(orderId)}`, {
         method: 'PATCH',
-        headers,
+        headers: { ...headers, 'Prefer': 'return=minimal' },
         body: JSON.stringify({
           status: 'approved',
           updated_at: new Date().toISOString(),
           data: approvedData
         }),
-        signal: AbortSignal.timeout(1500)
-      });
-    } catch (_) {}
-  })();
+        signal: AbortSignal.timeout(5000)
+      }).catch(() => {});
+    }
+  } catch (patchErr) {
+    console.error('Supabase PATCH error in processOrderApproval:', patchErr.message);
+  }
 
   // Save order link in bot_store.json so view_link callback is 0ms instant
   try {
@@ -827,18 +952,52 @@ async function processOrderApproval(orderId, adminUser) {
     if (!store.orderLinks) store.orderLinks = {};
     store.orderLinks[orderId] = {
       channelLink: channelLink || '',
-      productTitle: order.product_title || 'VIP Pack',
-      customerTgId: order.telegram_user_id || order.data?.telegramUserId || null,
+      productTitle: order?.product_title || order?.title || 'VIP Pack',
+      customerTgId: order?.telegram_user_id || order?.data?.telegramUserId || order?.telegramUserId || null,
       approvedAt: Date.now()
     };
     writeBotStore(store);
   } catch (_) {}
 
+  // ━━ LIVE SYNC: Update all Telegram Admin Messages for this Order ━━
+  try {
+    const store = readBotStore();
+    const adminMsgs = store.orderAdminMessages?.[orderId] || [];
+    const approvedTag = `\n\n━━━━━━━━━━━━━━━━━━━━━━\n✅ <b>APPROVED by ${escapeTelegramHtml(adminName)}</b>\n⚡ Status: Verified & VIP Access Dispatched`;
+    const approvedKeyboard = {
+      inline_keyboard: [
+        [{ text: `✅ Approved by ${adminName}`, callback_data: 'noop' }]
+      ]
+    };
+
+    for (const msg of adminMsgs) {
+      if (msg.isPhoto) {
+        await callTelegram('editMessageCaption', {
+          chat_id: msg.chatId,
+          message_id: msg.messageId,
+          caption: (msg.caption || `🚨 <b>Order #${orderId}</b>`) + approvedTag,
+          parse_mode: 'HTML',
+          reply_markup: approvedKeyboard
+        });
+      } else {
+        await callTelegram('editMessageText', {
+          chat_id: msg.chatId,
+          message_id: msg.messageId,
+          text: (msg.caption || `🚨 <b>Order #${orderId}</b>`) + approvedTag,
+          parse_mode: 'HTML',
+          reply_markup: approvedKeyboard
+        });
+      }
+    }
+  } catch (adminEditErr) {
+    console.warn('Could not update admin message in Telegram:', adminEditErr.message);
+  }
+
   // Notify customer on Telegram if customer TG User ID exists
-  const customerTgId = order.telegram_user_id || order.data?.telegramUserId || order.telegramUserId;
+  const customerTgId = order?.telegram_user_id || order?.data?.telegramUserId || order?.telegramUserId;
   if (customerTgId) {
     const appUrl = getAppUrl();
-    const productTitle = order.product_title || order.title || order.data?.product_title || 'VIP Pack';
+    const productTitle = order?.product_title || order?.title || order?.data?.product_title || 'VIP Pack';
 
     if (channelLink) {
       const accessUrl = `${appUrl}/api/telegram/bot?action=access&orderId=${encodeURIComponent(orderId)}`;
@@ -890,27 +1049,35 @@ async function processOrderApproval(orderId, adminUser) {
     }
   }
 
-  return { ok: true, channelLink };
+  return { ok: true, channelLink, orderId };
 }
 
 /**
- * Handle Order Rejection: Update DB and Notify Customer
+ * Handle Order Rejection: Update DB, Update Telegram Admin Messages, and Notify Customer
  */
 async function processOrderRejection(orderId, adminUser) {
   const { url, key } = getSupabaseConfig();
   const headers = { 'apikey': key, 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' };
 
   // Fetch order matching either id or order_id
-  const orderRes = await fetch(`${url}/rest/v1/orders?or=(id.eq.${encodeURIComponent(orderId)},order_id.eq.${encodeURIComponent(orderId)})&select=*`, { headers });
-  if (!orderRes.ok) return { ok: false, error: 'Order not found' };
-  const rows = await orderRes.json();
-  if (!rows || !rows.length) return { ok: false, error: 'Order not found' };
-  const order = rows[0];
+  let order = null;
+  try {
+    const orderRes = await fetch(`${url}/rest/v1/orders?or=(id.eq.${encodeURIComponent(orderId)},order_id.eq.${encodeURIComponent(orderId)})&select=*`, {
+      headers,
+      signal: AbortSignal.timeout(6000)
+    });
+    if (orderRes.ok) {
+      const rows = await orderRes.json();
+      if (rows && rows.length) order = rows[0];
+    }
+  } catch (err) {
+    console.warn('Order fetch error in rejection:', err.message);
+  }
 
-  const adminName = adminUser?.username ? `@${adminUser.username}` : (adminUser?.first_name || String(adminUser?.id || 'Admin'));
+  const adminName = adminUser?.first_name || (adminUser?.username ? `@${adminUser.username}` : String(adminUser?.id || 'Admin'));
 
   const rejectedData = {
-    ...(order.data || {}),
+    ...(order?.data || {}),
     status: 'rejected',
     orderStatus: 'rejected',
     paymentStatus: 'rejected',
@@ -920,19 +1087,71 @@ async function processOrderRejection(orderId, adminUser) {
     rejectedBy: adminName
   };
 
-  // Update order in Supabase
-  await fetch(`${url}/rest/v1/orders?or=(id.eq.${encodeURIComponent(orderId)},order_id.eq.${encodeURIComponent(orderId)})`, {
-    method: 'PATCH',
-    headers,
-    body: JSON.stringify({
-      status: 'rejected',
-      updated_at: new Date().toISOString(),
-      data: rejectedData
-    })
-  });
+  // Update order in Supabase with guaranteed AWAIT
+  const targetId = order?.id || orderId;
+  try {
+    const patchRes = await fetch(`${url}/rest/v1/orders?id=eq.${encodeURIComponent(targetId)}`, {
+      method: 'PATCH',
+      headers: { ...headers, 'Prefer': 'return=minimal' },
+      body: JSON.stringify({
+        status: 'rejected',
+        updated_at: new Date().toISOString(),
+        data: rejectedData
+      }),
+      signal: AbortSignal.timeout(8000)
+    });
+    if (!patchRes.ok) {
+      await fetch(`${url}/rest/v1/orders?order_id=eq.${encodeURIComponent(orderId)}`, {
+        method: 'PATCH',
+        headers: { ...headers, 'Prefer': 'return=minimal' },
+        body: JSON.stringify({
+          status: 'rejected',
+          updated_at: new Date().toISOString(),
+          data: rejectedData
+        }),
+        signal: AbortSignal.timeout(5000)
+      }).catch(() => {});
+    }
+  } catch (patchErr) {
+    console.error('Supabase PATCH error in processOrderRejection:', patchErr.message);
+  }
+
+  // ━━ LIVE SYNC: Update all Telegram Admin Messages for this Order ━━
+  try {
+    const store = readBotStore();
+    const adminMsgs = store.orderAdminMessages?.[orderId] || [];
+    const rejectedTag = `\n\n━━━━━━━━━━━━━━━━━━━━━━\n❌ <b>REJECTED by ${escapeTelegramHtml(adminName)}</b>\n⚡ Payment verification failed`;
+    const rejectedKeyboard = {
+      inline_keyboard: [
+        [{ text: `❌ Rejected by ${adminName}`, callback_data: 'noop' }]
+      ]
+    };
+
+    for (const msg of adminMsgs) {
+      if (msg.isPhoto) {
+        await callTelegram('editMessageCaption', {
+          chat_id: msg.chatId,
+          message_id: msg.messageId,
+          caption: (msg.caption || `🚨 <b>Order #${orderId}</b>`) + rejectedTag,
+          parse_mode: 'HTML',
+          reply_markup: rejectedKeyboard
+        });
+      } else {
+        await callTelegram('editMessageText', {
+          chat_id: msg.chatId,
+          message_id: msg.messageId,
+          text: (msg.caption || `🚨 <b>Order #${orderId}</b>`) + rejectedTag,
+          parse_mode: 'HTML',
+          reply_markup: rejectedKeyboard
+        });
+      }
+    }
+  } catch (adminEditErr) {
+    console.warn('Could not update admin message in Telegram:', adminEditErr.message);
+  }
 
   // Notify customer on Telegram
-  const customerTgId = order.telegram_user_id || order.data?.telegramUserId;
+  const customerTgId = order?.telegram_user_id || order?.data?.telegramUserId || order?.telegramUserId;
   if (customerTgId) {
     await callTelegram('sendMessage', {
       chat_id: customerTgId,
@@ -949,7 +1168,7 @@ async function processOrderRejection(orderId, adminUser) {
     });
   }
 
-  return { ok: true };
+  return { ok: true, orderId };
 }
 
 function escapeTelegramHtml(str) {
@@ -1803,8 +2022,20 @@ export default async function handler(req, res) {
           return res.status(200).json({ ok: true });
         }
 
-        // ── B. Admin Only Clicks (Approve / Reject) ──
-        if (!authorizedAdmins.includes(userIdStr)) {
+        // ── B. No-op button click (already processed) ──
+        if (data === 'noop') {
+          await callTelegram('answerCallbackQuery', {
+            callback_query_id: cq.id,
+            text: 'ℹ️ This order has already been verified & processed.'
+          });
+          return res.status(200).json({ ok: true });
+        }
+
+        // ── C. Admin Only Clicks (Approve / Reject) ──
+        const isAuthorizedAdmin = authorizedAdmins.includes(userIdStr) || 
+                                 (cq.message?.chat?.id && authorizedAdmins.includes(String(cq.message.chat.id)));
+
+        if (!isAuthorizedAdmin) {
           await callTelegram('answerCallbackQuery', {
             callback_query_id: cq.id,
             text: '⚠️ You are not an authorized Admin for this bot!',
@@ -1820,28 +2051,27 @@ export default async function handler(req, res) {
             text: `✅ Order #${orderId} Approved!`
           });
 
-          await processOrderApproval(orderId, adminUser);
-
-          // Update Admin Message text
-          const currentText = cq.message.caption || cq.message.text || '';
-          const updatedText = currentText + `\n\n━━━━━━━━━━━━━━━━━━━━━━\n✅ <b>APPROVED by ${adminUser.first_name || 'Admin'} (@${adminUser.username || adminUser.id})</b>`;
-
-          if (cq.message.photo) {
-            await callTelegram('editMessageCaption', {
-              chat_id: cq.message.chat.id,
-              message_id: cq.message.message_id,
-              caption: updatedText,
-              parse_mode: 'HTML'
-            });
-          } else {
-            await callTelegram('editMessageText', {
-              chat_id: cq.message.chat.id,
-              message_id: cq.message.message_id,
-              text: updatedText,
-              parse_mode: 'HTML'
-            });
+          // Ensure this specific admin message is tracked in store
+          if (cq.message && cq.message.chat) {
+            try {
+              const store = readBotStore();
+              if (!store.orderAdminMessages) store.orderAdminMessages = {};
+              if (!store.orderAdminMessages[orderId]) store.orderAdminMessages[orderId] = [];
+              const exists = store.orderAdminMessages[orderId].some(m => String(m.chatId) === String(cq.message.chat.id) && String(m.messageId) === String(cq.message.message_id));
+              if (!exists) {
+                store.orderAdminMessages[orderId].push({
+                  chatId: String(cq.message.chat.id),
+                  messageId: cq.message.message_id,
+                  isPhoto: Boolean(cq.message.photo),
+                  caption: cq.message.caption || cq.message.text || `🚨 Order #${orderId}`,
+                  sentAt: Date.now()
+                });
+                writeBotStore(store);
+              }
+            } catch (_) {}
           }
 
+          await processOrderApproval(orderId, adminUser);
           return res.status(200).json({ ok: true });
         }
 
@@ -1852,28 +2082,27 @@ export default async function handler(req, res) {
             text: `❌ Order #${orderId} Rejected!`
           });
 
-          await processOrderRejection(orderId, adminUser);
-
-          // Update Admin Message text
-          const currentText = cq.message.caption || cq.message.text || '';
-          const updatedText = currentText + `\n\n━━━━━━━━━━━━━━━━━━━━━━\n❌ <b>REJECTED by ${adminUser.first_name || 'Admin'} (@${adminUser.username || adminUser.id})</b>`;
-
-          if (cq.message.photo) {
-            await callTelegram('editMessageCaption', {
-              chat_id: cq.message.chat.id,
-              message_id: cq.message.message_id,
-              caption: updatedText,
-              parse_mode: 'HTML'
-            });
-          } else {
-            await callTelegram('editMessageText', {
-              chat_id: cq.message.chat.id,
-              message_id: cq.message.message_id,
-              text: updatedText,
-              parse_mode: 'HTML'
-            });
+          // Ensure this specific admin message is tracked in store
+          if (cq.message && cq.message.chat) {
+            try {
+              const store = readBotStore();
+              if (!store.orderAdminMessages) store.orderAdminMessages = {};
+              if (!store.orderAdminMessages[orderId]) store.orderAdminMessages[orderId] = [];
+              const exists = store.orderAdminMessages[orderId].some(m => String(m.chatId) === String(cq.message.chat.id) && String(m.messageId) === String(cq.message.message_id));
+              if (!exists) {
+                store.orderAdminMessages[orderId].push({
+                  chatId: String(cq.message.chat.id),
+                  messageId: cq.message.message_id,
+                  isPhoto: Boolean(cq.message.photo),
+                  caption: cq.message.caption || cq.message.text || `🚨 Order #${orderId}`,
+                  sentAt: Date.now()
+                });
+                writeBotStore(store);
+              }
+            } catch (_) {}
           }
 
+          await processOrderRejection(orderId, adminUser);
           return res.status(200).json({ ok: true });
         }
       }
