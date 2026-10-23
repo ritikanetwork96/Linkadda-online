@@ -10687,13 +10687,13 @@ button.is-loading::after {
 
 .nav-link svg,
 .nav-link i {
-  width: 17px !important;
-  height: 17px !important;
+  width: 18px !important;
+  height: 18px !important;
   flex-shrink: 0 !important;
-  stroke-width: 2 !important;
-  color: #64748b !important;
-  opacity: 0.85 !important;
-  transition: color 100ms ease, opacity 100ms ease !important;
+  stroke-width: 1.85 !important;
+  color: #94a3b8 !important;
+  opacity: 0.88 !important;
+  transition: color 120ms ease, opacity 120ms ease, transform 120ms ease !important;
 }
 
 /* Left illuminated accent bar for active route */
@@ -10721,8 +10721,9 @@ button.is-loading::after {
 
 .nav-link:hover svg,
 .nav-link:hover i {
-  color: #c7d2fe !important;
+  color: #ffffff !important;
   opacity: 1 !important;
+  transform: scale(1.08) !important;
 }
 
 /* Active route link */

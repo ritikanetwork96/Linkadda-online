@@ -6756,11 +6756,47 @@ async function loadTelegramBotAdminFullData(force = false) {
       if (Array.isArray(cfgRes.admins)) _tgBotData.admins = cfgRes.admins;
       if (cfgRes.appUrl) _tgBotData.appUrl = cfgRes.appUrl;
       if (typeof cfgRes.usersCount === 'number') _tgBotData.usersCount = cfgRes.usersCount;
+      if (Array.isArray(cfgRes.users) && cfgRes.users.length) {
+        _tgBotData.users = cfgRes.users;
+        _tgBotData.usersCount = cfgRes.users.length;
+      }
     }
 
-    if (usersRes && usersRes.ok && Array.isArray(usersRes.users)) {
+    if (usersRes && usersRes.ok && Array.isArray(usersRes.users) && usersRes.users.length) {
       _tgBotData.users = usersRes.users;
       _tgBotData.usersCount = usersRes.totalCount || usersRes.users.length;
+    }
+
+    // ⚡ Resilient Fallback: If no server users returned, populate from local orders in memory
+    if ((!_tgBotData.users || !_tgBotData.users.length) && typeof listCollection === 'function') {
+      try {
+        const orders = listCollection('orders') || [];
+        const localUsers = [];
+        const seen = new Set();
+        orders.forEach(ord => {
+          const d = ord.data || {};
+          const rawId = d.telegramUserId || d.telegram_user_id || ord.telegram_user_id || '';
+          const uname = (d.telegramUsername || d.telegram || '').replace('@', '').trim();
+          const custName = ord.customer_name || d.customerName || d.name || 'Telegram Customer';
+          const key = rawId ? String(rawId) : (uname ? `tg_${uname}` : (ord.customer_phone || d.customerPhone || d.phone ? `cust_${ord.customer_phone || d.customerPhone || d.phone}` : (ord.order_id || ord.id)));
+          if (key && !seen.has(key)) {
+            seen.add(key);
+            localUsers.push({
+              id: rawId || (uname ? `@${uname}` : key),
+              username: uname,
+              firstName: custName,
+              lastName: '',
+              source: (rawId || uname) ? 'order_checkout' : 'customer_order',
+              createdAt: ord.created_at ? new Date(ord.created_at).getTime() : Date.now(),
+              updatedAt: ord.updated_at ? new Date(ord.updated_at).getTime() : Date.now()
+            });
+          }
+        });
+        if (localUsers.length) {
+          _tgBotData.users = localUsers;
+          _tgBotData.usersCount = localUsers.length;
+        }
+      } catch (_) {}
     }
 
     updateTelegramBotLiveUI();

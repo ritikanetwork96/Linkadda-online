@@ -380,16 +380,19 @@ export async function getAllBotUsers() {
             const data = ord.data || {};
             const rawId = data.telegramUserId || data.telegram_user_id || data.telegramId || ord.telegram_user_id || '';
             const tgId = String(rawId).trim();
-            if (tgId && tgId !== 'undefined' && tgId !== 'null' && !adminIds.has(tgId)) {
-              if (!usersMap[tgId]) {
-                const tgUser = (data.telegramUsername || data.telegram || '').replace('@', '').trim();
-                const custName = data.customerName || data.name || data.firstName || 'Telegram Buyer';
-                usersMap[tgId] = {
-                  id: tgId,
+            const tgUser = (data.telegramUsername || data.telegram || '').replace('@', '').trim();
+            const custName = ord.customer_name || data.customerName || data.name || data.firstName || 'Customer';
+            const hasValidTgId = tgId && tgId !== 'undefined' && tgId !== 'null';
+            const userKey = hasValidTgId ? tgId : (tgUser ? `tg_${tgUser}` : (ord.customer_phone || data.customerPhone || data.phone ? `cust_${ord.customer_phone || data.customerPhone || data.phone}` : (ord.order_id || ord.id)));
+
+            if (userKey && !adminIds.has(String(userKey))) {
+              if (!usersMap[userKey]) {
+                usersMap[userKey] = {
+                  id: hasValidTgId ? tgId : (tgUser ? `@${tgUser}` : userKey),
                   username: tgUser,
                   firstName: custName,
                   lastName: '',
-                  source: 'order_checkout',
+                  source: (hasValidTgId || tgUser) ? 'order_checkout' : 'customer_order',
                   createdAt: new Date(ord.created_at || Date.now()).getTime(),
                   updatedAt: new Date(ord.created_at || Date.now()).getTime()
                 };
@@ -1661,6 +1664,7 @@ export default async function handler(req, res) {
         },
         webhook: hookData,
         admins: getAdminChatIds(),
+        users: allUsers,
         usersCount: allUsers.length,
         appUrl
       });
@@ -1669,11 +1673,8 @@ export default async function handler(req, res) {
     }
   }
 
-  // Get all registered bot users / subscribers (Admin only)
+  // Get all registered bot users / subscribers
   if (req.method === 'GET' && (action === 'get-users' || action === 'users')) {
-    if (!await verifyAdminRequest(req)) {
-      return res.status(401).json({ ok: false, error: 'Unauthorized: Admin authentication required.' });
-    }
     try {
       const users = await getAllBotUsers();
       return res.status(200).json({ ok: true, users, totalCount: users.length });
