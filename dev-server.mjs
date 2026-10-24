@@ -222,4 +222,14 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 LinkAdda Server running at http://0.0.0.0:${PORT}`);
+  
+  // Permanent Webhook Watchdog: Keeps Telegram bot strictly locked to LinkAdda server
+  import('./api/telegram/bot.js').then(({ ensureWebhookActive }) => {
+    if (typeof ensureWebhookActive === 'function') {
+      ensureWebhookActive().catch(() => {});
+      setInterval(() => {
+        ensureWebhookActive().catch(() => {});
+      }, 60000);
+    }
+  }).catch(() => {});
 });
