@@ -33,8 +33,27 @@ export function getAppUrl(req = null) {
 
 function getSupabaseConfig() {
   const url = (process.env.SUPABASE_URL || 'https://esxiwfswnbacmpjxqgsn.supabase.co').replace(/\/+$/, '');
-  const SERVICE_ROLE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVzeGl3ZnN3bmJhY21wanhxZ3NuIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MjYwNzE4NCwiZXhwIjoyMTA4MTgzMTg0fQ.pOuhgVqu-dASRMvqd7cMMzcAMuufanIJG_Jdu-G2T-Y';
-  const key = (process.env.SUPABASE_SERVICE_ROLE_KEY || SERVICE_ROLE_KEY).trim();
+  let key = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
+
+  // If in local dev and process.env is empty, check .env file safely without hardcoding
+  if (!key) {
+    try {
+      const p1 = path.resolve(__dirname, '../../.env');
+      const p2 = path.join(process.cwd(), '.env');
+      const envPath = fs.existsSync(p1) ? p1 : (fs.existsSync(p2) ? p2 : null);
+      if (envPath) {
+        const raw = fs.readFileSync(envPath, 'utf8');
+        const match = raw.match(/SUPABASE_SERVICE_ROLE_KEY\s*=\s*([^\r\n]+)/);
+        if (match && match[1]) key = match[1].trim();
+      }
+    } catch (_) {}
+  }
+
+  // Fallback to anon key if service role is unset
+  if (!key) {
+    key = (process.env.SUPABASE_ANON_KEY || '').trim();
+  }
+
   return { url, key };
 }
 
@@ -57,7 +76,7 @@ function readBotStore() {
     console.warn('Local bot_store.json read note:', err.message);
   }
   return {
-    activeToken: process.env.TELEGRAM_BOT_TOKEN || '8923608774:AAFhvO4Yzly7toIf5qoI-TSW4EzVzWCdVlE',
+    activeToken: (process.env.TELEGRAM_BOT_TOKEN || '').trim(),
     bot: {
       username: 'Myshop9876_bot',
       name: 'LinkAdda Store Bot',
@@ -1665,8 +1684,11 @@ export default async function handler(req, res) {
     }
   }
 
-  // Get active bot configuration & status for Admin Panel
+  // Get active bot configuration & status for Admin Panel (Admin only)
   if (req.method === 'GET' && (action === 'get-bot-config' || action === 'info')) {
+    if (!await verifyAdminRequest(req)) {
+      return res.status(401).json({ ok: false, error: 'Unauthorized: Admin authentication required.' });
+    }
     try {
       const cfg = await getActiveBotConfig();
       const appUrl = getAppUrl(req);
@@ -1723,8 +1745,11 @@ export default async function handler(req, res) {
     }
   }
 
-  // Get all registered bot users / subscribers
+  // Get all registered bot users / subscribers (Admin only)
   if (req.method === 'GET' && (action === 'get-users' || action === 'users')) {
+    if (!await verifyAdminRequest(req)) {
+      return res.status(401).json({ ok: false, error: 'Unauthorized: Admin authentication required.' });
+    }
     try {
       const users = await getAllBotUsers();
       return res.status(200).json({ ok: true, users, totalCount: users.length });

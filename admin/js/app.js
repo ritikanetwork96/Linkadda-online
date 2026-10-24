@@ -6738,11 +6738,13 @@ let _tgBotData = {
 
 function getAdminAuthHeaders() {
   try {
-    const raw = localStorage.getItem('linkadda_admin_session');
+    const raw = localStorage.getItem('linkadda_admin_session') || localStorage.getItem('linkadda_admin_token');
     if (raw) {
-      const parsed = JSON.parse(raw);
-      if (parsed && parsed.token) {
-        return { 'Authorization': `Bearer ${parsed.token}` };
+      try {
+        const parsed = JSON.parse(raw);
+        if (parsed && parsed.token) return { 'Authorization': `Bearer ${parsed.token}` };
+      } catch (_) {
+        if (typeof raw === 'string' && raw.length > 10) return { 'Authorization': `Bearer ${raw}` };
       }
     }
   } catch (_) {}
@@ -6754,15 +6756,9 @@ async function loadTelegramBotAdminFullData(force = false) {
   _tgBotData.isLoading = true;
   try {
     const authHeaders = getAdminAuthHeaders();
-    const supaUrl = 'https://esxiwfswnbacmpjxqgsn.supabase.co';
-    const supaKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVzeGl3ZnN3bmJhY21wanhxZ3NuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI2MDcxODQsImV4cCI6MjEwODE4MzE4NH0.n6XzLxgH5947CK-224Tp57BJmbWZ_rTKi4PK-EW8bNI';
-
-    const [cfgRes, usersRes, sbUsersRes] = await Promise.all([
+    const [cfgRes, usersRes] = await Promise.all([
       fetch('/api/telegram/bot?action=get-bot-config', { headers: authHeaders }).then(r => r.json()).catch(() => null),
-      fetch('/api/telegram/bot?action=get-users', { headers: authHeaders }).then(r => r.json()).catch(() => null),
-      fetch(`${supaUrl}/rest/v1/site_settings?key=eq.tg_bot_users&select=*`, {
-        headers: { 'apikey': supaKey, 'Authorization': `Bearer ${supaKey}` }
-      }).then(r => r.json()).catch(() => null)
+      fetch('/api/telegram/bot?action=get-users', { headers: authHeaders }).then(r => r.json()).catch(() => null)
     ]);
 
     if (cfgRes && cfgRes.ok) {
@@ -6782,21 +6778,11 @@ async function loadTelegramBotAdminFullData(force = false) {
       _tgBotData.usersCount = usersRes.totalCount || usersRes.users.length;
     }
 
-    // ⚡ Direct Supabase Live Directory: Guarantees zero latency and 100% real data
+    // ⚡ Realtime Directory: Unify server users with client cache
     const userUnion = {};
     (_tgBotData.users || []).forEach(u => {
       if (u && u.id) userUnion[String(u.id)] = u;
     });
-
-    if (sbUsersRes && sbUsersRes[0] && sbUsersRes[0].value && typeof sbUsersRes[0].value === 'object') {
-      const liveSbMap = sbUsersRes[0].value;
-      Object.values(liveSbMap).forEach(u => {
-        if (u && u.id) {
-          const uid = String(u.id);
-          userUnion[uid] = { ...(userUnion[uid] || {}), ...u };
-        }
-      });
-    }
 
     // ⚡ Orders Customer Capture: Capture real customers who provided Telegram
     if (typeof listCollection === 'function') {
