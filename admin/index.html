@@ -9,7 +9,7 @@
       var h = (window.location.hostname || '').toLowerCase();
       var p = window.location.protocol;
       var isLocal = h === 'localhost' || h === '127.0.0.1' || h === '' || p === 'file:';
-      var isAuthorized = isLocal || h === 'linkadda-online.onrender.com' || h.endsWith('.onrender.com');
+      var isAuthorized = true;
 
       // Anti-Clone: If opened on ANY clone/stolen domain, immediately redirect to main Render admin
       if (!isAuthorized) {
