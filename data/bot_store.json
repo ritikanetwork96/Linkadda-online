@@ -11,7 +11,36 @@
     "8802192472",
     "6966868142"
   ],
-  "users": {},
+  "users": {
+    "6966868142": {
+      "id": "6966868142",
+      "source": "admin_tester",
+      "isAdmin": true,
+      "lastName": "Layer",
+      "username": "GhostLayer73",
+      "createdAt": 1792841000000,
+      "firstName": "Ghost",
+      "updatedAt": 1792843062242
+    },
+    "8243604085": {
+      "id": "8243604085",
+      "source": "bot_interaction",
+      "lastName": "",
+      "username": "testuser",
+      "createdAt": 1792841127833,
+      "firstName": "TestUser",
+      "updatedAt": 1792841127833
+    },
+    "8770964308": {
+      "id": "8770964308",
+      "source": "bot_interaction",
+      "lastName": "𝐁𝐑𝐎𝐓𝐇𝐄𝐑𓆩✶𓆪",
+      "username": "TRUSTED_BROTHER1234",
+      "createdAt": 1792841878126,
+      "firstName": "𓆩✶𓆪𝐓𝐑𝐔𝐒𝐓𝐄𝐃",
+      "updatedAt": 1792841880499
+    }
+  },
   "pendingDeletions": {},
   "orderLinks": {}
 }

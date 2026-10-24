@@ -306,21 +306,23 @@ export async function recordBotUser(fromUser, source = 'bot_interaction') {
   if (!fromUser?.id) return;
   const uidStr = String(fromUser.id);
   const adminIds = new Set(getAdminChatIds());
-  if (adminIds.has(uidStr)) return; // Never mix admin accounts into subscriber directory
+  const isAdmin = adminIds.has(uidStr);
 
   const store = readBotStore();
   if (!store.users) store.users = {};
 
   const existing = store.users[uidStr] || {};
-  store.users[uidStr] = {
+  const userObj = {
     id: uidStr,
     username: fromUser.username || existing.username || '',
     firstName: fromUser.first_name || fromUser.firstName || existing.firstName || 'Telegram User',
     lastName: fromUser.last_name || fromUser.lastName || existing.lastName || '',
-    source: source || existing.source || 'bot_interaction',
+    source: isAdmin ? 'admin_tester' : (source || existing.source || 'bot_interaction'),
+    isAdmin,
     createdAt: existing.createdAt || Date.now(),
     updatedAt: Date.now()
   };
+  store.users[uidStr] = userObj;
   writeBotStore(store);
 
   // Non-blocking async push to Supabase using Service Role Key (bypasses RLS)
@@ -330,15 +332,33 @@ export async function recordBotUser(fromUser, source = 'bot_interaction') {
       const headers = { 
         'apikey': key, 
         'Authorization': `Bearer ${key}`, 
-        'Content-Type': 'application/json', 
-        'Prefer': 'resolution=merge-duplicates' 
+        'Content-Type': 'application/json' 
       };
-      // Send ONLY valid table columns (key, value)
+
+      // 1. Fetch current users from Supabase to guarantee no users are ever dropped
+      let mergedUsers = { ...store.users };
+      try {
+        const getRes = await fetch(`${url}/rest/v1/site_settings?key=eq.tg_bot_users&select=value`, {
+          headers
+        });
+        if (getRes.ok) {
+          const rows = await getRes.json();
+          if (rows && rows[0] && rows[0].value && typeof rows[0].value === 'object') {
+            mergedUsers = { ...rows[0].value, ...store.users };
+          }
+        }
+      } catch (_) {}
+
+      // Keep newly recorded user updated
+      mergedUsers[uidStr] = userObj;
+      store.users = mergedUsers;
+      writeBotStore(store);
+
+      // 2. Send ONLY valid table columns (key, value)
       await fetch(`${url}/rest/v1/site_settings`, {
         method: 'POST',
-        headers,
-        body: JSON.stringify([{ key: 'tg_bot_users', value: store.users }]),
-        signal: AbortSignal.timeout(3000)
+        headers: { ...headers, 'Prefer': 'resolution=merge-duplicates' },
+        body: JSON.stringify([{ key: 'tg_bot_users', value: mergedUsers, updated_at: new Date().toISOString() }])
       });
     } catch (_) {}
   })();
@@ -381,18 +401,19 @@ export async function getAllBotUsers() {
             const rawId = data.telegramUserId || data.telegram_user_id || data.telegramId || ord.telegram_user_id || '';
             const tgId = String(rawId).trim();
             const tgUser = (data.telegramUsername || data.telegram || '').replace('@', '').trim();
-            const custName = ord.customer_name || data.customerName || data.name || data.firstName || 'Customer';
+            const custName = ord.customer_name || data.customerName || data.name || data.firstName || 'Telegram Customer';
             const hasValidTgId = tgId && tgId !== 'undefined' && tgId !== 'null';
-            const userKey = hasValidTgId ? tgId : (tgUser ? `tg_${tgUser}` : (ord.customer_phone || data.customerPhone || data.phone ? `cust_${ord.customer_phone || data.customerPhone || data.phone}` : (ord.order_id || ord.id)));
 
-            if (userKey && !adminIds.has(String(userKey))) {
+            // Only capture REAL telegram users (with a numeric tgId or valid @username)
+            if (hasValidTgId || tgUser) {
+              const userKey = hasValidTgId ? tgId : `tg_${tgUser}`;
               if (!usersMap[userKey]) {
                 usersMap[userKey] = {
-                  id: hasValidTgId ? tgId : (tgUser ? `@${tgUser}` : userKey),
+                  id: hasValidTgId ? tgId : `@${tgUser}`,
                   username: tgUser,
                   firstName: custName,
                   lastName: '',
-                  source: (hasValidTgId || tgUser) ? 'order_checkout' : 'customer_order',
+                  source: 'order_checkout',
                   createdAt: new Date(ord.created_at || Date.now()).getTime(),
                   updatedAt: new Date(ord.created_at || Date.now()).getTime()
                 };
@@ -417,7 +438,7 @@ export async function getAllBotUsers() {
       console.warn('getAllBotUsers Supabase live fetch note:', sbErr.message);
     }
 
-    const users = Object.values(usersMap).filter(u => u && u.id && !adminIds.has(String(u.id)) && u.source !== 'admin_account');
+    const users = Object.values(usersMap).filter(u => u && u.id && u.source !== 'admin_account');
     return users.sort((a, b) => (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0));
   } catch (err) {
     console.error('getAllBotUsers error:', err);

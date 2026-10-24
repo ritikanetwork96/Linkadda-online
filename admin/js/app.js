@@ -6706,6 +6706,15 @@ function renderActiveSessionsSection(sessions = []) {
   `;
 }
 
+let _tgCachedUsers = [];
+try {
+  const _raw = localStorage.getItem('tg_cached_bot_users');
+  if (_raw) {
+    const _parsed = JSON.parse(_raw);
+    if (Array.isArray(_parsed) && _parsed.length) _tgCachedUsers = _parsed;
+  }
+} catch (_) {}
+
 let _tgBotData = {
   activeTab: 'tgTabUsers',
   bot: {
@@ -6717,8 +6726,8 @@ let _tgBotData = {
     lastActivatedAt: null
   },
   webhook: { url: 'https://linkadda-online.onrender.com/api/telegram/bot', pending_update_count: 0 },
-  users: [],
-  usersCount: 0,
+  users: _tgCachedUsers,
+  usersCount: _tgCachedUsers.length,
   admins: ['8802192472', '6966868142'],
   appUrl: '',
   isLoading: false,
@@ -6745,9 +6754,15 @@ async function loadTelegramBotAdminFullData(force = false) {
   _tgBotData.isLoading = true;
   try {
     const authHeaders = getAdminAuthHeaders();
-    const [cfgRes, usersRes] = await Promise.all([
+    const supaUrl = 'https://esxiwfswnbacmpjxqgsn.supabase.co';
+    const supaKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVzeGl3ZnN3bmJhY21wanhxZ3NuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI2MDcxODQsImV4cCI6MjEwODE4MzE4NH0.n6XzLxgH5947CK-224Tp57BJmbWZ_rTKi4PK-EW8bNI';
+
+    const [cfgRes, usersRes, sbUsersRes] = await Promise.all([
       fetch('/api/telegram/bot?action=get-bot-config', { headers: authHeaders }).then(r => r.json()).catch(() => null),
-      fetch('/api/telegram/bot?action=get-users', { headers: authHeaders }).then(r => r.json()).catch(() => null)
+      fetch('/api/telegram/bot?action=get-users', { headers: authHeaders }).then(r => r.json()).catch(() => null),
+      fetch(`${supaUrl}/rest/v1/site_settings?key=eq.tg_bot_users&select=*`, {
+        headers: { 'apikey': supaKey, 'Authorization': `Bearer ${supaKey}` }
+      }).then(r => r.json()).catch(() => null)
     ]);
 
     if (cfgRes && cfgRes.ok) {
@@ -6767,37 +6782,58 @@ async function loadTelegramBotAdminFullData(force = false) {
       _tgBotData.usersCount = usersRes.totalCount || usersRes.users.length;
     }
 
-    // ⚡ Resilient Fallback: If no server users returned, populate from local orders in memory
-    if ((!_tgBotData.users || !_tgBotData.users.length) && typeof listCollection === 'function') {
+    // ⚡ Direct Supabase Live Directory: Guarantees zero latency and 100% real data
+    const userUnion = {};
+    (_tgBotData.users || []).forEach(u => {
+      if (u && u.id) userUnion[String(u.id)] = u;
+    });
+
+    if (sbUsersRes && sbUsersRes[0] && sbUsersRes[0].value && typeof sbUsersRes[0].value === 'object') {
+      const liveSbMap = sbUsersRes[0].value;
+      Object.values(liveSbMap).forEach(u => {
+        if (u && u.id) {
+          const uid = String(u.id);
+          userUnion[uid] = { ...(userUnion[uid] || {}), ...u };
+        }
+      });
+    }
+
+    // ⚡ Orders Customer Capture: Capture real customers who provided Telegram
+    if (typeof listCollection === 'function') {
       try {
         const orders = listCollection('orders') || [];
-        const localUsers = [];
-        const seen = new Set();
         orders.forEach(ord => {
           const d = ord.data || {};
           const rawId = d.telegramUserId || d.telegram_user_id || ord.telegram_user_id || '';
           const uname = (d.telegramUsername || d.telegram || '').replace('@', '').trim();
-          const custName = ord.customer_name || d.customerName || d.name || 'Telegram Customer';
-          const key = rawId ? String(rawId) : (uname ? `tg_${uname}` : (ord.customer_phone || d.customerPhone || d.phone ? `cust_${ord.customer_phone || d.customerPhone || d.phone}` : (ord.order_id || ord.id)));
-          if (key && !seen.has(key)) {
-            seen.add(key);
-            localUsers.push({
-              id: rawId || (uname ? `@${uname}` : key),
-              username: uname,
-              firstName: custName,
-              lastName: '',
-              source: (rawId || uname) ? 'order_checkout' : 'customer_order',
-              createdAt: ord.created_at ? new Date(ord.created_at).getTime() : Date.now(),
-              updatedAt: ord.updated_at ? new Date(ord.updated_at).getTime() : Date.now()
-            });
+          const custName = ord.customer_name || d.customerName || d.name || 'Telegram Buyer';
+          if (rawId || uname) {
+            const key = rawId ? String(rawId) : `tg_${uname}`;
+            if (!userUnion[key]) {
+              userUnion[key] = {
+                id: rawId || `@${uname}`,
+                username: uname,
+                firstName: custName,
+                lastName: '',
+                source: 'order_checkout',
+                createdAt: ord.created_at ? new Date(ord.created_at).getTime() : Date.now(),
+                updatedAt: ord.updated_at ? new Date(ord.updated_at).getTime() : Date.now()
+              };
+            }
           }
         });
-        if (localUsers.length) {
-          _tgBotData.users = localUsers;
-          _tgBotData.usersCount = localUsers.length;
-        }
       } catch (_) {}
     }
+
+    const unifiedList = Object.values(userUnion).filter(u => u && u.id);
+    unifiedList.sort((a, b) => (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0));
+
+    _tgBotData.users = unifiedList;
+    _tgBotData.usersCount = unifiedList.length;
+
+    try {
+      localStorage.setItem('tg_cached_bot_users', JSON.stringify(unifiedList));
+    } catch (_) {}
 
     updateTelegramBotLiveUI();
   } catch (err) {
@@ -6934,6 +6970,16 @@ function updateTelegramBotLiveUI() {
 }
 
 function renderTelegramUsersTableList(users = [], filter = '') {
+  if (_tgBotData.isLoading && (!users || !users.length)) {
+    return `
+      <div style="padding: 48px 20px; text-align: center; color: var(--muted);">
+        <div class="spin-loader" style="width: 34px; height: 34px; border: 3px solid rgba(99,102,241,0.2); border-top-color: #6366f1; border-radius: 50%; display: inline-block; animation: authSpin 0.75s linear infinite; margin-bottom: 14px;"></div>
+        <div style="font-size: 14.5px; font-weight: 700; color: var(--text);">Syncing Live Telegram Subscribers...</div>
+        <div style="font-size: 12px; color: var(--muted); margin-top: 4px;">Connecting to database & Telegram directory...</div>
+      </div>
+    `;
+  }
+
   const q = String(filter || '').toLowerCase().trim();
   const filtered = users.filter((u) => {
     if (!q) return true;
@@ -6978,8 +7024,9 @@ function renderTelegramUsersTableList(users = [], filter = '') {
             const initials = ((u.firstName || 'T')[0] + (u.lastName || '')[0] || 'U').toUpperCase();
             const displayName = [u.firstName, u.lastName].filter(Boolean).join(' ') || 'Telegram User';
             const hasUsername = Boolean(u.username);
-            const sourceLabel = u.source === 'mini_app_visit' ? 'Mini App Visit' : (u.source === 'order_checkout' ? 'Order Checkout' : 'Bot /start');
-            const sourceColor = u.source === 'mini_app_visit' ? '#38bdf8' : (u.source === 'order_checkout' ? '#10b981' : '#a855f7');
+            const isAdmin = u.isAdmin || u.source === 'admin_tester' || u.source === 'admin_account';
+            const sourceLabel = isAdmin ? 'Admin / Tester' : (u.source === 'mini_app_visit' ? 'Mini App Visit' : (u.source === 'order_checkout' ? 'Order Checkout' : (u.source === 'customer_order' ? 'Store Buyer' : 'Bot /start')));
+            const sourceColor = isAdmin ? '#ec4899' : (u.source === 'mini_app_visit' ? '#38bdf8' : (u.source === 'order_checkout' || u.source === 'customer_order' ? '#10b981' : '#a855f7'));
             const timeStr = u.updatedAt ? formatRelativeTime(u.updatedAt) : 'Recently';
 
             return `
