@@ -7068,6 +7068,28 @@ function telegramApiFetch(endpoint, options = {}) {
   return fetch(fullUrl, options);
 }
 
+// Universal helper to retrieve user's specific record for an active bot
+function getUserBotRecord(u, targetBotOrFilter) {
+  if (!u || !targetBotOrFilter || targetBotOrFilter === 'all') return null;
+  const filterClean = String(targetBotOrFilter.botId || targetBotOrFilter.id || targetBotOrFilter || '').toLowerCase().replace('@', '').trim();
+  if (!filterClean) return null;
+
+  if (u.bots && typeof u.bots === 'object') {
+    if (u.bots[filterClean]) return u.bots[filterClean];
+    if (u.bots[`bot_${filterClean}`]) return u.bots[`bot_${filterClean}`];
+    for (const [k, v] of Object.entries(u.bots)) {
+      const cleanK = k.toLowerCase().replace('@', '');
+      if (cleanK === filterClean || cleanK.replace('bot_', '') === filterClean) return v;
+      if (v && typeof v === 'object') {
+        const vBotId = String(v.botId || v.id || '').toLowerCase().replace('@', '');
+        const vUname = String(v.botUsername || v.username || '').toLowerCase().replace('@', '');
+        if (vBotId === filterClean || vBotId.replace('bot_', '') === filterClean || vUname === filterClean) return v;
+      }
+    }
+  }
+  return null;
+}
+
 // Universal helper to check if a user belongs to a specific bot (supports users in multiple bots)
 function userBelongsToBot(u, targetBot) {
   if (!u || !targetBot) return false;
@@ -7097,9 +7119,6 @@ function userBelongsToBot(u, targetBot) {
   // 4. Check sourceBotUsername
   const uBotUname = String(u.sourceBotUsername || '').toLowerCase();
   if (uBotUname && bUname && uBotUname === bUname) return true;
-
-  // 5. Fallback for primary bot ONLY if user has truly NO bot records anywhere
-  if (!uBotId && !uBotUname && (!u.bots || !Object.keys(u.bots).length) && (!u.sourceBotIds || !u.sourceBotIds.length) && targetBot.isPrimary) return true;
 
   return false;
 }
@@ -7312,16 +7331,13 @@ async function loadTelegramBotAdminFullData(force = false) {
       }
     });
 
-    if (!distinctBots.some(b => b.isPrimary) && distinctBots.length > 0) {
-      distinctBots[0].isPrimary = true;
-    }
     if (distinctBots.length > 0) {
       distinctBots.forEach(b => {
         b.subscribersCount = unifiedList.filter(u => userBelongsToBot(u, b)).length;
       });
       _tgBotData.bots = distinctBots;
-      const pBot = distinctBots.find(b => b.isPrimary) || distinctBots[0];
-      _tgBotData.bot = { ...(_tgBotData.bot || {}), ...pBot };
+      const activeBot = distinctBots[0];
+      _tgBotData.bot = { ...(_tgBotData.bot || {}), ...activeBot };
     }
 
     try {
@@ -7565,43 +7581,7 @@ function renderTelegramUsersTableList(users = [], filter = '') {
     }
   });
 
-  const primaryBot = fleetBots.find(b => b.isPrimary) || fleetBots[0] || { username: 'Myshop9876_bot', id: '8923608774', botId: 'bot_8923608774' };
-
-  // Helper to check if a user belongs to a specific bot (supports users in multiple bots)
-  function userBelongsToBot(u, targetBot) {
-    if (!u || !targetBot) return false;
-    const bId = String(targetBot.botId || `bot_${targetBot.id}` || targetBot.id || '');
-    const rawId = String(targetBot.id || '');
-    const bUname = String(targetBot.username || '').toLowerCase();
-
-    // 1. Check user.bots dictionary
-    if (u.bots && typeof u.bots === 'object') {
-      if (u.bots[bId] || (rawId && u.bots[`bot_${rawId}`]) || (rawId && u.bots[rawId])) return true;
-      if (bUname && u.bots[bUname]) return true;
-      for (const [k, v] of Object.entries(u.bots)) {
-        if (k === bId || k === rawId || k === `bot_${rawId}`) return true;
-        if (v && ((v.botId && (v.botId === bId || v.botId === rawId)) || (v.username && v.username.toLowerCase() === bUname) || (v.botUsername && v.botUsername.toLowerCase() === bUname))) return true;
-      }
-    }
-
-    // 2. Check sourceBotIds array
-    if (Array.isArray(u.sourceBotIds)) {
-      if (u.sourceBotIds.includes(bId) || (rawId && u.sourceBotIds.includes(rawId)) || (rawId && u.sourceBotIds.includes(`bot_${rawId}`))) return true;
-    }
-
-    // 3. Check scalar sourceBotId or lastBotId
-    const uBotId = String(u.sourceBotId || u.lastBotId || '');
-    if (uBotId && (uBotId === bId || uBotId === rawId || (rawId && uBotId === `bot_${rawId}`))) return true;
-
-    // 4. Check sourceBotUsername
-    const uBotUname = String(u.sourceBotUsername || '').toLowerCase();
-    if (uBotUname && bUname && uBotUname === bUname) return true;
-
-    // 5. Fallback for primary bot ONLY if user has truly NO bot records anywhere
-    if (!uBotId && !uBotUname && (!u.bots || !Object.keys(u.bots).length) && (!u.sourceBotIds || !u.sourceBotIds.length) && targetBot.isPrimary) return true;
-
-    return false;
-  }
+  // Calculate user counts per bot (using universal module-level userBelongsToBot)
 
   // Calculate user counts per bot
   const botCounts = {};
@@ -7699,18 +7679,17 @@ function renderTelegramUsersTableList(users = [], filter = '') {
             const isSelected = currentBotFilter === bId || (b.username && currentBotFilter.toLowerCase() === b.username.toLowerCase());
             const count = botCounts[bId] || 0;
             const uName = b.username || 'Bot';
-            const isPrimary = Boolean(b.isPrimary);
 
             return `
               <div data-action="set-bot-user-filter" data-bot-id="${escapeHtml(bId)}" data-bot-username="${escapeHtml(uName)}" style="cursor: pointer; padding: 12px 14px; border-radius: 12px; transition: all 0.2s ease; ${isSelected ? 'background: linear-gradient(135deg, rgba(2,132,199,0.25), rgba(56,189,248,0.25)); border: 1.5px solid #38bdf8; box-shadow: 0 4px 16px rgba(2,132,199,0.35);' : 'background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);'}; display: flex; align-items: center; justify-content: space-between; gap: 8px;">
                 <div style="display: flex; align-items: center; gap: 8px; min-width: 0;">
-                  <div style="width: 34px; height: 34px; border-radius: 10px; background: ${isPrimary ? 'linear-gradient(135deg, #0284c7, #38bdf8)' : 'linear-gradient(135deg, #475569, #64748b)'}; display: flex; align-items: center; justify-content: center; color: white; flex-shrink: 0;">
+                  <div style="width: 34px; height: 34px; border-radius: 10px; background: linear-gradient(135deg, #0284c7, #38bdf8); display: flex; align-items: center; justify-content: center; color: white; flex-shrink: 0; box-shadow: 0 2px 8px rgba(2,132,199,0.25);">
                     <i data-lucide="bot" style="width: 17px; height: 17px;"></i>
                   </div>
                   <div style="min-width: 0;">
                     <strong style="color: var(--text); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block;">@${escapeHtml(uName)}</strong>
-                    <span style="font-size: 10px; font-weight: 700; color: ${isPrimary ? '#fbbf24' : '#94a3b8'}; text-transform: uppercase;">
-                      ${isPrimary ? '⭐ Primary' : '🤖 Fleet'}
+                    <span style="font-size: 10px; font-weight: 700; color: #38bdf8; text-transform: uppercase;">
+                      🤖 Active Bot
                     </span>
                   </div>
                 </div>
@@ -7810,23 +7789,28 @@ function renderTelegramUsersTableList(users = [], filter = '') {
           }
           const displayName = [fName, lName].filter(Boolean).join(' ') || (u.username ? `@${u.username}` : 'Telegram User');
           const hasUsername = Boolean(u.username);
+          // Bot-specific join date & acquisition
+          const activeBotRecord = currentBotFilter !== 'all' ? getUserBotRecord(u, currentBotFilter) : null;
+          const userTime = activeBotRecord
+            ? (activeBotRecord.joinedAt || activeBotRecord.lastActiveAt || u.createdAt)
+            : (u.updatedAt || u.lastSeenAt || u.createdAt);
+          const botSource = (activeBotRecord && activeBotRecord.source) || u.source;
           const isAdmin = u.isAdmin || u.source === 'admin_tester' || u.source === 'admin_account';
-          const sourceLabel = isAdmin ? 'Admin / Tester' : (u.source === 'mini_app_visit' ? 'Mini App Visit' : (u.source === 'order_checkout' ? 'Store Buyer' : (u.source === 'customer_order' ? 'Store Buyer' : 'Bot /start')));
-          const sourceColor = isAdmin ? '#ec4899' : (u.source === 'mini_app_visit' ? '#38bdf8' : (u.source === 'order_checkout' || u.source === 'customer_order' ? '#10b981' : '#a855f7'));
+          const sourceLabel = isAdmin ? 'Admin / Tester' : (botSource === 'mini_app_visit' ? 'Mini App Visit' : (botSource === 'order_checkout' ? 'Store Buyer' : (botSource === 'customer_order' ? 'Store Buyer' : 'Bot /start')));
+          const sourceColor = isAdmin ? '#ec4899' : (botSource === 'mini_app_visit' ? '#38bdf8' : (botSource === 'order_checkout' || botSource === 'customer_order' ? '#10b981' : '#a855f7'));
 
           // Resolve all bots this user belongs to
           let userBotBadges = [];
           fleetBots.forEach(b => {
             if (userBelongsToBot(u, b)) {
-              userBotBadges.push({ username: b.username || 'Bot', isPrimary: Boolean(b.isPrimary), id: b.botId });
+              userBotBadges.push({ username: b.username || 'Bot', id: b.botId });
             }
           });
           if (!userBotBadges.length) {
-            const fbName = u.sourceBotUsername || (primaryBot ? primaryBot.username : 'Myshop9876_bot');
-            userBotBadges.push({ username: fbName, isPrimary: true, id: primaryBot?.botId });
+            const fbName = u.sourceBotUsername || 'Telegram Bot';
+            userBotBadges.push({ username: fbName, id: u.sourceBotId });
           }
 
-          const userTime = u.updatedAt || u.lastSeenAt || u.createdAt;
           let timeFull = 'Recent';
           let timeRel = 'Recently';
           if (userTime) {
@@ -7881,7 +7865,6 @@ function renderTelegramUsersTableList(users = [], filter = '') {
                     ${userBotBadges.map(b => `
                       <span style="display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 6px; background: rgba(56, 189, 248, 0.12); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); font-size: 11.5px; font-weight: 700;">
                         <i data-lucide="bot" style="width: 11px; height: 11px;"></i> @${escapeHtml(b.username)}
-                        ${b.isPrimary ? '<span style="font-size: 9px; padding: 0 4px; border-radius: 3px; background: rgba(245,158,11,0.25); color: #fbbf24;">⭐</span>' : ''}
                       </span>
                     `).join('')}
                   </div>
@@ -7941,23 +7924,28 @@ function renderTelegramUsersTableList(users = [], filter = '') {
               }
               const displayName = [fName, lName].filter(Boolean).join(' ') || (u.username ? `@${u.username}` : 'Telegram User');
               const hasUsername = Boolean(u.username);
+              // Bot-specific join date & acquisition
+              const activeBotRecord = currentBotFilter !== 'all' ? getUserBotRecord(u, currentBotFilter) : null;
+              const userTime = activeBotRecord
+                ? (activeBotRecord.joinedAt || activeBotRecord.lastActiveAt || u.createdAt)
+                : (u.updatedAt || u.lastSeenAt || u.createdAt);
+              const botSource = (activeBotRecord && activeBotRecord.source) || u.source;
               const isAdmin = u.isAdmin || u.source === 'admin_tester' || u.source === 'admin_account';
-              const sourceLabel = isAdmin ? 'Admin / Tester' : (u.source === 'mini_app_visit' ? 'Mini App Visit' : (u.source === 'order_checkout' ? 'Store Buyer' : (u.source === 'customer_order' ? 'Store Buyer' : 'Bot /start')));
-              const sourceColor = isAdmin ? '#ec4899' : (u.source === 'mini_app_visit' ? '#38bdf8' : (u.source === 'order_checkout' || u.source === 'customer_order' ? '#10b981' : '#a855f7'));
+              const sourceLabel = isAdmin ? 'Admin / Tester' : (botSource === 'mini_app_visit' ? 'Mini App Visit' : (botSource === 'order_checkout' ? 'Store Buyer' : (botSource === 'customer_order' ? 'Store Buyer' : 'Bot /start')));
+              const sourceColor = isAdmin ? '#ec4899' : (botSource === 'mini_app_visit' ? '#38bdf8' : (botSource === 'order_checkout' || botSource === 'customer_order' ? '#10b981' : '#a855f7'));
 
               // Resolve all bots this user belongs to
               let userBotBadges = [];
               fleetBots.forEach(b => {
                 if (userBelongsToBot(u, b)) {
-                  userBotBadges.push({ username: b.username || 'Bot', isPrimary: Boolean(b.isPrimary), id: b.botId });
+                  userBotBadges.push({ username: b.username || 'Bot', id: b.botId });
                 }
               });
               if (!userBotBadges.length) {
-                const fbName = u.sourceBotUsername || (primaryBot ? primaryBot.username : 'Myshop9876_bot');
-                userBotBadges.push({ username: fbName, isPrimary: true, id: primaryBot?.botId });
+                const fbName = u.sourceBotUsername || 'Telegram Bot';
+                userBotBadges.push({ username: fbName, id: u.sourceBotId });
               }
 
-              const userTime = u.updatedAt || u.lastSeenAt || u.createdAt;
               let timeStr = 'Recent';
               let timeRel = '';
               if (userTime) {
@@ -7986,7 +7974,6 @@ function renderTelegramUsersTableList(users = [], filter = '') {
                       ${userBotBadges.map(b => `
                         <span style="display: inline-flex; align-items: center; gap: 3px; padding: 2.5px 7px; border-radius: 6px; background: rgba(56, 189, 248, 0.12); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); font-size: 11px; font-weight: 700;">
                           <i data-lucide="bot" style="width: 11px; height: 11px;"></i> @${escapeHtml(b.username)}
-                          ${b.isPrimary ? '<span style="font-size: 8.5px; padding: 0 3px; border-radius: 2px; background: rgba(245,158,11,0.25); color: #fbbf24;">⭐</span>' : ''}
                         </span>
                       `).join('')}
                     </div>
@@ -8157,7 +8144,6 @@ function renderTelegramBotsFleetCards(bots = []) {
                     <a href="https://t.me/${escapeHtml(username)}" target="_blank" style="color: ${isActive ? '#38bdf8' : 'var(--text)'}; font-size: 15.5px; font-weight: 800; text-decoration: none; display: inline-flex; align-items: center; gap: 4px;">
                       @${escapeHtml(username)} <i data-lucide="external-link" style="width: 12px; height: 12px;"></i>
                     </a>
-                    ${isPrimary ? '<span class="badge" style="font-size: 9.5px; padding: 2px 7px; background: rgba(99,102,241,0.25); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.4); font-weight: 800; letter-spacing: 0.04em;">PRIMARY BOT</span>' : ''}
                   </div>
                   <span style="font-size: 11px; color: var(--muted); display: block; margin-top: 2px;">${escapeHtml(b.name || 'LinkAdda Bot')} · ID: <code>${escapeHtml(b.id || '')}</code></span>
                 </div>
@@ -8200,20 +8186,14 @@ function renderTelegramBotsFleetCards(bots = []) {
               </button>
             </div>
 
-            <!-- Secondary Actions Row (Ping Test Alert + Set Primary + Delete Bot) -->
+            <!-- Secondary Actions Row (Ping Test Alert + Delete Bot) -->
             <div style="display: flex; gap: 8px; flex-wrap: wrap;">
               <button type="button" class="btn btn-ghost btn-sm" data-action="test-bot-ping-action" data-bot-id="${escapeHtml(botIdStr)}" title="Send test alert to admin from this bot" style="flex: 1; min-width: 110px; font-size: 11.5px; padding: 6px 10px; border-radius: 8px; border: 1px solid rgba(99, 102, 241, 0.35); color: #a5b4fc; display: flex; align-items: center; justify-content: center; gap: 5px;">
                 <i data-lucide="send" style="width: 12px; height: 12px;"></i> Ping Test Alert
               </button>
-
-              ${!isPrimary ? `
-                <button type="button" class="btn btn-ghost btn-sm" data-action="set-primary-bot-action" data-bot-id="${escapeHtml(botIdStr)}" title="Set as primary active bot for LinkAdda store" style="font-size: 11.5px; padding: 6px 10px; border-radius: 8px; border: 1px solid rgba(245, 158, 11, 0.4); color: #fbbf24; background: rgba(245, 158, 11, 0.08); display: flex; align-items: center; justify-content: center; gap: 4px;">
-                  <i data-lucide="star" style="width: 12px; height: 12px;"></i> Set Primary
-                </button>
-                <button type="button" class="btn btn-ghost btn-sm" data-action="delete-bot-action" data-bot-id="${escapeHtml(botIdStr)}" title="Delete this bot" style="font-size: 11.5px; padding: 6px 12px; border-radius: 8px; border: 1px solid rgba(239, 68, 68, 0.3); color: #ef4444; display: flex; align-items: center; justify-content: center; gap: 4px;">
-                  <i data-lucide="trash-2" style="width: 12px; height: 12px;"></i> Delete
-                </button>
-              ` : ''}
+              <button type="button" class="btn btn-ghost btn-sm" data-action="delete-bot-action" data-bot-id="${escapeHtml(botIdStr)}" title="Delete this bot" style="font-size: 11.5px; padding: 6px 12px; border-radius: 8px; border: 1px solid rgba(239, 68, 68, 0.3); color: #ef4444; display: flex; align-items: center; justify-content: center; gap: 4px;">
+                <i data-lucide="trash-2" style="width: 12px; height: 12px;"></i> Delete
+              </button>
             </div>
           </div>
         `;

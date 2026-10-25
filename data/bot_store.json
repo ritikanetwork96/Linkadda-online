@@ -5,7 +5,6 @@
     "name": "LinkAdda Store Bot",
     "id": "8923608774",
     "status": "active",
-    "isPrimary": true,
     "source": "database",
     "lastActivatedAt": "2026-10-23T20:00:00.000Z"
   },
@@ -17,7 +16,6 @@
       "username": "Myshop9876_bot",
       "name": "LinkAdda Store Bot",
       "status": "active",
-      "isPrimary": true,
       "createdAt": 1792841000000,
       "lastActivatedAt": "2026-10-23T20:00:00.000Z",
       "subscribersCount": 3
@@ -28,7 +26,6 @@
       "username": "Testnot565_bot",
       "name": "Testnot Bot",
       "status": "active",
-      "isPrimary": false,
       "createdAt": 1792842000000,
       "lastActivatedAt": "2026-10-24T10:00:00.000Z",
       "subscribersCount": 2
@@ -69,7 +66,7 @@
       "username": "TRUSTED_BROTHER1234",
       "createdAt": 1792841878126,
       "firstName": "𓆩✶𓆪𝐓𝐑𝐔𝐒𝐓𝐄𝐃",
-      "updatedAt": 1792841880499,
+      "updatedAt": 1792945200000,
       "sourceBotId": "bot_8923608774",
       "sourceBotUsername": "Myshop9876_bot",
       "lastBotId": "bot_8869143190",
@@ -83,7 +80,7 @@
         "bot_8869143190": {
           "botId": "bot_8869143190",
           "botUsername": "Testnot565_bot",
-          "joinedAt": 1792842000000,
+          "joinedAt": 1792945200000,
           "source": "bot_start"
         }
       },
@@ -100,7 +97,7 @@
       "username": "GhostLayer73",
       "createdAt": 1792841000000,
       "firstName": "Ghost",
-      "updatedAt": 1792843062242,
+      "updatedAt": 1792946400000,
       "sourceBotId": "bot_8923608774",
       "sourceBotUsername": "Myshop9876_bot",
       "lastBotId": "bot_8869143190",
@@ -114,7 +111,7 @@
         "bot_8869143190": {
           "botId": "bot_8869143190",
           "botUsername": "Testnot565_bot",
-          "joinedAt": 1792842000000,
+          "joinedAt": 1792946400000,
           "source": "bot_start"
         }
       },

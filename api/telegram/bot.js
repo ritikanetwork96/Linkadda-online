@@ -748,9 +748,9 @@ export function doesUserBelongToFleetBot(u, b, fleet = []) {
   const uBotUname = String(u.sourceBotUsername || '').replace(/^@/, '').toLowerCase();
   if (uBotUname && bUname && uBotUname === bUname) return true;
 
-  // 5. Fallback for primary bot ONLY if user has completely zero bot records anywhere
+  // 5. Fallback ONLY if user has completely zero bot records anywhere and only 1 bot exists in fleet
   const hasAnyBots = (u.bots && Object.keys(u.bots).length > 0) || (u.sourceBotIds && u.sourceBotIds.length > 0) || u.sourceBotId;
-  if (!hasAnyBots && (b.isPrimary || (fleet && fleet.length === 1))) return true;
+  if (!hasAnyBots && fleet && fleet.length === 1) return true;
 
   return false;
 }
@@ -788,8 +788,8 @@ export async function recordBotUser(fromUser, source = 'bot_interaction', source
     }
   }
 
-  const primaryBot = allBots.find(b => b.isPrimary) || allBots[0] || { botId: 'bot_8923608774', username: 'Myshop9876_bot' };
-  const targetBot = currentBot || (sourceBotId ? { botId: String(sourceBotId).startsWith('bot_') ? String(sourceBotId) : `bot_${sourceBotId}`, username: '' } : (existingLocal.sourceBotId ? (allBots.find(b => b.botId === existingLocal.sourceBotId) || primaryBot) : primaryBot));
+  const defaultBot = allBots[0] || { botId: 'bot_8923608774', username: 'Myshop9876_bot' };
+  const targetBot = currentBot || (sourceBotId ? { botId: String(sourceBotId).startsWith('bot_') ? String(sourceBotId) : `bot_${sourceBotId}`, username: '' } : (existingLocal.sourceBotId ? (allBots.find(b => b.botId === existingLocal.sourceBotId) || defaultBot) : defaultBot));
   const currentBotId = targetBot.botId;
   const currentBotUsername = targetBot.username || '';
 
@@ -862,8 +862,8 @@ export async function recordBotUser(fromUser, source = 'bot_interaction', source
   }
 
   const allBotIds = Object.keys(combinedBots);
-  const primaryRecordedBotId = currentBotId || existingRemote.sourceBotId || existingLocal.sourceBotId || primaryBot.botId;
-  const primaryRecordedBotUname = currentBotUsername || existingRemote.sourceBotUsername || existingLocal.sourceBotUsername || primaryBot.username;
+  const recordedBotId = currentBotId || existingRemote.sourceBotId || existingLocal.sourceBotId || defaultBot.botId;
+  const recordedBotUname = currentBotUsername || existingRemote.sourceBotUsername || existingLocal.sourceBotUsername || defaultBot.username;
 
   const userObj = {
     id: uidStr,
@@ -871,9 +871,9 @@ export async function recordBotUser(fromUser, source = 'bot_interaction', source
     firstName: cleanFirstName || existingRemote.firstName || 'Telegram User',
     lastName: cleanLastName || existingRemote.lastName || '',
     source: isAdmin ? 'admin_tester' : (source || existingLocal.source || existingRemote.source || 'bot_start'),
-    sourceBotId: primaryRecordedBotId,
-    sourceBotUsername: primaryRecordedBotUname,
-    lastBotId: currentBotId || existingLocal.lastBotId || existingRemote.lastBotId || primaryRecordedBotId,
+    sourceBotId: recordedBotId,
+    sourceBotUsername: recordedBotUname,
+    lastBotId: currentBotId || existingLocal.lastBotId || existingRemote.lastBotId || recordedBotId,
     bots: combinedBots,
     sourceBotIds: allBotIds,
     isAdmin,
