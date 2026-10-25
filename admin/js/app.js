@@ -449,9 +449,10 @@ function isMobileViewport() {
 
 function setSidebarOpen(open) {
   if (!sidebar) return;
-  sidebar.classList.toggle('open', open);
-  sidebarOverlay?.classList.toggle('open', open);
-  document.body.classList.toggle('sidebar-lock', Boolean(open));
+  const isMobile = isMobileViewport();
+  sidebar.classList.toggle('open', Boolean(open));
+  sidebarOverlay?.classList.toggle('open', Boolean(open && isMobile));
+  document.body.classList.toggle('sidebar-lock', Boolean(open && isMobile));
   if (sidebarOverlay) sidebarOverlay.setAttribute('aria-hidden', String(!open));
 }
 
@@ -460,7 +461,11 @@ function openSidebar() {
 }
 
 function closeSidebar() {
-  setSidebarOpen(false);
+  if (!sidebar) return;
+  sidebar.classList.remove('open');
+  sidebarOverlay?.classList.remove('open');
+  document.body.classList.remove('sidebar-lock');
+  if (sidebarOverlay) sidebarOverlay.setAttribute('aria-hidden', 'true');
 }
 
 function toggleSidebar() {
@@ -485,7 +490,9 @@ function renderPalette() {
       </button>
     `)
     .join('');
-  if (window.lucide) lucide.createIcons();
+  if (window.lucide) {
+    try { lucide.createIcons({ root: paletteList }); } catch (_) {}
+  }
 }
 
 function navMarkup() {
@@ -512,10 +519,25 @@ function navMarkup() {
 
 function updateSideNavActive(currentRoute) {
   if (!sideNav) return;
-  sideNav.innerHTML = navMarkup();
-  if (window.lucide) {
-    try { lucide.createIcons(); } catch (_) {}
+
+  // 1. Initial build: only if sideNav has no children yet
+  if (!sideNav.children.length) {
+    sideNav.innerHTML = navMarkup();
+    if (window.lucide) {
+      try { lucide.createIcons({ root: sideNav }); } catch (_) {}
+    }
+  } else {
+    // 2. High-speed in-place class toggle: 0ms lag, zero DOM destruction, zero lost clicks/hover
+    sideNav.querySelectorAll('.nav-link[data-route]').forEach((link) => {
+      const r = link.dataset.route;
+      const isActive = r === currentRoute || (r === 'catalog' && (currentRoute === 'products' || currentRoute === 'categories'));
+      link.classList.toggle('active', isActive);
+    });
   }
+
+  // 3. Update badges in place without recreating sidebar DOM
+  refreshSideNavBadges();
+
   const mobileNav = document.getElementById('mobileBottomNav');
   if (mobileNav) {
     mobileNav.querySelectorAll('.mobile-nav-item[data-route]').forEach((btn) => {
@@ -524,6 +546,51 @@ function updateSideNavActive(currentRoute) {
       btn.classList.toggle('active', isActive);
     });
   }
+}
+
+function refreshSideNavBadges() {
+  if (!sideNav) return;
+  try {
+    const allOrders = listCollection('orders') || [];
+    const pendingOrders = allOrders.filter((o) => isPendingOrder(o)).length;
+    const ordersLink = sideNav.querySelector('.nav-link[data-route="orders"]');
+    if (ordersLink) {
+      let chip = ordersLink.querySelector('.chip');
+      if (pendingOrders > 0 || allOrders.length > 0) {
+        const count = pendingOrders > 0 ? pendingOrders : allOrders.length;
+        const bg = pendingOrders > 0 ? 'rgba(245,158,11,0.2)' : 'rgba(99,102,241,0.2)';
+        const color = pendingOrders > 0 ? '#fbbf24' : '#818cf8';
+        if (!chip) {
+          chip = document.createElement('span');
+          chip.className = 'chip';
+          chip.style.cssText = `margin-left:auto;font-size:11px;font-weight:700;padding:2px 7px;border-radius:10px;background:${bg};color:${color};`;
+          ordersLink.appendChild(chip);
+        } else {
+          chip.style.background = bg;
+          chip.style.color = color;
+        }
+        chip.textContent = String(count);
+      } else if (chip) {
+        chip.remove();
+      }
+    }
+
+    const tgLink = sideNav.querySelector('.nav-link[data-route="telegram"]');
+    if (tgLink) {
+      let chip = tgLink.querySelector('.chip');
+      if (_tgBotData && _tgBotData.usersCount > 0) {
+        if (!chip) {
+          chip = document.createElement('span');
+          chip.className = 'chip';
+          chip.style.cssText = 'margin-left:auto;background:rgba(56,189,248,0.2);color:#38bdf8;font-size:11px;font-weight:700;padding:2px 7px;border-radius:10px;';
+          tgLink.appendChild(chip);
+        }
+        chip.textContent = String(_tgBotData.usersCount);
+      } else if (chip) {
+        chip.remove();
+      }
+    }
+  } catch (_) {}
 }
 
 function collectionRowBadge(item) {
@@ -10907,7 +10974,7 @@ function renderView(data) {
     else html = renderDashboard(data);
     viewRoot.innerHTML = html;
     if (window.lucide) {
-      try { lucide.createIcons(); } catch (_) {}
+      try { lucide.createIcons({ root: viewRoot }); } catch (_) {}
     }
     if (current === 'catalog' || current === 'products' || current === 'categories') initCatalogDragAndDrop();
     if (current === 'analytics') mountAnalyticsCharts();
@@ -11056,6 +11123,8 @@ window.startTopProgress = startTopProgress;
 window.finishTopProgress = finishTopProgress;
 window.triggerRouteProgressBar = triggerRouteProgressBar;
 
+let _isInternalRouteNavigation = false;
+
 function applyRoute(path) {
   const targetRoute = (path === 'products' || path === 'categories') ? 'catalog' : (NAV_ITEMS.some((item) => item.key === path) ? path : 'dashboard');
   if (path === 'products') {
@@ -11066,6 +11135,14 @@ function applyRoute(path) {
   ui.route = targetRoute;
   ui.page = 1;
   triggerRouteProgressBar();
+
+  // Fast in-place sidebar update
+  updateSideNavActive(targetRoute);
+
+  // Sync digest so debouncedRenderView doesn't double-render immediately
+  lastRenderedRoute = targetRoute;
+  lastRenderedRouteDigest = computeRouteDigest(targetRoute, ui.data);
+
   renderView(ui.data || {});
   window.scrollTo({ top: 0, behavior: 'instant' });
 }
@@ -11088,7 +11165,13 @@ function syncTopbar(user) {
 
 function initRouteHandling() {
   const updateRoute = () => {
+    if (_isInternalRouteNavigation) {
+      _isInternalRouteNavigation = false;
+      return;
+    }
     const path = window.location.hash.replace(/^#\/?/, '') || 'dashboard';
+    const targetRoute = (path === 'products' || path === 'categories') ? 'catalog' : (NAV_ITEMS.some((item) => item.key === path) ? path : 'dashboard');
+    if (ui.route === targetRoute) return;
     applyRoute(path);
     closeSidebar();
   };
@@ -11139,7 +11222,7 @@ function confirmLogoutDialog() {
 }
 
 function attachGlobalHandlers() {
-  // Global Tactile Ripple & Click Pulse Effect on all buttons, tabs, links, chips
+  // Global Tactile Ripple Effect - lightweight and non-blocking
   document.addEventListener('pointerdown', (event) => {
     const target = event.target.closest('.btn, .nav-link, .catalog-tab, .chip, button, a.btn-card, [data-action], .sidebar-close, .admin-mobile-toggle, .user-pill');
     if (!target) return;
@@ -11147,21 +11230,14 @@ function attachGlobalHandlers() {
     const rect = target.getBoundingClientRect();
     const ripple = document.createElement('span');
     ripple.className = 'click-ripple';
-    const size = Math.max(rect.width, rect.height) * 1.6;
+    const size = Math.max(rect.width, rect.height) * 1.5;
     ripple.style.width = `${size}px`;
     ripple.style.height = `${size}px`;
     ripple.style.left = `${event.clientX - rect.left}px`;
     ripple.style.top = `${event.clientY - rect.top}px`;
-    
-    const computedStyle = window.getComputedStyle(target);
-    if (computedStyle.position === 'static') {
-      target.style.position = 'relative';
-    }
-    target.style.overflow = 'hidden';
-    
     target.appendChild(ripple);
-    setTimeout(() => ripple.remove(), 420);
-  });
+    setTimeout(() => { try { ripple.remove(); } catch (_) {} }, 400);
+  }, { passive: true });
 
   document.getElementById('themeBtn')?.addEventListener('click', toggleTheme);
   document.getElementById('sidebarThemeBtn')?.addEventListener('click', toggleTheme);
@@ -11225,44 +11301,33 @@ function attachGlobalHandlers() {
   paletteBackdrop.addEventListener('click', (event) => {
     if (event.target === paletteBackdrop) closePalette();
   });
-  // ━━ ULTRA-TACTILE BUTTON RIPPLE & PRESS ENGINE ━━
-  document.addEventListener('pointerdown', (e) => {
-    const btn = e.target.closest('.btn, button, .table-action-btn, .order-tab-btn, .chip, .icon-btn, .catalog-action-btn, .mobile-nav-item');
-    if (!btn) return;
-    const rect = btn.getBoundingClientRect();
-    const size = Math.max(rect.width, rect.height) * 1.6;
-    const x = e.clientX - rect.left - size / 2;
-    const y = e.clientY - rect.top - size / 2;
-    const ripple = document.createElement('span');
-    ripple.className = 'btn-ripple-wave';
-    ripple.style.width = `${size}px`;
-    ripple.style.height = `${size}px`;
-    ripple.style.left = `${x}px`;
-    ripple.style.top = `${y}px`;
-    btn.appendChild(ripple);
-    setTimeout(() => {
-      try { ripple.remove(); } catch (_) {}
-    }, 550);
-  });
 
+  // Fast Navigation & Action Engine
   document.addEventListener('click', async (event) => {
     const routeBtn = event.target.closest('[data-route]');
     if (routeBtn) {
       event.preventDefault();
-      triggerRouteProgressBar();
       const route = routeBtn.dataset.route;
+      if (!route) return;
+
       routeBtn.classList.add('nav-link-pressed');
-      setTimeout(() => routeBtn.classList.remove('nav-link-pressed'), 250);
+      setTimeout(() => routeBtn.classList.remove('nav-link-pressed'), 200);
 
       const targetHash = `#/${route}`;
+      _isInternalRouteNavigation = true;
       if (window.location.hash !== targetHash) {
-        window.location.hash = targetHash;
-      } else {
-        applyRoute(route);
+        try {
+          window.history.pushState(null, '', targetHash);
+        } catch (_) {
+          window.location.hash = targetHash;
+        }
       }
+
+      applyRoute(route);
       closeSidebar();
       return;
     }
+
     const actionBtn = event.target.closest('[data-action]');
     if (!actionBtn) return;
     const action = actionBtn.dataset.action;
@@ -11284,12 +11349,18 @@ function attachGlobalHandlers() {
     }
     if (action === 'goto') {
       const route = actionBtn.dataset.route;
+      if (!route) return;
       const targetHash = `#/${route}`;
+      _isInternalRouteNavigation = true;
       if (window.location.hash !== targetHash) {
-        window.location.hash = targetHash;
-      } else {
-        applyRoute(route);
+        try {
+          window.history.pushState(null, '', targetHash);
+        } catch (_) {
+          window.location.hash = targetHash;
+        }
       }
+      applyRoute(route);
+      closeSidebar();
       return;
     }
     if (action === 'refresh') {
