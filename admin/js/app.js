@@ -11381,6 +11381,59 @@ window.finishTopProgress = finishTopProgress;
 window.triggerRouteProgressBar = triggerRouteProgressBar;
 
 let _isInternalRouteNavigation = false;
+let renderDebounceTimer = null;
+let lastRenderedRoute = '';
+let lastRenderedRouteDigest = '';
+
+function computeRouteDigest(route, data) {
+  if (!data) return '';
+  try {
+    if (route === 'catalog' || route === 'products' || route === 'categories') {
+      const pCount = data.products ? Object.keys(data.products).length : 0;
+      const cCount = data.categories ? Object.keys(data.categories).length : 0;
+      const mCount = data.media ? Object.keys(data.media).length : 0;
+      let catSig = '';
+      if (data.products) {
+        const pKeys = Object.keys(data.products);
+        if (pKeys.length > 0) {
+          const firstP = data.products[pKeys[0]];
+          const lastP = data.products[pKeys[pKeys.length - 1]];
+          catSig = `${firstP?.id}:${firstP?.updatedAt || ''}_${lastP?.id}:${lastP?.updatedAt || ''}`;
+        }
+      }
+      return `catalog_${pCount}_${cCount}_${mCount}_${catSig}`;
+    }
+    if (route === 'orders' || route === 'screenshots') {
+      const oCount = data.orders ? Object.keys(data.orders).length : 0;
+      let oSig = '';
+      if (data.orders) {
+        const oKeys = Object.keys(data.orders);
+        if (oKeys.length > 0) {
+          const lastO = data.orders[oKeys[oKeys.length - 1]];
+          oSig = `${lastO?.id}:${lastO?.status || ''}:${lastO?.updatedAt || ''}`;
+        }
+      }
+      return `orders_${oCount}_${oSig}`;
+    }
+    if (route === 'settings') {
+      return `settings_${data.settings?.updatedAt || 0}`;
+    }
+    if (route === 'payment') {
+      return `payment_${data.payment?.updatedAt || 0}`;
+    }
+    if (route === 'media') {
+      return `media_${data.media ? Object.keys(data.media).length : 0}`;
+    }
+    if (route === 'telegram') {
+      return `telegram_${data.settings?.telegramBotToken || ''}_${data.settings?.telegramNotificationBotToken || ''}`;
+    }
+    const oCount = data.orders ? Object.keys(data.orders).length : 0;
+    const vCount = data.visitors ? Object.keys(data.visitors).length : 0;
+    return `${route}_${oCount}_${vCount}`;
+  } catch (_) {
+    return String(Date.now());
+  }
+}
 
 function applyRoute(path) {
   const targetRoute = (path === 'products' || path === 'categories') ? 'catalog' : (NAV_ITEMS.some((item) => item.key === path) ? path : 'dashboard');
@@ -14404,60 +14457,6 @@ attachGlobalHandlers();
 initRouteHandling();
 ui.data = getSnapshot();
 renderView(ui.data || {});
-
-let renderDebounceTimer = null;
-let lastRenderedRoute = '';
-let lastRenderedRouteDigest = '';
-
-function computeRouteDigest(route, data) {
-  if (!data) return '';
-  try {
-    if (route === 'catalog' || route === 'products' || route === 'categories') {
-      const pCount = data.products ? Object.keys(data.products).length : 0;
-      const cCount = data.categories ? Object.keys(data.categories).length : 0;
-      const mCount = data.media ? Object.keys(data.media).length : 0;
-      let catSig = '';
-      if (data.products) {
-        const pKeys = Object.keys(data.products);
-        if (pKeys.length > 0) {
-          const firstP = data.products[pKeys[0]];
-          const lastP = data.products[pKeys[pKeys.length - 1]];
-          catSig = `${firstP?.id}:${firstP?.updatedAt || ''}_${lastP?.id}:${lastP?.updatedAt || ''}`;
-        }
-      }
-      return `catalog_${pCount}_${cCount}_${mCount}_${catSig}`;
-    }
-    if (route === 'orders' || route === 'screenshots') {
-      const oCount = data.orders ? Object.keys(data.orders).length : 0;
-      let oSig = '';
-      if (data.orders) {
-        const oKeys = Object.keys(data.orders);
-        if (oKeys.length > 0) {
-          const lastO = data.orders[oKeys[oKeys.length - 1]];
-          oSig = `${lastO?.id}:${lastO?.status || ''}:${lastO?.updatedAt || ''}`;
-        }
-      }
-      return `orders_${oCount}_${oSig}`;
-    }
-    if (route === 'settings') {
-      return `settings_${data.settings?.updatedAt || 0}`;
-    }
-    if (route === 'payment') {
-      return `payment_${data.payment?.updatedAt || 0}`;
-    }
-    if (route === 'media') {
-      return `media_${data.media ? Object.keys(data.media).length : 0}`;
-    }
-    if (route === 'telegram') {
-      return `telegram_${data.settings?.telegramBotToken || ''}_${data.settings?.telegramNotificationBotToken || ''}`;
-    }
-    const oCount = data.orders ? Object.keys(data.orders).length : 0;
-    const vCount = data.visitors ? Object.keys(data.visitors).length : 0;
-    return `${route}_${oCount}_${vCount}`;
-  } catch (_) {
-    return String(Date.now());
-  }
-}
 
 function debouncedRenderView(data, force = false) {
   if (renderDebounceTimer) cancelAnimationFrame(renderDebounceTimer);

@@ -444,8 +444,16 @@ export function protectRoute(onReady) {
         unlockAdminUI(auth.currentUser || { uid: 'local-admin', email: 'botforword@gmail.com', displayName: 'Linkadda Admin' });
         return;
       }
+      // If admin session exists in storage, preserve login on page refresh!
+      const raw = localStorage.getItem('linkadda_admin_session') || localStorage.getItem('linkadda_admin_token') || sessionStorage.getItem('linkadda_admin_session');
+      if (raw) {
+        unlockAdminUI(auth.currentUser || { uid: 'admin_user', email: 'botforword@gmail.com' });
+        return;
+      }
+      const isDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+      const loginUrl = isDev ? '/admin/login.html' : '/admin/login';
       if (!/\/login(?:\.html|\/)?$/i.test(window.location.pathname)) {
-        window.location.replace('/admin/login');
+        window.location.replace(loginUrl);
       }
       return;
     }
@@ -454,7 +462,8 @@ export function protectRoute(onReady) {
     const email = String(user.email || '').trim().toLowerCase();
     if (email !== 'botforword@gmail.com') {
       try { await signOut(auth); } catch (_) {}
-      window.location.replace('/admin/login');
+      const isDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+      window.location.replace(isDev ? '/admin/login.html' : '/admin/login');
       return;
     }
 
@@ -470,8 +479,10 @@ export function protectRoute(onReady) {
       if (raw) {
         unlockAdminUI(auth.currentUser || { uid: 'admin_user', email: 'botforword@gmail.com' });
       } else {
+        const isDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+        const loginUrl = isDev ? '/admin/login.html' : '/admin/login';
         if (!/\/login(?:\.html|\/)?$/i.test(window.location.pathname)) {
-          window.location.replace('/admin/login');
+          window.location.replace(loginUrl);
         }
       }
     }

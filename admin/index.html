@@ -118,56 +118,46 @@
     @keyframes authSpin { to { transform: rotate(360deg); } }
   </style>
 
-  <script>
-    // ⚡ 0ms Fast-Path Session Unlock: Instantly removes authGate on refresh if logged in
-    (function() {
-      try {
-        var raw = localStorage.getItem('linkadda_admin_session') || localStorage.getItem('linkadda_admin_token') || sessionStorage.getItem('linkadda_admin_session');
-        if (raw) {
-          var isAllowed = false;
-          try {
-            var s = JSON.parse(raw);
-            var e = String(s.email || s.admin || '').trim().toLowerCase();
-            if ((!e || e === 'botforword@gmail.com') && s.token) isAllowed = true;
-          } catch (_) {
-            if (typeof raw === 'string' && raw.length > 10) isAllowed = true;
-          }
-          if (isAllowed) {
-            var g = document.getElementById('authGate');
-            if (g) {
-              g.style.display = 'none';
-              try { g.remove(); } catch (_) {}
+  <div class="admin-shell" id="adminShell">
+    <script>
+      // ⚡ 0ms Fast-Path Session Unlock: Instantly removes authGate on refresh if logged in
+      (function() {
+        try {
+          var raw = localStorage.getItem('linkadda_admin_session') || localStorage.getItem('linkadda_admin_token') || sessionStorage.getItem('linkadda_admin_session');
+          if (raw) {
+            var isAllowed = false;
+            try {
+              var s = JSON.parse(raw);
+              var e = String(s.email || s.admin || '').trim().toLowerCase();
+              if ((!e || e === 'botforword@gmail.com') && (s.token || s.uid)) isAllowed = true;
+            } catch (_) {
+              if (typeof raw === 'string' && raw.length > 10) isAllowed = true;
             }
-            var sh = document.getElementById('adminShell');
-            if (sh) {
-              sh.style.removeProperty('display');
-              sh.style.display = 'flex';
+            if (isAllowed) {
+              var g = document.getElementById('authGate');
+              if (g) {
+                g.style.display = 'none';
+                try { g.remove(); } catch (_) {}
+              }
             }
           }
-        }
-      } catch (_) {}
+        } catch (_) {}
 
-      // 🛡️ Watchdog: Prevents any infinite loading screen freeze on refresh
-      setTimeout(function() {
-        var g = document.getElementById('authGate');
-        if (g && g.parentNode && g.style.display !== 'none') {
-          var hasSess = localStorage.getItem('linkadda_admin_session') || localStorage.getItem('linkadda_admin_token');
-          if (hasSess) {
-            g.remove();
-            var sh = document.getElementById('adminShell');
-            if (sh) {
-              sh.style.removeProperty('display');
-              sh.style.display = 'flex';
+        // 🛡️ Watchdog: Prevents any infinite loading screen freeze on refresh
+        setTimeout(function() {
+          var g = document.getElementById('authGate');
+          if (g && g.parentNode && g.style.display !== 'none') {
+            var hasSess = localStorage.getItem('linkadda_admin_session') || localStorage.getItem('linkadda_admin_token');
+            if (hasSess) {
+              g.remove();
+            } else {
+            var isDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+            window.location.replace(isDev ? '/admin/login.html' : '/admin/login');
             }
-          } else {
-            window.location.replace('/admin/login');
           }
-        }
-      }, 2500);
-    })();
-  </script>
-
-  <div class="admin-shell" id="adminShell" style="display: none !important;">
+        }, 2500);
+      })();
+    </script>
     <aside class="sidebar glass" id="sidebar">
       <button class="sidebar-close" id="sidebarCloseBtn" type="button" aria-label="Close navigation menu">
         <i data-lucide="x"></i>
@@ -269,6 +259,6 @@
     </div>
   </div>
 
-  <script type="module" src="/admin/js/app.js?v=20261025_multibot_isolate_v2"></script>
+  <script type="module" src="/admin/js/app.js?v=20261025_blackscreen_fix_v3"></script>
 </body>
 </html>
