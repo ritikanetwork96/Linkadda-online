@@ -4,8 +4,23 @@
     "username": "Myshop9876_bot",
     "name": "LinkAdda Store Bot",
     "id": "8923608774",
+    "status": "active",
+    "isPrimary": true,
     "source": "database",
     "lastActivatedAt": "2026-10-23T20:00:00.000Z"
+  },
+  "bots": {
+    "bot_8923608774": {
+      "id": "8923608774",
+      "botId": "bot_8923608774",
+      "token": "8923608774:AAFhvO4Yzly7toIf5qoI-TSW4EzVzWCdVlE",
+      "username": "Myshop9876_bot",
+      "name": "LinkAdda Store Bot",
+      "status": "active",
+      "isPrimary": true,
+      "createdAt": 1792841000000,
+      "lastActivatedAt": "2026-10-23T20:00:00.000Z"
+    }
   },
   "admins": [
     "8802192472",

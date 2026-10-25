@@ -184,6 +184,24 @@ function saveStoreCache() {
   saveCacheTimer = setTimeout(() => {
     saveCacheTimer = null;
     try {
+      // Safety: Never let an empty products/categories object overwrite a rich saved cache in localStorage
+      let cachedProducts = STORE.products || {};
+      let cachedCategories = STORE.categories || {};
+      if (!Object.keys(cachedProducts).length || !Object.keys(cachedCategories).length) {
+        try {
+          const raw = localStorage.getItem(CACHE_KEY);
+          if (raw) {
+            const p = JSON.parse(raw);
+            if (!Object.keys(cachedProducts).length && p?.products && Object.keys(p.products).length > 0) {
+              cachedProducts = p.products;
+            }
+            if (!Object.keys(cachedCategories).length && p?.categories && Object.keys(p.categories).length > 0) {
+              cachedCategories = p.categories;
+            }
+          }
+        } catch (_) {}
+      }
+
       const updatedCache = {
         settings: STORE.settings || {},
         payment: STORE.payment || {},
@@ -191,8 +209,8 @@ function saveStoreCache() {
         banner: STORE.banner || {},
         faq: STORE.faq || {},
         testimonials: STORE.testimonials || {},
-        categories: STORE.categories || {},
-        products: STORE.products || {},
+        categories: cachedCategories,
+        products: cachedProducts,
         orders: STORE.orders || {},
         events: STORE.events || {},
         visitors: STORE.visitors || {},
@@ -206,10 +224,41 @@ function saveStoreCache() {
   }, 250);
 }
 
-function emit() {
+let lastEmittedStateDigest = '';
+
+function computeStateDigest() {
+  try {
+    const prodCount = STORE.products ? Object.keys(STORE.products).length : 0;
+    const catCount = STORE.categories ? Object.keys(STORE.categories).length : 0;
+    const orderCount = STORE.orders ? Object.keys(STORE.orders).length : 0;
+    const visCount = STORE.visitors ? Object.keys(STORE.visitors).length : 0;
+    const evCount = STORE.events ? Object.keys(STORE.events).length : 0;
+    const settingsUp = STORE.settings?.updatedAt || 0;
+    const paymentUp = STORE.payment?.updatedAt || 0;
+    let latestOrderSig = '';
+    if (STORE.orders) {
+      const keys = Object.keys(STORE.orders);
+      if (keys.length > 0) {
+        const lastKey = keys[keys.length - 1];
+        const lastOrd = STORE.orders[lastKey];
+        latestOrderSig = `${lastKey}:${lastOrd?.status || ''}:${lastOrd?.updatedAt || ''}`;
+      }
+    }
+    return `${prodCount}_${catCount}_${orderCount}_${visCount}_${evCount}_${settingsUp}_${paymentUp}_${latestOrderSig}`;
+  } catch (_) {
+    return String(Date.now());
+  }
+}
+
+function emit(force = false) {
   if (emitTimer) clearTimeout(emitTimer);
   emitTimer = setTimeout(() => {
     emitTimer = null;
+    const currentDigest = computeStateDigest();
+    if (!force && currentDigest === lastEmittedStateDigest) {
+      return;
+    }
+    lastEmittedStateDigest = currentDigest;
     requestAnimationFrame(() => {
       saveStoreCache();
       const snapshot = getSnapshot();
@@ -229,6 +278,7 @@ export function emitImmediate() {
     clearTimeout(emitTimer);
     emitTimer = null;
   }
+  lastEmittedStateDigest = computeStateDigest();
   saveStoreCache();
   const snapshot = getSnapshot();
   subscribers.forEach((fn) => {
@@ -269,32 +319,10 @@ function attachNode(key, mode = 'collection') {
   try {
     const targetRef = ref(db, nodeName);
 
-    // ⚡ INSTANT HYDRATION: Fetch immediate snapshot in parallel with realtime subscription
-    get(targetRef)
-      .then((snap) => {
-        if (snap.exists() && snap.val()) {
-          const val = snap.val();
-          if (['orders', 'visitors', 'events'].includes(key)) {
-            if (!STORE[key] || typeof STORE[key] !== 'object') STORE[key] = {};
-            if (val && typeof val === 'object') {
-              STORE[key] = { ...val };
-            }
-            emitImmediate();
-          } else if (typeof val === 'object' && Object.keys(val).length > 0) {
-            STORE[key] = val;
-            emitImmediate();
-          } else if (mode === 'singleton') {
-            STORE[key] = val;
-            emitImmediate();
-          }
-        }
-      })
-      .catch(() => {});
-
     const unsub = onValue(
       targetRef,
       (snap) => {
-        if (snap.exists() && snap.val()) {
+        if (snap && snap.exists && snap.exists() && snap.val()) {
           const val = snap.val();
           if (['orders', 'visitors', 'events'].includes(key)) {
             if (!STORE[key] || typeof STORE[key] !== 'object') STORE[key] = {};
@@ -302,6 +330,20 @@ function attachNode(key, mode = 'collection') {
               STORE[key] = { ...val };
             }
             emit();
+          } else if (key === 'products' || key === 'categories') {
+            // SAFE CATALOG MERGE: Keep existing catalog items intact and merge updates
+            if (!STORE[key] || typeof STORE[key] !== 'object') STORE[key] = {};
+            if (val && typeof val === 'object') {
+              const incomingCount = Object.keys(val).length;
+              if (incomingCount > 0) {
+                Object.entries(val).forEach(([itemId, itemData]) => {
+                  if (itemData && typeof itemData === 'object') {
+                    STORE[key][itemId] = { ...(STORE[key][itemId] || {}), ...itemData, id: itemId };
+                  }
+                });
+                emit();
+              }
+            }
           } else if (typeof val === 'object' && Object.keys(val).length > 0) {
             STORE[key] = val;
             emit();
@@ -309,18 +351,8 @@ function attachNode(key, mode = 'collection') {
             STORE[key] = val;
             emit();
           }
-        } else {
-          // Do not wipe critical catalog or transaction collections if snapshot is empty/unresolved
-          if (!['orders', 'products', 'categories', 'events', 'visitors'].includes(key)) {
-            if (mode === 'collection') {
-              STORE[key] = {};
-              emit();
-            } else if (mode === 'singleton') {
-              STORE[key] = null;
-              emit();
-            }
-          }
         }
+        // NOTE: Never wipe store if snapshot is missing or transiently offline
       },
       (err) => {
         console.warn(`RTDB node ${key} subscription notice:`, err?.message || err);
@@ -374,7 +406,16 @@ export function startRealtime(force = false) {
   syncAllFromFirebase(force).catch(() => {});
 }
 
+let isSyncingFirebase = false;
+let lastSyncFirebaseTime = 0;
+
 export async function syncAllFromFirebase(force = false) {
+  if (isSyncingFirebase) return;
+  const now = Date.now();
+  if (!force && now - lastSyncFirebaseTime < 60000) return;
+  isSyncingFirebase = true;
+  lastSyncFirebaseTime = now;
+
   try {
     const targets = ['visitors', 'events', 'orders', 'products', 'categories', 'customers', 'payment', 'settings'];
 
@@ -397,10 +438,19 @@ export async function syncAllFromFirebase(force = false) {
           if (['orders', 'visitors', 'events'].includes(key)) {
             if (!STORE[key] || typeof STORE[key] !== 'object') STORE[key] = {};
             STORE[key] = { ...data };
+            hasSdkChange = true;
+          } else if (key === 'products' || key === 'categories') {
+            if (!STORE[key] || typeof STORE[key] !== 'object') STORE[key] = {};
+            Object.entries(data).forEach(([itemId, itemData]) => {
+              if (itemData && typeof itemData === 'object') {
+                STORE[key][itemId] = { ...(STORE[key][itemId] || {}), ...itemData, id: itemId };
+              }
+            });
+            hasSdkChange = true;
           } else {
             STORE[key] = data;
+            hasSdkChange = true;
           }
-          hasSdkChange = true;
         }
       }
     });
@@ -500,10 +550,19 @@ export async function syncAllFromFirebase(force = false) {
           if (['orders', 'visitors', 'events'].includes(key)) {
             if (!STORE[key] || typeof STORE[key] !== 'object') STORE[key] = {};
             STORE[key] = { ...data };
+            hasChange = true;
+          } else if (key === 'products' || key === 'categories') {
+            if (!STORE[key] || typeof STORE[key] !== 'object') STORE[key] = {};
+            Object.entries(data).forEach(([itemId, itemData]) => {
+              if (itemData && typeof itemData === 'object') {
+                STORE[key][itemId] = { ...(STORE[key][itemId] || {}), ...itemData, id: itemId };
+              }
+            });
+            hasChange = true;
           } else {
             STORE[key] = data;
+            hasChange = true;
           }
-          hasChange = true;
         }
       }
     });
@@ -513,6 +572,8 @@ export async function syncAllFromFirebase(force = false) {
     }
   } catch (err) {
     console.warn('syncAllFromFirebase warning:', err);
+  } finally {
+    isSyncingFirebase = false;
   }
 }
 
@@ -521,9 +582,8 @@ startRealtime();
 
 // Automatically bind listeners to auth state transitions
 onAuthStateChanged(auth, (user) => {
-  if (user) {
-    startRealtime(true);
-    syncAllFromFirebase(true).catch(() => {});
+  if (user && !isRealtimeStarted) {
+    startRealtime();
   }
 });
 
@@ -766,6 +826,22 @@ export async function duplicateRecord(node, id) {
 }
 
 export function listCollection(node) {
+  if ((node === 'products' || node === 'categories') && (!STORE[node] || Object.keys(STORE[node]).length === 0)) {
+    try {
+      const preCatalog = (typeof window !== 'undefined' && window.__preloadedCatalog) ? window.__preloadedCatalog : null;
+      if (preCatalog && preCatalog[node] && typeof preCatalog[node] === 'object' && Object.keys(preCatalog[node]).length > 0) {
+        STORE[node] = { ...preCatalog[node] };
+      } else {
+        const rawLive = typeof localStorage !== 'undefined' ? localStorage.getItem('linkadda_cached_live_data') : null;
+        if (rawLive) {
+          const parsedLive = JSON.parse(rawLive);
+          if (parsedLive && parsedLive[node] && typeof parsedLive[node] === 'object' && Object.keys(parsedLive[node]).length > 0) {
+            STORE[node] = { ...parsedLive[node] };
+          }
+        }
+      }
+    } catch (_) {}
+  }
   const value = STORE[node] || {};
   return Object.entries(value).map(([id, item]) => ({ ...(item || {}), id }));
 }

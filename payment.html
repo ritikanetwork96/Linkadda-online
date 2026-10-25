@@ -4909,7 +4909,7 @@ async function saveOrderToFirebase(amountText, methodName) {
           'apikey': supaKey,
           'Authorization': `Bearer ${supaKey}`,
           'Content-Type': 'application/json',
-          'Prefer': 'resolution=merge-duplicates'
+          'Prefer': 'return=minimal'
         };
 
         const orderRow = {
@@ -4944,23 +4944,42 @@ async function saveOrderToFirebase(amountText, methodName) {
 
     // Trigger instant Telegram Bot alert to both Admins & guarantee server-side order write
     try {
-      fetch('/api/telegram/notify-order', {
+      let apiBase = '';
+      if (typeof window !== 'undefined') {
+        const isLocal = window.location.hostname === 'localhost' ||
+                        window.location.hostname === '127.0.0.1' ||
+                        window.location.protocol === 'file:' ||
+                        (window.location.port && window.location.port !== '80' && window.location.port !== '443');
+        if (isLocal) apiBase = 'https://linkadda-online.onrender.com';
+      }
+
+      const notifyPayload = {
+        ...payload,
+        id: orderId,
+        order_id: orderId,
+        product_title: payload.productName || payload.title || orderData.name,
+        amount: amountText,
+        numericAmount: resolvedNumericAmount,
+        payment_method: methodName,
+        payment_proof: payload.paymentProof || payload.screenshotUrl || '',
+        utr: payload.utr || payload.transactionId || '',
+        telegramUserId: payload.telegramUserId || '',
+        telegramUsername: payload.telegramUsername || ''
+      };
+
+      const notifyRes = await fetch(`${apiBase}/api/telegram/notify-order`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...payload,
-          id: orderId,
-          order_id: orderId,
-          product_title: payload.productName || payload.title || orderData.name,
-          amount: amountText,
-          numericAmount: resolvedNumericAmount,
-          payment_method: methodName,
-          payment_proof: payload.paymentProof || payload.screenshotUrl || '',
-          utr: payload.utr || payload.transactionId || '',
-          telegramUserId: payload.telegramUserId || '',
-          telegramUsername: payload.telegramUsername || ''
-        })
-      }).catch(() => {});
+        body: JSON.stringify(notifyPayload)
+      }).catch(() => null);
+
+      if (!notifyRes || !notifyRes.ok) {
+        await fetch(`${apiBase}/api/telegram/bot?action=notify-order`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(notifyPayload)
+        }).catch(() => null);
+      }
     } catch (_) {}
 
 

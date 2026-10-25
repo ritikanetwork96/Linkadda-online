@@ -103,7 +103,7 @@ export async function get(refObj) {
         if (Array.isArray(rJson)) rows = rJson;
       }
     }
-    if (!rows.length && !token) return { exists: () => false, val: () => null };
+    if (!rows.length) return { exists: () => false, val: () => null };
     const data = {};
     if (Array.isArray(rows)) {
       rows.forEach(r => {
@@ -290,19 +290,29 @@ export function orderByChild() { return null; }
 export function limitToLast() { return null; }
 
 export function onValue(refObj, callback) {
-  // Initial fetch
+  // Initial fetch - invoke callback only if valid data exists
   get(refObj).then(snap => {
-    callback(snap);
+    if (snap && snap.exists && snap.exists()) {
+      callback(snap);
+    }
   }).catch(() => {});
 
-  // Polling every 5 seconds for live admin updates
-  const timer = setInterval(() => {
-    get(refObj).then(snap => {
-      callback(snap);
-    }).catch(() => {});
-  }, 5000);
+  // Calm throttled polling (30s) ONLY for dynamic transactions (orders, visitors)
+  // Static catalog and settings only change when the admin saves changes
+  const { table } = parsePath(refObj.path);
+  let timer = null;
+  if (table === 'orders' || table === 'visitors') {
+    timer = setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) return;
+      get(refObj).then(snap => {
+        if (snap && snap.exists && snap.exists()) callback(snap);
+      }).catch(() => {});
+    }, 30000);
+  }
 
-  return () => clearInterval(timer);
+  return () => {
+    if (timer) clearInterval(timer);
+  };
 }
 
 // -------------------------------------------------------------
@@ -334,14 +344,37 @@ export function onAuthStateChanged(authObj, callback) {
 export async function signInWithEmailAndPassword(authObj, email, password) {
   // Check against backend /api/admin/auth or verify password
   const cleanEmail = String(email || '').trim().toLowerCase();
-  const res = await fetch('/api/admin/auth', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email: cleanEmail, password })
-  });
+  
+  let res = null;
+  // 1. Try local same-origin endpoint first (works on Render and dev-server.mjs)
+  try {
+    res = await fetch('/api/admin/auth', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: cleanEmail, password })
+    });
+  } catch (_) {}
 
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
+  // 2. If running inside VS Code Live Server (port 5500, 5501, etc.) where no Node backend exists, fallback to live Render backend
+  if (!res || !res.ok) {
+    const isLiveServer = typeof window !== 'undefined' && 
+      (window.location.port === '5500' || window.location.port === '5501' || window.location.port === '5502' || window.location.protocol === 'file:');
+    if (isLiveServer) {
+      try {
+        const liveRes = await fetch('https://linkadda-online.onrender.com/api/admin/auth', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: cleanEmail, password })
+        });
+        if (liveRes.ok) {
+          res = liveRes;
+        }
+      } catch (_) {}
+    }
+  }
+
+  if (!res || !res.ok) {
+    const err = res ? await res.json().catch(() => ({})) : {};
     throw new Error(err.error || 'Invalid credentials');
   }
 

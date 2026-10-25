@@ -57,30 +57,66 @@ function getSupabaseConfig() {
   return { url, key };
 }
 
-// ── Ultra-Fast Local-First Storage Engine (bot_store.json) ──────────────────────
+// ── Ultra-Fast Persistent Multi-Bot Storage Engine ──────────────────────
+let _activeBotStorePath = null;
 function getBotStorePath() {
+  if (_activeBotStorePath) return _activeBotStorePath;
   const p1 = path.resolve(__dirname, '../../data/bot_store.json');
-  if (fs.existsSync(p1)) return p1;
+  if (fs.existsSync(p1)) {
+    try {
+      fs.accessSync(p1, fs.constants.W_OK);
+      _activeBotStorePath = p1;
+      return p1;
+    } catch (_) {}
+  }
   const p2 = path.join(process.cwd(), 'data', 'bot_store.json');
-  return p2;
+  try {
+    const dir = path.dirname(p2);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.accessSync(dir, fs.constants.W_OK);
+    _activeBotStorePath = p2;
+    return p2;
+  } catch (_) {}
+
+  // Serverless fallback: /tmp is the only writable directory on Vercel/AWS Lambda
+  const tmpPath = path.join('/tmp', 'bot_store.json');
+  _activeBotStorePath = tmpPath;
+  return tmpPath;
 }
 
 function readBotStore() {
+  if (globalThis.__linkadda_bot_store && globalThis.__linkadda_bot_store.bots) {
+    return globalThis.__linkadda_bot_store;
+  }
   try {
     const filePath = getBotStorePath();
     if (fs.existsSync(filePath)) {
       const raw = fs.readFileSync(filePath, 'utf8');
-      return JSON.parse(raw);
+      const parsed = JSON.parse(raw);
+      globalThis.__linkadda_bot_store = parsed;
+      return parsed;
     }
   } catch (err) {
     console.warn('Local bot_store.json read note:', err.message);
   }
-  return {
+  // Try reading static seed file from repo if tmp file doesn't exist yet
+  try {
+    const seedPath = path.resolve(__dirname, '../../data/bot_store.json');
+    if (fs.existsSync(seedPath)) {
+      const parsed = JSON.parse(fs.readFileSync(seedPath, 'utf8'));
+      globalThis.__linkadda_bot_store = parsed;
+      return parsed;
+    }
+  } catch (_) {}
+
+  const defaultStore = {
     activeToken: (process.env.TELEGRAM_BOT_TOKEN || '').trim(),
     bot: {
       username: 'Myshop9876_bot',
       name: 'LinkAdda Store Bot',
       id: '8923608774',
+      status: 'active',
+      isPrimary: true,
       source: 'database',
       lastActivatedAt: new Date().toISOString()
     },
@@ -90,10 +126,13 @@ function readBotStore() {
     orderLinks: {},
     orderAdminMessages: {}
   };
+  globalThis.__linkadda_bot_store = defaultStore;
+  return defaultStore;
 }
 
 function writeBotStore(data) {
   try {
+    globalThis.__linkadda_bot_store = data;
     const filePath = getBotStorePath();
     const dir = path.dirname(filePath);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
@@ -101,8 +140,287 @@ function writeBotStore(data) {
     return true;
   } catch (err) {
     console.error('Local bot_store.json write error:', err.message);
+    try {
+      const tmpPath = path.join('/tmp', 'bot_store.json');
+      fs.writeFileSync(tmpPath, JSON.stringify(data, null, 2), 'utf8');
+      _activeBotStorePath = tmpPath;
+      return true;
+    } catch (_) {}
     return false;
   }
+}
+
+export async function syncBotsToSupabase(botsMap) {
+  try {
+    const { url, key } = getSupabaseConfig();
+    const res = await fetch(`${url}/rest/v1/site_settings`, {
+      method: 'POST',
+      headers: {
+        'apikey': key,
+        'Authorization': `Bearer ${key}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'resolution=merge-duplicates'
+      },
+      body: JSON.stringify([{ key: 'tg_connected_bots', value: botsMap, updated_at: new Date().toISOString() }]),
+      signal: AbortSignal.timeout(5000)
+    });
+    return res.ok;
+  } catch (err) {
+    console.warn('syncBotsToSupabase warning:', err.message);
+    return false;
+  }
+}
+
+let lastBotStoreSyncTime = 0;
+export async function syncBotsFromSupabase(force = false) {
+  const now = Date.now();
+  if (!force && now - lastBotStoreSyncTime < 5000) {
+    return readBotStore()?.bots || {};
+  }
+  lastBotStoreSyncTime = now;
+  try {
+    const { url, key } = getSupabaseConfig();
+    const headers = { 'apikey': key, 'Authorization': `Bearer ${key}` };
+    const res = await fetch(`${url}/rest/v1/site_settings?key=eq.tg_connected_bots&select=*`, {
+      headers,
+      signal: AbortSignal.timeout(4500)
+    }).catch(() => null);
+
+    if (res && res.ok) {
+      const rows = await res.json();
+      if (rows && rows[0] && rows[0].value && typeof rows[0].value === 'object') {
+        const store = readBotStore();
+        if (!store.bots) store.bots = {};
+        store.bots = { ...store.bots, ...rows[0].value };
+        writeBotStore(store);
+        return store.bots;
+      }
+    }
+  } catch (err) {
+    console.warn('syncBotsFromSupabase warning:', err.message);
+  }
+  return readBotStore()?.bots || {};
+}
+
+function formatBotRecord(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const id = String(raw.id || raw.botId || '').replace(/^bot_/, '');
+  const botId = `bot_${id}`;
+  return {
+    id,
+    botId,
+    token: String(raw.token || '').trim(),
+    username: String(raw.username || '').replace('@', '').trim(),
+    name: String(raw.name || raw.first_name || 'LinkAdda Bot').trim(),
+    status: raw.status === 'inactive' ? 'inactive' : 'active',
+    isPrimary: Boolean(raw.isPrimary),
+    createdAt: raw.createdAt || Date.now(),
+    lastActivatedAt: raw.lastActivatedAt || new Date().toISOString(),
+    subscribersCount: Number(raw.subscribersCount) || 0
+  };
+}
+
+export function getConnectedBots() {
+  const store = readBotStore();
+  let botsMap = store.bots;
+  if (!botsMap || typeof botsMap !== 'object' || Object.keys(botsMap).length === 0) {
+    const defaultToken = (store.activeToken || process.env.TELEGRAM_BOT_TOKEN || '8923608774:AAFhvO4Yzly7toIf5qoI-TSW4EzVzWCdVlE').trim();
+    const b = store.bot || {};
+    const bid = String(b.id || '8923608774');
+    botsMap = {
+      [`bot_${bid}`]: {
+        id: bid,
+        botId: `bot_${bid}`,
+        token: defaultToken,
+        username: b.username || 'Myshop9876_bot',
+        name: b.name || 'LinkAdda Store Bot',
+        status: 'active',
+        isPrimary: true,
+        createdAt: Date.now(),
+        lastActivatedAt: b.lastActivatedAt || new Date().toISOString()
+      }
+    };
+    store.bots = botsMap;
+    writeBotStore(store);
+  }
+  return Object.values(botsMap).map(formatBotRecord).filter(Boolean);
+}
+
+export function getBotByIdOrToken(identifier = null) {
+  const all = getConnectedBots();
+  if (!identifier) {
+    return all.find(b => b.status === 'active' && b.isPrimary) ||
+           all.find(b => b.status === 'active') ||
+           all[0] ||
+           null;
+  }
+  const clean = String(identifier).trim().toLowerCase();
+  return all.find(b => 
+    b.botId.toLowerCase() === clean || 
+    b.id === clean || 
+    b.token === clean || 
+    b.username.toLowerCase() === clean.replace('@', '')
+  ) || null;
+}
+
+export async function saveConnectedBot(botData) {
+  // Sync remote first to avoid wiping other fleet bots
+  await syncBotsFromSupabase(true).catch(() => {});
+
+  const store = readBotStore();
+  if (!store.bots) store.bots = {};
+  const formatted = formatBotRecord(botData);
+  if (!formatted || !formatted.token) throw new Error('Invalid bot data or token missing');
+  store.bots[formatted.botId] = formatted;
+  if (formatted.isPrimary || Object.keys(store.bots).length === 1) {
+    store.activeToken = formatted.token;
+    store.bot = {
+      username: formatted.username,
+      name: formatted.name,
+      id: formatted.id,
+      source: 'database',
+      lastActivatedAt: formatted.lastActivatedAt
+    };
+  }
+  writeBotStore(store);
+  cachedBotConfig = null;
+
+  // Guaranteed AWAIT for Supabase persistence
+  await syncBotsToSupabase(store.bots);
+
+  return formatted;
+}
+
+export async function removeConnectedBot(botId) {
+  await syncBotsFromSupabase(true).catch(() => {});
+  const store = readBotStore();
+  if (!store.bots) return false;
+  const target = getBotByIdOrToken(botId);
+  if (!target) throw new Error('Bot not found');
+  
+  try {
+    await callTelegram('deleteWebhook', { drop_pending_updates: false }, target.token);
+  } catch (_) {}
+
+  delete store.bots[target.botId];
+  writeBotStore(store);
+  cachedBotConfig = null;
+
+  await syncBotsToSupabase(store.bots);
+  return true;
+}
+
+export async function toggleBotStatus(botId, newStatus, notifyUsers = false, noticeMessage = '') {
+  await syncBotsFromSupabase(true).catch(() => {});
+  const store = readBotStore();
+  const target = getBotByIdOrToken(botId);
+  if (!target) throw new Error('Bot not found');
+
+  target.status = newStatus === 'inactive' ? 'inactive' : 'active';
+  target.lastActivatedAt = new Date().toISOString();
+  store.bots[target.botId] = target;
+  writeBotStore(store);
+  cachedBotConfig = null;
+
+  if (target.status === 'active') {
+    const appUrl = getAppUrl();
+    const webhookUrl = `${appUrl}/api/telegram/bot?botId=${target.botId}`;
+    try {
+      await callTelegram('setWebhook', {
+        url: webhookUrl,
+        drop_pending_updates: false,
+        allowed_updates: ['message', 'callback_query']
+      }, target.token);
+      await callTelegram('setChatMenuButton', {
+        menu_button: {
+          type: 'web_app',
+          text: '🛍️ Open Store',
+          web_app: { url: appUrl }
+        }
+      }, target.token).catch(() => {});
+    } catch (_) {}
+  }
+
+  let sentNoticeCount = 0;
+  if (notifyUsers && noticeMessage && noticeMessage.trim()) {
+    try {
+      const allUsers = await getAllBotUsers();
+      const targetUsers = allUsers.filter(u => u && (u.sourceBotId === target.botId || !u.sourceBotId));
+      for (const user of targetUsers) {
+        if (!user.id) continue;
+        try {
+          await callTelegram('sendMessage', {
+            chat_id: user.id,
+            text: noticeMessage.trim(),
+            parse_mode: 'HTML'
+          }, target.token);
+          sentNoticeCount++;
+        } catch (_) {}
+        await new Promise(r => setTimeout(r, 45));
+      }
+    } catch (_) {}
+  }
+
+  await syncBotsToSupabase(store.bots);
+  return { ok: true, bot: target, sentNoticeCount };
+}
+
+export async function addAdminChatId(chatId, label = '') {
+  const cleanId = String(chatId || '').replace(/[^0-9-]/g, '').trim();
+  if (!cleanId || cleanId.length < 5) {
+    throw new Error('Invalid Telegram Chat ID. Chat IDs are 8-10 digit numbers.');
+  }
+  const store = readBotStore();
+  if (!Array.isArray(store.admins)) store.admins = [...DEFAULT_ADMIN_IDS];
+  if (!store.admins.includes(cleanId)) {
+    store.admins.push(cleanId);
+    writeBotStore(store);
+  }
+
+  let welcomeSent = false;
+  try {
+    const res = await callTelegram('sendMessage', {
+      chat_id: cleanId,
+      text: `👑 <b>Administrator Connected!</b>\n\nYou have been connected as an Administrator for <b>LinkAdda Online</b>.\nYou will now receive realtime order notifications, payment screenshots, and approval alerts directly here!`,
+      parse_mode: 'HTML'
+    });
+    welcomeSent = Boolean(res?.ok);
+  } catch (_) {}
+
+  (async () => {
+    try {
+      const { url, key } = getSupabaseConfig();
+      await fetch(`${url}/rest/v1/site_settings`, {
+        method: 'POST',
+        headers: { 'apikey': key, 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates' },
+        body: JSON.stringify([{ key: 'tg_admin_chat_ids', value: store.admins, updated_at: new Date().toISOString() }])
+      });
+    } catch (_) {}
+  })();
+
+  return { ok: true, admins: getAdminChatIds(), welcomeSent };
+}
+
+export async function removeAdminChatId(chatId) {
+  const cleanId = String(chatId || '').trim();
+  const store = readBotStore();
+  if (Array.isArray(store.admins)) {
+    store.admins = store.admins.filter(id => String(id).trim() !== cleanId);
+    writeBotStore(store);
+  }
+
+  (async () => {
+    try {
+      const { url, key } = getSupabaseConfig();
+      await fetch(`${url}/rest/v1/site_settings`, {
+        method: 'POST',
+        headers: { 'apikey': key, 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates' },
+        body: JSON.stringify([{ key: 'tg_admin_chat_ids', value: store.admins, updated_at: new Date().toISOString() }])
+      });
+    } catch (_) {}
+  })();
+
+  return { ok: true, admins: getAdminChatIds() };
 }
 
 // In-memory cache for ultra-speed active bot config
@@ -119,17 +437,16 @@ export async function getActiveBotConfig(forceRefresh = false) {
     return cachedBotConfig;
   }
 
-  const store = readBotStore();
-  const token = (store.activeToken || process.env.TELEGRAM_BOT_TOKEN || '8923608774:AAFhvO4Yzly7toIf5qoI-TSW4EzVzWCdVlE').trim();
-  const b = store.bot || {};
+  const primaryBot = getBotByIdOrToken();
+  const token = (primaryBot?.token || process.env.TELEGRAM_BOT_TOKEN || '8923608774:AAFhvO4Yzly7toIf5qoI-TSW4EzVzWCdVlE').trim();
 
   cachedBotConfig = {
     token,
-    username: b.username || 'Myshop9876_bot',
-    name: b.name || 'LinkAdda Store Bot',
-    botId: String(b.id || '8923608774'),
-    source: b.source || 'database',
-    lastActivatedAt: b.lastActivatedAt || null,
+    username: primaryBot?.username || 'Myshop9876_bot',
+    name: primaryBot?.name || 'LinkAdda Store Bot',
+    botId: String(primaryBot?.id || '8923608774'),
+    source: 'multi_bot_store',
+    lastActivatedAt: primaryBot?.lastActivatedAt || null,
     updatedAt: now
   };
   lastBotCacheFetch = now;
@@ -321,7 +638,7 @@ export async function switchTelegramBot(newToken, adminUser = 'Admin Panel', req
 /**
  * Store unique bot users in high-speed local store & async backup (0ms lag)
  */
-export async function recordBotUser(fromUser, source = 'bot_interaction') {
+export async function recordBotUser(fromUser, source = 'bot_interaction', sourceBotId = null) {
   if (!fromUser?.id) return;
   const uidStr = String(fromUser.id);
   const adminIds = new Set(getAdminChatIds());
@@ -331,17 +648,26 @@ export async function recordBotUser(fromUser, source = 'bot_interaction') {
   if (!store.users) store.users = {};
 
   const existing = store.users[uidStr] || {};
+  const boundBotId = sourceBotId || existing.sourceBotId || null;
   const userObj = {
     id: uidStr,
     username: fromUser.username || existing.username || '',
     firstName: fromUser.first_name || fromUser.firstName || existing.firstName || 'Telegram User',
     lastName: fromUser.last_name || fromUser.lastName || existing.lastName || '',
     source: isAdmin ? 'admin_tester' : (source || existing.source || 'bot_interaction'),
+    sourceBotId: boundBotId,
     isAdmin,
     createdAt: existing.createdAt || Date.now(),
     updatedAt: Date.now()
   };
   store.users[uidStr] = userObj;
+
+  // Update subscriber count on bot in store
+  if (boundBotId && store.bots && store.bots[boundBotId]) {
+    const count = Object.values(store.users).filter(u => u && u.sourceBotId === boundBotId && !u.isAdmin).length;
+    store.bots[boundBotId].subscribersCount = count;
+  }
+
   writeBotStore(store);
 
   // Non-blocking async push to Supabase using Service Role Key (bypasses RLS)
@@ -457,7 +783,18 @@ export async function getAllBotUsers() {
       console.warn('getAllBotUsers Supabase live fetch note:', sbErr.message);
     }
 
-    const users = Object.values(usersMap).filter(u => u && u.id && u.source !== 'admin_account');
+    const allBots = getConnectedBots();
+    const primaryBot = allBots.find(b => b.isPrimary) || allBots[0] || { botId: 'bot_8923608774', username: 'Myshop9876_bot' };
+
+    const users = Object.values(usersMap).filter(u => u && u.id && u.source !== 'admin_account').map(u => {
+      const sId = u.sourceBotId || primaryBot.botId;
+      const bMatch = allBots.find(b => b.botId === sId) || primaryBot;
+      return {
+        ...u,
+        sourceBotId: sId,
+        sourceBotUsername: u.sourceBotUsername || bMatch.username || 'Myshop9876_bot'
+      };
+    });
     return users.sort((a, b) => (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0));
   } catch (err) {
     console.error('getAllBotUsers error:', err);
@@ -1228,7 +1565,7 @@ function escapeTelegramHtml(str) {
  * 1. View Product (Full gallery slideshow, video demo, specs, reviews, tiers)
  * 2. Instant Buy Now & Checkout (Direct payment.html sheet)
  */
-export async function broadcastNewProduct(rawProduct) {
+export async function broadcastNewProduct(rawProduct, targetBotIds = ['all']) {
   let product = rawProduct?.product || rawProduct || {};
   if (typeof product === 'string') {
     product = { id: product };
@@ -1334,100 +1671,112 @@ export async function broadcastNewProduct(rawProduct) {
     ]
   };
 
-  // 6. Recipients: Combine admins + all registered bot subscribers
+  // 6. Multi-Bot Target Fleet Resolution
+  const allActiveBots = getConnectedBots().filter(b => b.status === 'active');
+  const isAll = !targetBotIds || (Array.isArray(targetBotIds) && (targetBotIds.length === 0 || targetBotIds.includes('all')));
+  const targetList = Array.isArray(targetBotIds) ? targetBotIds : [targetBotIds];
+  const selectedBots = isAll 
+    ? allActiveBots 
+    : allActiveBots.filter(b => targetList.includes(b.botId) || targetList.includes(b.id) || targetList.includes(b.username));
+  const fleet = selectedBots.length > 0 ? selectedBots : [getBotByIdOrToken()].filter(Boolean);
+
   const botUsers = await getAllBotUsers();
-  const adminIds = getAdminChatIds(); // ['8802192472', '6966868142']
-  const recipientMap = new Map();
-
-  // Always include admins so they receive every broadcast and verify it instantly
-  for (const adminId of adminIds) {
-    if (adminId && String(adminId).trim()) {
-      recipientMap.set(String(adminId).trim(), { id: String(adminId).trim(), role: 'admin' });
-    }
-  }
-
-  // Include all registered bot users
-  for (const user of (botUsers || [])) {
-    const uid = String(user?.id || user?.telegramUserId || '').trim();
-    if (uid) {
-      recipientMap.set(uid, { ...(user || {}), id: uid });
-    }
-  }
-
-  const recipients = Array.from(recipientMap.values());
-  if (recipients.length === 0) {
-    return { ok: false, sentCount: 0, error: 'No Telegram recipients or admins found to broadcast to.' };
-  }
+  const adminIds = getAdminChatIds();
 
   let sentCount = 0;
   let failCount = 0;
+  let totalRecipients = 0;
   const sampleErrors = [];
+  const botBreakdown = {};
 
-  for (const target of recipients) {
-    const chatId = target.id;
-    if (!chatId) continue;
+  for (let bIndex = 0; bIndex < fleet.length; bIndex++) {
+    const currentBot = fleet[bIndex];
+    if (!currentBot || !currentBot.token) continue;
+    const botKey = currentBot.username || currentBot.id || `bot_${bIndex}`;
+    botBreakdown[botKey] = { sent: 0, failed: 0 };
 
-    let delivered = false;
+    const recipientMap = new Map();
 
-    // If an image URL is present, attempt sendPhoto first
-    if (image && (image.startsWith('http://') || image.startsWith('https://'))) {
-      try {
-        const photoRes = await callTelegram('sendPhoto', {
-          chat_id: chatId,
-          photo: image,
-          caption: messageText,
-          parse_mode: 'HTML',
-          reply_markup: keyboard
-        });
-        if (photoRes && photoRes.ok) {
-          delivered = true;
-        } else {
-          console.warn(`sendPhoto failed for chat ${chatId} (${photoRes?.description || 'unknown'}), falling back to sendMessage...`);
+    // Admins receive notification on first bot in fleet so admins verify without 5x duplicate spam
+    if (bIndex === 0) {
+      for (const adminId of adminIds) {
+        if (adminId && String(adminId).trim()) {
+          recipientMap.set(String(adminId).trim(), { id: String(adminId).trim(), role: 'admin' });
         }
-      } catch (photoErr) {
-        console.warn(`sendPhoto exception for ${chatId}:`, photoErr.message);
       }
     }
 
-    // Fallback to sendMessage if photo was not delivered or no image
-    if (!delivered) {
-      try {
-        const msgRes = await callTelegram('sendMessage', {
-          chat_id: chatId,
-          text: messageText,
-          parse_mode: 'HTML',
-          reply_markup: keyboard
-        });
-        if (msgRes && msgRes.ok) {
-          delivered = true;
-        } else {
-          console.warn(`sendMessage failed for chat ${chatId}:`, msgRes?.description || 'failed');
+    // Subscribers belonging to this bot
+    for (const user of (botUsers || [])) {
+      const uid = String(user?.id || user?.telegramUserId || '').trim();
+      if (!uid) continue;
+      const belongs = user.sourceBotId === currentBot.botId || 
+        ((currentBot.isPrimary || fleet.length === 1) && !user.sourceBotId);
+      if (belongs) {
+        recipientMap.set(uid, { ...(user || {}), id: uid });
+      }
+    }
+
+    const recipients = Array.from(recipientMap.values());
+    totalRecipients += recipients.length;
+
+    for (const target of recipients) {
+      const chatId = target.id;
+      if (!chatId) continue;
+      let delivered = false;
+
+      if (image && (image.startsWith('http://') || image.startsWith('https://'))) {
+        try {
+          const photoRes = await callTelegram('sendPhoto', {
+            chat_id: chatId,
+            photo: image,
+            caption: messageText,
+            parse_mode: 'HTML',
+            reply_markup: keyboard
+          }, currentBot.token);
+          if (photoRes && photoRes.ok) delivered = true;
+        } catch (_) {}
+      }
+
+      if (!delivered) {
+        try {
+          const msgRes = await callTelegram('sendMessage', {
+            chat_id: chatId,
+            text: messageText,
+            parse_mode: 'HTML',
+            reply_markup: keyboard
+          }, currentBot.token);
+          if (msgRes && msgRes.ok) {
+            delivered = true;
+          } else if (sampleErrors.length < 5) {
+            sampleErrors.push(`${chatId} (@${currentBot.username}): ${msgRes?.description || 'failed'}`);
+          }
+        } catch (msgErr) {
           if (sampleErrors.length < 5) {
-            sampleErrors.push(`${chatId}: ${msgRes?.description || 'Delivery failed'}`);
+            sampleErrors.push(`${chatId}: ${msgErr.message}`);
           }
         }
-      } catch (msgErr) {
-        if (sampleErrors.length < 5) {
-          sampleErrors.push(`${chatId}: ${msgErr.message}`);
-        }
       }
-    }
 
-    if (delivered) {
-      sentCount++;
-    } else {
-      failCount++;
-    }
+      if (delivered) {
+        sentCount++;
+        botBreakdown[botKey].sent++;
+      } else {
+        failCount++;
+        botBreakdown[botKey].failed++;
+      }
 
-    // 50ms pause between sends to respect Telegram flood rate limits
-    await new Promise(r => setTimeout(r, 50));
+      await new Promise(r => setTimeout(r, 45));
+    }
   }
 
   return { 
     ok: sentCount > 0, 
     sentCount, 
     failCount,
-    totalRecipients: recipients.length,
+    totalRecipients,
+    botsCount: fleet.length,
+    botBreakdown,
     error: sentCount === 0 ? (sampleErrors[0] || 'Failed to dispatch to Telegram') : null
   };
 }
@@ -1435,7 +1784,7 @@ export async function broadcastNewProduct(rawProduct) {
 /**
  * Generic Custom Announcement / Promotion Broadcast to all bot users
  */
-export async function broadcastCustomMessage({ message, photo, buttonText, buttonUrl }) {
+export async function broadcastCustomMessage({ message, photo, buttonText, buttonUrl, targetBotIds = ['all'] }) {
   if (!message || typeof message !== 'string' || !message.trim()) {
     return { ok: false, error: 'Broadcast message content cannot be empty.' };
   }
@@ -1443,24 +1792,14 @@ export async function broadcastCustomMessage({ message, photo, buttonText, butto
   const botUsers = await getAllBotUsers();
   const adminIds = getAdminChatIds();
 
-  // Combine admins and bot users
-  const recipientMap = new Map();
-  for (const adminId of adminIds) {
-    if (adminId && String(adminId).trim()) {
-      recipientMap.set(String(adminId).trim(), { id: String(adminId).trim(), role: 'admin' });
-    }
-  }
-  for (const user of (botUsers || [])) {
-    const uid = String(user?.id || user?.telegramUserId || '').trim();
-    if (uid) {
-      recipientMap.set(uid, { ...(user || {}), id: uid });
-    }
-  }
-
-  const recipients = Array.from(recipientMap.values());
-  if (recipients.length === 0) {
-    return { ok: false, error: 'No Telegram bot subscribers or admin recipients found yet.' };
-  }
+  // Multi-Bot Target Fleet Resolution
+  const allActiveBots = getConnectedBots().filter(b => b.status === 'active');
+  const isAll = !targetBotIds || (Array.isArray(targetBotIds) && (targetBotIds.length === 0 || targetBotIds.includes('all')));
+  const targetList = Array.isArray(targetBotIds) ? targetBotIds : [targetBotIds];
+  const selectedBots = isAll 
+    ? allActiveBots 
+    : allActiveBots.filter(b => targetList.includes(b.botId) || targetList.includes(b.id) || targetList.includes(b.username));
+  const fleet = selectedBots.length > 0 ? selectedBots : [getBotByIdOrToken()].filter(Boolean);
 
   const appUrl = getAppUrl();
   const tgAppUrl = appUrl.startsWith('https://') ? appUrl : 'https://linkadda-online.onrender.com';
@@ -1486,66 +1825,98 @@ export async function broadcastCustomMessage({ message, photo, buttonText, butto
 
   let sentCount = 0;
   let failCount = 0;
+  let totalRecipients = 0;
   const sampleErrors = [];
+  const botBreakdown = {};
 
-  for (const target of recipients) {
-    const chatId = target.id;
-    if (!chatId) continue;
+  for (let bIndex = 0; bIndex < fleet.length; bIndex++) {
+    const currentBot = fleet[bIndex];
+    if (!currentBot || !currentBot.token) continue;
+    const botKey = currentBot.username || currentBot.id || `bot_${bIndex}`;
+    botBreakdown[botKey] = { sent: 0, failed: 0 };
 
-    let delivered = false;
+    const recipientMap = new Map();
 
-    if (cleanPhoto) {
-      try {
-        const photoRes = await callTelegram('sendPhoto', {
-          chat_id: chatId,
-          photo: cleanPhoto,
-          caption: cleanMsg,
-          parse_mode: 'HTML',
-          ...(replyMarkup ? { reply_markup: replyMarkup } : {})
-        });
-        if (photoRes && photoRes.ok) {
-          delivered = true;
-        } else {
-          console.warn(`sendPhoto failed for custom message to ${chatId}:`, photoRes?.description);
+    // Admins receive notification on first bot in fleet
+    if (bIndex === 0) {
+      for (const adminId of adminIds) {
+        if (adminId && String(adminId).trim()) {
+          recipientMap.set(String(adminId).trim(), { id: String(adminId).trim(), role: 'admin' });
         }
-      } catch (photoErr) {
-        console.warn(`sendPhoto exception for ${chatId}:`, photoErr.message);
       }
     }
 
-    if (!delivered) {
-      try {
-        const msgRes = await callTelegram('sendMessage', {
-          chat_id: chatId,
-          text: cleanMsg,
-          parse_mode: 'HTML',
-          ...(replyMarkup ? { reply_markup: replyMarkup } : {})
-        });
-        if (msgRes && msgRes.ok) {
-          delivered = true;
-        } else {
-          console.warn(`sendMessage failed for custom message to ${chatId}:`, msgRes?.description);
-          if (sampleErrors.length < 5) sampleErrors.push(`${chatId}: ${msgRes?.description || 'failed'}`);
-        }
-      } catch (msgErr) {
-        if (sampleErrors.length < 5) sampleErrors.push(`${chatId}: ${msgErr.message}`);
+    // Subscribers belonging to this bot
+    for (const user of (botUsers || [])) {
+      const uid = String(user?.id || user?.telegramUserId || '').trim();
+      if (!uid) continue;
+      const belongs = user.sourceBotId === currentBot.botId || 
+        ((currentBot.isPrimary || fleet.length === 1) && !user.sourceBotId);
+      if (belongs) {
+        recipientMap.set(uid, { ...(user || {}), id: uid });
       }
     }
 
-    if (delivered) {
-      sentCount++;
-    } else {
-      failCount++;
-    }
+    const recipients = Array.from(recipientMap.values());
+    totalRecipients += recipients.length;
 
-    await new Promise(r => setTimeout(r, 50));
+    for (const target of recipients) {
+      const chatId = target.id;
+      if (!chatId) continue;
+      let delivered = false;
+
+      if (cleanPhoto) {
+        try {
+          const photoRes = await callTelegram('sendPhoto', {
+            chat_id: chatId,
+            photo: cleanPhoto,
+            caption: cleanMsg,
+            parse_mode: 'HTML',
+            ...(replyMarkup ? { reply_markup: replyMarkup } : {})
+          }, currentBot.token);
+          if (photoRes && photoRes.ok) delivered = true;
+        } catch (_) {}
+      }
+
+      if (!delivered) {
+        try {
+          const msgRes = await callTelegram('sendMessage', {
+            chat_id: chatId,
+            text: cleanMsg,
+            parse_mode: 'HTML',
+            ...(replyMarkup ? { reply_markup: replyMarkup } : {})
+          }, currentBot.token);
+          if (msgRes && msgRes.ok) {
+            delivered = true;
+          } else if (sampleErrors.length < 5) {
+            sampleErrors.push(`${chatId} (@${currentBot.username}): ${msgRes?.description || 'failed'}`);
+          }
+        } catch (msgErr) {
+          if (sampleErrors.length < 5) {
+            sampleErrors.push(`${chatId}: ${msgErr.message}`);
+          }
+        }
+      }
+
+      if (delivered) {
+        sentCount++;
+        botBreakdown[botKey].sent++;
+      } else {
+        failCount++;
+        botBreakdown[botKey].failed++;
+      }
+
+      await new Promise(r => setTimeout(r, 45));
+    }
   }
 
   return {
     ok: sentCount > 0,
     sentCount,
     failCount,
-    totalRecipients: recipients.length,
+    totalRecipients,
+    botsCount: fleet.length,
+    botBreakdown,
     error: sentCount === 0 ? (sampleErrors[0] || 'Broadcast failed to deliver') : null
   };
 }
@@ -1556,26 +1927,30 @@ export async function ensureWebhookActive(req = null) {
   if (now - lastHookCheck < 45000) return;
   lastHookCheck = now;
   try {
-    const cfg = await getActiveBotConfig();
-    if (!cfg.token) return;
+    const activeBots = getConnectedBots().filter(b => b.status === 'active');
     const appUrl = getAppUrl(req);
-    const expectedWebhook = `${appUrl}/api/telegram/bot`;
-    const info = await callTelegram('getWebhookInfo', {}, cfg.token);
-    const currentUrl = info?.result?.url || '';
-    if (!currentUrl || currentUrl !== expectedWebhook) {
-      console.log('[TELEGRAM WEBHOOK REPAIR] Webhook missing or mismatch, locking to:', expectedWebhook);
-      await callTelegram('setWebhook', {
-        url: expectedWebhook,
-        drop_pending_updates: false,
-        allowed_updates: ['message', 'callback_query']
-      }, cfg.token);
-      await callTelegram('setChatMenuButton', {
-        menu_button: {
-          type: 'web_app',
-          text: '🛍️ Open Store',
-          web_app: { url: appUrl }
-        }
-      }, cfg.token).catch(() => {});
+    for (const bot of activeBots) {
+      if (!bot.token) continue;
+      const expectedWebhook = bot.isPrimary 
+        ? `${appUrl}/api/telegram/bot` 
+        : `${appUrl}/api/telegram/bot?botId=${bot.botId}`;
+      const info = await callTelegram('getWebhookInfo', {}, bot.token).catch(() => null);
+      const currentUrl = info?.result?.url || '';
+      if (!currentUrl || currentUrl !== expectedWebhook) {
+        console.log(`[TELEGRAM WEBHOOK REPAIR] Webhook missing or mismatch for ${bot.username}, setting:`, expectedWebhook);
+        await callTelegram('setWebhook', {
+          url: expectedWebhook,
+          drop_pending_updates: false,
+          allowed_updates: ['message', 'callback_query']
+        }, bot.token).catch(() => {});
+        await callTelegram('setChatMenuButton', {
+          menu_button: {
+            type: 'web_app',
+            text: '🛍️ Open Store',
+            web_app: { url: appUrl }
+          }
+        }, bot.token).catch(() => {});
+      }
     }
   } catch (err) {
     console.warn('[TELEGRAM WEBHOOK REPAIR] Error:', err.message);
@@ -1587,6 +1962,9 @@ export async function ensureWebhookActive(req = null) {
  */
 export default async function handler(req, res) {
   if (handleCors(req, res, 'GET, POST, OPTIONS')) return;
+
+  // Sync latest bot fleet from Supabase database to guarantee 100% persistence
+  await syncBotsFromSupabase().catch(() => {});
 
   // Background self-healing check to guarantee webhook stays connected to LinkAdda
   ensureWebhookActive(req).catch(() => {});
@@ -1720,6 +2098,12 @@ export default async function handler(req, res) {
       const token = cfg.token || '';
       const maskedToken = token.length > 10 ? `${token.slice(0, 6)}...${token.slice(-4)}` : '***';
       const allUsers = await getAllBotUsers();
+      const botCounts = {};
+      allUsers.forEach(u => {
+        const sId = u.sourceBotId || 'bot_8923608774';
+        botCounts[sId] = (botCounts[sId] || 0) + 1;
+      });
+
       const hookData = (webhookInfo && webhookInfo.ok && webhookInfo.result) 
         ? webhookInfo.result 
         : { url: expectedWebhook, pending_update_count: 0 };
@@ -1734,6 +2118,12 @@ export default async function handler(req, res) {
           maskedToken,
           lastActivatedAt: cfg.lastActivatedAt
         },
+        bots: getConnectedBots().map(b => ({
+          ...b,
+          status: b.status === 'inactive' ? 'inactive' : 'active',
+          subscribersCount: botCounts[b.botId] || (b.isPrimary ? allUsers.length : 0),
+          maskedToken: b.token && b.token.length > 10 ? `${b.token.slice(0, 6)}...${b.token.slice(-4)}` : '***'
+        })),
         webhook: hookData,
         admins: getAdminChatIds(),
         users: allUsers,
@@ -1743,6 +2133,30 @@ export default async function handler(req, res) {
     } catch (e) {
       return res.status(500).json({ ok: false, error: e.message });
     }
+  }
+
+  // Get all connected bots fleet (Admin only)
+  if (req.method === 'GET' && (action === 'get-bots' || action === 'bots')) {
+    if (!await verifyAdminRequest(req)) {
+      return res.status(401).json({ ok: false, error: 'Unauthorized: Admin authentication required.' });
+    }
+    const allUsers = await getAllBotUsers();
+    const botCounts = {};
+    allUsers.forEach(u => {
+      const sId = u.sourceBotId || 'bot_8923608774';
+      botCounts[sId] = (botCounts[sId] || 0) + 1;
+    });
+
+    return res.status(200).json({
+      ok: true,
+      bots: getConnectedBots().map(b => ({
+        ...b,
+        status: b.status === 'inactive' ? 'inactive' : 'active',
+        subscribersCount: botCounts[b.botId] || (b.isPrimary ? allUsers.length : 0),
+        maskedToken: b.token && b.token.length > 10 ? `${b.token.slice(0, 6)}...${b.token.slice(-4)}` : '***'
+      })),
+      admins: getAdminChatIds()
+    });
   }
 
   // Get all registered bot users / subscribers (Admin only)
@@ -1769,7 +2183,7 @@ export default async function handler(req, res) {
           username: u.username || u.telegramUsername || '',
           first_name: u.first_name || u.firstName || u.name || '',
           last_name: u.last_name || u.lastName || ''
-        }, u.source || 'mini_app_visit');
+        }, u.source || 'mini_app_visit', u.sourceBotId || null);
 
         // Customer opened WebApp -> Mark unread messages as READ (2-minute auto-delete starts)
         markUserMessagesAsRead(uid);
@@ -1789,6 +2203,251 @@ export default async function handler(req, res) {
       const payload = req.body || {};
       const bcRes = await broadcastCustomMessage(payload);
       return res.status(bcRes.ok ? 200 : 400).json(bcRes);
+    } catch (e) {
+      return res.status(500).json({ ok: false, error: e.message });
+    }
+  }
+
+  // Connect & Add a New Telegram Bot into Fleet (Admin only)
+  if (req.method === 'POST' && (action === 'add-bot' || (req.body && req.body.action === 'add-bot'))) {
+    if (!await verifyAdminRequest(req)) {
+      return res.status(401).json({ ok: false, error: 'Unauthorized: Admin authentication required.' });
+    }
+    try {
+      const { token } = req.body || {};
+      const cleanToken = String(token || '').trim();
+      if (!cleanToken || !cleanToken.includes(':')) {
+        return res.status(400).json({ ok: false, error: 'Invalid Bot Token format. Tokens look like 123456789:ABC...' });
+      }
+
+      // Live verify token against Telegram official Bot API
+      const meRes = await callTelegram('getMe', {}, cleanToken);
+      if (!meRes || !meRes.ok || !meRes.result) {
+        return res.status(400).json({ ok: false, error: meRes?.description || 'Telegram Bot API rejected this token. Please check @BotFather.' });
+      }
+
+      const tgInfo = meRes.result;
+      const botId = `bot_${tgInfo.id}`;
+      const appUrl = getAppUrl(req);
+      const webhookUrl = `${appUrl}/api/telegram/bot?botId=${botId}`;
+
+      // Automatically register webhook for this new bot
+      await callTelegram('setWebhook', {
+        url: webhookUrl,
+        drop_pending_updates: false,
+        allowed_updates: ['message', 'callback_query']
+      }, cleanToken);
+
+      // Bind WebApp Menu Button
+      await callTelegram('setChatMenuButton', {
+        menu_button: {
+          type: 'web_app',
+          text: '🛍️ Open Store',
+          web_app: { url: appUrl }
+        }
+      }, cleanToken).catch(() => {});
+
+      const newBot = {
+        id: String(tgInfo.id),
+        botId,
+        token: cleanToken,
+        username: tgInfo.username || '',
+        name: tgInfo.first_name || 'LinkAdda Bot',
+        status: 'active',
+        isPrimary: false,
+        createdAt: Date.now(),
+        lastActivatedAt: new Date().toISOString()
+      };
+
+      const saved = await saveConnectedBot(newBot);
+      return res.status(200).json({
+        ok: true,
+        bot: saved,
+        bots: getConnectedBots().map(b => ({
+          ...b,
+          maskedToken: b.token && b.token.length > 10 ? `${b.token.slice(0, 6)}...${b.token.slice(-4)}` : '***'
+        }))
+      });
+    } catch (e) {
+      return res.status(500).json({ ok: false, error: e.message });
+    }
+  }
+
+  // Set a Connected Bot as Primary Active Bot in Fleet (Admin only)
+  if (req.method === 'POST' && (action === 'set-primary-bot' || (req.body && req.body.action === 'set-primary-bot'))) {
+    if (!await verifyAdminRequest(req)) {
+      return res.status(401).json({ ok: false, error: 'Unauthorized: Admin authentication required.' });
+    }
+    try {
+      const { botId } = req.body || {};
+      const store = readBotStore();
+      if (!store.bots) store.bots = {};
+      const target = getBotByIdOrToken(botId);
+      if (!target) return res.status(404).json({ ok: false, error: 'Bot not found in fleet' });
+
+      Object.values(store.bots).forEach(b => {
+        b.isPrimary = (b.botId === target.botId || b.id === target.id);
+      });
+
+      target.isPrimary = true;
+      target.status = 'active';
+      store.bots[target.botId] = target;
+      store.activeToken = target.token;
+      store.bot = {
+        username: target.username,
+        name: target.name,
+        id: target.id,
+        source: 'database',
+        lastActivatedAt: new Date().toISOString()
+      };
+
+      writeBotStore(store);
+      cachedBotConfig = null;
+      await syncBotsToSupabase(store.bots);
+
+      // Re-register default webhook for primary bot
+      const appUrl = getAppUrl(req);
+      const webhookUrl = `${appUrl}/api/telegram/bot`;
+      await callTelegram('setWebhook', {
+        url: webhookUrl,
+        drop_pending_updates: false,
+        allowed_updates: ['message', 'callback_query']
+      }, target.token).catch(() => {});
+      await callTelegram('setChatMenuButton', {
+        menu_button: {
+          type: 'web_app',
+          text: '🛍️ Open Store',
+          web_app: { url: appUrl }
+        }
+      }, target.token).catch(() => {});
+
+      return res.status(200).json({
+        ok: true,
+        bot: target,
+        bots: getConnectedBots().map(b => ({
+          ...b,
+          maskedToken: b.token && b.token.length > 10 ? `${b.token.slice(0, 6)}...${b.token.slice(-4)}` : '***'
+        }))
+      });
+    } catch (e) {
+      return res.status(500).json({ ok: false, error: e.message });
+    }
+  }
+
+  // Per-Bot Active / Inactive Status Toggle (Admin only)
+  if (req.method === 'POST' && (action === 'toggle-bot-status' || (req.body && req.body.action === 'toggle-bot-status'))) {
+    if (!await verifyAdminRequest(req)) {
+      return res.status(401).json({ ok: false, error: 'Unauthorized: Admin authentication required.' });
+    }
+    try {
+      const { botId, status, notifyUsers, noticeMessage } = req.body || {};
+      const result = await toggleBotStatus(botId, status, notifyUsers, noticeMessage);
+      return res.status(200).json({
+        ok: true,
+        ...result,
+        bots: getConnectedBots().map(b => ({
+          ...b,
+          maskedToken: b.token && b.token.length > 10 ? `${b.token.slice(0, 6)}...${b.token.slice(-4)}` : '***'
+        }))
+      });
+    } catch (e) {
+      return res.status(500).json({ ok: false, error: e.message });
+    }
+  }
+
+  // Delete a Connected Bot (Admin only)
+  if (req.method === 'POST' && (action === 'delete-bot' || (req.body && req.body.action === 'delete-bot'))) {
+    if (!await verifyAdminRequest(req)) {
+      return res.status(401).json({ ok: false, error: 'Unauthorized: Admin authentication required.' });
+    }
+    try {
+      const { botId } = req.body || {};
+      const target = getBotByIdOrToken(botId);
+      if (target?.isPrimary) {
+        return res.status(400).json({ ok: false, error: 'Cannot delete primary default bot. You can toggle its status or switch primary first.' });
+      }
+      await removeConnectedBot(botId);
+      return res.status(200).json({
+        ok: true,
+        bots: getConnectedBots().map(b => ({
+          ...b,
+          maskedToken: b.token && b.token.length > 10 ? `${b.token.slice(0, 6)}...${b.token.slice(-4)}` : '***'
+        }))
+      });
+    } catch (e) {
+      return res.status(500).json({ ok: false, error: e.message });
+    }
+  }
+
+  // Test Ping from a Specific Bot in Fleet (Admin only)
+  if (req.method === 'POST' && (action === 'test-bot-ping' || (req.body && req.body.action === 'test-bot-ping'))) {
+    if (!await verifyAdminRequest(req)) {
+      return res.status(401).json({ ok: false, error: 'Unauthorized: Admin authentication required.' });
+    }
+    try {
+      const { botId, chatId } = req.body || {};
+      const bot = getBotByIdOrToken(botId);
+      if (!bot || !bot.token) {
+        return res.status(404).json({ ok: false, error: 'Bot not found or token missing' });
+      }
+      const adminIds = getAdminChatIds();
+      const targetChat = chatId || adminIds[0];
+      if (!targetChat) {
+        return res.status(400).json({ ok: false, error: 'No admin chat ID found to test' });
+      }
+      const pingRes = await callTelegram('sendMessage', {
+        chat_id: targetChat,
+        text: `🔔 <b>Fleet Bot Ping Test:</b> @${bot.username || 'Bot'} is connected and delivering alerts properly!`,
+        parse_mode: 'HTML'
+      }, bot.token);
+      return res.status(pingRes?.ok ? 200 : 400).json({ ok: Boolean(pingRes?.ok), result: pingRes });
+    } catch (e) {
+      return res.status(500).json({ ok: false, error: e.message });
+    }
+  }
+
+  // Real Telegram Admin: Add New Admin Chat ID (Admin only)
+  if (req.method === 'POST' && (action === 'add-admin' || (req.body && req.body.action === 'add-admin'))) {
+    if (!await verifyAdminRequest(req)) {
+      return res.status(401).json({ ok: false, error: 'Unauthorized: Admin authentication required.' });
+    }
+    try {
+      const { chatId, label } = req.body || {};
+      const result = await addAdminChatId(chatId, label);
+      return res.status(200).json({ ok: true, ...result });
+    } catch (e) {
+      return res.status(400).json({ ok: false, error: e.message });
+    }
+  }
+
+  // Real Telegram Admin: Remove Admin Chat ID (Admin only)
+  if (req.method === 'POST' && (action === 'remove-admin' || (req.body && req.body.action === 'remove-admin'))) {
+    if (!await verifyAdminRequest(req)) {
+      return res.status(401).json({ ok: false, error: 'Unauthorized: Admin authentication required.' });
+    }
+    try {
+      const { chatId } = req.body || {};
+      const result = await removeAdminChatId(chatId);
+      return res.status(200).json({ ok: true, ...result });
+    } catch (e) {
+      return res.status(400).json({ ok: false, error: e.message });
+    }
+  }
+
+  // Real Telegram Admin: Direct Ping to a Specific Admin (Admin only)
+  if (req.method === 'POST' && (action === 'ping-admin' || (req.body && req.body.action === 'ping-admin'))) {
+    if (!await verifyAdminRequest(req)) {
+      return res.status(401).json({ ok: false, error: 'Unauthorized: Admin authentication required.' });
+    }
+    try {
+      const { chatId } = req.body || {};
+      if (!chatId) return res.status(400).json({ ok: false, error: 'Missing chatId' });
+      const pingRes = await callTelegram('sendMessage', {
+        chat_id: chatId,
+        text: `👑 <b>LinkAdda Admin Ping Test</b>\n\nYour Admin Telegram ID is actively connected and authorized for LinkAdda Online!`,
+        parse_mode: 'HTML'
+      });
+      return res.status(pingRes?.ok ? 200 : 400).json({ ok: Boolean(pingRes?.ok), result: pingRes });
     } catch (e) {
       return res.status(500).json({ ok: false, error: e.message });
     }
@@ -1917,8 +2576,10 @@ export default async function handler(req, res) {
       return res.status(401).json({ ok: false, error: 'Unauthorized: Admin authentication required.' });
     }
     try {
-      const product = req.body || {};
-      const bcRes = await broadcastNewProduct(product);
+      const body = req.body || {};
+      const product = body.product || body;
+      const targetBotIds = body.targetBotIds || (body.product && body.product.targetBotIds) || ['all'];
+      const bcRes = await broadcastNewProduct(product, targetBotIds);
       return res.status(200).json(bcRes);
     } catch (e) {
       return res.status(500).json({ error: e.message });
@@ -1959,6 +2620,22 @@ export default async function handler(req, res) {
   if (req.method === 'POST') {
     try {
       const update = req.body || {};
+      const webhookBotId = url.searchParams.get('botId');
+      const receivingBot = webhookBotId ? getBotByIdOrToken(webhookBotId) : getBotByIdOrToken();
+      const currentToken = receivingBot?.token || null;
+      const currentBotId = receivingBot?.botId || null;
+
+      // Maintenance notice if bot is marked inactive
+      if (receivingBot && receivingBot.status === 'inactive') {
+        if (update.message?.chat?.id) {
+          await callTelegram('sendMessage', {
+            chat_id: update.message.chat.id,
+            text: '⚠️ <b>Bot Maintenance Notice:</b> This bot is temporarily offline for maintenance. Please access our store directly at https://linkadda-online.onrender.com or contact support.',
+            parse_mode: 'HTML'
+          }, currentToken).catch(() => {});
+        }
+        return res.status(200).json({ ok: true, notice: 'bot_inactive' });
+      }
 
       // 1. Handle Messages (e.g. /start or incoming chat)
       if (update.message) {
@@ -1967,7 +2644,7 @@ export default async function handler(req, res) {
         const fromUser = msg.from;
 
         if (fromUser) {
-          recordBotUser(fromUser).catch(() => {});
+          recordBotUser(fromUser, 'bot_chat', currentBotId).catch(() => {});
         }
 
         // ⚡ User entered bot / sent message -> Trigger 2-minute auto-delete on any unread VIP messages!
@@ -2000,7 +2677,7 @@ export default async function handler(req, res) {
                   [{ text: '💬 Support Desk (@VIP_KINK)', url: 'https://t.me/VIP_KINK' }]
                 ]
               }
-            });
+            }, currentToken);
             return res.status(200).json({ ok: true });
           }
 
@@ -2023,7 +2700,7 @@ export default async function handler(req, res) {
                 [{ text: '💬 Support Desk (@VIP_KINK)', url: 'https://t.me/VIP_KINK' }]
               ]
             }
-          });
+          }, currentToken);
           return res.status(200).json({ ok: true });
         }
       }
@@ -2039,7 +2716,7 @@ export default async function handler(req, res) {
 
         // ⚡ User clicked any inline button -> Record user & trigger 2-minute auto-delete on any unread VIP messages!
         if (user && user.id) {
-          recordBotUser(user, 'inline_interaction').catch(() => {});
+          recordBotUser(user, 'inline_interaction', currentBotId).catch(() => {});
           markUserMessagesAsRead(user.id);
         }
 
@@ -2056,7 +2733,7 @@ export default async function handler(req, res) {
               callback_query_id: cq.id,
               text: '⚠️ Link expired or not found. Please contact support @VIP_KINK.',
               show_alert: true
-            });
+            }, currentToken);
             return res.status(200).json({ ok: true });
           }
 
@@ -2065,7 +2742,7 @@ export default async function handler(req, res) {
             callback_query_id: cq.id,
             text: '⏳ Link Unlocked! This message will automatically self-destruct in 2 minutes.',
             show_alert: true
-          });
+          }, currentToken);
 
           const revealedText = 
             `🎉 <b>Your Order #${orderId} VIP Access Link</b>\n\n` +
@@ -2088,7 +2765,7 @@ export default async function handler(req, res) {
                   [{ text: '💬 Support Desk (@VIP_KINK)', url: 'https://t.me/VIP_KINK' }]
                 ]
               }
-            });
+            }, currentToken);
 
             // Schedule deletion after exactly 120 seconds (2 minutes)
             markUserMessagesAsRead(cq.message.chat.id, orderId);
@@ -2103,7 +2780,7 @@ export default async function handler(req, res) {
           await callTelegram('answerCallbackQuery', {
             callback_query_id: cq.id,
             text: 'ℹ️ This order has already been verified & processed.'
-          });
+          }, currentToken);
           return res.status(200).json({ ok: true });
         }
 
@@ -2116,7 +2793,7 @@ export default async function handler(req, res) {
             callback_query_id: cq.id,
             text: '⚠️ You are not an authorized Admin for this bot!',
             show_alert: true
-          });
+          }, currentToken);
           return res.status(200).json({ ok: true });
         }
 
@@ -2125,7 +2802,7 @@ export default async function handler(req, res) {
           await callTelegram('answerCallbackQuery', {
             callback_query_id: cq.id,
             text: `✅ Order #${orderId} Approved!`
-          });
+          }, currentToken);
 
           // Ensure this specific admin message is tracked in store
           if (cq.message && cq.message.chat) {
@@ -2156,7 +2833,7 @@ export default async function handler(req, res) {
           await callTelegram('answerCallbackQuery', {
             callback_query_id: cq.id,
             text: `❌ Order #${orderId} Rejected!`
-          });
+          }, currentToken);
 
           // Ensure this specific admin message is tracked in store
           if (cq.message && cq.message.chat) {

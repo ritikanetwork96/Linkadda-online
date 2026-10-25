@@ -11,6 +11,23 @@ import {
   getDeviceDetails,
 } from './auth.js';
 
+// ⚡ Auto-route local Live Server requests (any port on localhost/127.0.0.1, file: protocol) to live Render backend
+if (typeof window !== 'undefined') {
+  const isLocalDev = window.location.hostname === 'localhost' ||
+                     window.location.hostname === '127.0.0.1' ||
+                     window.location.protocol === 'file:' ||
+                     (window.location.port && window.location.port !== '80' && window.location.port !== '443');
+  if (isLocalDev) {
+    const _realFetch = window.fetch;
+    window.fetch = function(url, options) {
+      if (typeof url === 'string' && url.startsWith('/api/')) {
+        return _realFetch('https://linkadda-online.onrender.com' + url, options);
+      }
+      return _realFetch(url, options);
+    };
+  }
+}
+
 export async function getAdminTokenHeader() {
   try {
     if (auth && auth.currentUser) {
@@ -2815,29 +2832,223 @@ window.copyShareLink = function(btn, text) {
   });
 };
 
-window.broadcastProductFromModal = async function(id, node) {
-  const item = getItem(node || 'products', id);
+window.openProductBroadcastModal = function(recordOrId, node = 'products') {
+  let item = recordOrId;
+  if (typeof recordOrId === 'string' || typeof recordOrId === 'number') {
+    item = getItem(node, recordOrId) || (typeof listCollection === 'function' ? (listCollection(node) || []).find(p => p.id === recordOrId) : null);
+  }
   if (!item) {
-    showToast('Product record not found', 'danger');
+    showToast('Product record not found to broadcast', 'danger');
     return;
   }
-  const title = item.title || item.name || item.badge || item.id || 'Product';
-  if (!confirm(`Broadcast "${title}" to all Telegram bot users now?\n\nThis will send a notification with "View Product" and "Buy Now" buttons.`)) return;
-  showToast(`Broadcasting "${title}" to Telegram bot...`, 'info');
-  try {
-    const res = await fetch('/api/telegram/broadcast', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type: 'product', product: item, ...item })
-    });
-    const data = await res.json();
-    if (res.ok && data?.ok) {
-      showToast(`✅ "${title}" broadcasted to ${data.sentCount || 0} Telegram users!`, 'success');
+
+  const title = item.title || item.name || item.badge || item.id || 'Exclusive Product';
+  const inrPrice = item.priceINR || item.price_inr || item.inr || item.price || 0;
+  const usdPrice = item.priceUSD || item.price_usd || item.usd || 0;
+  const priceDisplay = (inrPrice || usdPrice) ? `₹${inrPrice} / $${usdPrice}` : 'Free Access';
+  const desc = item.shortDescription || item.description || item.badge || 'VIP Exclusive Collection';
+  let image = item.image || item.thumbnail || (Array.isArray(item.images) && item.images.length ? item.images[0] : '');
+  if (image && !image.startsWith('http')) {
+    if (image.startsWith('images/') || image.startsWith('/images/')) {
+      image = `https://esxiwfswnbacmpjxqgsn.supabase.co/storage/v1/object/public/linkadda-media/${image.replace(/^\/?images\//, '')}`;
     } else {
-      showToast(`Broadcast note: ${data?.error || 'Sent'}`, data?.ok ? 'info' : 'danger');
+      image = `https://esxiwfswnbacmpjxqgsn.supabase.co/storage/v1/object/public/linkadda-media/${image.replace(/^\//, '')}`;
     }
-  } catch (e) {
-    showToast(`Broadcast failed: ${e.message}`, 'danger');
+  }
+
+  const bots = (_tgBotData.bots && _tgBotData.bots.length) ? _tgBotData.bots : [_tgBotData.bot].filter(Boolean);
+
+  const modalHtml = `
+    <div style="max-width: 540px; margin: 0 auto; color: var(--text);">
+      <!-- Header -->
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; padding-bottom: 14px; border-bottom: 1px solid rgba(255,255,255,0.08);">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <div style="width: 40px; height: 40px; border-radius: 12px; background: linear-gradient(135deg, #0284c7, #38bdf8); display: flex; align-items: center; justify-content: center; color: white; box-shadow: 0 4px 14px rgba(2,132,199,0.4);">
+            <i data-lucide="send" style="width: 20px; height: 20px;"></i>
+          </div>
+          <div>
+            <h3 style="margin: 0; font-size: 17px; font-weight: 800; color: var(--text);">Broadcast Product</h3>
+            <span style="font-size: 12px; color: var(--muted);">Send direct Telegram card with Buy & View buttons</span>
+          </div>
+        </div>
+        <button type="button" class="btn btn-ghost btn-sm" data-close-modal style="font-size: 18px; padding: 4px 8px; border-radius: 6px;">✕</button>
+      </div>
+
+      <!-- Product Preview Card -->
+      <div style="background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 12px; display: flex; gap: 12px; align-items: center; margin-bottom: 18px;">
+        ${image ? `<img src="${escapeHtml(image)}" style="width: 68px; height: 68px; object-fit: cover; border-radius: 10px; border: 1px solid var(--border);" onerror="this.style.display='none'" />` : `<div style="width: 68px; height: 68px; border-radius: 10px; background: rgba(99,102,241,0.15); display: flex; align-items: center; justify-content: center; color: #818cf8;"><i data-lucide="package" style="width: 28px; height: 28px;"></i></div>`}
+        <div style="flex: 1; min-width: 0;">
+          <strong style="display: block; font-size: 14px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(title)}</strong>
+          <span style="display: inline-block; font-size: 13px; font-weight: 700; color: #10b981; margin: 2px 0;">${escapeHtml(priceDisplay)}</span>
+          <p style="margin: 0; font-size: 11.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(desc)}</p>
+        </div>
+      </div>
+
+      <!-- Bot Target Selection Option (All vs Specific Bots) -->
+      <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(99, 102, 241, 0.3); border-radius: 12px; padding: 14px 16px; margin-bottom: 18px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; flex-wrap: wrap; gap: 8px;">
+          <label style="font-size: 12px; font-weight: 800; color: #38bdf8; text-transform: uppercase; letter-spacing: 0.03em;">
+            🤖 Select Telegram Bot(s)
+          </label>
+          <label style="display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: #38bdf8; cursor: pointer;">
+            <input type="checkbox" id="modalBroadcastSelectAllBots" checked style="accent-color: #0284c7; width: 15px; height: 15px;"> All Active Bots (${bots.length})
+          </label>
+        </div>
+
+        <div id="modalBroadcastBotCheckboxesList" style="display: flex; flex-direction: column; gap: 8px;">
+          ${bots.map(b => {
+            const bIdStr = String(b.botId || b.id);
+            const bUser = b.username || 'Bot';
+            const isActive = b.status === 'active';
+            const subs = b.subscribersCount || 0;
+            return `
+              <label style="display: flex; align-items: center; justify-content: space-between; padding: 8px 10px; background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.06); border-radius: 8px; cursor: pointer;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <input type="checkbox" class="modal-broadcast-bot-cb" value="${escapeHtml(bIdStr)}" checked style="accent-color: #6366f1; width: 15px; height: 15px;">
+                  <span style="font-weight: 700; font-size: 13px; color: ${isActive ? '#38bdf8' : 'var(--muted)'};">@${escapeHtml(bUser)}</span>
+                  ${b.isPrimary ? '<span style="font-size: 9.5px; padding: 1px 5px; border-radius: 3px; background: rgba(99,102,241,0.2); color: #a5b4fc; font-weight: 700;">PRIMARY</span>' : ''}
+                </div>
+                <div style="font-size: 11.5px; color: var(--muted);">
+                  ${isActive ? `<span style="color: #10b981;">● Online</span> · ${subs} users` : '<span style="color: #f59e0b;">○ Inactive</span>'}
+                </div>
+              </label>
+            `;
+          }).join('')}
+        </div>
+      </div>
+
+      <!-- Interactive Telegram Mockup Buttons Preview -->
+      <div style="background: #17212b; border: 1px solid #242f3d; border-radius: 10px; padding: 12px; margin-bottom: 18px;">
+        <div style="font-size: 11px; color: #64b5f6; font-weight: 700; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+          <i data-lucide="eye" style="width: 12px; height: 12px;"></i> Telegram Notification Preview
+        </div>
+        <div style="display: flex; gap: 8px;">
+          <div style="flex: 1; background: rgba(43, 82, 120, 0.7); border: 1px solid rgba(82, 136, 184, 0.4); border-radius: 6px; padding: 7px; text-align: center; color: #64b5f6; font-size: 11.5px; font-weight: 700;">
+            🛍️ Buy Now (${priceDisplay})
+          </div>
+          <div style="flex: 1; background: rgba(43, 82, 120, 0.5); border: 1px solid rgba(82, 136, 184, 0.3); border-radius: 6px; padding: 7px; text-align: center; color: #cbd5e1; font-size: 11.5px; font-weight: 600;">
+            👁️ View Details
+          </div>
+        </div>
+      </div>
+
+      <!-- Live Feedback Box -->
+      <div id="modalProductBroadcastFeedback" style="display: none; padding: 10px 14px; border-radius: 8px; font-size: 12.5px; margin-bottom: 16px;"></div>
+
+      <!-- Modal Action Buttons -->
+      <div style="display: flex; justify-content: flex-end; gap: 10px;">
+        <button type="button" class="btn btn-ghost" data-close-modal style="padding: 10px 18px; font-size: 13px; border-radius: 8px;">Cancel</button>
+        <button type="button" id="modalSendProductBroadcastBtn" class="btn btn-primary" style="padding: 10px 22px; font-size: 13px; font-weight: 700; border-radius: 8px; background: linear-gradient(135deg, #0284c7, #0369a1) !important; color: white !important; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; box-shadow: 0 4px 14px rgba(2,132,199,0.4);">
+          <i data-lucide="send" style="width: 15px; height: 15px;"></i> Dispatch Broadcast
+        </button>
+      </div>
+    </div>
+  `;
+
+  openModal(modalHtml);
+  if (window.lucide && typeof window.lucide.createIcons === 'function') {
+    try { lucide.createIcons(); } catch (_) {}
+  }
+
+  // Setup Checkbox & Submit Listeners inside the modal
+  setTimeout(() => {
+    const selectAllCb = document.getElementById('modalBroadcastSelectAllBots');
+    const botCbs = document.querySelectorAll('.modal-broadcast-bot-cb');
+    const sendBtn = document.getElementById('modalSendProductBroadcastBtn');
+    const feedback = document.getElementById('modalProductBroadcastFeedback');
+
+    if (selectAllCb) {
+      selectAllCb.addEventListener('change', () => {
+        botCbs.forEach(cb => { cb.checked = selectAllCb.checked; });
+      });
+    }
+
+    botCbs.forEach(cb => {
+      cb.addEventListener('change', () => {
+        const allChecked = Array.from(botCbs).every(c => c.checked);
+        if (selectAllCb) selectAllCb.checked = allChecked;
+      });
+    });
+
+    if (sendBtn) {
+      sendBtn.addEventListener('click', async () => {
+        const selectedBotIds = [];
+        botCbs.forEach(cb => {
+          if (cb.checked && cb.value) selectedBotIds.push(cb.value);
+        });
+
+        if (selectedBotIds.length === 0) {
+          showToast('Please select at least one bot to broadcast from!', 'warning');
+          return;
+        }
+
+        const isAll = Boolean(selectAllCb && selectAllCb.checked);
+        const targetBotIds = isAll ? ['all'] : selectedBotIds;
+
+        sendBtn.disabled = true;
+        const originalHtml = sendBtn.innerHTML;
+        sendBtn.innerHTML = '<span class="spin-loader" style="width:13px;height:13px;border:2px solid #fff;border-top-color:transparent;border-radius:50%;display:inline-block;animation:authSpin 0.75s linear infinite;margin-right:6px;"></span> Dispatching...';
+
+        if (feedback) {
+          feedback.style.display = 'block';
+          feedback.style.background = 'rgba(56, 189, 248, 0.15)';
+          feedback.style.border = '1px solid rgba(56, 189, 248, 0.3)';
+          feedback.style.color = '#7dd3fc';
+          feedback.innerHTML = `Broadcasting "${escapeHtml(title)}" via ${targetBotIds.includes('all') ? 'All Bots' : `${targetBotIds.length} selected bot(s)`}...`;
+        }
+
+        try {
+          const res = await fetch('/api/telegram/broadcast', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...getAdminAuthHeaders() },
+            body: JSON.stringify({
+              type: 'product',
+              product: item,
+              targetBotIds,
+              ...item
+            })
+          });
+          const data = await res.json();
+          if (res.ok && data?.ok) {
+            const sent = data.sentCount || 0;
+            const fail = data.failCount || 0;
+            if (feedback) {
+              feedback.style.background = 'rgba(16, 185, 129, 0.15)';
+              feedback.style.border = '1px solid rgba(16, 185, 129, 0.3)';
+              feedback.style.color = '#6ee7b7';
+              feedback.innerHTML = `🎉 <strong>Broadcast Delivered!</strong> Sent to <strong>${sent}</strong> subscribers${fail ? ` (${fail} failed/blocked)` : ''}.`;
+            }
+            showToast(`✅ "${title}" broadcasted to ${sent} Telegram users!`, 'success');
+            setTimeout(() => {
+              try { closeModal(); } catch (_) {}
+            }, 1800);
+          } else {
+            throw new Error(data?.error || 'Broadcast failed to dispatch');
+          }
+        } catch (err) {
+          if (feedback) {
+            feedback.style.display = 'block';
+            feedback.style.background = 'rgba(239, 68, 68, 0.15)';
+            feedback.style.border = '1px solid rgba(239, 68, 68, 0.3)';
+            feedback.style.color = '#fca5a5';
+            feedback.innerHTML = `❌ <strong>Broadcast Error:</strong> ${escapeHtml(err.message || 'Failed')}`;
+          }
+          showToast('Broadcast failed: ' + err.message, 'danger');
+        } finally {
+          sendBtn.disabled = false;
+          sendBtn.innerHTML = originalHtml;
+        }
+      });
+    }
+  }, 50);
+};
+
+window.broadcastProductFromModal = function(id, node) {
+  const item = getItem(node || 'products', id);
+  if (item) {
+    window.openProductBroadcastModal(item, node);
+  } else {
+    showToast('Product record not found', 'danger');
   }
 };
 
@@ -4842,9 +5053,16 @@ function renderCollectionInner(node, schema, data) {
       <div class="catalog-results ${ui.catalogView}" id="catalogResultsGrid">
         ${paged.length ? (() => {
           const catMap = buildCategoryLookupMap();
-          return paged.map((item, idx) => (node === 'categories'
-            ? renderCatalogCategoryCard(item, node, catMap, idx)
-            : renderCatalogProductCard(item, node, catMap, idx))).join('');
+          return paged.map((item, idx) => {
+            try {
+              return node === 'categories'
+                ? renderCatalogCategoryCard(item, node, catMap, idx)
+                : renderCatalogProductCard(item, node, catMap, idx);
+            } catch (cardErr) {
+              console.warn('Catalog item card render warning:', cardErr);
+              return '';
+            }
+          }).join('');
         })() : `
           <div class="catalog-empty glass">
             <div class="catalog-empty-art">
@@ -5246,7 +5464,15 @@ function renderCollection(node, schema, data) {
 
 function renderCatalogView(data) {
   const meta = getCatalogMeta();
-  const nodeData = listCollection(meta.node);
+  let nodeData = listCollection(meta.node);
+  if (!nodeData || !nodeData.length) {
+    try {
+      const preCatalog = (typeof window !== 'undefined' && window.__preloadedCatalog) ? window.__preloadedCatalog[meta.node] : null;
+      if (preCatalog && typeof preCatalog === 'object' && Object.keys(preCatalog).length > 0) {
+        nodeData = Object.entries(preCatalog).map(([id, item]) => ({ ...(item || {}), id }));
+      }
+    } catch (_) {}
+  }
   const counts = getCatalogCounts();
   return `
     <div class="page active">
@@ -6716,15 +6942,32 @@ try {
 } catch (_) {}
 
 let _tgBotData = {
-  activeTab: 'tgTabUsers',
+  activeTab: 'tgTabBots',
+  botUserFilter: 'all',
   bot: {
+    id: '8923608774',
+    botId: 'bot_8923608774',
     username: 'Myshop9876_bot',
     name: 'LinkAdda Store Bot',
-    id: '8923608774',
+    status: 'active',
+    isPrimary: true,
     source: 'database',
     maskedToken: '892360...dVlE',
     lastActivatedAt: null
   },
+  bots: [
+    {
+      id: '8923608774',
+      botId: 'bot_8923608774',
+      token: '8923608774:AAFhvO4Yzly7toIf5qoI-TSW4EzVzWCdVlE',
+      username: 'Myshop9876_bot',
+      name: 'LinkAdda Store Bot',
+      status: 'active',
+      isPrimary: true,
+      maskedToken: '892360...dVlE',
+      subscribersCount: _tgCachedUsers.length
+    }
+  ],
   webhook: { url: 'https://linkadda-online.onrender.com/api/telegram/bot', pending_update_count: 0 },
   users: _tgCachedUsers,
   usersCount: _tgCachedUsers.length,
@@ -6736,9 +6979,22 @@ let _tgBotData = {
   searchFilter: ''
 };
 
+function getBackendApiBase() {
+  if (typeof window !== 'undefined') {
+    const isLocal = window.location.hostname === 'localhost' ||
+                    window.location.hostname === '127.0.0.1' ||
+                    window.location.protocol === 'file:' ||
+                    (window.location.port && window.location.port !== '80' && window.location.port !== '443');
+    if (isLocal) {
+      return 'https://linkadda-online.onrender.com';
+    }
+  }
+  return '';
+}
+
 function getAdminAuthHeaders() {
   try {
-    const raw = localStorage.getItem('linkadda_admin_session') || localStorage.getItem('linkadda_admin_token');
+    const raw = localStorage.getItem('linkadda_admin_session') || localStorage.getItem('linkadda_admin_token') || sessionStorage.getItem('linkadda_admin_session');
     if (raw) {
       try {
         const parsed = JSON.parse(raw);
@@ -6746,6 +7002,10 @@ function getAdminAuthHeaders() {
       } catch (_) {
         if (typeof raw === 'string' && raw.length > 10) return { 'Authorization': `Bearer ${raw}` };
       }
+    }
+    if (auth && auth.currentUser) {
+      const u = auth.currentUser;
+      if (u.accessToken) return { 'Authorization': `Bearer ${u.accessToken}` };
     }
   } catch (_) {}
   return {};
@@ -6756,13 +7016,15 @@ async function loadTelegramBotAdminFullData(force = false) {
   _tgBotData.isLoading = true;
   try {
     const authHeaders = getAdminAuthHeaders();
+    const apiBase = getBackendApiBase();
     const [cfgRes, usersRes] = await Promise.all([
-      fetch('/api/telegram/bot?action=get-bot-config', { headers: authHeaders }).then(r => r.json()).catch(() => null),
-      fetch('/api/telegram/bot?action=get-users', { headers: authHeaders }).then(r => r.json()).catch(() => null)
+      fetch(`${apiBase}/api/telegram/bot?action=get-bot-config`, { headers: authHeaders }).then(r => r.json()).catch(() => null),
+      fetch(`${apiBase}/api/telegram/bot?action=get-users`, { headers: authHeaders }).then(r => r.json()).catch(() => null)
     ]);
 
     if (cfgRes && cfgRes.ok) {
       if (cfgRes.bot) _tgBotData.bot = { ...(_tgBotData.bot || {}), ...cfgRes.bot };
+      if (Array.isArray(cfgRes.bots)) _tgBotData.bots = cfgRes.bots;
       if (cfgRes.webhook) _tgBotData.webhook = cfgRes.webhook;
       if (Array.isArray(cfgRes.admins)) _tgBotData.admins = cfgRes.admins;
       if (cfgRes.appUrl) _tgBotData.appUrl = cfgRes.appUrl;
@@ -6923,6 +7185,48 @@ function updateTelegramBotLiveUI() {
   if (usersStatCount) usersStatCount.textContent = String(usersCount);
   if (broadcastRecipientsCount) broadcastRecipientsCount.textContent = String(usersCount);
 
+  // Multi-Bot Fleet & Admins Badges and Live Container Refresh
+  const fleetBots = (_tgBotData.bots && _tgBotData.bots.length) ? _tgBotData.bots : [bot].filter(Boolean);
+  const fleetAdmins = (_tgBotData.admins && _tgBotData.admins.length) ? _tgBotData.admins : ['8802192472', '6966868142'];
+
+  const botsTabBadge = document.getElementById('tgTabBotsCountBadge');
+  if (botsTabBadge) botsTabBadge.textContent = String(fleetBots.length);
+
+  const adminsTabBadge = document.getElementById('tgTabAdminsCountBadge');
+  if (adminsTabBadge) adminsTabBadge.textContent = String(fleetAdmins.length);
+
+  const adminsStatCount = document.getElementById('tgAdminsStatCount');
+  if (adminsStatCount) adminsStatCount.textContent = String(fleetAdmins.length);
+
+  const botsFleetContainer = document.getElementById('tgBotsFleetCardsContainer');
+  if (botsFleetContainer && typeof renderTelegramBotsFleetCards === 'function') {
+    botsFleetContainer.innerHTML = renderTelegramBotsFleetCards(fleetBots);
+  }
+
+  const adminsCardsContainer = document.getElementById('tgAdminsCardsContainer');
+  if (adminsCardsContainer && typeof renderTelegramAdminsCards === 'function') {
+    adminsCardsContainer.innerHTML = renderTelegramAdminsCards(fleetAdmins);
+  }
+
+  const broadcastBotsContainer = document.getElementById('tgBroadcastBotCheckboxes');
+  if (broadcastBotsContainer && fleetBots.length) {
+    const prevChecked = new Set();
+    broadcastBotsContainer.querySelectorAll('.tg-broadcast-bot-cb:checked').forEach(cb => prevChecked.add(cb.value));
+    const isFirstRender = prevChecked.size === 0;
+
+    broadcastBotsContainer.innerHTML = fleetBots.map(b => {
+      const bVal = String(b.botId || b.id);
+      const isChecked = isFirstRender || prevChecked.has(bVal);
+      return `
+        <label style="display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--text); cursor: pointer;">
+          <input type="checkbox" class="tg-broadcast-bot-cb" value="${escapeHtml(bVal)}" ${isChecked ? 'checked' : ''} style="accent-color: #6366f1; width: 14px; height: 14px;">
+          <span>@${escapeHtml(b.username || 'Bot')}</span>
+          ${b.isPrimary ? '<span style="font-size: 9.5px; padding: 1px 5px; border-radius: 3px; background: rgba(99,102,241,0.2); color: #a5b4fc; font-weight: 700;">PRIMARY</span>' : ''}
+        </label>
+      `;
+    }).join('');
+  }
+
   // Preserve active tab display
   document.querySelectorAll('.tg-tab-section').forEach(sec => {
     sec.style.display = (sec.id === activeTab) ? 'block' : 'none';
@@ -6966,98 +7270,189 @@ function renderTelegramUsersTableList(users = [], filter = '') {
     `;
   }
 
+  const currentBotFilter = _tgBotData.botUserFilter || 'all';
+  const fleetBots = (_tgBotData.bots && _tgBotData.bots.length) ? _tgBotData.bots : [_tgBotData.bot].filter(Boolean);
+  const primaryBot = fleetBots.find(b => b.isPrimary) || fleetBots[0] || { username: 'Myshop9876_bot', id: '8923608774', botId: 'bot_8923608774' };
+
+  // Calculate user counts per bot
+  const botCounts = {};
+  fleetBots.forEach(b => {
+    const bId = String(b.botId || `bot_${b.id}` || b.id || '');
+    const bUname = String(b.username || '').toLowerCase();
+    const count = users.filter(u => {
+      const uBotId = String(u.sourceBotId || '');
+      const uBotUname = String(u.sourceBotUsername || '').toLowerCase();
+      if (uBotId && (uBotId === bId || uBotId === String(b.id))) return true;
+      if (uBotUname && bUname && uBotUname === bUname) return true;
+      if (!uBotId && !uBotUname && b.isPrimary) return true;
+      return false;
+    }).length;
+    botCounts[bId] = count;
+  });
+
+  // Filter users by selected bot
+  let botFilteredUsers = users;
+  let activeBotLabel = 'All Connected Bots';
+  if (currentBotFilter !== 'all') {
+    const targetBot = fleetBots.find(b => String(b.botId || `bot_${b.id}` || b.id) === currentBotFilter);
+    const targetUname = targetBot && targetBot.username ? String(targetBot.username).toLowerCase() : '';
+    if (targetBot) {
+      activeBotLabel = `@${targetBot.username || 'Selected Bot'}`;
+      botFilteredUsers = users.filter(u => {
+        const uBotId = String(u.sourceBotId || '');
+        const uBotUname = String(u.sourceBotUsername || '').toLowerCase();
+        if (uBotId && (uBotId === currentBotFilter || (targetBot.id && uBotId === String(targetBot.id)))) return true;
+        if (uBotUname && targetUname && uBotUname === targetUname) return true;
+        if (!uBotId && !uBotUname && targetBot.isPrimary) return true;
+        return false;
+      });
+    }
+  }
+
   const q = String(filter || '').toLowerCase().trim();
-  const filtered = users.filter((u) => {
+  const filtered = botFilteredUsers.filter((u) => {
     if (!q) return true;
     const name = `${u.firstName || ''} ${u.lastName || ''}`.toLowerCase();
     const uname = String(u.username || '').toLowerCase();
     const id = String(u.id || '');
-    return name.includes(q) || uname.includes(q) || id.includes(q);
+    const botName = String(u.sourceBotUsername || '').toLowerCase();
+    return name.includes(q) || uname.includes(q) || id.includes(q) || botName.includes(q);
   });
 
   const countPill = document.getElementById('tgUsersFilteredCount');
-  if (countPill) countPill.textContent = `Showing ${filtered.length} of ${users.length} users`;
+  if (countPill) {
+    countPill.textContent = currentBotFilter === 'all'
+      ? `Showing ${filtered.length} of ${users.length} total subscribers`
+      : `Showing ${filtered.length} subscribers for ${activeBotLabel} (${users.length} total in fleet)`;
+  }
 
-  if (!filtered.length) {
-    return `
+  return `
+    <!-- Dedicated Interactive Bot Filter Pills Bar -->
+    <div style="padding: 12px 16px; background: rgba(0,0,0,0.3); border-bottom: 1px solid rgba(255,255,255,0.08);">
+      <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; flex-wrap: wrap;">
+        <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: #94a3b8; letter-spacing: 0.05em; display: inline-flex; align-items: center; gap: 5px;">
+          <i data-lucide="filter" style="width: 12px; height: 12px; color: #818cf8;"></i> Filter Subscribers by Bot Channel:
+        </span>
+        <span style="font-size: 11.5px; color: #38bdf8; font-weight: 600;">
+          ${currentBotFilter === 'all' ? 'Showing All Bots Combined' : `Active Filter: ${activeBotLabel}`}
+        </span>
+      </div>
+
+      <div class="tg-bot-filter-pills-bar" style="display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; -webkit-overflow-scrolling: touch; scrollbar-width: none;">
+        <!-- All Bots Combined Pill -->
+        <button type="button" class="btn btn-sm ${currentBotFilter === 'all' ? 'active-filter-pill' : ''}" data-action="set-bot-user-filter" data-bot-id="all" style="font-size: 12px; font-weight: 700; padding: 6px 14px; border-radius: 20px; white-space: nowrap; cursor: pointer; transition: all 0.15s ease; ${currentBotFilter === 'all' ? 'background: linear-gradient(135deg, #6366f1, #8b5cf6) !important; color: white !important; border: none; box-shadow: 0 2px 10px rgba(99,102,241,0.45);' : 'background: rgba(255,255,255,0.06); color: var(--text); border: 1px solid rgba(255,255,255,0.1);'}">
+          🌐 All Bots (${users.length})
+        </button>
+
+        <!-- Each Connected Bot Pill -->
+        ${fleetBots.map(b => {
+          const bId = String(b.botId || `bot_${b.id}` || b.id || '');
+          const isSelected = currentBotFilter === bId;
+          const count = botCounts[bId] || 0;
+          const uName = b.username || 'Bot';
+          return `
+            <button type="button" class="btn btn-sm ${isSelected ? 'active-filter-pill' : ''}" data-action="set-bot-user-filter" data-bot-id="${escapeHtml(bId)}" data-bot-username="${escapeHtml(uName)}" style="font-size: 12px; font-weight: 700; padding: 6px 14px; border-radius: 20px; white-space: nowrap; cursor: pointer; transition: all 0.15s ease; ${isSelected ? 'background: linear-gradient(135deg, #0284c7, #38bdf8) !important; color: white !important; border: none; box-shadow: 0 2px 10px rgba(2,132,199,0.45);' : 'background: rgba(255,255,255,0.06); color: var(--text); border: 1px solid rgba(255,255,255,0.1);'}">
+              🤖 @${escapeHtml(uName)}
+              <span style="background: ${isSelected ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.1)'}; padding: 1px 7px; border-radius: 10px; font-size: 11px; margin-left: 5px; font-weight: 800;">
+                ${count}
+              </span>
+            </button>
+          `;
+        }).join('')}
+      </div>
+    </div>
+
+    ${!filtered.length ? `
       <div style="padding: 48px 20px; text-align: center; color: var(--muted);">
         <div style="width: 52px; height: 52px; border-radius: 16px; background: rgba(99, 102, 241, 0.1); display: inline-flex; align-items: center; justify-content: center; color: #818cf8; margin-bottom: 12px;">
           <i data-lucide="users" style="width: 26px; height: 26px;"></i>
         </div>
-        <div style="font-size: 14.5px; font-weight: 700; color: var(--text);">No Telegram Subscribers Found</div>
-        <div style="font-size: 12px; color: var(--muted); margin-top: 4px; max-width: 420px; margin-left: auto; margin-right: auto;">
-          ${q ? 'No users matched your search query. Try clearing the search box.' : 'Users will automatically appear here whenever someone taps <b>/start</b> in the bot, places an order, or opens the store inside Telegram WebApp!'}
+        <div style="font-size: 15px; font-weight: 700; color: var(--text);">No Subscribers Found</div>
+        <div style="font-size: 12px; color: var(--muted); margin-top: 5px; max-width: 440px; margin-left: auto; margin-right: auto; line-height: 1.5;">
+          ${q 
+            ? `No users matched "${escapeHtml(q)}" in ${activeBotLabel}. Try clearing the search box.`
+            : `No users have joined via <b>${activeBotLabel}</b> yet. As soon as someone starts this bot or opens your store inside it, they will automatically appear here!`}
         </div>
+        ${currentBotFilter !== 'all' ? `
+          <button type="button" class="btn btn-ghost btn-sm" data-action="set-bot-user-filter" data-bot-id="all" style="margin-top: 14px; font-size: 12px; border: 1px solid rgba(99,102,241,0.4); color: #a5b4fc;">
+            View All ${users.length} Subscribers Combined →
+          </button>
+        ` : ''}
       </div>
-    `;
-  }
+    ` : `
+      <div style="overflow-x: auto; width: 100%; -webkit-overflow-scrolling: touch;">
+        <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 13px; min-width: 720px;">
+          <thead>
+            <tr style="border-bottom: 1px solid rgba(255,255,255,0.08); background: rgba(0,0,0,0.25);">
+              <th style="padding: 12px 16px; font-weight: 700; color: var(--muted); text-transform: uppercase; font-size: 11px;">User</th>
+              <th style="padding: 12px 16px; font-weight: 700; color: #38bdf8; text-transform: uppercase; font-size: 11px;">Bot Channel</th>
+              <th style="padding: 12px 16px; font-weight: 700; color: var(--muted); text-transform: uppercase; font-size: 11px;">Username</th>
+              <th style="padding: 12px 16px; font-weight: 700; color: var(--muted); text-transform: uppercase; font-size: 11px;">Telegram ID</th>
+              <th style="padding: 12px 16px; font-weight: 700; color: var(--muted); text-transform: uppercase; font-size: 11px;">Source</th>
+              <th style="padding: 12px 16px; font-weight: 700; color: var(--muted); text-transform: uppercase; font-size: 11px;">Last Seen</th>
+              <th style="padding: 12px 16px; font-weight: 700; color: var(--muted); text-transform: uppercase; font-size: 11px; text-align: right;">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${filtered.map((u) => {
+              const initials = ((u.firstName || 'T')[0] + (u.lastName || '')[0] || 'U').toUpperCase();
+              const displayName = [u.firstName, u.lastName].filter(Boolean).join(' ') || 'Telegram User';
+              const hasUsername = Boolean(u.username);
+              const isAdmin = u.isAdmin || u.source === 'admin_tester' || u.source === 'admin_account';
+              const sourceLabel = isAdmin ? 'Admin / Tester' : (u.source === 'mini_app_visit' ? 'Mini App Visit' : (u.source === 'order_checkout' ? 'Order Checkout' : (u.source === 'customer_order' ? 'Store Buyer' : 'Bot /start')));
+              const sourceColor = isAdmin ? '#ec4899' : (u.source === 'mini_app_visit' ? '#38bdf8' : (u.source === 'order_checkout' || u.source === 'customer_order' ? '#10b981' : '#a855f7'));
+              const timeStr = u.updatedAt ? formatRelativeTime(u.updatedAt) : 'Recently';
+              const botChannel = u.sourceBotUsername || (primaryBot ? primaryBot.username : 'Myshop9876_bot');
 
-  return `
-    <div style="overflow-x: auto; width: 100%;">
-      <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 13px;">
-        <thead>
-          <tr style="border-bottom: 1px solid rgba(255,255,255,0.08); background: rgba(0,0,0,0.2);">
-            <th style="padding: 12px 16px; font-weight: 700; color: var(--muted); text-transform: uppercase; font-size: 11px;">User</th>
-            <th style="padding: 12px 16px; font-weight: 700; color: var(--muted); text-transform: uppercase; font-size: 11px;">Username</th>
-            <th style="padding: 12px 16px; font-weight: 700; color: var(--muted); text-transform: uppercase; font-size: 11px;">Telegram ID</th>
-            <th style="padding: 12px 16px; font-weight: 700; color: var(--muted); text-transform: uppercase; font-size: 11px;">Source</th>
-            <th style="padding: 12px 16px; font-weight: 700; color: var(--muted); text-transform: uppercase; font-size: 11px;">Last Seen</th>
-            <th style="padding: 12px 16px; font-weight: 700; color: var(--muted); text-transform: uppercase; font-size: 11px; text-align: right;">Action</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${filtered.map((u) => {
-            const initials = ((u.firstName || 'T')[0] + (u.lastName || '')[0] || 'U').toUpperCase();
-            const displayName = [u.firstName, u.lastName].filter(Boolean).join(' ') || 'Telegram User';
-            const hasUsername = Boolean(u.username);
-            const isAdmin = u.isAdmin || u.source === 'admin_tester' || u.source === 'admin_account';
-            const sourceLabel = isAdmin ? 'Admin / Tester' : (u.source === 'mini_app_visit' ? 'Mini App Visit' : (u.source === 'order_checkout' ? 'Order Checkout' : (u.source === 'customer_order' ? 'Store Buyer' : 'Bot /start')));
-            const sourceColor = isAdmin ? '#ec4899' : (u.source === 'mini_app_visit' ? '#38bdf8' : (u.source === 'order_checkout' || u.source === 'customer_order' ? '#10b981' : '#a855f7'));
-            const timeStr = u.updatedAt ? formatRelativeTime(u.updatedAt) : 'Recently';
-
-            return `
-              <tr style="border-bottom: 1px solid rgba(255,255,255,0.04); transition: background 0.15s ease;">
-                <td style="padding: 12px 16px;">
-                  <div style="display: flex; align-items: center; gap: 10px;">
-                    <div style="width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, #0284c7, #6366f1); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; color: white; flex-shrink: 0;">
-                      ${escapeHtml(initials)}
+              return `
+                <tr style="border-bottom: 1px solid rgba(255,255,255,0.04); transition: background 0.15s ease;">
+                  <td style="padding: 12px 16px;">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                      <div style="width: 34px; height: 34px; border-radius: 50%; background: linear-gradient(135deg, #0284c7, #6366f1); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; color: white; flex-shrink: 0;">
+                        ${escapeHtml(initials)}
+                      </div>
+                      <div>
+                        <strong style="color: var(--text); font-size: 13px; display: block;">${escapeHtml(displayName)}</strong>
+                      </div>
                     </div>
-                    <div>
-                      <strong style="color: var(--text); font-size: 13px; display: block;">${escapeHtml(displayName)}</strong>
-                    </div>
-                  </div>
-                </td>
-                <td style="padding: 12px 16px;">
-                  ${hasUsername 
-                    ? `<a href="https://t.me/${escapeHtml(u.username)}" target="_blank" style="color: #38bdf8; text-decoration: none; font-weight: 600; display: inline-flex; align-items: center; gap: 4px;">@${escapeHtml(u.username)} <i data-lucide="external-link" style="width: 12px; height: 12px;"></i></a>`
-                    : `<span style="color: var(--muted); font-style: italic;">No username</span>`}
-                </td>
-                <td style="padding: 12px 16px;">
-                  <code style="font-size: 12px; background: rgba(0,0,0,0.3); padding: 3px 6px; border-radius: 4px; color: #cbd5e1;">${escapeHtml(String(u.id))}</code>
-                </td>
-                <td style="padding: 12px 16px;">
-                  <span style="font-size: 10.5px; font-weight: 700; padding: 3px 8px; border-radius: 6px; background: rgba(255,255,255,0.05); color: ${sourceColor}; border: 1px solid rgba(255,255,255,0.08); text-transform: uppercase;">
-                    ${escapeHtml(sourceLabel)}
-                  </span>
-                </td>
-                <td style="padding: 12px 16px; color: var(--muted); font-size: 12px;">
-                  ${escapeHtml(timeStr)}
-                </td>
-                <td style="padding: 12px 16px; text-align: right;">
-                  ${hasUsername 
-                    ? `<a href="https://t.me/${escapeHtml(u.username)}" target="_blank" class="btn btn-ghost btn-sm" style="font-size: 11.5px; padding: 4px 10px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--border);">
-                        <i data-lucide="message-circle" style="width: 13px; height: 13px; color: #0284c7;"></i> Chat
-                       </a>`
-                    : `<button type="button" class="btn btn-ghost btn-sm" onclick="navigator.clipboard.writeText('${escapeHtml(String(u.id))}'); showToast('User ID copied: ${escapeHtml(String(u.id))}', 'info');" style="font-size: 11.5px; padding: 4px 10px; border-radius: 6px; border: 1px solid var(--border);">
-                        <i data-lucide="copy" style="width: 12px; height: 12px;"></i> Copy ID
-                       </button>`}
-                </td>
-              </tr>
-            `;
-          }).join('')}
-        </tbody>
-      </table>
-    </div>
+                  </td>
+                  <td style="padding: 12px 16px; white-space: nowrap;">
+                    <span style="display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 6px; background: rgba(56, 189, 248, 0.12); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); font-size: 11.5px; font-weight: 700;">
+                      <i data-lucide="bot" style="width: 12px; height: 12px;"></i> @${escapeHtml(botChannel)}
+                    </span>
+                  </td>
+                  <td style="padding: 12px 16px; white-space: nowrap;">
+                    ${hasUsername 
+                      ? `<a href="https://t.me/${escapeHtml(u.username)}" target="_blank" style="color: #38bdf8; text-decoration: none; font-weight: 600; display: inline-flex; align-items: center; gap: 4px;">@${escapeHtml(u.username)} <i data-lucide="external-link" style="width: 12px; height: 12px;"></i></a>`
+                      : `<span style="color: var(--muted); font-style: italic;">No username</span>`}
+                  </td>
+                  <td style="padding: 12px 16px; white-space: nowrap;">
+                    <code style="font-size: 12px; background: rgba(0,0,0,0.3); padding: 3px 6px; border-radius: 4px; color: #cbd5e1; font-family: monospace;">${escapeHtml(String(u.id))}</code>
+                  </td>
+                  <td style="padding: 12px 16px; white-space: nowrap;">
+                    <span style="font-size: 10.5px; font-weight: 700; padding: 3px 8px; border-radius: 6px; background: rgba(255,255,255,0.05); color: ${sourceColor}; border: 1px solid rgba(255,255,255,0.08); text-transform: uppercase;">
+                      ${escapeHtml(sourceLabel)}
+                    </span>
+                  </td>
+                  <td style="padding: 12px 16px; color: var(--muted); font-size: 12px; white-space: nowrap;">
+                    ${escapeHtml(timeStr)}
+                  </td>
+                  <td style="padding: 12px 16px; text-align: right; white-space: nowrap;">
+                    ${hasUsername 
+                      ? `<a href="https://t.me/${escapeHtml(u.username)}" target="_blank" class="btn btn-ghost btn-sm" style="font-size: 11.5px; padding: 5px 10px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--border);">
+                          <i data-lucide="message-circle" style="width: 13px; height: 13px; color: #0284c7;"></i> Chat
+                         </a>`
+                      : `<button type="button" class="btn btn-ghost btn-sm" onclick="navigator.clipboard.writeText('${escapeHtml(String(u.id))}'); showToast('User ID copied: ${escapeHtml(String(u.id))}', 'info');" style="font-size: 11.5px; padding: 5px 10px; border-radius: 6px; border: 1px solid var(--border);">
+                          <i data-lucide="copy" style="width: 12px; height: 12px;"></i> Copy ID
+                         </button>`}
+                  </td>
+                </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    `}
   `;
 }
 
@@ -7151,9 +7546,153 @@ function renderTelegramBotControlSection(settings = {}) {
   `;
 }
 
+function renderTelegramBotsFleetCards(bots = []) {
+  const fleet = (Array.isArray(bots) && bots.length) ? bots : [_tgBotData.bot].filter(Boolean);
+  if (!fleet.length) {
+    return `
+      <div style="padding: 30px; text-align: center; color: var(--muted);">
+        <i data-lucide="bot" style="width: 32px; height: 32px; margin-bottom: 8px;"></i>
+        <div>No Telegram Bots Connected Yet.</div>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="tg-fleet-cards-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(310px, 1fr)); gap: 16px;">
+      ${fleet.map(b => {
+        const isActive = (b.status === 'active' || (!b.status && b.isPrimary));
+        const isPrimary = Boolean(b.isPrimary);
+        const username = b.username || 'Bot';
+        const masked = b.maskedToken || (b.id ? `${b.id}:...` : '***');
+        const subscribers = b.subscribersCount || 0;
+        const botIdStr = b.botId || `bot_${b.id}`;
+
+        return `
+          <div class="panel glass tg-fleet-bot-card" style="padding: 18px 20px; border-radius: 16px; border: 1px solid ${isActive ? 'rgba(16, 185, 129, 0.4)' : 'rgba(255,255,255,0.08)'}; background: ${isActive ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.04) 0%, rgba(15, 23, 42, 0.75) 100%)' : 'rgba(0,0,0,0.35)'};">
+            <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 12px; flex-wrap: wrap;">
+              <div style="display: flex; align-items: center; gap: 12px;">
+                <div style="width: 44px; height: 44px; border-radius: 12px; background: ${isActive ? 'linear-gradient(135deg, #059669, #10b981)' : 'rgba(255,255,255,0.08)'}; display: flex; align-items: center; justify-content: center; color: white; flex-shrink: 0; box-shadow: ${isActive ? '0 4px 14px rgba(16, 185, 129, 0.35)' : 'none'};">
+                  <i data-lucide="bot" style="width: 24px; height: 24px;"></i>
+                </div>
+                <div>
+                  <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                    <a href="https://t.me/${escapeHtml(username)}" target="_blank" style="color: ${isActive ? '#38bdf8' : 'var(--text)'}; font-size: 15.5px; font-weight: 800; text-decoration: none; display: inline-flex; align-items: center; gap: 4px;">
+                      @${escapeHtml(username)} <i data-lucide="external-link" style="width: 12px; height: 12px;"></i>
+                    </a>
+                    ${isPrimary ? '<span class="badge" style="font-size: 9.5px; padding: 2px 7px; background: rgba(99,102,241,0.25); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.4); font-weight: 800; letter-spacing: 0.04em;">PRIMARY BOT</span>' : ''}
+                  </div>
+                  <span style="font-size: 11px; color: var(--muted); display: block; margin-top: 2px;">${escapeHtml(b.name || 'LinkAdda Bot')} · ID: <code>${escapeHtml(b.id || '')}</code></span>
+                </div>
+              </div>
+
+              <!-- Ultra-Clear Status Indicator -->
+              <div>
+                <span class="badge" style="font-size: 10.5px; padding: 4px 10px; font-weight: 800; border-radius: 20px; ${isActive ? 'background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.45); box-shadow: 0 0 12px rgba(16, 185, 129, 0.25);' : 'background: rgba(239, 68, 68, 0.12); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.35);'}">
+                  ${isActive ? '🟢 ONLINE & ACTIVE' : '⏸️ PAUSED / INACTIVE'}
+                </span>
+              </div>
+            </div>
+
+            <!-- Bot Specs -->
+            <div style="background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; padding: 10px 14px; margin-bottom: 14px; font-size: 12px; display: flex; flex-direction: column; gap: 7px;">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span style="color: var(--muted);">Subscribers:</span>
+                <span style="color: #f59e0b; font-weight: 800; font-size: 13px;">${subscribers} users joined via this bot</span>
+              </div>
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span style="color: var(--muted);">Token:</span>
+                <code style="color: #cbd5e1; font-family: monospace; font-size: 11px;">${escapeHtml(masked)}</code>
+              </div>
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span style="color: var(--muted);">Webhook Status:</span>
+                <span style="color: #10b981; font-weight: 600; font-size: 11.5px;">✅ Bound to LinkAdda</span>
+              </div>
+            </div>
+
+            <!-- Primary 2 Action Buttons (Pause/Activate + View Subscribers) -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">
+              <button type="button" class="btn btn-sm ${isActive ? 'btn-ghost' : 'btn-primary'}" data-action="toggle-bot-status-action" data-bot-id="${escapeHtml(botIdStr)}" data-status="${isActive ? 'inactive' : 'active'}" style="font-size: 12px; font-weight: 700; padding: 8px 10px; border-radius: 8px; display: flex; align-items: center; justify-content: center; gap: 5px; ${isActive ? 'border: 1px solid rgba(239, 68, 68, 0.35); color: #fca5a5; background: rgba(239, 68, 68, 0.08);' : 'background: linear-gradient(135deg, #10b981, #059669) !important; color: white !important; font-weight: 800; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.35);'}">
+                <i data-lucide="${isActive ? 'pause-circle' : 'play-circle'}" style="width: 14px; height: 14px;"></i>
+                ${isActive ? 'Pause Bot' : 'Turn On Bot'}
+              </button>
+
+              <button type="button" class="btn btn-ghost btn-sm" data-action="filter-users-by-bot" data-bot-id="${escapeHtml(botIdStr)}" data-bot-username="${escapeHtml(username)}" style="font-size: 12px; font-weight: 700; padding: 8px 10px; border-radius: 8px; border: 1px solid rgba(56, 189, 248, 0.35); color: #38bdf8; background: rgba(56, 189, 248, 0.08); display: flex; align-items: center; justify-content: center; gap: 5px;">
+                <i data-lucide="users" style="width: 14px; height: 14px;"></i>
+                View Users (${subscribers}) →
+              </button>
+            </div>
+
+            <!-- Secondary Actions Row (Ping Test Alert + Set Primary + Delete Bot) -->
+            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+              <button type="button" class="btn btn-ghost btn-sm" data-action="test-bot-ping-action" data-bot-id="${escapeHtml(botIdStr)}" title="Send test alert to admin from this bot" style="flex: 1; min-width: 110px; font-size: 11.5px; padding: 6px 10px; border-radius: 8px; border: 1px solid rgba(99, 102, 241, 0.35); color: #a5b4fc; display: flex; align-items: center; justify-content: center; gap: 5px;">
+                <i data-lucide="send" style="width: 12px; height: 12px;"></i> Ping Test Alert
+              </button>
+
+              ${!isPrimary ? `
+                <button type="button" class="btn btn-ghost btn-sm" data-action="set-primary-bot-action" data-bot-id="${escapeHtml(botIdStr)}" title="Set as primary active bot for LinkAdda store" style="font-size: 11.5px; padding: 6px 10px; border-radius: 8px; border: 1px solid rgba(245, 158, 11, 0.4); color: #fbbf24; background: rgba(245, 158, 11, 0.08); display: flex; align-items: center; justify-content: center; gap: 4px;">
+                  <i data-lucide="star" style="width: 12px; height: 12px;"></i> Set Primary
+                </button>
+                <button type="button" class="btn btn-ghost btn-sm" data-action="delete-bot-action" data-bot-id="${escapeHtml(botIdStr)}" title="Delete this bot" style="font-size: 11.5px; padding: 6px 12px; border-radius: 8px; border: 1px solid rgba(239, 68, 68, 0.3); color: #ef4444; display: flex; align-items: center; justify-content: center; gap: 4px;">
+                  <i data-lucide="trash-2" style="width: 12px; height: 12px;"></i> Delete
+                </button>
+              ` : ''}
+            </div>
+          </div>
+        `;
+      }).join('')}
+    </div>
+  `;
+}
+
+function renderTelegramAdminsCards(admins = []) {
+  const adminList = (Array.isArray(admins) && admins.length) ? admins : ['8802192472', '6966868142'];
+  const defaultIds = ['8802192472', '6966868142'];
+
+  return `
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px;">
+      ${adminList.map(aid => {
+        const cleanId = String(aid).trim();
+        const isDefault = defaultIds.includes(cleanId);
+
+        return `
+          <div class="panel glass" style="padding: 16px 18px; border-radius: 12px; border: 1px solid rgba(245, 158, 11, 0.3); background: rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: space-between; gap: 12px;">
+            <div style="display: flex; align-items: center; gap: 12px;">
+              <div style="width: 38px; height: 38px; border-radius: 10px; background: linear-gradient(135deg, #f59e0b, #d97706); display: flex; align-items: center; justify-content: center; color: white; flex-shrink: 0; box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);">
+                <i data-lucide="shield-check" style="width: 20px; height: 20px;"></i>
+              </div>
+              <div>
+                <div style="display: flex; align-items: center; gap: 6px;">
+                  <code style="font-size: 13.5px; font-weight: 800; color: #fbbf24; font-family: monospace;">${escapeHtml(cleanId)}</code>
+                  <span class="badge" style="font-size: 9.5px; padding: 1px 5px; background: rgba(245, 158, 11, 0.15); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.3); font-weight: 700;">
+                    ${isDefault ? 'PRIMARY' : 'CUSTOM'}
+                  </span>
+                </div>
+                <small style="color: var(--muted); font-size: 11px; display: block; margin-top: 2px;">Receives Order Alerts & Approve Buttons</small>
+              </div>
+            </div>
+
+            <div style="display: flex; gap: 6px;">
+              <button type="button" class="btn btn-ghost btn-sm" data-action="ping-admin-action" data-chat-id="${escapeHtml(cleanId)}" title="Test ping this admin" style="font-size: 11.5px; padding: 5px 9px; border-radius: 6px; border: 1px solid rgba(245, 158, 11, 0.3); color: #fbbf24;">
+                <i data-lucide="send" style="width: 12px; height: 12px;"></i>
+              </button>
+              ${!isDefault ? `
+                <button type="button" class="btn btn-ghost btn-sm" data-action="remove-admin-action" data-chat-id="${escapeHtml(cleanId)}" title="Remove Admin" style="font-size: 11.5px; padding: 5px 9px; border-radius: 6px; border: 1px solid rgba(239, 68, 68, 0.3); color: #ef4444;">
+                  <i data-lucide="trash-2" style="width: 12px; height: 12px;"></i>
+                </button>
+              ` : ''}
+            </div>
+          </div>
+        `;
+      }).join('')}
+    </div>
+  `;
+}
+
 function renderTelegramBotPageView(data = {}) {
-  const activeTab = _tgBotData.activeTab || 'tgTabUsers';
+  const activeTab = _tgBotData.activeTab || 'tgTabBots';
   const bot = _tgBotData.bot || { username: 'Myshop9876_bot', name: 'LinkAdda Store Bot', id: '8923608774', maskedToken: '892360...dVlE' };
+  const bots = (_tgBotData.bots && _tgBotData.bots.length) ? _tgBotData.bots : [bot];
+  const admins = (_tgBotData.admins && _tgBotData.admins.length) ? _tgBotData.admins : ['8802192472', '6966868142'];
   const webhook = _tgBotData.webhook || {};
   const users = _tgBotData.users || [];
   const usersCount = _tgBotData.usersCount || users.length;
@@ -7163,8 +7702,105 @@ function renderTelegramBotPageView(data = {}) {
   return `
     <div class="page active management-page-shell telegram-bot-page-shell" id="tgBotPageRoot" style="max-width: 1320px; margin: 0 auto; padding-bottom: 60px;">
       
+      <!-- Scoped Mobile-First Styles for Telegram Dashboard -->
+      <style>
+        #tgBotPageRoot {
+          --tg-primary-glow: rgba(99, 102, 241, 0.35);
+        }
+        .tg-tabs-nav-bar {
+          display: flex;
+          gap: 8px;
+          margin-bottom: 22px;
+          border-bottom: 1px solid rgba(255,255,255,0.08);
+          padding-bottom: 12px;
+          overflow-x: auto;
+          -webkit-overflow-scrolling: touch;
+          scrollbar-width: none;
+        }
+        .tg-tabs-nav-bar::-webkit-scrollbar {
+          display: none;
+        }
+        .tg-tabs-nav-bar button {
+          flex-shrink: 0;
+          white-space: nowrap;
+        }
+        .tg-hero-metrics-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+          gap: 14px;
+          margin-top: 24px;
+          padding-top: 20px;
+          border-top: 1px solid rgba(255,255,255,0.06);
+        }
+        .tg-fleet-cards-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(310px, 1fr));
+          gap: 16px;
+        }
+        @media (max-width: 768px) {
+          .telegram-bot-page-shell {
+            padding-left: 2px !important;
+            padding-right: 2px !important;
+          }
+          .tg-hero-section {
+            padding: 18px 16px !important;
+            border-radius: 14px !important;
+          }
+          .tg-hero-toolbar {
+            width: 100% !important;
+            display: flex !important;
+            flex-direction: column !important;
+            gap: 8px !important;
+          }
+          .tg-hero-toolbar > button,
+          .tg-hero-toolbar > a {
+            width: 100% !important;
+            justify-content: center !important;
+          }
+          .tg-hero-metrics-grid {
+            grid-template-columns: 1fr 1fr !important;
+            gap: 10px !important;
+            padding-top: 16px !important;
+            margin-top: 18px !important;
+          }
+          .tg-fleet-cards-grid {
+            grid-template-columns: 1fr !important;
+            gap: 12px !important;
+          }
+          .tg-tab-section {
+            padding: 16px 12px !important;
+            border-radius: 14px !important;
+          }
+          .tg-responsive-form {
+            flex-direction: column !important;
+          }
+          .tg-responsive-form input,
+          .tg-responsive-form button {
+            width: 100% !important;
+          }
+          .tg-search-users-wrap {
+            flex-direction: column !important;
+            align-items: stretch !important;
+            width: 100% !important;
+          }
+          .tg-search-users-wrap > div {
+            width: 100% !important;
+            min-width: 100% !important;
+          }
+          .tg-search-users-wrap button {
+            flex: 1 !important;
+            justify-content: center !important;
+          }
+        }
+        @media (max-width: 440px) {
+          .tg-hero-metrics-grid {
+            grid-template-columns: 1fr !important;
+          }
+        }
+      </style>
+
       <!-- Top Hero Header Bar -->
-      <section class="panel glass" style="padding: 24px 28px; border-radius: 18px; margin-bottom: 24px; border: 1px solid rgba(99, 102, 241, 0.35); background: linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, rgba(15, 23, 42, 0.8) 100%);">
+      <section class="panel glass tg-hero-section" style="padding: 24px 28px; border-radius: 18px; margin-bottom: 24px; border: 1px solid rgba(99, 102, 241, 0.35); background: linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, rgba(15, 23, 42, 0.8) 100%);">
         <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;">
           <div style="display: flex; align-items: center; gap: 16px;">
             <div style="width: 50px; height: 50px; border-radius: 14px; background: linear-gradient(135deg, #0088cc, #6366f1); display: flex; align-items: center; justify-content: center; color: white; box-shadow: 0 8px 24px rgba(0, 136, 204, 0.4); flex-shrink: 0;">
@@ -7172,13 +7808,13 @@ function renderTelegramBotPageView(data = {}) {
             </div>
             <div>
               <div style="display: flex; align-items: center; gap: 8px;">
-                <h2 style="margin: 0; font-size: 22px; font-weight: 800; color: var(--text);">Telegram Bot & Subscribers Hub</h2>
-                <span id="tgBotStatusBadge" class="badge success" style="font-size: 10px; padding: 3px 8px; text-transform: uppercase;">🟢 ACTIVE & LIVE</span>
+                <h2 style="margin: 0; font-size: 22px; font-weight: 800; color: var(--text);">Telegram Multi-Bot & Subscribers Hub</h2>
+                <span id="tgBotStatusBadge" class="badge success" style="font-size: 10px; padding: 3px 8px; text-transform: uppercase;">🟢 ACTIVE FLEET</span>
               </div>
-              <p style="margin: 4px 0 0 0; color: var(--muted); font-size: 13px;">Manage live bot operations, hot-swap bot token dynamically without code changes, view all subscribers, and dispatch mass broadcasts.</p>
+              <p style="margin: 4px 0 0 0; color: var(--muted); font-size: 13px;">Connect 4-5 bots simultaneously without hardcoding, manage real admin notification alerts, dispatch targeted broadcasts, and track all subscribers.</p>
             </div>
           </div>
-          <div class="toolbar" style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+          <div class="toolbar tg-hero-toolbar" style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
             <button class="btn btn-ghost" type="button" data-action="refresh-tg-bot" title="Fetch latest status from Telegram API" style="font-size: 12.5px; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--border);">
               <i data-lucide="refresh-cw" style="width: 14px; height: 14px;"></i> Refresh Data
             </button>
@@ -7186,29 +7822,29 @@ function renderTelegramBotPageView(data = {}) {
               <i data-lucide="send" style="width: 14px; height: 14px;"></i> Test Ping Admins
             </button>
             <a class="btn btn-primary" id="tgOpenLiveBotBtn" href="https://t.me/${escapeHtml(bot.username || 'Myshop9876_bot')}" target="_blank" style="font-size: 12.5px; padding: 8px 16px; border-radius: 8px; background: linear-gradient(135deg, #0088cc, #0284c7) !important; border: none !important; color: white !important; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 4px 14px rgba(0, 136, 204, 0.4);">
-              <i data-lucide="external-link" style="width: 14px; height: 14px;"></i> Open Bot (@${escapeHtml(bot.username || 'Myshop9876_bot')})
+              <i data-lucide="external-link" style="width: 14px; height: 14px;"></i> Open Primary Bot (@${escapeHtml(bot.username || 'Myshop9876_bot')})
             </a>
           </div>
         </div>
 
         <!-- 4 Realtime Metrics Cards -->
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; margin-top: 24px; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.06);">
+        <div class="tg-hero-metrics-grid">
           
-          <!-- Metric 1: Live Bot -->
+          <!-- Metric 1: Live Bot Fleet -->
           <div style="background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px;">
-            <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--muted); letter-spacing: 0.04em;">Active Telegram Bot</div>
+            <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--muted); letter-spacing: 0.04em;">Connected Bot Fleet</div>
             <div id="tgActiveBotUsername" style="font-size: 17px; font-weight: 800; color: #38bdf8; margin-top: 4px; display: flex; align-items: center; gap: 6px;">
-              <a href="https://t.me/${escapeHtml(bot.username || 'Myshop9876_bot')}" target="_blank" style="color: #38bdf8; text-decoration: none; display: inline-flex; align-items: center; gap: 4px;">@${escapeHtml(bot.username || 'Myshop9876_bot')} <i data-lucide="external-link" style="width: 13px; height: 13px;"></i></a>
+              <span>${bots.length} Connected Bots</span>
             </div>
-            <small id="tgActiveBotId" style="display: block; color: var(--muted); font-size: 11px; margin-top: 2px;">Bot ID: ${escapeHtml(bot.id || '8923608774')} · Dynamic</small>
+            <small id="tgActiveBotId" style="display: block; color: var(--muted); font-size: 11px; margin-top: 2px;">Primary: @${escapeHtml(bot.username || 'Myshop9876_bot')} · Multi-Bot Live</small>
           </div>
 
           <!-- Metric 2: Webhook Delivery -->
           <div style="background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px;">
-            <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--muted); letter-spacing: 0.04em;">Webhook Connection</div>
+            <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--muted); letter-spacing: 0.04em;">Webhook Self-Healing</div>
             <div id="tgWebhookStatus" style="font-size: 14px; font-weight: 700; color: ${hasWebhookUrl ? '#10b981' : '#f59e0b'}; margin-top: 5px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
               ${hasWebhookUrl 
-                ? `<span style="color: #10b981;">✅ Connected</span> <span style="font-size: 11px; color: var(--muted); font-weight: normal;">(/api/telegram/bot)</span>`
+                ? `<span style="color: #10b981;">✅ Auto-Syncing</span> <span style="font-size: 11px; color: var(--muted); font-weight: normal;">(Self-Healing Active)</span>`
                 : `<span style="color: #f59e0b;">⚠️ Pending</span> <button type="button" data-action="resync-tg-webhook" class="btn btn-primary btn-sm" style="font-size: 11px; padding: 2px 8px; border-radius: 6px; background: #6366f1 !important; color: white !important;">⚡ Activate Now</button>`}
             </div>
             <small id="tgWebhookPending" style="display: block; color: var(--muted); font-size: 11px; margin-top: 2px;">Pending updates: ${webhook.pending_update_count ?? 0} · 24/7 Live</small>
@@ -7220,78 +7856,147 @@ function renderTelegramBotPageView(data = {}) {
             <div style="font-size: 18px; font-weight: 800; color: #f59e0b; margin-top: 4px; display: flex; align-items: center; gap: 6px;">
               <span id="tgUsersStatCount">${usersCount}</span> <span style="font-size: 12px; font-weight: 600; color: var(--muted);">Users</span>
             </div>
-            <small style="display: block; color: var(--muted); font-size: 11px; margin-top: 2px;">Bot /start + WebApp visitors + Buyers</small>
+            <small style="display: block; color: var(--muted); font-size: 11px; margin-top: 2px;">Subscribers across all connected bots</small>
           </div>
 
-          <!-- Metric 4: Telegram WebApp -->
+          <!-- Metric 4: Telegram Admins -->
           <div style="background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px;">
-            <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--muted); letter-spacing: 0.04em;">Mini App Menu Button</div>
-            <div style="font-size: 14px; font-weight: 700; color: #a855f7; margin-top: 5px; display: flex; align-items: center; gap: 6px;">
-              <span>🛍️ "Open Store" Bound</span>
+            <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--muted); letter-spacing: 0.04em;">Order Alert Admins</div>
+            <div style="font-size: 16px; font-weight: 800; color: #a855f7; margin-top: 5px; display: flex; align-items: center; gap: 6px;">
+              <span id="tgAdminsStatCount">${admins.length}</span> <span>Authorized Admins</span>
             </div>
-            <small style="display: block; color: var(--muted); font-size: 11px; margin-top: 2px;">Full website runs inside Telegram</small>
+            <small style="display: block; color: var(--muted); font-size: 11px; margin-top: 2px;">Receive live order proof & approval buttons</small>
           </div>
 
         </div>
       </section>
 
       <!-- Prominent Quick Navigation Tabs (Active state preserved across re-renders!) -->
-      <div style="display: flex; gap: 10px; margin-bottom: 24px; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 14px; overflow-x: auto;">
-        <button type="button" class="btn ${activeTab === 'tgTabUsers' ? 'active-tab-btn' : ''}" data-action="switch-tg-tab" data-target="tgTabUsers" style="padding: 11px 20px; font-weight: 800; font-size: 13.5px; border-radius: 10px; ${activeTab === 'tgTabUsers' ? 'background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; border: none; box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);' : 'background: rgba(255,255,255,0.05); color: var(--text); border: 1px solid var(--border); box-shadow: none;'} display: inline-flex; align-items: center; gap: 8px; cursor: pointer;">
-          <i data-lucide="users" style="width: 16px; height: 16px;"></i> 👥 Bot Subscribers & Users (<span id="tgTabUsersCountBadge">${usersCount}</span>)
+      <div class="tg-tabs-nav-bar">
+        <button type="button" class="btn ${activeTab === 'tgTabBots' ? 'active-tab-btn' : ''}" data-action="switch-tg-tab" data-target="tgTabBots" style="padding: 11px 20px; font-weight: 800; font-size: 13.5px; border-radius: 10px; ${activeTab === 'tgTabBots' ? 'background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; border: none; box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);' : 'background: rgba(255,255,255,0.05); color: var(--text); border: 1px solid var(--border); box-shadow: none;'} display: inline-flex; align-items: center; gap: 8px; cursor: pointer;">
+          <i data-lucide="bot" style="width: 16px; height: 16px;"></i> 🤖 Connected Bots Fleet (<span id="tgTabBotsCountBadge">${bots.length}</span>)
+        </button>
+        <button type="button" class="btn ${activeTab === 'tgTabAdmins' ? 'active-tab-btn' : ''}" data-action="switch-tg-tab" data-target="tgTabAdmins" style="padding: 11px 20px; font-weight: 700; font-size: 13.5px; border-radius: 10px; ${activeTab === 'tgTabAdmins' ? 'background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; border: none; box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);' : 'background: rgba(255,255,255,0.05); color: var(--text); border: 1px solid var(--border); box-shadow: none;'} display: inline-flex; align-items: center; gap: 8px; cursor: pointer;">
+          <i data-lucide="shield-check" style="width: 16px; height: 16px;"></i> 👑 Telegram Admins (<span id="tgTabAdminsCountBadge">${admins.length}</span>)
         </button>
         <button type="button" class="btn ${activeTab === 'tgTabBroadcast' ? 'active-tab-btn' : ''}" data-action="switch-tg-tab" data-target="tgTabBroadcast" style="padding: 11px 20px; font-weight: 700; font-size: 13.5px; border-radius: 10px; ${activeTab === 'tgTabBroadcast' ? 'background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; border: none; box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);' : 'background: rgba(255,255,255,0.05); color: var(--text); border: 1px solid var(--border); box-shadow: none;'} display: inline-flex; align-items: center; gap: 8px; cursor: pointer;">
           <i data-lucide="send" style="width: 16px; height: 16px;"></i> 📢 Mass Broadcast Message
         </button>
+        <button type="button" class="btn ${activeTab === 'tgTabUsers' ? 'active-tab-btn' : ''}" data-action="switch-tg-tab" data-target="tgTabUsers" style="padding: 11px 20px; font-weight: 700; font-size: 13.5px; border-radius: 10px; ${activeTab === 'tgTabUsers' ? 'background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; border: none; box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);' : 'background: rgba(255,255,255,0.05); color: var(--text); border: 1px solid var(--border); box-shadow: none;'} display: inline-flex; align-items: center; gap: 8px; cursor: pointer;">
+          <i data-lucide="users" style="width: 16px; height: 16px;"></i> 👥 Bot Subscribers & Users (<span id="tgTabUsersCountBadge">${usersCount}</span>)
+        </button>
         <button type="button" class="btn ${activeTab === 'tgTabSettings' ? 'active-tab-btn' : ''}" data-action="switch-tg-tab" data-target="tgTabSettings" style="padding: 11px 20px; font-weight: 700; font-size: 13.5px; border-radius: 10px; ${activeTab === 'tgTabSettings' ? 'background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; border: none; box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);' : 'background: rgba(255,255,255,0.05); color: var(--text); border: 1px solid var(--border); box-shadow: none;'} display: inline-flex; align-items: center; gap: 8px; cursor: pointer;">
-          <i data-lucide="zap" style="width: 16px; height: 16px;"></i> ⚡ Bot Token Switcher & Webhook
+          <i data-lucide="zap" style="width: 16px; height: 16px;"></i> ⚡ Token Switcher & Webhook
         </button>
       </div>
 
-      <!-- TAB 1: Bot Users & Subscribers Audience Directory -->
-      <section id="tgTabUsers" class="tg-tab-section panel glass" style="display: ${activeTab === 'tgTabUsers' ? 'block' : 'none'}; padding: 24px 28px; border-radius: 16px; border: 1px solid var(--border); margin-bottom: 24px;">
+      <!-- TAB 1: Connected Bots Fleet Manager -->
+      <section id="tgTabBots" class="tg-tab-section panel glass" style="display: ${activeTab === 'tgTabBots' ? 'block' : 'none'}; padding: 24px 28px; border-radius: 16px; border: 1px solid rgba(99, 102, 241, 0.35); background: linear-gradient(180deg, rgba(99, 102, 241, 0.03) 0%, rgba(15, 23, 42, 0.6) 100%); margin-bottom: 24px;">
         <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px; margin-bottom: 20px; padding-bottom: 14px; border-bottom: 1px solid rgba(255,255,255,0.06);">
           <div style="display: flex; align-items: center; gap: 12px;">
-            <div style="width: 38px; height: 38px; border-radius: 10px; background: linear-gradient(135deg, #8b5cf6, #ec4899); display: flex; align-items: center; justify-content: center; color: white;">
-              <i data-lucide="users" style="width: 20px; height: 20px;"></i>
+            <div style="width: 38px; height: 38px; border-radius: 10px; background: linear-gradient(135deg, #0284c7, #38bdf8); display: flex; align-items: center; justify-content: center; color: white;">
+              <i data-lucide="bot" style="width: 20px; height: 20px;"></i>
             </div>
             <div>
-              <div style="display: flex; align-items: center; gap: 8px;">
-                <h3 style="margin: 0; font-size: 17px; font-weight: 800; color: var(--text);">Subscribers & Bot Users Directory</h3>
-                <span id="tgUsersCountBadge" class="badge" style="font-size: 11px; padding: 2px 8px; background: rgba(99, 102, 241, 0.15); color: #a5b4fc; border: 1px solid rgba(99, 102, 241, 0.3);">
-                  ${usersCount} Subscribers
-                </span>
-              </div>
-              <p style="margin: 3px 0 0 0; font-size: 12px; color: var(--muted);">Realtime tracking of all users who interacted with the bot, visited via Telegram WebApp, or completed a checkout.</p>
+              <h3 style="margin: 0; font-size: 17px; font-weight: 800; color: var(--text);">Telegram Bots Fleet Manager</h3>
+              <p style="margin: 3px 0 0 0; font-size: 12px; color: var(--muted);">Connect multiple bots simultaneously. No bots are hardcoded. Add new bots from @BotFather in seconds.</p>
+            </div>
+          </div>
+          <button type="button" data-action="refresh-tg-bot" class="btn btn-ghost btn-sm" style="font-size: 12px; padding: 6px 12px; border: 1px solid var(--border); border-radius: 8px;">
+            <i data-lucide="refresh-cw" style="width: 12px; height: 12px;"></i> Refresh Fleet
+          </button>
+        </div>
+
+        <!-- Dynamic Bots Cards Grid Container -->
+        <div id="tgBotsFleetCardsContainer" style="margin-bottom: 26px;">
+          ${renderTelegramBotsFleetCards(bots)}
+        </div>
+
+        <!-- Connect New Bot Form Panel -->
+        <div class="panel" style="padding: 20px 22px; border-radius: 14px; background: rgba(0,0,0,0.35); border: 1px solid rgba(99, 102, 241, 0.3); margin-top: 10px;">
+          <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+            <div style="width: 30px; height: 30px; border-radius: 8px; background: linear-gradient(135deg, #6366f1, #8b5cf6); display: flex; align-items: center; justify-content: center; color: white;">
+              <i data-lucide="plus" style="width: 16px; height: 16px;"></i>
+            </div>
+            <div>
+              <strong style="color: var(--text); font-size: 14px;">Connect New Telegram Bot</strong>
+              <small style="color: var(--muted); display: block; font-size: 11.5px;">Paste any bot token from @BotFather to link it to LinkAdda with instant webhook registration.</small>
             </div>
           </div>
 
-          <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
-            <div style="position: relative; min-width: 260px;">
-              <input type="search" id="tgUsersSearchInput" placeholder="Filter by name, @username, or ID..." class="input" style="width: 100%; padding: 8px 12px 8px 32px; font-size: 12.5px; border-radius: 8px;" />
-              <i data-lucide="search" style="width: 14px; height: 14px; position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--muted);"></i>
-            </div>
-            <button type="button" data-action="export-tg-users" class="btn btn-ghost btn-sm" style="font-size: 12px; padding: 8px 14px; border: 1px solid var(--border); border-radius: 8px;">
-              <i data-lucide="copy" style="width: 13px; height: 13px;"></i> Copy User IDs
+          <form id="connectNewBotForm" class="tg-responsive-form" style="display: flex; gap: 10px; flex-wrap: wrap;">
+            <input type="text" id="newBotTokenInput" placeholder="Paste Bot Token (e.g. 123456789:AAFhvO4Yzly...)" class="input" style="flex: 1; min-width: 260px; padding: 11px 14px; font-family: monospace; font-size: 13px;" required />
+            <button type="button" id="addNewBotSubmitBtn" data-action="add-new-bot-submit" class="btn btn-primary" style="padding: 11px 22px; font-weight: 700; font-size: 13px; border-radius: 8px; background: linear-gradient(135deg, #6366f1, #8b5cf6) !important; color: white !important; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);">
+              <i data-lucide="zap" style="width: 14px; height: 14px;"></i> Connect & Link Bot
             </button>
-            <button type="button" data-action="refresh-tg-users" class="btn btn-primary btn-sm" style="font-size: 12px; padding: 8px 14px; border-radius: 8px; display: inline-flex; align-items: center; gap: 6px; background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white;">
-              <i data-lucide="refresh-cw" style="width: 13px; height: 13px;"></i> Refresh Users
-            </button>
+          </form>
+
+          <div id="newBotFeedback" style="margin-top: 12px; display: none; padding: 10px 14px; border-radius: 8px; font-size: 12.5px;"></div>
+
+          <!-- Quick 30-Second Guide -->
+          <div style="margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.06); font-size: 11.5px; color: #94a3b8; line-height: 1.5;">
+            <strong style="color: #cbd5e1; display: block; margin-bottom: 2px;">🚀 Quick 30-Second Setup:</strong>
+            1. Open Telegram and search <code>@BotFather</code>.<br />
+            2. Send <code>/newbot</code>, name your bot (e.g. <code>LinkAdda VIP Store</code>) and set a username (ending with <code>_bot</code>).<br />
+            3. Copy the HTTP API token, paste above, and tap <strong>Connect & Link Bot</strong>. Webhook & Store menu button activate automatically!
           </div>
-        </div>
-
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; font-size: 12px; color: var(--muted);">
-          <span id="tgUsersFilteredCount">Showing ${users.length} subscribers</span>
-          <span>Automatic sync on every visitor & order</span>
-        </div>
-
-        <!-- Dynamic Subscribers Table Container -->
-        <div id="tgUsersTableContainer" style="background: rgba(0,0,0,0.25); border: 1px solid var(--border); border-radius: 12px; overflow: hidden;">
-          ${renderTelegramUsersTableList(users, '')}
         </div>
       </section>
 
-      <!-- TAB 2: Mass Broadcast Message -->
+      <!-- TAB 2: Telegram Admins Manager -->
+      <section id="tgTabAdmins" class="tg-tab-section panel glass" style="display: ${activeTab === 'tgTabAdmins' ? 'block' : 'none'}; padding: 24px 28px; border-radius: 16px; border: 1px solid rgba(245, 158, 11, 0.35); background: linear-gradient(180deg, rgba(245, 158, 11, 0.03) 0%, rgba(15, 23, 42, 0.6) 100%); margin-bottom: 24px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px; margin-bottom: 20px; padding-bottom: 14px; border-bottom: 1px solid rgba(255,255,255,0.06);">
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <div style="width: 38px; height: 38px; border-radius: 10px; background: linear-gradient(135deg, #f59e0b, #d97706); display: flex; align-items: center; justify-content: center; color: white;">
+              <i data-lucide="shield-check" style="width: 20px; height: 20px;"></i>
+            </div>
+            <div>
+              <h3 style="margin: 0; font-size: 17px; font-weight: 800; color: var(--text);">Telegram Administrators Manager</h3>
+              <p style="margin: 3px 0 0 0; font-size: 12px; color: var(--muted);">Realtime admin order notifications: New orders, payment proof screenshots, and instant Approve/Reject buttons dispatch to all listed IDs.</p>
+            </div>
+          </div>
+          <button type="button" data-action="test-tg-bot" class="btn btn-ghost btn-sm" style="font-size: 12px; padding: 6px 12px; border: 1px solid rgba(245, 158, 11, 0.4); color: #fbbf24; border-radius: 8px;">
+            <i data-lucide="send" style="width: 12px; height: 12px;"></i> Ping All Admins
+          </button>
+        </div>
+
+        <!-- Dynamic Admins Cards Grid Container -->
+        <div id="tgAdminsCardsContainer" style="margin-bottom: 26px;">
+          ${renderTelegramAdminsCards(admins)}
+        </div>
+
+        <!-- Add New Admin Form Panel -->
+        <div class="panel" style="padding: 20px 22px; border-radius: 14px; background: rgba(0,0,0,0.35); border: 1px solid rgba(245, 158, 11, 0.3); margin-top: 10px;">
+          <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+            <div style="width: 30px; height: 30px; border-radius: 8px; background: linear-gradient(135deg, #f59e0b, #d97706); display: flex; align-items: center; justify-content: center; color: white;">
+              <i data-lucide="user-plus" style="width: 16px; height: 16px;"></i>
+            </div>
+            <div>
+              <strong style="color: var(--text); font-size: 14px;">Connect New Administrator Chat ID</strong>
+              <small style="color: var(--muted); display: block; font-size: 11.5px;">Add real Telegram Chat IDs. An instant welcome ping alert will be dispatched to confirm connection.</small>
+            </div>
+          </div>
+
+          <form id="addNewAdminForm" class="tg-responsive-form" style="display: flex; gap: 10px; flex-wrap: wrap;">
+            <input type="text" id="newAdminChatIdInput" placeholder="Enter Telegram Numeric Chat ID (e.g. 8802192472)" class="input" style="flex: 1; min-width: 240px; padding: 11px 14px; font-family: monospace; font-size: 13px;" required />
+            <button type="button" id="addNewAdminSubmitBtn" data-action="add-admin-submit" class="btn btn-primary" style="padding: 11px 22px; font-weight: 700; font-size: 13px; border-radius: 8px; background: linear-gradient(135deg, #f59e0b, #d97706) !important; color: white !important; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; box-shadow: 0 4px 14px rgba(245, 158, 11, 0.4);">
+              <i data-lucide="shield-check" style="width: 14px; height: 14px;"></i> Connect Admin
+            </button>
+          </form>
+
+          <div id="newAdminFeedback" style="margin-top: 12px; display: none; padding: 10px 14px; border-radius: 8px; font-size: 12.5px;"></div>
+
+          <!-- Quick Tip -->
+          <div style="margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.06); font-size: 11.5px; color: #94a3b8; line-height: 1.5;">
+            <strong style="color: #cbd5e1; display: block; margin-bottom: 2px;">💡 How to find your Telegram Chat ID:</strong>
+            1. Open Telegram and search <code>@userinfobot</code> or <code>@raw_data_bot</code>.<br />
+            2. Tap <strong>Start</strong>. The bot will reply with your numeric <code>Id</code> (e.g. <code>8802192472</code>).<br />
+            3. Paste that number above and click <strong>Connect Admin</strong>. You will immediately receive a welcome message!
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 3: Mass Broadcast Message -->
       <section id="tgTabBroadcast" class="tg-tab-section panel glass" style="display: ${activeTab === 'tgTabBroadcast' ? 'block' : 'none'}; padding: 24px 28px; border-radius: 16px; border: 1px solid rgba(56, 189, 248, 0.35); background: linear-gradient(180deg, rgba(56, 189, 248, 0.03) 0%, rgba(15, 23, 42, 0.6) 100%); margin-bottom: 24px;">
         <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.06);">
           <div style="display: flex; align-items: center; gap: 10px;">
@@ -7300,15 +8005,37 @@ function renderTelegramBotPageView(data = {}) {
             </div>
             <div>
               <h3 style="margin: 0; font-size: 16px; font-weight: 800; color: var(--text);">Mass Broadcast Message</h3>
-              <span style="font-size: 11px; color: #7dd3fc;">Send direct announcements to all subscribers</span>
+              <span style="font-size: 11px; color: #7dd3fc;">Send direct announcements to all bot subscribers</span>
             </div>
           </div>
           <span style="font-size: 10.5px; color: #f59e0b; background: rgba(245, 158, 11, 0.1); padding: 3px 8px; border-radius: 6px; border: 1px solid rgba(245, 158, 11, 0.25); font-weight: 700;">
-            <span id="tgBroadcastRecipientsCount">${usersCount}</span> Recipients
+            <span id="tgBroadcastRecipientsCount">${usersCount}</span> Subscribers
           </span>
         </div>
 
         <form id="tgBroadcastForm" style="display: flex; flex-direction: column; gap: 14px;">
+          
+          <!-- Target Bot Fleet Checkboxes Selector -->
+          <div style="background: rgba(0,0,0,0.25); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px;">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; flex-wrap: wrap; gap: 6px;">
+              <label style="font-size: 11.5px; font-weight: 700; color: #38bdf8; text-transform: uppercase; letter-spacing: 0.04em;">
+                🤖 Target Bots Fleet (${bots.length} Connected)
+              </label>
+              <label style="display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: #38bdf8; cursor: pointer;">
+                <input type="checkbox" id="tgBroadcastSelectAllBots" checked style="accent-color: #0284c7; width: 15px; height: 15px;"> All Active Bots
+              </label>
+            </div>
+            <div id="tgBroadcastBotCheckboxes" style="display: flex; flex-wrap: wrap; gap: 10px 18px;">
+              ${bots.map(b => `
+                <label style="display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--text); cursor: pointer;">
+                  <input type="checkbox" class="tg-broadcast-bot-cb" value="${escapeHtml(b.botId || b.id)}" checked style="accent-color: #6366f1; width: 14px; height: 14px;">
+                  <span>@${escapeHtml(b.username || 'Bot')}</span>
+                  ${b.isPrimary ? '<span style="font-size: 9.5px; padding: 1px 5px; border-radius: 3px; background: rgba(99,102,241,0.2); color: #a5b4fc; font-weight: 700;">PRIMARY</span>' : ''}
+                </label>
+              `).join('')}
+            </div>
+          </div>
+
           <div>
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
               <label style="font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase;">Message Content (HTML Allowed)</label>
@@ -7365,7 +8092,50 @@ function renderTelegramBotPageView(data = {}) {
         </form>
       </section>
 
-      <!-- TAB 3: Bot Token Switcher & Webhook Settings -->
+      <!-- TAB 4: Bot Users & Subscribers Audience Directory -->
+      <section id="tgTabUsers" class="tg-tab-section panel glass" style="display: ${activeTab === 'tgTabUsers' ? 'block' : 'none'}; padding: 24px 28px; border-radius: 16px; border: 1px solid var(--border); margin-bottom: 24px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px; margin-bottom: 20px; padding-bottom: 14px; border-bottom: 1px solid rgba(255,255,255,0.06);">
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <div style="width: 38px; height: 38px; border-radius: 10px; background: linear-gradient(135deg, #8b5cf6, #ec4899); display: flex; align-items: center; justify-content: center; color: white;">
+              <i data-lucide="users" style="width: 20px; height: 20px;"></i>
+            </div>
+            <div>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <h3 style="margin: 0; font-size: 17px; font-weight: 800; color: var(--text);">Subscribers & Bot Users Directory</h3>
+                <span id="tgUsersCountBadge" class="badge" style="font-size: 11px; padding: 2px 8px; background: rgba(99, 102, 241, 0.15); color: #a5b4fc; border: 1px solid rgba(99, 102, 241, 0.3);">
+                  ${usersCount} Subscribers
+                </span>
+              </div>
+              <p style="margin: 3px 0 0 0; font-size: 12px; color: var(--muted);">Realtime tracking of all users who interacted with the bot, visited via Telegram WebApp, or completed a checkout.</p>
+            </div>
+          </div>
+
+          <div class="tg-search-users-wrap" style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+            <div style="position: relative; min-width: 260px;">
+              <input type="search" id="tgUsersSearchInput" placeholder="Filter by name, @username, or ID..." class="input" style="width: 100%; padding: 8px 12px 8px 32px; font-size: 12.5px; border-radius: 8px;" />
+              <i data-lucide="search" style="width: 14px; height: 14px; position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--muted);"></i>
+            </div>
+            <button type="button" data-action="export-tg-users" class="btn btn-ghost btn-sm" style="font-size: 12px; padding: 8px 14px; border: 1px solid var(--border); border-radius: 8px;">
+              <i data-lucide="copy" style="width: 13px; height: 13px;"></i> Copy User IDs
+            </button>
+            <button type="button" data-action="refresh-tg-users" class="btn btn-primary btn-sm" style="font-size: 12px; padding: 8px 14px; border-radius: 8px; display: inline-flex; align-items: center; gap: 6px; background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white;">
+              <i data-lucide="refresh-cw" style="width: 13px; height: 13px;"></i> Refresh Users
+            </button>
+          </div>
+        </div>
+
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; font-size: 12px; color: var(--muted);">
+          <span id="tgUsersFilteredCount">Showing ${users.length} subscribers</span>
+          <span>Automatic sync on every visitor & order</span>
+        </div>
+
+        <!-- Dynamic Subscribers Table Container -->
+        <div id="tgUsersTableContainer" style="background: rgba(0,0,0,0.25); border: 1px solid var(--border); border-radius: 12px; overflow: hidden;">
+          ${renderTelegramUsersTableList(users, '')}
+        </div>
+      </section>
+
+      <!-- TAB 5: Bot Token Switcher & Webhook Settings -->
       <section id="tgTabSettings" class="tg-tab-section panel glass" style="display: ${activeTab === 'tgTabSettings' ? 'block' : 'none'}; padding: 24px 28px; border-radius: 16px; border: 1px solid rgba(99, 102, 241, 0.35); background: linear-gradient(180deg, rgba(99, 102, 241, 0.03) 0%, rgba(15, 23, 42, 0.6) 100%); margin-bottom: 24px;">
         <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.06);">
           <div style="display: flex; align-items: center; gap: 10px;">
@@ -10430,6 +11200,23 @@ function attachGlobalHandlers() {
       closePalette();
     }
   });
+
+  document.addEventListener('change', (e) => {
+    if (e.target.id === 'tgBroadcastSelectAllBots') {
+      const isChecked = e.target.checked;
+      document.querySelectorAll('.tg-broadcast-bot-cb').forEach(cb => { cb.checked = isChecked; });
+      return;
+    }
+    if (e.target.classList.contains('tg-broadcast-bot-cb')) {
+      const allCbs = document.querySelectorAll('.tg-broadcast-bot-cb');
+      const selectAll = document.getElementById('tgBroadcastSelectAllBots');
+      if (selectAll) {
+        selectAll.checked = Array.from(allCbs).every(cb => cb.checked);
+      }
+      return;
+    }
+  });
+
   document.addEventListener('click', (event) => {
     const close = event.target.closest('[data-close-modal]');
     if (close) {
@@ -10623,25 +11410,10 @@ function attachGlobalHandlers() {
         showToast('Product record not found', 'danger');
         return;
       }
-      const prodTitle = record.title || record.name || record.badge || record.id || 'Product';
-      if (!confirm(`Broadcast "${prodTitle}" to all Telegram bot users now?\n\nThis will send a notification with "View Product" and "Buy Now" buttons.`)) {
-        return;
-      }
-      showToast(`Broadcasting "${prodTitle}" to Telegram users...`, 'info');
-      try {
-        const bcRes = await fetch('/api/telegram/broadcast', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ type: 'product', product: record, ...record })
-        });
-        const bcData = await bcRes.json();
-        if (bcRes.ok && bcData?.ok) {
-          showToast(`✅ "${prodTitle}" broadcasted to ${bcData.sentCount || 0} Telegram bot users!`, 'success');
-        } else {
-          showToast(`Broadcast note: ${bcData?.error || 'Sent'}`, bcData?.ok ? 'info' : 'danger');
-        }
-      } catch (err) {
-        showToast(`Failed to broadcast: ${err.message}`, 'danger');
+      if (typeof window.openProductBroadcastModal === 'function') {
+        window.openProductBroadcastModal(record, node || 'products');
+      } else {
+        showToast('Broadcast modal initializing...', 'info');
       }
       return;
     }
@@ -10936,6 +11708,363 @@ function attachGlobalHandlers() {
       }
       return;
     }
+    if (action === 'set-bot-user-filter') {
+      const botId = actionBtn.getAttribute('data-bot-id') || 'all';
+      _tgBotData.botUserFilter = botId;
+      const tableContainer = document.getElementById('tgUsersTableContainer');
+      if (tableContainer) {
+        tableContainer.innerHTML = renderTelegramUsersTableList(_tgBotData.users || [], _tgBotData.searchFilter || '');
+        if (window.lucide) {
+          try { lucide.createIcons(); } catch (_) {}
+        }
+      }
+      return;
+    }
+    if (action === 'filter-users-by-bot') {
+      const botId = actionBtn.getAttribute('data-bot-id') || 'all';
+      const uName = actionBtn.getAttribute('data-bot-username') || 'bot';
+      _tgBotData.activeTab = 'tgTabUsers';
+      _tgBotData.botUserFilter = botId;
+      updateTelegramBotLiveUI();
+      const usersTab = document.getElementById('tgTabUsers');
+      if (usersTab) {
+        usersTab.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+      showToast(`Showing subscribers for @${uName}`, 'info');
+      return;
+    }
+    if (action === 'add-new-bot-submit') {
+      const input = document.getElementById('newBotTokenInput');
+      const feedback = document.getElementById('newBotFeedback');
+      const token = (input?.value || '').trim();
+      if (!token) {
+        showToast('Please paste the Bot Token from @BotFather', 'warning');
+        input?.focus();
+        return;
+      }
+      if (!token.includes(':') || token.length < 15) {
+        showToast('Invalid token! Bot tokens look like: 1234567890:AAH...', 'warning');
+        input?.focus();
+        return;
+      }
+
+      actionBtn.disabled = true;
+      const originalHtml = actionBtn.innerHTML;
+      actionBtn.innerHTML = '<span class="spin-loader" style="width:13px;height:13px;border:2px solid #fff;border-top-color:transparent;border-radius:50%;display:inline-block;animation:authSpin 0.75s linear infinite;margin-right:6px;"></span> Connecting...';
+
+      if (feedback) {
+        feedback.style.display = 'block';
+        feedback.style.background = 'rgba(99, 102, 241, 0.15)';
+        feedback.style.border = '1px solid rgba(99, 102, 241, 0.3)';
+        feedback.style.color = '#c7d2fe';
+        feedback.innerHTML = 'Connecting to Telegram API, configuring webhook, and setting Mini App menu button...';
+      }
+
+      try {
+        const res = await fetch(`${getBackendApiBase()}/api/telegram/bot?action=add-bot`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...getAdminAuthHeaders() },
+          body: JSON.stringify({ token })
+        });
+        const result = await res.json();
+        if (!res.ok || !result.ok || !result.bot) {
+          throw new Error(result.error || (result.message ? `Server note: ${result.message}` : 'Failed to connect bot: Server did not return connected bot details.'));
+        }
+
+        if (Array.isArray(result.bots)) {
+          _tgBotData.bots = result.bots;
+        } else if (result.bot) {
+          _tgBotData.bots = [...(_tgBotData.bots || []), result.bot];
+        }
+
+        if (feedback) {
+          feedback.style.background = 'rgba(16, 185, 129, 0.15)';
+          feedback.style.border = '1px solid rgba(16, 185, 129, 0.3)';
+          feedback.style.color = '#6ee7b7';
+          feedback.innerHTML = `🎉 <strong>Success!</strong> Bot <strong>@${escapeHtml(result.bot?.username || 'Bot')}</strong> connected and active in fleet!`;
+        }
+
+        showToast(`✅ Bot @${result.bot?.username || 'Bot'} added to fleet!`, 'success');
+        if (input) input.value = '';
+        updateTelegramBotLiveUI();
+        await loadTelegramBotAdminFullData(true);
+      } catch (err) {
+        if (feedback) {
+          feedback.style.display = 'block';
+          feedback.style.background = 'rgba(239, 68, 68, 0.15)';
+          feedback.style.border = '1px solid rgba(239, 68, 68, 0.3)';
+          feedback.style.color = '#fca5a5';
+          feedback.innerHTML = `❌ <strong>Connection Failed:</strong> ${escapeHtml(err.message || 'Error')}`;
+        }
+        showToast('Add bot failed: ' + err.message, 'danger');
+      } finally {
+        actionBtn.disabled = false;
+        actionBtn.innerHTML = originalHtml;
+      }
+      return;
+    }
+    if (action === 'toggle-bot-status-action') {
+      const botId = actionBtn.getAttribute('data-bot-id');
+      const targetStatus = actionBtn.getAttribute('data-status') || 'active';
+      if (!botId) return;
+
+      if (targetStatus === 'inactive') {
+        const proceed = window.confirm('Set this bot to INACTIVE?\n\nUsers visiting this bot will see that it is temporarily offline or in maintenance.\n\nClick OK to confirm.');
+        if (!proceed) return;
+      }
+
+      actionBtn.disabled = true;
+      const originalHtml = actionBtn.innerHTML;
+      actionBtn.innerHTML = '<span class="spin-loader" style="width:12px;height:12px;border:2px solid currentColor;border-top-color:transparent;border-radius:50%;display:inline-block;animation:authSpin 0.75s linear infinite;margin-right:4px;"></span> Updating...';
+
+      try {
+        const res = await fetch('/api/telegram/bot?action=toggle-bot-status', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...getAdminAuthHeaders() },
+          body: JSON.stringify({ botId, status: targetStatus, notifyUsers: false })
+        });
+        const result = await res.json();
+        if (!res.ok || !result.ok) {
+          throw new Error(result.error || 'Failed to toggle status');
+        }
+
+        if (Array.isArray(result.bots)) {
+          _tgBotData.bots = result.bots;
+        } else {
+          const found = (_tgBotData.bots || []).find(b => (b.botId || b.id) === botId);
+          if (found) found.status = targetStatus;
+        }
+
+        updateTelegramBotLiveUI();
+        showToast(`Bot status updated to ${targetStatus.toUpperCase()}`, 'success');
+      } catch (err) {
+        showToast('Status update error: ' + err.message, 'danger');
+      } finally {
+        actionBtn.disabled = false;
+        actionBtn.innerHTML = originalHtml;
+      }
+      return;
+    }
+    if (action === 'delete-bot-action') {
+      const botId = actionBtn.getAttribute('data-bot-id');
+      if (!botId) return;
+      if (!window.confirm('Delete this bot from your LinkAdda fleet? Its webhook will be deleted and it will stop responding to store commands.')) {
+        return;
+      }
+
+      actionBtn.disabled = true;
+      try {
+        const res = await fetch('/api/telegram/bot?action=delete-bot', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...getAdminAuthHeaders() },
+          body: JSON.stringify({ botId })
+        });
+        const result = await res.json();
+        if (!res.ok || !result.ok) {
+          throw new Error(result.error || 'Failed to delete bot');
+        }
+
+        if (Array.isArray(result.bots)) {
+          _tgBotData.bots = result.bots;
+        } else {
+          _tgBotData.bots = (_tgBotData.bots || []).filter(b => (b.botId || b.id) !== botId);
+        }
+
+        updateTelegramBotLiveUI();
+        showToast('Bot removed from fleet successfully.', 'success');
+      } catch (err) {
+        showToast('Delete bot error: ' + err.message, 'danger');
+      } finally {
+        actionBtn.disabled = false;
+      }
+      return;
+    }
+    if (action === 'set-primary-bot-action') {
+      const botId = actionBtn.getAttribute('data-bot-id');
+      if (!botId) return;
+      if (!window.confirm('Set this bot as your PRIMARY active store bot? Standard store alerts and default webhooks will route through this bot.')) {
+        return;
+      }
+      actionBtn.disabled = true;
+      try {
+        const res = await fetch(`${getBackendApiBase()}/api/telegram/bot?action=set-primary-bot`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...getAdminAuthHeaders() },
+          body: JSON.stringify({ botId })
+        });
+        const result = await res.json();
+        if (!res.ok || !result.ok) throw new Error(result.error || 'Failed to set primary bot');
+        if (Array.isArray(result.bots)) _tgBotData.bots = result.bots;
+        if (result.bot) _tgBotData.bot = result.bot;
+        updateTelegramBotLiveUI();
+        showToast(`Bot @${result.bot?.username || 'Bot'} is now your PRIMARY active bot!`, 'success');
+        await loadTelegramBotAdminFullData(true);
+      } catch (err) {
+        showToast('Set primary error: ' + err.message, 'danger');
+      } finally {
+        actionBtn.disabled = false;
+      }
+      return;
+    }
+    if (action === 'test-bot-ping-action') {
+      const botId = actionBtn.getAttribute('data-bot-id');
+      if (!botId) return;
+
+      actionBtn.disabled = true;
+      const originalHtml = actionBtn.innerHTML;
+      actionBtn.innerHTML = '<span class="spin-loader" style="width:12px;height:12px;border:2px solid currentColor;border-top-color:transparent;border-radius:50%;display:inline-block;animation:authSpin 0.75s linear infinite;"></span>';
+
+      try {
+        const res = await fetch('/api/telegram/bot?action=test-bot-ping', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...getAdminAuthHeaders() },
+          body: JSON.stringify({ botId })
+        });
+        const result = await res.json();
+        if (res.ok && result.ok) {
+          showToast('🔔 Ping delivered from bot to Admin Telegram!', 'success');
+        } else {
+          throw new Error(result.error || 'Ping failed');
+        }
+      } catch (err) {
+        showToast('Ping error: ' + err.message, 'danger');
+      } finally {
+        actionBtn.disabled = false;
+        actionBtn.innerHTML = originalHtml;
+      }
+      return;
+    }
+    if (action === 'add-admin-submit') {
+      const input = document.getElementById('newAdminChatIdInput');
+      const feedback = document.getElementById('newAdminFeedback');
+      const chatId = String(input?.value || '').trim();
+      if (!chatId) {
+        showToast('Please enter the numeric Telegram Chat ID', 'warning');
+        input?.focus();
+        return;
+      }
+      if (!/^\d{5,15}$/.test(chatId)) {
+        showToast('Invalid Chat ID! Telegram IDs are 5-15 digit numbers (e.g. 8802192472). Check with @userinfobot.', 'warning');
+        input?.focus();
+        return;
+      }
+
+      actionBtn.disabled = true;
+      const originalHtml = actionBtn.innerHTML;
+      actionBtn.innerHTML = '<span class="spin-loader" style="width:13px;height:13px;border:2px solid #fff;border-top-color:transparent;border-radius:50%;display:inline-block;animation:authSpin 0.75s linear infinite;margin-right:6px;"></span> Connecting...';
+
+      if (feedback) {
+        feedback.style.display = 'block';
+        feedback.style.background = 'rgba(245, 158, 11, 0.15)';
+        feedback.style.border = '1px solid rgba(245, 158, 11, 0.3)';
+        feedback.style.color = '#fde68a';
+        feedback.innerHTML = `Linking Telegram Admin ID <strong>${escapeHtml(chatId)}</strong> and sending welcome ping alert...`;
+      }
+
+      try {
+        const res = await fetch('/api/telegram/bot?action=add-admin', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...getAdminAuthHeaders() },
+          body: JSON.stringify({ chatId })
+        });
+        const result = await res.json();
+        if (!res.ok || !result.ok) {
+          throw new Error(result.error || 'Failed to add admin');
+        }
+
+        if (Array.isArray(result.admins)) {
+          _tgBotData.admins = result.admins;
+        } else if (!_tgBotData.admins.includes(chatId)) {
+          _tgBotData.admins.push(chatId);
+        }
+
+        if (feedback) {
+          feedback.style.background = 'rgba(16, 185, 129, 0.15)';
+          feedback.style.border = '1px solid rgba(16, 185, 129, 0.3)';
+          feedback.style.color = '#6ee7b7';
+          feedback.innerHTML = `🎉 <strong>Success!</strong> Admin ID <strong>${escapeHtml(chatId)}</strong> added! Live order alerts and approval buttons will be dispatched to this chat.`;
+        }
+
+        showToast(`👑 Admin ${chatId} connected successfully!`, 'success');
+        if (input) input.value = '';
+        updateTelegramBotLiveUI();
+      } catch (err) {
+        if (feedback) {
+          feedback.style.display = 'block';
+          feedback.style.background = 'rgba(239, 68, 68, 0.15)';
+          feedback.style.border = '1px solid rgba(239, 68, 68, 0.3)';
+          feedback.style.color = '#fca5a5';
+          feedback.innerHTML = `❌ <strong>Failed to Add Admin:</strong> ${escapeHtml(err.message || 'Error')}`;
+        }
+        showToast('Add admin failed: ' + err.message, 'danger');
+      } finally {
+        actionBtn.disabled = false;
+        actionBtn.innerHTML = originalHtml;
+      }
+      return;
+    }
+    if (action === 'remove-admin-action') {
+      const chatId = actionBtn.getAttribute('data-chat-id');
+      if (!chatId) return;
+      if (!window.confirm(`Remove admin ID ${chatId}? They will stop receiving new order notifications and payment proof.`)) {
+        return;
+      }
+
+      actionBtn.disabled = true;
+      try {
+        const res = await fetch('/api/telegram/bot?action=remove-admin', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...getAdminAuthHeaders() },
+          body: JSON.stringify({ chatId })
+        });
+        const result = await res.json();
+        if (!res.ok || !result.ok) {
+          throw new Error(result.error || 'Failed to remove admin');
+        }
+
+        if (Array.isArray(result.admins)) {
+          _tgBotData.admins = result.admins;
+        } else {
+          _tgBotData.admins = (_tgBotData.admins || []).filter(a => a !== chatId);
+        }
+
+        updateTelegramBotLiveUI();
+        showToast(`Admin ${chatId} removed.`, 'success');
+      } catch (err) {
+        showToast('Remove admin error: ' + err.message, 'danger');
+      } finally {
+        actionBtn.disabled = false;
+      }
+      return;
+    }
+    if (action === 'ping-admin-action') {
+      const chatId = actionBtn.getAttribute('data-chat-id');
+      if (!chatId) return;
+
+      actionBtn.disabled = true;
+      const originalHtml = actionBtn.innerHTML;
+      actionBtn.innerHTML = '<span class="spin-loader" style="width:12px;height:12px;border:2px solid currentColor;border-top-color:transparent;border-radius:50%;display:inline-block;animation:authSpin 0.75s linear infinite;"></span>';
+
+      try {
+        const res = await fetch('/api/telegram/bot?action=ping-admin', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...getAdminAuthHeaders() },
+          body: JSON.stringify({ chatId })
+        });
+        const result = await res.json();
+        if (res.ok && result.ok) {
+          showToast(`🔔 Ping delivered to Admin ${chatId}!`, 'success');
+        } else {
+          throw new Error(result.error || 'Ping failed');
+        }
+      } catch (err) {
+        showToast('Admin ping failed: ' + err.message, 'danger');
+      } finally {
+        actionBtn.disabled = false;
+        actionBtn.innerHTML = originalHtml;
+      }
+      return;
+    }
     if (action === 'send-tg-broadcast') {
       const msgInput = document.getElementById('tgBroadcastMsgInput');
       const photoInput = document.getElementById('tgBroadcastPhotoInput');
@@ -10950,13 +12079,29 @@ function attachGlobalHandlers() {
         return;
       }
 
+      // Read target bot fleet selection
+      const selectAllCb = document.getElementById('tgBroadcastSelectAllBots');
+      const botCbs = document.querySelectorAll('.tg-broadcast-bot-cb');
+      const selectedBotIds = [];
+      botCbs.forEach(cb => {
+        if (cb.checked && cb.value) selectedBotIds.push(cb.value);
+      });
+
+      if (botCbs.length > 0 && selectedBotIds.length === 0) {
+        showToast('Please select at least one target bot for broadcast!', 'warning');
+        return;
+      }
+
+      const isAll = Boolean(!selectAllCb || selectAllCb.checked);
+      const targetBotIds = isAll ? ['all'] : selectedBotIds;
+
       const usersCount = _tgBotData.usersCount || (_tgBotData.users || []).length;
       if (usersCount === 0) {
         showToast('No registered Telegram subscribers found to broadcast to yet.', 'warning');
         return;
       }
 
-      const confirmed = window.confirm(`Are you sure you want to broadcast this message to all ${usersCount} Telegram subscribers?`);
+      const confirmed = window.confirm(`Dispatch this broadcast to subscribers via ${targetBotIds.includes('all') ? 'All Connected Bots' : `${targetBotIds.length} selected bot(s)`}?`);
       if (!confirmed) return;
 
       actionBtn.disabled = true;
@@ -10968,7 +12113,7 @@ function attachGlobalHandlers() {
         feedback.style.background = 'rgba(56, 189, 248, 0.15)';
         feedback.style.border = '1px solid rgba(56, 189, 248, 0.3)';
         feedback.style.color = '#7dd3fc';
-        feedback.innerHTML = `Sending broadcast to ${usersCount} users via Telegram Bot API... Please wait.`;
+        feedback.innerHTML = `Sending broadcast via ${targetBotIds.includes('all') ? 'All Bots' : `${targetBotIds.length} bot(s)`}... Please wait.`;
       }
 
       try {
@@ -10976,7 +12121,8 @@ function attachGlobalHandlers() {
           message,
           photo: String(photoInput?.value || '').trim() || null,
           buttonText: String(btnTextInput?.value || '').trim() || null,
-          buttonUrl: String(btnUrlInput?.value || '').trim() || null
+          buttonUrl: String(btnUrlInput?.value || '').trim() || null,
+          targetBotIds
         };
 
         const res = await fetch('/api/telegram/bot?action=broadcast-message', {
@@ -12872,48 +14018,6 @@ async function handleRecordMediaUpload(form, node, next) {
   }
 }
 
-let syncOrdersDebounceTimer = null;
-function syncRealApprovedOrdersToSettings(data) {
-  if (syncOrdersDebounceTimer) return;
-  syncOrdersDebounceTimer = setTimeout(() => {
-    syncOrdersDebounceTimer = null;
-    try {
-      const rawOrders = data.orders || {};
-      const ordersList = Object.entries(rawOrders).map(([id, o]) => ({ ...(o || {}), id }));
-      if (!ordersList.length) return;
-
-      const approved = ordersList.filter((o) => isPaidOrder(o));
-      if (!approved.length) return;
-
-      approved.sort((a, b) => orderDateValue(b) - orderDateValue(a));
-
-      const topOrders = approved.slice(0, 10).map((o) => {
-        const name = orderProductName(o);
-        return {
-          id: o.id,
-          name,
-          productName: name,
-          amount: o.amount || o.amountINR || '',
-          approvedAt: orderDateValue(o) || Date.now(),
-        };
-      });
-
-      const currentSettings = data.settings || {};
-      const existing = Array.isArray(currentSettings.recentApproved) ? currentSettings.recentApproved : [];
-
-      const topKey = topOrders.map((o) => o.id + '::' + o.name).join('||');
-      const existKey = existing.map((o) => (o.id || '') + '::' + (o.name || o.productName || '')).join('||');
-
-      if (topKey !== existKey && topOrders.length > 0) {
-        updateRecord('settings', null, {
-          ...currentSettings,
-          recentApproved: topOrders,
-        }).catch(() => {});
-      }
-    } catch (_) {}
-  }, 1000);
-}
-
 // Instant initial render from cache (0ms - data never disappears on refresh)
 initTheme();
 attachGlobalHandlers();
@@ -12922,26 +14026,98 @@ ui.data = getSnapshot();
 renderView(ui.data || {});
 
 let renderDebounceTimer = null;
-function debouncedRenderView(data) {
+let lastRenderedRoute = '';
+let lastRenderedRouteDigest = '';
+
+function computeRouteDigest(route, data) {
+  if (!data) return '';
+  try {
+    if (route === 'catalog' || route === 'products' || route === 'categories') {
+      const pCount = data.products ? Object.keys(data.products).length : 0;
+      const cCount = data.categories ? Object.keys(data.categories).length : 0;
+      const mCount = data.media ? Object.keys(data.media).length : 0;
+      let catSig = '';
+      if (data.products) {
+        const pKeys = Object.keys(data.products);
+        if (pKeys.length > 0) {
+          const firstP = data.products[pKeys[0]];
+          const lastP = data.products[pKeys[pKeys.length - 1]];
+          catSig = `${firstP?.id}:${firstP?.updatedAt || ''}_${lastP?.id}:${lastP?.updatedAt || ''}`;
+        }
+      }
+      return `catalog_${pCount}_${cCount}_${mCount}_${catSig}`;
+    }
+    if (route === 'orders' || route === 'screenshots') {
+      const oCount = data.orders ? Object.keys(data.orders).length : 0;
+      let oSig = '';
+      if (data.orders) {
+        const oKeys = Object.keys(data.orders);
+        if (oKeys.length > 0) {
+          const lastO = data.orders[oKeys[oKeys.length - 1]];
+          oSig = `${lastO?.id}:${lastO?.status || ''}:${lastO?.updatedAt || ''}`;
+        }
+      }
+      return `orders_${oCount}_${oSig}`;
+    }
+    if (route === 'settings') {
+      return `settings_${data.settings?.updatedAt || 0}`;
+    }
+    if (route === 'payment') {
+      return `payment_${data.payment?.updatedAt || 0}`;
+    }
+    if (route === 'media') {
+      return `media_${data.media ? Object.keys(data.media).length : 0}`;
+    }
+    if (route === 'telegram') {
+      return `telegram_${data.settings?.telegramBotToken || ''}_${data.settings?.telegramNotificationBotToken || ''}`;
+    }
+    const oCount = data.orders ? Object.keys(data.orders).length : 0;
+    const vCount = data.visitors ? Object.keys(data.visitors).length : 0;
+    return `${route}_${oCount}_${vCount}`;
+  } catch (_) {
+    return String(Date.now());
+  }
+}
+
+function debouncedRenderView(data, force = false) {
   if (renderDebounceTimer) cancelAnimationFrame(renderDebounceTimer);
   renderDebounceTimer = requestAnimationFrame(() => {
     renderDebounceTimer = null;
+    const currentRoute = ui.route || 'dashboard';
+    const currentDigest = computeRouteDigest(currentRoute, data);
+
+    // Update notification badge gently without wiping DOM
+    if (notifyCount) {
+      notifyCount.textContent = String(recentActivity(12).length);
+    }
+
+    // Preserve active input focus - never wipe DOM if admin is typing
+    const activeEl = document.activeElement;
+    const isInputActive = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.isContentEditable);
+    if (isInputActive && !force) {
+      return;
+    }
+
+    // Skip DOM destruction if the current route's relevant data did not change
+    if (!force && currentRoute === lastRenderedRoute && currentDigest === lastRenderedRouteDigest) {
+      return;
+    }
+
+    lastRenderedRoute = currentRoute;
+    lastRenderedRouteDigest = currentDigest;
     renderView(data);
   });
 }
 
-// Subscribe to state updates for seamless live sync
+// Subscribe to state updates for seamless live sync (ZERO background database writes)
 subscribe((data) => {
   ui.data = data;
   debouncedRenderView(data);
-  syncRealApprovedOrdersToSettings(data);
 });
 
-// Protect route verifies auth and activates authenticated realtime sync
+// Protect route verifies auth and activates authenticated session tracking
 protectRoute((user) => {
   syncTopbar(user);
-  startRealtime(true);
-  syncAllFromFirebase(true).catch(() => {});
 
   // Live realtime listener for multi-device admin logins & locations
   try {
