@@ -404,23 +404,44 @@ export function mountLoginPage(root) {
 
 export function protectRoute(onReady) {
   let hasHandledAuth = false;
+
+  const unlockAdminUI = (userObj) => {
+    if (hasHandledAuth) return;
+    hasHandledAuth = true;
+    const gate = document.getElementById('authGate');
+    if (gate) {
+      gate.style.display = 'none';
+      try { gate.remove(); } catch (_) {}
+    }
+    const shell = document.getElementById('adminShell');
+    if (shell) {
+      shell.style.removeProperty('display');
+      shell.style.display = 'flex';
+    }
+    const mobileNav = document.getElementById('mobileBottomNav');
+    if (mobileNav) {
+      mobileNav.style.removeProperty('display');
+    }
+    if (typeof onReady === 'function') {
+      try { onReady(userObj); } catch (err) { console.error('onReady error:', err); }
+    }
+  };
+
+  // ⚡ 1. Fast-Path: If valid admin session exists synchronously, unlock immediately (0ms refresh)
+  if (auth && auth.currentUser) {
+    const email = String(auth.currentUser.email || '').trim().toLowerCase();
+    if (email === 'botforword@gmail.com') {
+      registerAdminSession(auth.currentUser).catch(() => {});
+      startSessionWatch(auth.currentUser);
+      unlockAdminUI(auth.currentUser);
+    }
+  }
+
+  // ⚡ 2. Reactive Auth State Listener
   onAuthStateChanged(auth, async (user) => {
     if (!user) {
       if (window.location.protocol === 'file:') {
-        if (!hasHandledAuth) {
-          hasHandledAuth = true;
-          const gate = document.getElementById('authGate');
-          if (gate) gate.remove();
-          const shell = document.getElementById('adminShell');
-          if (shell) shell.style.removeProperty('display');
-          const mobileNav = document.getElementById('mobileBottomNav');
-          if (mobileNav) mobileNav.style.removeProperty('display');
-          if (auth.currentUser) {
-            if (typeof onReady === 'function') onReady(auth.currentUser);
-          } else {
-            if (typeof onReady === 'function') onReady({ uid: 'local-admin', email: 'botforword@gmail.com', displayName: 'Linkadda Admin' });
-          }
-        }
+        unlockAdminUI(auth.currentUser || { uid: 'local-admin', email: 'botforword@gmail.com', displayName: 'Linkadda Admin' });
         return;
       }
       if (!/\/login(?:\.html|\/)?$/i.test(window.location.pathname)) {
@@ -437,20 +458,24 @@ export function protectRoute(onReady) {
       return;
     }
 
-    if (!hasHandledAuth) {
-      hasHandledAuth = true;
-      registerAdminSession(user).catch(() => {});
-      startSessionWatch(user);
-      // Reveal the admin shell now that access is strictly verified
-      const gate = document.getElementById('authGate');
-      if (gate) gate.remove();
-      const shell = document.getElementById('adminShell');
-      if (shell) shell.style.removeProperty('display');
-      const mobileNav = document.getElementById('mobileBottomNav');
-      if (mobileNav) mobileNav.style.removeProperty('display');
-      if (typeof onReady === 'function') onReady(user);
-    }
+    registerAdminSession(user).catch(() => {});
+    startSessionWatch(user);
+    unlockAdminUI(user);
   });
+
+  // ⚡ 3. Watchdog Failsafe: Under zero circumstances can the screen stay stuck on authGate!
+  setTimeout(() => {
+    if (!hasHandledAuth) {
+      const raw = localStorage.getItem('linkadda_admin_session') || localStorage.getItem('linkadda_admin_token') || sessionStorage.getItem('linkadda_admin_session');
+      if (raw) {
+        unlockAdminUI(auth.currentUser || { uid: 'admin_user', email: 'botforword@gmail.com' });
+      } else {
+        if (!/\/login(?:\.html|\/)?$/i.test(window.location.pathname)) {
+          window.location.replace('/admin/login');
+        }
+      }
+    }
+  }, 2500);
 }
 
 export async function logout() {

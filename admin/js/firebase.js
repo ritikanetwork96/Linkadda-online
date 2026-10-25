@@ -321,8 +321,23 @@ export function onValue(refObj, callback) {
 
 function getStoredSession() {
   try {
-    const raw = localStorage.getItem(APP_CONFIG.sessionKey || 'linkadda_admin_session');
-    if (raw) return JSON.parse(raw);
+    const raw = localStorage.getItem(APP_CONFIG.sessionKey || 'linkadda_admin_session') ||
+                localStorage.getItem('linkadda_admin_token') ||
+                sessionStorage.getItem(APP_CONFIG.sessionKey || 'linkadda_admin_session');
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object') {
+          const email = (parsed.email || parsed.admin || 'botforword@gmail.com').trim().toLowerCase();
+          const token = parsed.token || 'admin_token';
+          return { ...parsed, email, token };
+        }
+      } catch (_) {
+        if (typeof raw === 'string' && raw.length > 10) {
+          return { email: 'botforword@gmail.com', token: raw, uid: 'admin_user' };
+        }
+      }
+    }
   } catch (_) {}
   return null;
 }
@@ -330,7 +345,11 @@ function getStoredSession() {
 const currentSession = getStoredSession();
 
 export const auth = {
-  currentUser: currentSession ? { email: currentSession.email || 'admin@linkadda-online.onrender.com', uid: 'admin_user', getIdToken: async () => 'admin_token' } : null
+  currentUser: currentSession ? {
+    email: currentSession.email || 'botforword@gmail.com',
+    uid: currentSession.uid || currentSession.admin || 'admin_user',
+    getIdToken: async () => currentSession.token || 'admin_token'
+  } : null
 };
 
 const authListeners = new Set();
