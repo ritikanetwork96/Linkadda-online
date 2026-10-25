@@ -29,6 +29,22 @@
       );
 
       try {
+        var urlSearchParams = new URLSearchParams(window.location.search);
+        var qBotId = urlSearchParams.get('botId') || '';
+        var qBotUser = urlSearchParams.get('botUser') || '';
+        if (qBotId) {
+          try {
+            localStorage.setItem('linkadda_source_bot_id', qBotId);
+            sessionStorage.setItem('linkadda_source_bot_id', qBotId);
+            if (qBotUser) {
+              localStorage.setItem('linkadda_source_bot_user', qBotUser);
+              sessionStorage.setItem('linkadda_source_bot_user', qBotUser);
+            }
+          } catch (_) {}
+        }
+        var activeBotId = qBotId || localStorage.getItem('linkadda_source_bot_id') || sessionStorage.getItem('linkadda_source_bot_id') || '';
+        var activeBotUser = qBotUser || localStorage.getItem('linkadda_source_bot_user') || sessionStorage.getItem('linkadda_source_bot_user') || '';
+
         if (window.Telegram && window.Telegram.WebApp) {
           window.Telegram.WebApp.ready();
           window.Telegram.WebApp.expand();
@@ -45,6 +61,8 @@
                 first_name: tgUser.first_name || '',
                 last_name: tgUser.last_name || '',
                 username: tgUser.username || '',
+                botId: activeBotId,
+                botUser: activeBotUser,
                 source: 'payment_checkout'
               })
             }).catch(function() {});
@@ -4870,8 +4888,30 @@ async function saveOrderToFirebase(amountText, methodName) {
       }
     } catch (_) {}
 
-    // Check if running inside Telegram WebApp
+    // Check if running inside Telegram WebApp and resolve source bot
     try {
+      const qp = new URLSearchParams(window.location.search);
+      const urlBotId = qp.get('botId') || '';
+      const urlBotUser = qp.get('botUser') || '';
+      if (urlBotId) {
+        localStorage.setItem('linkadda_source_bot_id', urlBotId);
+        sessionStorage.setItem('linkadda_source_bot_id', urlBotId);
+      }
+      if (urlBotUser) {
+        localStorage.setItem('linkadda_source_bot_user', urlBotUser);
+        sessionStorage.setItem('linkadda_source_bot_user', urlBotUser);
+      }
+      const resolvedBotId = urlBotId || localStorage.getItem('linkadda_source_bot_id') || sessionStorage.getItem('linkadda_source_bot_id') || '';
+      const resolvedBotUser = urlBotUser || localStorage.getItem('linkadda_source_bot_user') || sessionStorage.getItem('linkadda_source_bot_user') || '';
+      if (resolvedBotId) {
+        payload.sourceBotId = resolvedBotId;
+        payload.source_bot_id = resolvedBotId;
+      }
+      if (resolvedBotUser) {
+        payload.sourceBotUsername = resolvedBotUser;
+        payload.source_bot_username = resolvedBotUser;
+      }
+
       const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
       if (tgUser && tgUser.id) {
         payload.telegramUserId = String(tgUser.id);
@@ -4925,6 +4965,8 @@ async function saveOrderToFirebase(amountText, methodName) {
           payment_method: payload.paymentMethod || methodName || '',
           payment_proof: payload.paymentProof || payload.screenshotUrl || '',
           utr: payload.utr || payload.transactionId || '',
+          source_bot_id: payload.sourceBotId || null,
+          source_bot_username: payload.sourceBotUsername || null,
           status: 'pending',
           data: payload
         };
@@ -4964,7 +5006,11 @@ async function saveOrderToFirebase(amountText, methodName) {
         payment_proof: payload.paymentProof || payload.screenshotUrl || '',
         utr: payload.utr || payload.transactionId || '',
         telegramUserId: payload.telegramUserId || '',
-        telegramUsername: payload.telegramUsername || ''
+        telegramUsername: payload.telegramUsername || '',
+        sourceBotId: payload.sourceBotId || '',
+        source_bot_id: payload.sourceBotId || '',
+        sourceBotUsername: payload.sourceBotUsername || '',
+        source_bot_username: payload.sourceBotUsername || ''
       };
 
       const notifyRes = await fetch(`${apiBase}/api/telegram/notify-order`, {

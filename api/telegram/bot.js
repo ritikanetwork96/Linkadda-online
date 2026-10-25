@@ -331,11 +331,12 @@ export async function toggleBotStatus(botId, newStatus, notifyUsers = false, not
         drop_pending_updates: false,
         allowed_updates: ['message', 'callback_query']
       }, target.token);
+      const storeWebUrl = `${appUrl}?botId=${target.botId}&botUser=${encodeURIComponent(target.username || '')}`;
       await callTelegram('setChatMenuButton', {
         menu_button: {
           type: 'web_app',
           text: '🛍️ Open Store',
-          web_app: { url: appUrl }
+          web_app: { url: storeWebUrl }
         }
       }, target.token).catch(() => {});
     } catch (_) {}
@@ -524,12 +525,13 @@ export async function switchTelegramBot(newToken, adminUser = 'Admin Panel', req
     webhookWarning = err.message;
   }
 
-  // 3. Set WebApp Menu Button ("Open Store")
+  // 3. Set WebApp Menu Button ("Open Store") with bot binding
+  const storeWebUrl = `${appUrl}?botId=${botUser.id}&botUser=${encodeURIComponent(botUser.username || '')}`;
   await callTelegram('setChatMenuButton', {
     menu_button: {
       type: 'web_app',
       text: '🛍️ Open Store',
-      web_app: { url: appUrl }
+      web_app: { url: storeWebUrl }
     }
   }, cleanToken).catch(() => {});
 
@@ -637,6 +639,7 @@ export async function switchTelegramBot(newToken, adminUser = 'Admin Panel', req
 
 /**
  * Store unique bot users in high-speed local store & Supabase (permanent persistence)
+ * Supports users belonging to MULTIPLE bots simultaneously!
  */
 export async function recordBotUser(fromUser, source = 'bot_interaction', sourceBotId = null) {
   if (!fromUser?.id) return;
@@ -648,11 +651,38 @@ export async function recordBotUser(fromUser, source = 'bot_interaction', source
   if (!store.users) store.users = {};
 
   const existing = store.users[uidStr] || {};
-  const boundBotId = sourceBotId || existing.sourceBotId || null;
   const cleanUsername = String(fromUser.username || existing.username || '').replace('@', '').trim();
   const rawFirstName = fromUser.first_name || fromUser.firstName || existing.firstName || '';
   const cleanFirstName = String(rawFirstName).replace(/^undefined$/i, '').trim() || (cleanUsername ? cleanUsername : 'Telegram User');
   const cleanLastName = String(fromUser.last_name || fromUser.lastName || existing.lastName || '').replace(/^undefined$/i, '').trim();
+
+  // Multi-bot mapping: preserve and accumulate all bots this user interacts with!
+  const allBots = getConnectedBots();
+  const primaryBot = allBots.find(b => b.isPrimary) || allBots[0] || { botId: 'bot_8923608774', username: 'Myshop9876_bot' };
+  const currentBot = sourceBotId ? (allBots.find(b => b.botId === sourceBotId || b.id === sourceBotId) || primaryBot) : (existing.sourceBotId ? (allBots.find(b => b.botId === existing.sourceBotId) || primaryBot) : primaryBot);
+  const currentBotId = currentBot.botId;
+  const currentBotUsername = currentBot.username;
+
+  const userBots = { ...(existing.bots || {}) };
+  if (currentBotId) {
+    userBots[currentBotId] = {
+      botId: currentBotId,
+      botUsername: currentBotUsername,
+      joinedAt: (existing.bots && existing.bots[currentBotId]?.joinedAt) || Date.now(),
+      lastActiveAt: Date.now(),
+      source: source || 'bot_start'
+    };
+  }
+  if (existing.sourceBotId && !userBots[existing.sourceBotId]) {
+    const prevB = allBots.find(b => b.botId === existing.sourceBotId);
+    userBots[existing.sourceBotId] = {
+      botId: existing.sourceBotId,
+      botUsername: prevB?.username || existing.sourceBotUsername || '',
+      joinedAt: existing.createdAt || Date.now(),
+      lastActiveAt: Date.now(),
+      source: existing.source || 'bot_start'
+    };
+  }
 
   const userObj = {
     id: uidStr,
@@ -660,17 +690,34 @@ export async function recordBotUser(fromUser, source = 'bot_interaction', source
     firstName: cleanFirstName,
     lastName: cleanLastName,
     source: isAdmin ? 'admin_tester' : (source || existing.source || 'bot_start'),
-    sourceBotId: boundBotId,
+    sourceBotId: currentBotId,
+    sourceBotUsername: currentBotUsername,
+    lastBotId: currentBotId,
+    bots: userBots,
+    sourceBotIds: Object.keys(userBots),
     isAdmin,
     createdAt: existing.createdAt || Date.now(),
     updatedAt: Date.now()
   };
   store.users[uidStr] = userObj;
 
-  // Update subscriber count on bot in store
-  if (boundBotId && store.bots && store.bots[boundBotId]) {
-    const count = Object.values(store.users).filter(u => u && u.sourceBotId === boundBotId && !u.isAdmin).length;
-    store.bots[boundBotId].subscribersCount = count;
+  // Re-calculate subscriber count across all connected bots
+  if (store.bots && typeof store.bots === 'object') {
+    const allUsersList = Object.values(store.users).filter(u => u && !u.isAdmin);
+    for (const bKey of Object.keys(store.bots)) {
+      const bObj = store.bots[bKey];
+      if (!bObj) continue;
+      const bId = String(bObj.botId || `bot_${bObj.id}` || bObj.id);
+      const bUname = String(bObj.username || '').toLowerCase();
+
+      const count = allUsersList.filter(u => {
+        if (u.bots && (u.bots[bId] || (bUname && u.bots[bUname]))) return true;
+        if (String(u.sourceBotId) === bId || String(u.lastBotId) === bId) return true;
+        if (u.sourceBotUsername && bUname && u.sourceBotUsername.toLowerCase() === bUname) return true;
+        return false;
+      }).length;
+      bObj.subscribersCount = count;
+    }
   }
 
   writeBotStore(store);
@@ -694,7 +741,16 @@ export async function recordBotUser(fromUser, source = 'bot_interaction', source
       if (getRes.ok) {
         const rows = await getRes.json();
         if (rows && rows[0] && rows[0].value && typeof rows[0].value === 'object') {
-          mergedUsers = { ...rows[0].value, ...mergedUsers };
+          for (const [k, v] of Object.entries(rows[0].value)) {
+            if (v && v.id) {
+              if (mergedUsers[k]) {
+                mergedUsers[k].bots = { ...(v.bots || {}), ...(mergedUsers[k].bots || {}) };
+                mergedUsers[k].sourceBotIds = Object.keys(mergedUsers[k].bots);
+              } else {
+                mergedUsers[k] = v;
+              }
+            }
+          }
         }
       }
     } catch (_) {}
@@ -741,8 +797,21 @@ export async function getAllBotUsers() {
       if (settingsRes && settingsRes.ok) {
         const rows = await settingsRes.json();
         if (rows && rows[0] && rows[0].value && typeof rows[0].value === 'object') {
-          // Supabase is authoritative! Merge so Supabase data takes priority over static local file
-          usersMap = { ...usersMap, ...rows[0].value };
+          // Supabase is authoritative! Merge bots maps so multiple bot associations are preserved
+          for (const [k, v] of Object.entries(rows[0].value)) {
+            if (v && v.id) {
+              if (usersMap[k]) {
+                usersMap[k] = {
+                  ...usersMap[k],
+                  ...v,
+                  bots: { ...(usersMap[k].bots || {}), ...(v.bots || {}) }
+                };
+                usersMap[k].sourceBotIds = Object.keys(usersMap[k].bots);
+              } else {
+                usersMap[k] = v;
+              }
+            }
+          }
         }
       }
 
@@ -757,20 +826,30 @@ export async function getAllBotUsers() {
             const rawCustName = ord.customer_name || data.customerName || data.name || data.firstName || '';
             const custName = String(rawCustName).replace(/^undefined$/i, '').trim() || (tgUser ? `@${tgUser}` : 'Telegram Customer');
             const hasValidTgId = tgId && tgId !== 'undefined' && tgId !== 'null';
+            const ordBotId = data.sourceBotId || ord.source_bot_id || null;
 
             // Only capture REAL telegram users (with a numeric tgId or valid @username)
             if (hasValidTgId || tgUser) {
               const userKey = hasValidTgId ? tgId : `tg_${tgUser}`;
               if (!usersMap[userKey]) {
+                const bMap = ordBotId ? { [ordBotId]: { botId: ordBotId, joinedAt: Date.now(), source: 'order_checkout' } } : {};
                 usersMap[userKey] = {
                   id: hasValidTgId ? tgId : `@${tgUser}`,
                   username: tgUser,
                   firstName: custName,
                   lastName: '',
                   source: 'order_checkout',
+                  sourceBotId: ordBotId,
+                  bots: bMap,
+                  sourceBotIds: Object.keys(bMap),
                   createdAt: new Date(ord.created_at || Date.now()).getTime(),
                   updatedAt: new Date(ord.created_at || Date.now()).getTime()
                 };
+              } else if (ordBotId && usersMap[userKey]) {
+                if (!usersMap[userKey].bots) usersMap[userKey].bots = {};
+                usersMap[userKey].bots[ordBotId] = { botId: ordBotId, joinedAt: Date.now(), source: 'order_checkout' };
+                usersMap[userKey].sourceBotIds = Object.keys(usersMap[userKey].bots);
+                usersMap[userKey].lastBotId = ordBotId;
               }
             }
           }
@@ -796,12 +875,15 @@ export async function getAllBotUsers() {
     const primaryBot = allBots.find(b => b.isPrimary) || allBots[0] || { botId: 'bot_8923608774', username: 'Myshop9876_bot' };
 
     const users = Object.values(usersMap).filter(u => u && u.id && u.source !== 'admin_account').map(u => {
-      const sId = u.sourceBotId || primaryBot.botId;
+      const sId = u.lastBotId || u.sourceBotId || primaryBot.botId;
       const bMatch = allBots.find(b => b.botId === sId) || primaryBot;
+      const uBots = u.bots && Object.keys(u.bots).length ? u.bots : { [sId]: { botId: sId, botUsername: bMatch.username } };
       return {
         ...u,
         sourceBotId: sId,
-        sourceBotUsername: u.sourceBotUsername || bMatch.username || 'Myshop9876_bot'
+        sourceBotUsername: u.sourceBotUsername || bMatch.username || 'Myshop9876_bot',
+        bots: uBots,
+        sourceBotIds: Object.keys(uBots)
       };
     });
     return users.sort((a, b) => (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0));
@@ -1104,14 +1186,37 @@ export async function notifyAdminsNewOrder(order) {
     } catch (_) {}
   }
 
-  // 3. Update Supabase order row with permanent screenshot URL if available
-  if (uploadedScreenshotUrl) {
+  // Resolve originating bot for this order so notifications and deliveries are 100% accurate
+  const store = readBotStore();
+  const allBots = getConnectedBots();
+  const primaryBot = allBots.find(b => b.isPrimary) || allBots[0] || { botId: 'bot_8923608774', username: 'Myshop9876_bot', token: store.activeToken };
+
+  const customerTgId = order.telegramUserId || order.data?.telegramUserId || order.telegram_user_id;
+  const userRecord = customerTgId ? store.users?.[String(customerTgId)] : null;
+  const rawBotId = order.sourceBotId || order.data?.sourceBotId || userRecord?.lastBotId || userRecord?.sourceBotId || null;
+  const originatingBot = (rawBotId ? allBots.find(b => b.botId === rawBotId || b.id === rawBotId) : null) || primaryBot;
+  const originatingToken = originatingBot.token || primaryBot.token;
+
+  // Persist resolved bot onto order data so Supabase and future callbacks remember it
+  order.sourceBotId = originatingBot.botId;
+  order.sourceBotUsername = originatingBot.username;
+
+  // 3. Update Supabase order row with permanent screenshot URL and resolved source bot
+  if (uploadedScreenshotUrl || originatingBot.botId) {
     try {
       const { url, key } = getSupabaseConfig();
       fetch(`${url}/rest/v1/orders?id=eq.${encodeURIComponent(orderId)}`, {
         method: 'PATCH',
         headers: { 'apikey': key, 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ payment_proof: uploadedScreenshotUrl, updated_at: new Date().toISOString() })
+        body: JSON.stringify({ 
+          payment_proof: uploadedScreenshotUrl || undefined, 
+          updated_at: new Date().toISOString(),
+          data: {
+            ...(order.data || {}),
+            sourceBotId: originatingBot.botId,
+            sourceBotUsername: originatingBot.username
+          }
+        })
       }).catch(() => {});
     } catch (_) {}
   }
@@ -1120,6 +1225,7 @@ export async function notifyAdminsNewOrder(order) {
     `🚨 <b>NEW ORDER RECEIVED!</b>\n` +
     `━━━━━━━━━━━━━━━━━━━━━━\n` +
     `🆔 <b>Order ID:</b> <code>${orderId}</code>\n` +
+    `🤖 <b>Bot Channel:</b> <b>@${escapeTelegramHtml(originatingBot.username || 'Bot')}</b>\n` +
     `📦 <b>Product:</b> <b>${escapeTelegramHtml(productTitle)}</b>\n` +
     `💰 <b>Amount:</b> <b>${amount}</b>\n` +
     `💳 <b>Payment Method:</b> ${method}\n` +
@@ -1147,6 +1253,7 @@ export async function notifyAdminsNewOrder(order) {
   for (const adminId of adminIds) {
     let sentRes = null;
     let isPhoto = false;
+    let usedToken = originatingToken;
 
     // A. Priority 1: Direct Binary Multipart Upload (100% Reliable, Zero CDN failure)
     if (photoBuffer && photoBuffer.length > 200) {
@@ -1159,12 +1266,17 @@ export async function notifyAdminsNewOrder(order) {
         const blob = new Blob([photoBuffer], { type: 'image/jpeg' });
         formData.append('photo', blob, `payment_${orderId}.jpg`);
 
-        const pRes = await callTelegram('sendPhoto', formData);
-        if (pRes && pRes.ok) {
-          sentRes = pRes;
+        sentRes = await callTelegram('sendPhoto', formData, originatingToken);
+        if (sentRes && sentRes.ok) {
           isPhoto = true;
-        } else {
-          console.warn(`Multipart sendPhoto note for admin ${adminId}:`, pRes?.description || 'failed');
+        } else if (originatingToken !== primaryBot.token) {
+          // If sending from originating bot failed (e.g. admin has not started bot B), fallback to primary bot
+          const fallbackRes = await callTelegram('sendPhoto', formData, primaryBot.token);
+          if (fallbackRes && fallbackRes.ok) {
+            sentRes = fallbackRes;
+            isPhoto = true;
+            usedToken = primaryBot.token;
+          }
         }
       } catch (uploadErr) {
         console.warn(`Multipart sendPhoto error for admin ${adminId}:`, uploadErr.message);
@@ -1174,16 +1286,29 @@ export async function notifyAdminsNewOrder(order) {
     // B. Priority 2: Remote URL sendPhoto fallback
     if (!sentRes && viewScreenshotUrl) {
       try {
-        const pUrlRes = await callTelegram('sendPhoto', {
+        sentRes = await callTelegram('sendPhoto', {
           chat_id: adminId,
           photo: viewScreenshotUrl,
           caption: caption,
           parse_mode: 'HTML',
           reply_markup: inlineKeyboard
-        });
-        if (pUrlRes && pUrlRes.ok) {
-          sentRes = pUrlRes;
+        }, originatingToken);
+
+        if (sentRes && sentRes.ok) {
           isPhoto = true;
+        } else if (originatingToken !== primaryBot.token) {
+          const fallbackRes = await callTelegram('sendPhoto', {
+            chat_id: adminId,
+            photo: viewScreenshotUrl,
+            caption: caption,
+            parse_mode: 'HTML',
+            reply_markup: inlineKeyboard
+          }, primaryBot.token);
+          if (fallbackRes && fallbackRes.ok) {
+            sentRes = fallbackRes;
+            isPhoto = true;
+            usedToken = primaryBot.token;
+          }
         }
       } catch (_) {}
     }
@@ -1195,7 +1320,17 @@ export async function notifyAdminsNewOrder(order) {
         text: caption + (viewScreenshotUrl ? `\n\n📸 <b>Payment Proof:</b> <a href="${viewScreenshotUrl}">Tap to View Screenshot</a>` : ''),
         parse_mode: 'HTML',
         reply_markup: inlineKeyboard
-      });
+      }, originatingToken);
+
+      if (!sentRes?.ok && originatingToken !== primaryBot.token) {
+        sentRes = await callTelegram('sendMessage', {
+          chat_id: adminId,
+          text: caption + (viewScreenshotUrl ? `\n\n📸 <b>Payment Proof:</b> <a href="${viewScreenshotUrl}">Tap to View Screenshot</a>` : ''),
+          parse_mode: 'HTML',
+          reply_markup: inlineKeyboard
+        }, primaryBot.token);
+        usedToken = primaryBot.token;
+      }
       isPhoto = false;
     }
 
@@ -1206,6 +1341,8 @@ export async function notifyAdminsNewOrder(order) {
       sentAdminMessages.push({
         chatId: String(adminId),
         messageId: sentRes.result.message_id,
+        botId: originatingBot.botId,
+        botToken: usedToken,
         isPhoto,
         caption,
         sentAt: Date.now()
@@ -1229,9 +1366,9 @@ export async function notifyAdminsNewOrder(order) {
     }
   }
 
-  // Send instant receipt / acknowledgement to customer if they ordered via Telegram WebApp
+  // Send instant receipt / acknowledgement to customer via the EXACT bot they ordered from
   if (order.telegramUserId) {
-    await callTelegram('sendMessage', {
+    let custRes = await callTelegram('sendMessage', {
       chat_id: order.telegramUserId,
       text: 
         `🕒 <b>Order #${orderId} Received!</b>\n\n` +
@@ -1240,7 +1377,21 @@ export async function notifyAdminsNewOrder(order) {
         `🔍 Admin is currently reviewing your payment proof and transaction reference. <b>You will receive an instant notification right here once verified.</b>\n\n` +
         `For 24/7 priority support: @VIP_KINK`,
       parse_mode: 'HTML'
-    });
+    }, originatingToken);
+
+    // Fallback: If originating bot returned error, try primary bot so customer gets receipt
+    if (!custRes?.ok && originatingToken !== primaryBot.token) {
+      await callTelegram('sendMessage', {
+        chat_id: order.telegramUserId,
+        text: 
+          `🕒 <b>Order #${orderId} Received!</b>\n\n` +
+          `📦 <b>Product:</b> ${escapeTelegramHtml(productTitle)}\n` +
+          `💰 <b>Amount:</b> ${amount}\n\n` +
+          `🔍 Admin is currently reviewing your payment proof and transaction reference. <b>You will receive an instant notification right here once verified.</b>\n\n` +
+          `For 24/7 priority support: @VIP_KINK`,
+        parse_mode: 'HTML'
+      }, primaryBot.token).catch(() => {});
+    }
   }
 
   return { ok: true, sentTo: adminIds.length };
@@ -1349,8 +1500,15 @@ async function processOrderApproval(orderId, adminUser) {
   } catch (_) {}
 
   // ━━ LIVE SYNC: Update all Telegram Admin Messages for this Order ━━
+  const allBots = getConnectedBots();
+  const primaryBot = allBots.find(b => b.isPrimary) || allBots[0] || { botId: 'bot_8923608774', username: 'Myshop9876_bot', token: store.activeToken };
+  const customerTgId = order?.telegram_user_id || order?.data?.telegramUserId || order?.telegramUserId;
+  const userRecord = customerTgId ? store.users?.[String(customerTgId)] : null;
+  const rawBotId = order?.sourceBotId || order?.data?.sourceBotId || userRecord?.lastBotId || userRecord?.sourceBotId || null;
+  const deliveryBot = (rawBotId ? allBots.find(b => b.botId === rawBotId || b.id === rawBotId) : null) || primaryBot;
+  const deliveryToken = deliveryBot.token;
+
   try {
-    const store = readBotStore();
     const adminMsgs = store.orderAdminMessages?.[orderId] || [];
     const approvedTag = `\n\n━━━━━━━━━━━━━━━━━━━━━━\n✅ <b>APPROVED by ${escapeTelegramHtml(adminName)}</b>\n⚡ Status: Verified & VIP Access Dispatched`;
     const approvedKeyboard = {
@@ -1360,6 +1518,7 @@ async function processOrderApproval(orderId, adminUser) {
     };
 
     for (const msg of adminMsgs) {
+      const msgToken = msg.botToken || deliveryToken;
       if (msg.isPhoto) {
         await callTelegram('editMessageCaption', {
           chat_id: msg.chatId,
@@ -1367,7 +1526,7 @@ async function processOrderApproval(orderId, adminUser) {
           caption: (msg.caption || `🚨 <b>Order #${orderId}</b>`) + approvedTag,
           parse_mode: 'HTML',
           reply_markup: approvedKeyboard
-        });
+        }, msgToken).catch(() => {});
       } else {
         await callTelegram('editMessageText', {
           chat_id: msg.chatId,
@@ -1375,18 +1534,18 @@ async function processOrderApproval(orderId, adminUser) {
           text: (msg.caption || `🚨 <b>Order #${orderId}</b>`) + approvedTag,
           parse_mode: 'HTML',
           reply_markup: approvedKeyboard
-        });
+        }, msgToken).catch(() => {});
       }
     }
   } catch (adminEditErr) {
     console.warn('Could not update admin message in Telegram:', adminEditErr.message);
   }
 
-  // Notify customer on Telegram if customer TG User ID exists
-  const customerTgId = order?.telegram_user_id || order?.data?.telegramUserId || order?.telegramUserId;
+  // Notify customer on Telegram via the EXACT bot they ordered from
   if (customerTgId) {
     const appUrl = getAppUrl();
     const productTitle = order?.product_title || order?.title || order?.data?.product_title || 'VIP Pack';
+    const storeWebUrl = `${appUrl}?botId=${deliveryBot.botId}&botUser=${deliveryBot.username}`;
 
     if (channelLink) {
       const accessUrl = `${appUrl}/api/telegram/bot?action=access&orderId=${encodeURIComponent(orderId)}`;
@@ -1401,18 +1560,41 @@ async function processOrderApproval(orderId, adminUser) {
         `• If unread, it automatically self-destructs after <b>3 hours</b>.\n\n` +
         `💬 <b>24/7 Lifetime Support:</b> @VIP_KINK`;
 
-      const sendRes = await callTelegram('sendMessage', {
+      let sendRes = await callTelegram('sendMessage', {
         chat_id: customerTgId,
         text: approvalText,
         parse_mode: 'HTML',
         reply_markup: {
           inline_keyboard: [
             [{ text: '🚀 Open VIP Access Link', url: accessUrl }],
-            [{ text: '🛍️ Open Store', web_app: { url: appUrl } }],
+            [{ text: '🛍️ Open Store', web_app: { url: storeWebUrl } }],
             [{ text: '💬 Support Desk (@VIP_KINK)', url: 'https://t.me/VIP_KINK' }]
           ]
         }
-      });
+      }, deliveryToken);
+
+      // Fallback: If target bot returned error (user blocked or didn't start), try other bots user is in
+      if (!sendRes?.ok && userRecord?.bots) {
+        for (const [altBotId, bInfo] of Object.entries(userRecord.bots)) {
+          if (altBotId === deliveryBot.botId) continue;
+          const altBot = allBots.find(b => b.botId === altBotId);
+          if (altBot && altBot.token) {
+            sendRes = await callTelegram('sendMessage', {
+              chat_id: customerTgId,
+              text: approvalText,
+              parse_mode: 'HTML',
+              reply_markup: {
+                inline_keyboard: [
+                  [{ text: '🚀 Open VIP Access Link', url: accessUrl }],
+                  [{ text: '🛍️ Open Store', web_app: { url: `${appUrl}?botId=${altBot.botId}&botUser=${altBot.username}` } }],
+                  [{ text: '💬 Support Desk (@VIP_KINK)', url: 'https://t.me/VIP_KINK' }]
+                ]
+              }
+            }, altBot.token).catch(() => null);
+            if (sendRes?.ok) break;
+          }
+        }
+      }
 
       // Register in smart deletion engine (3-hour TTL if unread; switches to 2 mins upon activity/read)
       if (sendRes?.ok && sendRes?.result?.message_id) {
@@ -1434,7 +1616,7 @@ async function processOrderApproval(orderId, adminUser) {
             [{ text: '💬 Get Link from Admin (@VIP_KINK)', url: `https://t.me/VIP_KINK?text=${encodeURIComponent(`Hi Admin, my order #${orderId} is approved. Please provide my Telegram access link.`)}` }]
           ]
         }
-      });
+      }, deliveryToken);
     }
   }
 
@@ -1952,11 +2134,12 @@ export async function ensureWebhookActive(req = null) {
           drop_pending_updates: false,
           allowed_updates: ['message', 'callback_query']
         }, bot.token).catch(() => {});
+        const storeWebUrl = `${appUrl}?botId=${bot.botId}&botUser=${encodeURIComponent(bot.username || '')}`;
         await callTelegram('setChatMenuButton', {
           menu_button: {
             type: 'web_app',
             text: '🛍️ Open Store',
-            web_app: { url: appUrl }
+            web_app: { url: storeWebUrl }
           }
         }, bot.token).catch(() => {});
       }
@@ -1991,11 +2174,14 @@ export default async function handler(req, res) {
       allowed_updates: ['message', 'callback_query']
     });
     // Rebind Telegram mini app button
+    const allBots = getConnectedBots();
+    const primaryBot = allBots.find(b => b.isPrimary) || allBots[0] || { botId: 'bot_8923608774', username: 'Myshop9876_bot' };
+    const storeWebUrl = `${appUrl}?botId=${primaryBot.botId}&botUser=${encodeURIComponent(primaryBot.username || '')}`;
     await callTelegram('setChatMenuButton', {
       menu_button: {
         type: 'web_app',
         text: '🛍️ Open Store',
-        web_app: { url: appUrl }
+        web_app: { url: storeWebUrl }
       }
     }).catch(() => {});
     const webhookInfo = await callTelegram('getWebhookInfo');
@@ -2247,12 +2433,13 @@ export default async function handler(req, res) {
         allowed_updates: ['message', 'callback_query']
       }, cleanToken);
 
-      // Bind WebApp Menu Button
+      // Bind WebApp Menu Button with bot identification
+      const storeWebUrl = `${appUrl}?botId=${botId}&botUser=${encodeURIComponent(tgInfo.username || '')}`;
       await callTelegram('setChatMenuButton', {
         menu_button: {
           type: 'web_app',
           text: '🛍️ Open Store',
-          web_app: { url: appUrl }
+          web_app: { url: storeWebUrl }
         }
       }, cleanToken).catch(() => {});
 
@@ -2322,11 +2509,12 @@ export default async function handler(req, res) {
         drop_pending_updates: false,
         allowed_updates: ['message', 'callback_query']
       }, target.token).catch(() => {});
+      const storeWebUrl = `${appUrl}?botId=${target.botId}&botUser=${encodeURIComponent(target.username || '')}`;
       await callTelegram('setChatMenuButton', {
         menu_button: {
           type: 'web_app',
           text: '🛍️ Open Store',
-          web_app: { url: appUrl }
+          web_app: { url: storeWebUrl }
         }
       }, target.token).catch(() => {});
 
@@ -2665,11 +2853,13 @@ export default async function handler(req, res) {
         if (text === '/start' || text.startsWith('/start')) {
           const payload = text.replace('/start', '').trim();
           const appUrl = getAppUrl(req);
+          const botParam = currentBotId ? `botId=${encodeURIComponent(currentBotId)}&botUser=${encodeURIComponent(receivingBot?.username || '')}` : '';
+          const storeWebUrl = botParam ? `${appUrl}?${botParam}` : appUrl;
 
           if (payload) {
             // User opened bot via deep link for a specific product e.g. /start prod_123
-            const productViewUrl = `${appUrl}/index.html?productId=${encodeURIComponent(payload)}`;
-            const checkoutUrl = `${appUrl}/payment.html?productId=${encodeURIComponent(payload)}`;
+            const productViewUrl = `${appUrl}/index.html?productId=${encodeURIComponent(payload)}${botParam ? `&${botParam}` : ''}`;
+            const checkoutUrl = `${appUrl}/payment.html?productId=${encodeURIComponent(payload)}${botParam ? `&${botParam}` : ''}`;
             const safeName = escapeTelegramHtml(payload.replace(/[-_]+/g, ' '));
 
             await callTelegram('sendMessage', {
@@ -2683,7 +2873,7 @@ export default async function handler(req, res) {
                 inline_keyboard: [
                   [{ text: '👀 View Product (Photos & Demo)', web_app: { url: productViewUrl } }],
                   [{ text: '⚡ Buy Now & Unlock Access', web_app: { url: checkoutUrl } }],
-                  [{ text: '🛍️ Open VIP Store', web_app: { url: appUrl } }],
+                  [{ text: '🛍️ Open VIP Store', web_app: { url: storeWebUrl } }],
                   [{ text: '💬 Support Desk (@VIP_KINK)', url: 'https://t.me/VIP_KINK' }]
                 ]
               }
@@ -2706,7 +2896,7 @@ export default async function handler(req, res) {
             parse_mode: 'HTML',
             reply_markup: {
               inline_keyboard: [
-                [{ text: '🛍️ Open Store (VIP Content)', web_app: { url: appUrl } }],
+                [{ text: '🛍️ Open Store (VIP Content)', web_app: { url: storeWebUrl } }],
                 [{ text: '💬 Support Desk (@VIP_KINK)', url: 'https://t.me/VIP_KINK' }]
               ]
             }

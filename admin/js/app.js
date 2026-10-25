@@ -7274,20 +7274,47 @@ function renderTelegramUsersTableList(users = [], filter = '') {
   const fleetBots = (_tgBotData.bots && _tgBotData.bots.length) ? _tgBotData.bots : [_tgBotData.bot].filter(Boolean);
   const primaryBot = fleetBots.find(b => b.isPrimary) || fleetBots[0] || { username: 'Myshop9876_bot', id: '8923608774', botId: 'bot_8923608774' };
 
+  // Helper to check if a user belongs to a specific bot (supports users in multiple bots)
+  function userBelongsToBot(u, targetBot) {
+    if (!u || !targetBot) return false;
+    const bId = String(targetBot.botId || `bot_${targetBot.id}` || targetBot.id || '');
+    const rawId = String(targetBot.id || '');
+    const bUname = String(targetBot.username || '').toLowerCase();
+
+    // 1. Check user.bots dictionary
+    if (u.bots && typeof u.bots === 'object') {
+      if (u.bots[bId] || (rawId && u.bots[`bot_${rawId}`]) || (rawId && u.bots[rawId])) return true;
+      if (bUname && u.bots[bUname]) return true;
+      for (const [k, v] of Object.entries(u.bots)) {
+        if (k === bId || k === rawId || k === `bot_${rawId}`) return true;
+        if (v && ((v.botId && (v.botId === bId || v.botId === rawId)) || (v.username && v.username.toLowerCase() === bUname))) return true;
+      }
+    }
+
+    // 2. Check sourceBotIds array
+    if (Array.isArray(u.sourceBotIds)) {
+      if (u.sourceBotIds.includes(bId) || (rawId && u.sourceBotIds.includes(rawId)) || (rawId && u.sourceBotIds.includes(`bot_${rawId}`))) return true;
+    }
+
+    // 3. Check scalar sourceBotId
+    const uBotId = String(u.sourceBotId || '');
+    if (uBotId && (uBotId === bId || uBotId === rawId || (rawId && uBotId === `bot_${rawId}`))) return true;
+
+    // 4. Check sourceBotUsername
+    const uBotUname = String(u.sourceBotUsername || '').toLowerCase();
+    if (uBotUname && bUname && uBotUname === bUname) return true;
+
+    // 5. Fallback for primary bot if user has no bot records
+    if (!uBotId && !uBotUname && (!u.bots || !Object.keys(u.bots).length) && targetBot.isPrimary) return true;
+
+    return false;
+  }
+
   // Calculate user counts per bot
   const botCounts = {};
   fleetBots.forEach(b => {
     const bId = String(b.botId || `bot_${b.id}` || b.id || '');
-    const bUname = String(b.username || '').toLowerCase();
-    const count = users.filter(u => {
-      const uBotId = String(u.sourceBotId || '');
-      const uBotUname = String(u.sourceBotUsername || '').toLowerCase();
-      if (uBotId && (uBotId === bId || uBotId === String(b.id))) return true;
-      if (uBotUname && bUname && uBotUname === bUname) return true;
-      if (!uBotId && !uBotUname && b.isPrimary) return true;
-      return false;
-    }).length;
-    botCounts[bId] = count;
+    botCounts[bId] = users.filter(u => userBelongsToBot(u, b)).length;
   });
 
   // Filter users by selected bot
@@ -7295,17 +7322,9 @@ function renderTelegramUsersTableList(users = [], filter = '') {
   let activeBotLabel = 'All Connected Bots';
   if (currentBotFilter !== 'all') {
     const targetBot = fleetBots.find(b => String(b.botId || `bot_${b.id}` || b.id) === currentBotFilter);
-    const targetUname = targetBot && targetBot.username ? String(targetBot.username).toLowerCase() : '';
     if (targetBot) {
       activeBotLabel = `@${targetBot.username || 'Selected Bot'}`;
-      botFilteredUsers = users.filter(u => {
-        const uBotId = String(u.sourceBotId || '');
-        const uBotUname = String(u.sourceBotUsername || '').toLowerCase();
-        if (uBotId && (uBotId === currentBotFilter || (targetBot.id && uBotId === String(targetBot.id)))) return true;
-        if (uBotUname && targetUname && uBotUname === targetUname) return true;
-        if (!uBotId && !uBotUname && targetBot.isPrimary) return true;
-        return false;
-      });
+      botFilteredUsers = users.filter(u => userBelongsToBot(u, targetBot));
     }
   }
 
@@ -7412,8 +7431,18 @@ function renderTelegramUsersTableList(users = [], filter = '') {
               const isAdmin = u.isAdmin || u.source === 'admin_tester' || u.source === 'admin_account';
               const sourceLabel = isAdmin ? 'Admin / Tester' : (u.source === 'mini_app_visit' ? 'Mini App Visit' : (u.source === 'order_checkout' ? 'Order Checkout' : (u.source === 'customer_order' ? 'Store Buyer' : 'Bot /start')));
               const sourceColor = isAdmin ? '#ec4899' : (u.source === 'mini_app_visit' ? '#38bdf8' : (u.source === 'order_checkout' || u.source === 'customer_order' ? '#10b981' : '#a855f7'));
-              const timeStr = u.updatedAt ? formatRelativeTime(u.updatedAt) : 'Recently';
-              const botChannel = u.sourceBotUsername || (primaryBot ? primaryBot.username : 'Myshop9876_bot');
+              // Render badges for all bots this user belongs to
+              let botBadges = [];
+              fleetBots.forEach(b => {
+                if (userBelongsToBot(u, b)) {
+                  botBadges.push(`@${b.username || 'Bot'}`);
+                }
+              });
+              if (!botBadges.length) {
+                const fbName = u.sourceBotUsername || (primaryBot ? primaryBot.username : 'Myshop9876_bot');
+                botBadges.push(`@${fbName}`);
+              }
+              botBadges = [...new Set(botBadges)];
 
               return `
                 <tr style="border-bottom: 1px solid rgba(255,255,255,0.04); transition: background 0.15s ease;">
@@ -7428,9 +7457,13 @@ function renderTelegramUsersTableList(users = [], filter = '') {
                     </div>
                   </td>
                   <td style="padding: 12px 16px; white-space: nowrap;">
-                    <span style="display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 6px; background: rgba(56, 189, 248, 0.12); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); font-size: 11.5px; font-weight: 700;">
-                      <i data-lucide="bot" style="width: 12px; height: 12px;"></i> @${escapeHtml(botChannel)}
-                    </span>
+                    <div style="display: flex; flex-wrap: wrap; gap: 4px;">
+                      ${botBadges.map(bName => `
+                        <span style="display: inline-flex; align-items: center; gap: 3px; padding: 2.5px 7px; border-radius: 6px; background: rgba(56, 189, 248, 0.12); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); font-size: 11px; font-weight: 700;">
+                          <i data-lucide="bot" style="width: 11px; height: 11px;"></i> ${escapeHtml(bName)}
+                        </span>
+                      `).join('')}
+                    </div>
                   </td>
                   <td style="padding: 12px 16px; white-space: nowrap;">
                     ${hasUsername 
@@ -12790,9 +12823,12 @@ function attachGlobalHandlers() {
 
         await updateRecord('orders', id, approvedPayload);
 
-        // Notify customer on Telegram Bot if order was placed via Telegram
+        // Instantly update in-memory order object
+        if (order) Object.assign(order, approvedPayload);
+
+        // Notify customer on Telegram Bot via the exact bot they ordered from
         try {
-          fetch('/api/telegram/bot?action=approve-order', {
+          const tgNotifyRes = await fetch('/api/telegram/bot?action=approve-order', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', ...getAdminAuthHeaders() },
             body: JSON.stringify({
@@ -12802,8 +12838,12 @@ function attachGlobalHandlers() {
                 username: userEmail?.textContent || userName?.textContent || 'admin'
               }
             })
-          }).catch(e => console.warn('Telegram bot notify on approve warning:', e));
-        } catch (_) {}
+          });
+          const tgResult = await tgNotifyRes.json().catch(() => null);
+          console.log('[Telegram Bot Order Approval Dispatch Result]:', tgResult);
+        } catch (e) {
+          console.warn('Telegram bot notify on approve warning:', e);
+        }
 
         // Also write to order_approvals for instantaneous client-side notification sync
         try {
@@ -12883,7 +12923,12 @@ function attachGlobalHandlers() {
         }
 
         closeModal();
-        showToast('✅ Order approved! Telegram link dispatched to buyer.', 'success');
+        const deliveryBotLabel = order.sourceBotUsername ? `@${order.sourceBotUsername}` : 'Telegram';
+        showToast(`✅ Order #${id} approved! VIP access link dispatched via ${deliveryBotLabel}.`, 'success');
+        actionBtn.disabled = true;
+        actionBtn.innerHTML = '<i data-lucide="check-circle" style="width: 14px; height: 14px;"></i> Approved';
+        actionBtn.classList.remove('is-loading');
+        actionBtn.classList.add('btn-success');
         renderView(ui.data || {});
       } catch (err) {
         showToast('Failed to approve order: ' + (err?.message || err), 'danger');

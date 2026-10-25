@@ -59,6 +59,9 @@ export default async function handler(req, res) {
     const utr = order.utr || order.transactionId || '';
     const custName = order.customer_name || order.customerName || order.name || order.buyerName || (order.telegramUsername ? `@${order.telegramUsername}` : 'Customer');
 
+    const sourceBotId = order.sourceBotId || order.source_bot_id || order.data?.sourceBotId || null;
+    const sourceBotUsername = order.sourceBotUsername || order.source_bot_username || order.data?.sourceBotUsername || null;
+
     const orderRow = {
       id: orderId,
       order_id: orderId,
@@ -82,9 +85,13 @@ export default async function handler(req, res) {
         paymentMethod: method,
         paymentProof: proof,
         utr,
-        customerName: custName
+        customerName: custName,
+        sourceBotId,
+        sourceBotUsername
       }
     };
+    if (sourceBotId) orderRow.source_bot_id = sourceBotId;
+    if (sourceBotUsername) orderRow.source_bot_username = sourceBotUsername;
 
     let supabaseSaved = false;
     try {
@@ -120,7 +127,9 @@ export default async function handler(req, res) {
         product_title: prodTitle,
         amount: order.amount || `₹${cleanAmt}`,
         payment_proof: proof,
-        utr: utr
+        utr: utr,
+        sourceBotId,
+        sourceBotUsername
       });
     } catch (tgErr) {
       console.warn('notifyAdminsNewOrder error in endpoint:', tgErr.message);

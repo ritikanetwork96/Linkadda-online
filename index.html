@@ -29,6 +29,22 @@
       );
 
       try {
+        var urlSearchParams = new URLSearchParams(window.location.search);
+        var qBotId = urlSearchParams.get('botId') || '';
+        var qBotUser = urlSearchParams.get('botUser') || '';
+        if (qBotId) {
+          try {
+            localStorage.setItem('linkadda_source_bot_id', qBotId);
+            sessionStorage.setItem('linkadda_source_bot_id', qBotId);
+            if (qBotUser) {
+              localStorage.setItem('linkadda_source_bot_user', qBotUser);
+              sessionStorage.setItem('linkadda_source_bot_user', qBotUser);
+            }
+          } catch (_) {}
+        }
+        var activeBotId = qBotId || localStorage.getItem('linkadda_source_bot_id') || sessionStorage.getItem('linkadda_source_bot_id') || '';
+        var activeBotUser = qBotUser || localStorage.getItem('linkadda_source_bot_user') || sessionStorage.getItem('linkadda_source_bot_user') || '';
+
         if (window.Telegram && window.Telegram.WebApp) {
           window.Telegram.WebApp.ready();
           window.Telegram.WebApp.expand();
@@ -45,6 +61,8 @@
                 first_name: tgUser.first_name || '',
                 last_name: tgUser.last_name || '',
                 username: tgUser.username || '',
+                botId: activeBotId,
+                botUser: activeBotUser,
                 source: 'mini_app_visit'
               })
             }).catch(function() {});
@@ -1588,6 +1606,16 @@
     if (item.usd) params.set('usd', String(item.usd).replace(/[^\d.]/g, ''));
     if (item.tier) params.set('tier', item.tier);
 
+    let activeBotId = '';
+    let activeBotUser = '';
+    try {
+      const qp = new URLSearchParams(window.location.search);
+      activeBotId = qp.get('botId') || localStorage.getItem('linkadda_source_bot_id') || sessionStorage.getItem('linkadda_source_bot_id') || '';
+      activeBotUser = qp.get('botUser') || localStorage.getItem('linkadda_source_bot_user') || sessionStorage.getItem('linkadda_source_bot_user') || '';
+    } catch (_) {}
+    if (activeBotId) params.set('botId', activeBotId);
+    if (activeBotUser) params.set('botUser', activeBotUser);
+
     const queryString = params.toString() ? `?${params.toString()}` : '';
     const fallback = `payment${ext}${queryString}`;
     if (!raw) return fallback;
@@ -1604,6 +1632,8 @@
         if (item.inr) p.set('inr', String(item.inr).replace(/[^\d.]/g, ''));
         if (item.usd) p.set('usd', String(item.usd).replace(/[^\d.]/g, ''));
         if (item.tier) p.set('tier', item.tier);
+        if (activeBotId && !p.has('botId')) p.set('botId', activeBotId);
+        if (activeBotUser && !p.has('botUser')) p.set('botUser', activeBotUser);
         return `payment${ext}?${p.toString()}`;
       }
     } catch (_) {}
