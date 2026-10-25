@@ -12559,3 +12559,171 @@ button.is-loading::after {
     padding: 7px 12px !important;
   }
 }
+
+/* ═════════════════════════════════════════════════════════════════════
+   PREMIUM MULTI-DEVICE RESPONSIVE POLISH & MODERN UI AESTHETICS
+   Applies across Mobile (320px-480px), Phablets (480px-768px), Tablets (768px-1024px)
+   ═════════════════════════════════════════════════════════════════════ */
+
+/* ── Modern Premium Buttons & Micro-Interactions ── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  border-radius: 11px;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.btn:active {
+  transform: scale(0.97);
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%) !important;
+  border: 1px solid rgba(165, 180, 252, 0.35) !important;
+  box-shadow: 0 4px 14px rgba(79, 70, 229, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.22) !important;
+  color: #ffffff !important;
+}
+
+.btn-primary:hover {
+  background: linear-gradient(135deg, #4338ca 0%, #6d28d9 100%) !important;
+  box-shadow: 0 6px 20px rgba(79, 70, 229, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
+  transform: translateY(-1px);
+}
+
+.btn-ghost {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  color: var(--text) !important;
+  backdrop-filter: blur(12px) !important;
+}
+
+.btn-ghost:hover {
+  background: rgba(255, 255, 255, 0.09) !important;
+  border-color: rgba(255, 255, 255, 0.2) !important;
+  color: #ffffff !important;
+  transform: translateY(-1px);
+}
+
+.btn-success {
+  background: linear-gradient(135deg, #059669 0%, #10b981 100%) !important;
+  border: 1px solid rgba(52, 211, 153, 0.35) !important;
+  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35) !important;
+  color: #ffffff !important;
+}
+
+.btn-danger {
+  background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%) !important;
+  border: 1px solid rgba(248, 113, 113, 0.35) !important;
+  box-shadow: 0 4px 14px rgba(239, 68, 68, 0.35) !important;
+  color: #ffffff !important;
+}
+
+/* ── Modern Premium Glass Cards ── */
+.panel.glass,
+.metric-card,
+.kpi-card,
+.catalog-card-item {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.035) 0%, rgba(15, 23, 42, 0.82) 100%) !important;
+  backdrop-filter: blur(20px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(180%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.06) !important;
+  border-radius: 16px !important;
+}
+
+/* ── Multi-Device Fluid Containers & Responsive Tables ── */
+@media (max-width: 768px) {
+  /* Prevent horizontal screen push on all mobile browsers */
+  html, body, #adminShell, .main, .view-root {
+    max-width: 100vw !important;
+    width: 100% !important;
+    overflow-x: hidden !important;
+    box-sizing: border-box !important;
+  }
+
+  .view-root {
+    padding: 10px 10px calc(85px + env(safe-area-inset-bottom, 0px)) 10px !important;
+  }
+
+  /* Responsive Table touch container with subtle edge shadows */
+  .table-responsive,
+  .table-wrap,
+  .management-table-wrap,
+  .orders-table-shell {
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    border-radius: 14px !important;
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+    background: rgba(14, 17, 26, 0.9) !important;
+    margin-top: 10px !important;
+    position: relative !important;
+  }
+
+  /* Touch ergonomics: min 42px touch height on buttons */
+  .btn:not(.btn-sm) {
+    min-height: 42px !important;
+    font-size: 13px !important;
+  }
+
+  /* Hero Toolbar buttons full-width touch stack on phone */
+  .tg-hero-toolbar {
+    width: 100% !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 8px !important;
+  }
+
+  .tg-hero-toolbar > button,
+  .tg-hero-toolbar > a {
+    width: 100% !important;
+    min-height: 44px !important;
+    justify-content: center !important;
+  }
+
+  /* Telegram 4 Metrics Grid: Clean 2x2 grid */
+  .tg-hero-metrics-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 10px !important;
+  }
+
+  /* Bot Channel Selector deck */
+  [data-action="set-bot-user-filter"] {
+    min-height: 54px !important;
+    -webkit-tap-highlight-color: transparent !important;
+  }
+
+  /* Mobile bottom bar polish */
+  .mobile-bottom-nav {
+    border-top: 1px solid rgba(255, 255, 255, 0.1) !important;
+    background: rgba(10, 13, 20, 0.96) !important;
+    box-shadow: 0 -8px 28px rgba(0, 0, 0, 0.6) !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .tg-hero-metrics-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+  }
+
+  .tg-hero-section {
+    padding: 16px 12px !important;
+  }
+
+  .tg-hero-section h2 {
+    font-size: 18px !important;
+  }
+
+  .tg-hero-section p {
+    font-size: 11.5px !important;
+  }
+}
+

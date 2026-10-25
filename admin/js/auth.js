@@ -132,6 +132,28 @@ export async function registerAdminSession(user) {
   const sessId = getCurrentSessionId();
   const device = getDeviceDetails();
   const sessionRef = ref(db, `admin_sessions/${sessId}`);
+
+  // Persist token in localStorage for authenticated API requests
+  try {
+    let token = '';
+    if (typeof user.getIdToken === 'function') {
+      token = await user.getIdToken().catch(() => '');
+    }
+    if (!token && user.token) {
+      token = user.token;
+    }
+    if (token) {
+      localStorage.setItem('linkadda_admin_token', token);
+      const existing = localStorage.getItem('linkadda_admin_session');
+      let sessObj = {};
+      try { sessObj = existing ? JSON.parse(existing) : {}; } catch (_) {}
+      sessObj.token = token;
+      sessObj.uid = user.uid;
+      sessObj.email = user.email || 'botforword@gmail.com';
+      sessObj.loginAt = sessObj.loginAt || Date.now();
+      localStorage.setItem('linkadda_admin_session', JSON.stringify(sessObj));
+    }
+  } catch (_) {}
   
   const initialSessionData = {
     id: sessId,

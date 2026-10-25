@@ -243,6 +243,58 @@ export function getConnectedBots() {
     store.bots = botsMap;
     writeBotStore(store);
   }
+
+  // Auto-discover any bots recorded in user activity so no fleet bot is ever omitted
+  if (store.users && typeof store.users === 'object') {
+    let hasNewBot = false;
+    for (const u of Object.values(store.users)) {
+      if (u && u.bots && typeof u.bots === 'object') {
+        for (const [bKey, bVal] of Object.entries(u.bots)) {
+          const bUname = String(bVal?.botUsername || bVal?.username || bKey.replace(/^bot_/, '')).replace('@', '').trim();
+          const bId = String(bVal?.botId || bKey).trim();
+          const canonId = bId.startsWith('bot_') ? bId : `bot_${bId}`;
+          if (bUname && !botsMap[canonId] && !botsMap[bKey]) {
+            botsMap[canonId] = {
+              id: canonId.replace(/^bot_/, ''),
+              botId: canonId,
+              token: bVal?.token || '',
+              username: bUname,
+              name: `@${bUname}`,
+              status: 'active',
+              isPrimary: false,
+              createdAt: bVal?.joinedAt || Date.now(),
+              subscribersCount: 0
+            };
+            hasNewBot = true;
+          }
+        }
+      }
+      if (u && u.sourceBotUsername) {
+        const sUname = String(u.sourceBotUsername).replace('@', '').trim();
+        const sId = String(u.sourceBotId || `bot_${sUname}`).trim();
+        const canonId = sId.startsWith('bot_') ? sId : `bot_${sId}`;
+        if (sUname && !botsMap[canonId] && !botsMap[sId]) {
+          botsMap[canonId] = {
+            id: canonId.replace(/^bot_/, ''),
+            botId: canonId,
+            token: '',
+            username: sUname,
+            name: `@${sUname}`,
+            status: 'active',
+            isPrimary: false,
+            createdAt: u.createdAt || Date.now(),
+            subscribersCount: 0
+          };
+          hasNewBot = true;
+        }
+      }
+    }
+    if (hasNewBot) {
+      store.bots = botsMap;
+      writeBotStore(store);
+    }
+  }
+
   return Object.values(botsMap).map(formatBotRecord).filter(Boolean);
 }
 

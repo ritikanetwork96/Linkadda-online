@@ -7072,9 +7072,12 @@ function getAdminAuthHeaders() {
         if (typeof raw === 'string' && raw.length > 10) return { 'Authorization': `Bearer ${raw}` };
       }
     }
+    const token = localStorage.getItem('linkadda_admin_token');
+    if (token) return { 'Authorization': `Bearer ${token}` };
     if (auth && auth.currentUser) {
       const u = auth.currentUser;
       if (u.accessToken) return { 'Authorization': `Bearer ${u.accessToken}` };
+      if (u.token) return { 'Authorization': `Bearer ${u.token}` };
     }
   } catch (_) {}
   return {};
@@ -7084,7 +7087,19 @@ async function loadTelegramBotAdminFullData(force = false) {
   if (_tgBotData.isLoading && !force) return;
   _tgBotData.isLoading = true;
   try {
-    const authHeaders = getAdminAuthHeaders();
+    let authHeaders = getAdminAuthHeaders();
+    if ((!authHeaders || !authHeaders.Authorization) && auth && auth.currentUser) {
+      try {
+        if (typeof auth.currentUser.getIdToken === 'function') {
+          const idToken = await auth.currentUser.getIdToken().catch(() => '');
+          if (idToken) {
+            authHeaders = { 'Authorization': `Bearer ${idToken}` };
+            localStorage.setItem('linkadda_admin_token', idToken);
+          }
+        }
+      } catch (_) {}
+    }
+
     const apiBase = getBackendApiBase();
     const [cfgRes, usersRes] = await Promise.all([
       fetch(`${apiBase}/api/telegram/bot?action=get-bot-config`, { headers: authHeaders }).then(r => r.json()).catch(() => null),
@@ -7159,6 +7174,71 @@ async function loadTelegramBotAdminFullData(force = false) {
 
     _tgBotData.users = unifiedList;
     _tgBotData.usersCount = unifiedList.length;
+
+    // ⚡ Fleet Auto-Discovery: Merge all bots present across bot config AND user activities!
+    const botMap = {};
+    const registerFleetBot = (raw) => {
+      if (!raw) return;
+      const uName = String(raw.username || raw.name || '').replace(/^@/, '').trim();
+      const rawId = String(raw.id || raw.botId || uName).replace(/^bot_/, '').trim();
+      if (!uName && !rawId) return;
+      const bId = `bot_${rawId}`;
+      const existing = botMap[bId] || botMap[uName.toLowerCase()];
+      const botObj = {
+        id: rawId,
+        botId: bId,
+        username: uName || existing?.username || rawId,
+        name: raw.name || existing?.name || `@${uName || rawId}`,
+        token: raw.token || existing?.token || '',
+        status: raw.status || existing?.status || 'active',
+        isPrimary: Boolean(raw.isPrimary || existing?.isPrimary),
+        createdAt: raw.createdAt || existing?.createdAt || Date.now(),
+        subscribersCount: Number(raw.subscribersCount) || 0
+      };
+      botMap[bId] = botObj;
+      if (uName) botMap[uName.toLowerCase()] = botObj;
+    };
+
+    if (_tgBotData.bot) registerFleetBot({ ..._tgBotData.bot, isPrimary: true });
+    (_tgBotData.bots || []).forEach(b => registerFleetBot(b));
+
+    // Discover any bot from users
+    unifiedList.forEach(u => {
+      if (u && u.bots && typeof u.bots === 'object') {
+        Object.entries(u.bots).forEach(([k, v]) => {
+          registerFleetBot({
+            id: v?.botId || k,
+            username: v?.botUsername || v?.username || k.replace(/^bot_/, ''),
+            isPrimary: false
+          });
+        });
+      }
+      if (u && u.sourceBotUsername) {
+        registerFleetBot({
+          id: u.sourceBotId || u.sourceBotUsername,
+          username: u.sourceBotUsername,
+          isPrimary: false
+        });
+      }
+    });
+
+    const distinctBots = [];
+    const seenIds = new Set();
+    Object.values(botMap).forEach(b => {
+      if (b && b.botId && !seenIds.has(b.botId)) {
+        seenIds.add(b.botId);
+        distinctBots.push(b);
+      }
+    });
+
+    if (!distinctBots.some(b => b.isPrimary) && distinctBots.length > 0) {
+      distinctBots[0].isPrimary = true;
+    }
+    if (distinctBots.length > 0) {
+      _tgBotData.bots = distinctBots;
+      const pBot = distinctBots.find(b => b.isPrimary) || distinctBots[0];
+      _tgBotData.bot = { ...(_tgBotData.bot || {}), ...pBot };
+    }
 
     try {
       localStorage.setItem('tg_cached_bot_users', JSON.stringify(unifiedList));
@@ -7353,8 +7433,54 @@ function renderTelegramUsersTableList(users = [], filter = '') {
 
   const currentBotFilter = _tgBotData.botUserFilter || 'all';
   const currentSourceFilter = _tgBotData.sourceFilter || 'all';
-  const currentViewMode = _tgBotData.userViewMode || 'table';
-  const fleetBots = (_tgBotData.bots && _tgBotData.bots.length) ? _tgBotData.bots : [_tgBotData.bot].filter(Boolean);
+  const currentViewMode = _tgBotData.userViewMode || (typeof window !== 'undefined' && window.innerWidth < 768 ? 'cards' : 'table');
+  
+  // Assemble full fleet bots list including any bots discovered from active subscribers
+  const fleetBots = [ ...((_tgBotData.bots && _tgBotData.bots.length) ? _tgBotData.bots : [_tgBotData.bot].filter(Boolean)) ];
+  const knownBotKeys = new Set(fleetBots.map(b => String(b.botId || `bot_${b.id}` || b.id || b.username).toLowerCase()));
+  users.forEach(u => {
+    if (u && u.bots && typeof u.bots === 'object') {
+      Object.entries(u.bots).forEach(([k, v]) => {
+        const uName = String(v?.botUsername || v?.username || k.replace(/^bot_/, '')).replace('@', '').trim();
+        const bId = String(v?.botId || k).trim();
+        const canonId = bId.startsWith('bot_') ? bId : `bot_${bId}`;
+        const key = canonId.toLowerCase();
+        if (uName && !knownBotKeys.has(key) && !knownBotKeys.has(uName.toLowerCase())) {
+          knownBotKeys.add(key);
+          knownBotKeys.add(uName.toLowerCase());
+          fleetBots.push({
+            id: canonId.replace(/^bot_/, ''),
+            botId: canonId,
+            username: uName,
+            name: `@${uName}`,
+            status: 'active',
+            isPrimary: false,
+            subscribersCount: 0
+          });
+        }
+      });
+    }
+    if (u && u.sourceBotUsername) {
+      const uName = String(u.sourceBotUsername).replace('@', '').trim();
+      const sId = String(u.sourceBotId || `bot_${uName}`).trim();
+      const canonId = sId.startsWith('bot_') ? sId : `bot_${sId}`;
+      const key = canonId.toLowerCase();
+      if (uName && !knownBotKeys.has(key) && !knownBotKeys.has(uName.toLowerCase())) {
+        knownBotKeys.add(key);
+        knownBotKeys.add(uName.toLowerCase());
+        fleetBots.push({
+          id: canonId.replace(/^bot_/, ''),
+          botId: canonId,
+          username: uName,
+          name: `@${uName}`,
+          status: 'active',
+          isPrimary: false,
+          subscribersCount: 0
+        });
+      }
+    }
+  });
+
   const primaryBot = fleetBots.find(b => b.isPrimary) || fleetBots[0] || { username: 'Myshop9876_bot', id: '8923608774', botId: 'bot_8923608774' };
 
   // Helper to check if a user belongs to a specific bot (supports users in multiple bots)
@@ -7405,7 +7531,7 @@ function renderTelegramUsersTableList(users = [], filter = '') {
   let activeBotLabel = 'All Connected Bots';
   let activeBotUsername = '';
   if (currentBotFilter !== 'all') {
-    const targetBot = fleetBots.find(b => String(b.botId || `bot_${b.id}` || b.id) === currentBotFilter);
+    const targetBot = fleetBots.find(b => String(b.botId || `bot_${b.id}` || b.id) === currentBotFilter || (b.username && b.username.toLowerCase() === currentBotFilter.toLowerCase()));
     if (targetBot) {
       activeBotUsername = targetBot.username || '';
       activeBotLabel = `@${targetBot.username || 'Selected Bot'}`;
@@ -7451,7 +7577,7 @@ function renderTelegramUsersTableList(users = [], filter = '') {
   };
 
   return `
-    <div style="padding: 18px 20px; background: rgba(0,0,0,0.32); border-bottom: 1px solid rgba(255,255,255,0.08);">
+    <div style="padding: 16px 14px; background: rgba(0,0,0,0.32); border-bottom: 1px solid rgba(255,255,255,0.08);">
 
       <!-- 1. TOP BOT CHANNEL SELECTOR DECK (Cards) -->
       <div style="margin-bottom: 16px;">
@@ -7464,51 +7590,49 @@ function renderTelegramUsersTableList(users = [], filter = '') {
           </span>
         </div>
 
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px;">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 155px), 1fr)); gap: 10px;">
           
           <!-- All Bots Card -->
-          <div data-action="set-bot-user-filter" data-bot-id="all" style="cursor: pointer; padding: 12px 14px; border-radius: 12px; transition: all 0.2s ease; ${currentBotFilter === 'all' ? 'background: linear-gradient(135deg, rgba(99,102,241,0.25), rgba(139,92,246,0.25)); border: 1.5px solid #818cf8; box-shadow: 0 4px 16px rgba(99,102,241,0.3);' : 'background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);'}; display: flex; align-items: center; justify-content: space-between; gap: 10px;">
-            <div style="display: flex; align-items: center; gap: 10px;">
-              <div style="width: 36px; height: 36px; border-radius: 10px; background: linear-gradient(135deg, #6366f1, #8b5cf6); display: flex; align-items: center; justify-content: center; color: white; flex-shrink: 0; box-shadow: 0 2px 8px rgba(99,102,241,0.3);">
-                <i data-lucide="globe" style="width: 18px; height: 18px;"></i>
+          <div data-action="set-bot-user-filter" data-bot-id="all" style="cursor: pointer; padding: 12px 14px; border-radius: 12px; transition: all 0.2s ease; ${currentBotFilter === 'all' ? 'background: linear-gradient(135deg, rgba(99,102,241,0.25), rgba(139,92,246,0.25)); border: 1.5px solid #818cf8; box-shadow: 0 4px 16px rgba(99,102,241,0.3);' : 'background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);'}; display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+            <div style="display: flex; align-items: center; gap: 8px; min-width: 0;">
+              <div style="width: 34px; height: 34px; border-radius: 10px; background: linear-gradient(135deg, #6366f1, #8b5cf6); display: flex; align-items: center; justify-content: center; color: white; flex-shrink: 0; box-shadow: 0 2px 8px rgba(99,102,241,0.3);">
+                <i data-lucide="globe" style="width: 17px; height: 17px;"></i>
               </div>
-              <div>
-                <strong style="color: var(--text); font-size: 13px; display: block;">All Bots Combined</strong>
-                <span style="font-size: 11px; color: var(--muted);">Unified Multi-Bot Pool</span>
+              <div style="min-width: 0;">
+                <strong style="color: var(--text); font-size: 12.5px; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">All Bots Combined</strong>
+                <span style="font-size: 10.5px; color: var(--muted); white-space: nowrap;">Multi-Bot Pool</span>
               </div>
             </div>
-            <div style="text-align: right;">
-              <div style="font-size: 18px; font-weight: 800; color: #a5b4fc;">${users.length}</div>
-              <span style="font-size: 10px; color: var(--muted); text-transform: uppercase; font-weight: 600;">Users</span>
+            <div style="text-align: right; flex-shrink: 0;">
+              <div style="font-size: 17px; font-weight: 800; color: #a5b4fc;">${users.length}</div>
+              <span style="font-size: 9.5px; color: var(--muted); text-transform: uppercase; font-weight: 600;">Users</span>
             </div>
           </div>
 
           <!-- Per-Bot Cards -->
           ${fleetBots.map(b => {
             const bId = String(b.botId || `bot_${b.id}` || b.id || '');
-            const isSelected = currentBotFilter === bId;
+            const isSelected = currentBotFilter === bId || (b.username && currentBotFilter.toLowerCase() === b.username.toLowerCase());
             const count = botCounts[bId] || 0;
             const uName = b.username || 'Bot';
             const isPrimary = Boolean(b.isPrimary);
 
             return `
-              <div data-action="set-bot-user-filter" data-bot-id="${escapeHtml(bId)}" data-bot-username="${escapeHtml(uName)}" style="cursor: pointer; padding: 12px 14px; border-radius: 12px; transition: all 0.2s ease; ${isSelected ? 'background: linear-gradient(135deg, rgba(2,132,199,0.25), rgba(56,189,248,0.25)); border: 1.5px solid #38bdf8; box-shadow: 0 4px 16px rgba(2,132,199,0.35);' : 'background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);'}; display: flex; align-items: center; justify-content: space-between; gap: 10px;">
-                <div style="display: flex; align-items: center; gap: 10px; min-width: 0;">
-                  <div style="width: 36px; height: 36px; border-radius: 10px; background: ${isPrimary ? 'linear-gradient(135deg, #0284c7, #38bdf8)' : 'linear-gradient(135deg, #475569, #64748b)'}; display: flex; align-items: center; justify-content: center; color: white; flex-shrink: 0;">
-                    <i data-lucide="bot" style="width: 18px; height: 18px;"></i>
+              <div data-action="set-bot-user-filter" data-bot-id="${escapeHtml(bId)}" data-bot-username="${escapeHtml(uName)}" style="cursor: pointer; padding: 12px 14px; border-radius: 12px; transition: all 0.2s ease; ${isSelected ? 'background: linear-gradient(135deg, rgba(2,132,199,0.25), rgba(56,189,248,0.25)); border: 1.5px solid #38bdf8; box-shadow: 0 4px 16px rgba(2,132,199,0.35);' : 'background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);'}; display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+                <div style="display: flex; align-items: center; gap: 8px; min-width: 0;">
+                  <div style="width: 34px; height: 34px; border-radius: 10px; background: ${isPrimary ? 'linear-gradient(135deg, #0284c7, #38bdf8)' : 'linear-gradient(135deg, #475569, #64748b)'}; display: flex; align-items: center; justify-content: center; color: white; flex-shrink: 0;">
+                    <i data-lucide="bot" style="width: 17px; height: 17px;"></i>
                   </div>
                   <div style="min-width: 0;">
-                    <div style="display: flex; align-items: center; gap: 5px;">
-                      <strong style="color: var(--text); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block;">@${escapeHtml(uName)}</strong>
-                    </div>
+                    <strong style="color: var(--text); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block;">@${escapeHtml(uName)}</strong>
                     <span style="font-size: 10px; font-weight: 700; color: ${isPrimary ? '#fbbf24' : '#94a3b8'}; text-transform: uppercase;">
-                      ${isPrimary ? '⭐ Primary Bot' : '🤖 Fleet Channel'}
+                      ${isPrimary ? '⭐ Primary' : '🤖 Fleet'}
                     </span>
                   </div>
                 </div>
                 <div style="text-align: right; flex-shrink: 0;">
-                  <div style="font-size: 18px; font-weight: 800; color: ${isSelected ? '#38bdf8' : 'var(--text)'};">${count}</div>
-                  <span style="font-size: 10px; color: var(--muted); text-transform: uppercase; font-weight: 600;">Users</span>
+                  <div style="font-size: 17px; font-weight: 800; color: ${isSelected ? '#38bdf8' : 'var(--text)'};">${count}</div>
+                  <span style="font-size: 9.5px; color: var(--muted); text-transform: uppercase; font-weight: 600;">Users</span>
                 </div>
               </div>
             `;
@@ -8183,13 +8307,13 @@ function renderTelegramBotPageView(data = {}) {
             </div>
           </div>
           <div class="toolbar tg-hero-toolbar" style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
-            <button class="btn btn-ghost" type="button" data-action="refresh-tg-bot" title="Fetch latest status from Telegram API" style="font-size: 12.5px; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--border);">
-              <i data-lucide="refresh-cw" style="width: 14px; height: 14px;"></i> Refresh Data
+            <button class="btn btn-ghost" type="button" data-action="refresh-tg-bot" title="Fetch latest status from Telegram API" style="font-size: 12.5px; padding: 9px 16px; border-radius: 10px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12); color: var(--text); backdrop-filter: blur(10px); display: inline-flex; align-items: center; gap: 6px; transition: all 0.2s ease;">
+              <i data-lucide="refresh-cw" style="width: 14px; height: 14px; color: #38bdf8;"></i> Refresh Data
             </button>
-            <button class="btn btn-ghost" type="button" data-action="test-tg-bot" title="Send a test ping alert to all Admins" style="font-size: 12.5px; padding: 8px 14px; border-radius: 8px; border: 1px solid rgba(99, 102, 241, 0.4); color: #a5b4fc;">
-              <i data-lucide="send" style="width: 14px; height: 14px;"></i> Test Ping Admins
+            <button class="btn btn-ghost" type="button" data-action="test-tg-bot" title="Send a test ping alert to all Admins" style="font-size: 12.5px; padding: 9px 16px; border-radius: 10px; background: rgba(99,102,241,0.12); border: 1px solid rgba(99,102,241,0.3); color: #a5b4fc; backdrop-filter: blur(10px); display: inline-flex; align-items: center; gap: 6px; transition: all 0.2s ease;">
+              <i data-lucide="send" style="width: 14px; height: 14px; color: #818cf8;"></i> Test Ping Admins
             </button>
-            <a class="btn btn-primary" id="tgOpenLiveBotBtn" href="https://t.me/${escapeHtml(bot.username || 'Myshop9876_bot')}" target="_blank" style="font-size: 12.5px; padding: 8px 16px; border-radius: 8px; background: linear-gradient(135deg, #0088cc, #0284c7) !important; border: none !important; color: white !important; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 4px 14px rgba(0, 136, 204, 0.4);">
+            <a class="btn btn-primary" id="tgOpenLiveBotBtn" href="https://t.me/${escapeHtml(bot.username || 'Myshop9876_bot')}" target="_blank" style="font-size: 12.5px; padding: 9px 18px; border-radius: 10px; background: linear-gradient(135deg, #0284c7, #38bdf8) !important; border: 1px solid rgba(56,189,248,0.4) !important; color: white !important; display: inline-flex; align-items: center; gap: 7px; box-shadow: 0 4px 16px rgba(2, 132, 199, 0.4); font-weight: 700; transition: all 0.2s ease;">
               <i data-lucide="external-link" style="width: 14px; height: 14px;"></i> Open Primary Bot (@${escapeHtml(bot.username || 'Myshop9876_bot')})
             </a>
           </div>
@@ -8199,41 +8323,61 @@ function renderTelegramBotPageView(data = {}) {
         <div class="tg-hero-metrics-grid">
           
           <!-- Metric 1: Live Bot Fleet -->
-          <div style="background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px;">
-            <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--muted); letter-spacing: 0.04em;">Connected Bot Fleet</div>
-            <div id="tgActiveBotUsername" style="font-size: 17px; font-weight: 800; color: #38bdf8; margin-top: 4px; display: flex; align-items: center; gap: 6px;">
+          <div style="background: linear-gradient(135deg, rgba(255,255,255,0.04) 0%, rgba(15,23,42,0.7) 100%); backdrop-filter: blur(14px); border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 14px 16px; display: flex; flex-direction: column; justify-content: space-between; gap: 6px; box-shadow: 0 4px 16px rgba(0,0,0,0.25);">
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+              <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--muted); letter-spacing: 0.04em;">Connected Bot Fleet</div>
+              <div style="width: 26px; height: 26px; border-radius: 7px; background: rgba(56,189,248,0.15); display: flex; align-items: center; justify-content: center; color: #38bdf8;">
+                <i data-lucide="bot" style="width: 14px; height: 14px;"></i>
+              </div>
+            </div>
+            <div id="tgActiveBotUsername" style="font-size: 18px; font-weight: 800; color: #38bdf8; display: flex; align-items: center; gap: 6px;">
               <span>${bots.length} Connected Bots</span>
             </div>
-            <small id="tgActiveBotId" style="display: block; color: var(--muted); font-size: 11px; margin-top: 2px;">Primary: @${escapeHtml(bot.username || 'Myshop9876_bot')} · Multi-Bot Live</small>
+            <small id="tgActiveBotId" style="display: block; color: var(--muted); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Primary: @${escapeHtml(bot.username || 'Myshop9876_bot')} · Multi-Bot Live</small>
           </div>
 
           <!-- Metric 2: Webhook Delivery -->
-          <div style="background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px;">
-            <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--muted); letter-spacing: 0.04em;">Webhook Self-Healing</div>
-            <div id="tgWebhookStatus" style="font-size: 14px; font-weight: 700; color: ${hasWebhookUrl ? '#10b981' : '#f59e0b'}; margin-top: 5px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+          <div style="background: linear-gradient(135deg, rgba(255,255,255,0.04) 0%, rgba(15,23,42,0.7) 100%); backdrop-filter: blur(14px); border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 14px 16px; display: flex; flex-direction: column; justify-content: space-between; gap: 6px; box-shadow: 0 4px 16px rgba(0,0,0,0.25);">
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+              <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--muted); letter-spacing: 0.04em;">Webhook Self-Healing</div>
+              <div style="width: 26px; height: 26px; border-radius: 7px; background: rgba(16,185,129,0.15); display: flex; align-items: center; justify-content: center; color: #34d399;">
+                <i data-lucide="zap" style="width: 14px; height: 14px;"></i>
+              </div>
+            </div>
+            <div id="tgWebhookStatus" style="font-size: 15px; font-weight: 700; color: ${hasWebhookUrl ? '#10b981' : '#f59e0b'}; display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
               ${hasWebhookUrl 
-                ? `<span style="color: #10b981;">✅ Auto-Syncing</span> <span style="font-size: 11px; color: var(--muted); font-weight: normal;">(Self-Healing Active)</span>`
+                ? `<span style="color: #10b981;">✅ Auto-Syncing</span> <span style="font-size: 11px; color: var(--muted); font-weight: normal;">(24/7 Live)</span>`
                 : `<span style="color: #f59e0b;">⚠️ Pending</span> <button type="button" data-action="resync-tg-webhook" class="btn btn-primary btn-sm" style="font-size: 11px; padding: 2px 8px; border-radius: 6px; background: #6366f1 !important; color: white !important;">⚡ Activate Now</button>`}
             </div>
-            <small id="tgWebhookPending" style="display: block; color: var(--muted); font-size: 11px; margin-top: 2px;">Pending updates: ${webhook.pending_update_count ?? 0} · 24/7 Live</small>
+            <small id="tgWebhookPending" style="display: block; color: var(--muted); font-size: 11px;">Pending updates: ${webhook.pending_update_count ?? 0} · Self-Healing Active</small>
           </div>
 
           <!-- Metric 3: Total Subscribers -->
-          <div style="background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px;">
-            <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--muted); letter-spacing: 0.04em;">Audience / Subscribers</div>
-            <div style="font-size: 18px; font-weight: 800; color: #f59e0b; margin-top: 4px; display: flex; align-items: center; gap: 6px;">
+          <div style="background: linear-gradient(135deg, rgba(255,255,255,0.04) 0%, rgba(15,23,42,0.7) 100%); backdrop-filter: blur(14px); border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 14px 16px; display: flex; flex-direction: column; justify-content: space-between; gap: 6px; box-shadow: 0 4px 16px rgba(0,0,0,0.25);">
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+              <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--muted); letter-spacing: 0.04em;">Audience / Subscribers</div>
+              <div style="width: 26px; height: 26px; border-radius: 7px; background: rgba(245,158,11,0.15); display: flex; align-items: center; justify-content: center; color: #fbbf24;">
+                <i data-lucide="users" style="width: 14px; height: 14px;"></i>
+              </div>
+            </div>
+            <div style="font-size: 18px; font-weight: 800; color: #f59e0b; display: flex; align-items: center; gap: 6px;">
               <span id="tgUsersStatCount">${usersCount}</span> <span style="font-size: 12px; font-weight: 600; color: var(--muted);">Users</span>
             </div>
-            <small style="display: block; color: var(--muted); font-size: 11px; margin-top: 2px;">Subscribers across all connected bots</small>
+            <small style="display: block; color: var(--muted); font-size: 11px;">Subscribers across all connected bots</small>
           </div>
 
           <!-- Metric 4: Telegram Admins -->
-          <div style="background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px;">
-            <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--muted); letter-spacing: 0.04em;">Order Alert Admins</div>
-            <div style="font-size: 16px; font-weight: 800; color: #a855f7; margin-top: 5px; display: flex; align-items: center; gap: 6px;">
+          <div style="background: linear-gradient(135deg, rgba(255,255,255,0.04) 0%, rgba(15,23,42,0.7) 100%); backdrop-filter: blur(14px); border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 14px 16px; display: flex; flex-direction: column; justify-content: space-between; gap: 6px; box-shadow: 0 4px 16px rgba(0,0,0,0.25);">
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+              <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--muted); letter-spacing: 0.04em;">Order Alert Admins</div>
+              <div style="width: 26px; height: 26px; border-radius: 7px; background: rgba(168,85,247,0.15); display: flex; align-items: center; justify-content: center; color: #c084fc;">
+                <i data-lucide="shield-check" style="width: 14px; height: 14px;"></i>
+              </div>
+            </div>
+            <div style="font-size: 16px; font-weight: 800; color: #a855f7; display: flex; align-items: center; gap: 6px;">
               <span id="tgAdminsStatCount">${admins.length}</span> <span>Authorized Admins</span>
             </div>
-            <small style="display: block; color: var(--muted); font-size: 11px; margin-top: 2px;">Receive live order proof & approval buttons</small>
+            <small style="display: block; color: var(--muted); font-size: 11px;">Live order proof & approval alerts</small>
           </div>
 
         </div>
