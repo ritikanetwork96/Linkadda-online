@@ -3065,7 +3065,7 @@ window.openProductBroadcastModal = function(recordOrId, node = 'products') {
         }
 
         try {
-          const res = await fetch('/api/telegram/broadcast', {
+          const res = await telegramApiFetch('/api/telegram/broadcast', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', ...getAdminAuthHeaders() },
             body: JSON.stringify({
@@ -7061,6 +7061,49 @@ function getBackendApiBase() {
   return '';
 }
 
+function telegramApiFetch(endpoint, options = {}) {
+  const base = getBackendApiBase();
+  const clean = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  const fullUrl = `${base}${clean}`;
+  return fetch(fullUrl, options);
+}
+
+// Universal helper to check if a user belongs to a specific bot (supports users in multiple bots)
+function userBelongsToBot(u, targetBot) {
+  if (!u || !targetBot) return false;
+  const bId = String(targetBot.botId || `bot_${targetBot.id}` || targetBot.id || '');
+  const rawId = String(targetBot.id || '');
+  const bUname = String(targetBot.username || '').toLowerCase();
+
+  // 1. Check user.bots dictionary
+  if (u.bots && typeof u.bots === 'object') {
+    if (u.bots[bId] || (rawId && u.bots[`bot_${rawId}`]) || (rawId && u.bots[rawId])) return true;
+    if (bUname && u.bots[bUname]) return true;
+    for (const [k, v] of Object.entries(u.bots)) {
+      if (k === bId || k === rawId || k === `bot_${rawId}`) return true;
+      if (v && ((v.botId && (v.botId === bId || v.botId === rawId)) || (v.username && v.username.toLowerCase() === bUname) || (v.botUsername && v.botUsername.toLowerCase() === bUname))) return true;
+    }
+  }
+
+  // 2. Check sourceBotIds array
+  if (Array.isArray(u.sourceBotIds)) {
+    if (u.sourceBotIds.includes(bId) || (rawId && u.sourceBotIds.includes(rawId)) || (rawId && u.sourceBotIds.includes(`bot_${rawId}`))) return true;
+  }
+
+  // 3. Check scalar sourceBotId or lastBotId
+  const uBotId = String(u.sourceBotId || u.lastBotId || '');
+  if (uBotId && (uBotId === bId || uBotId === rawId || (rawId && uBotId === `bot_${rawId}`))) return true;
+
+  // 4. Check sourceBotUsername
+  const uBotUname = String(u.sourceBotUsername || '').toLowerCase();
+  if (uBotUname && bUname && uBotUname === bUname) return true;
+
+  // 5. Fallback for primary bot ONLY if user has truly NO bot records anywhere
+  if (!uBotId && !uBotUname && (!u.bots || !Object.keys(u.bots).length) && (!u.sourceBotIds || !u.sourceBotIds.length) && targetBot.isPrimary) return true;
+
+  return false;
+}
+
 function getAdminAuthHeaders() {
   try {
     const raw = localStorage.getItem('linkadda_admin_session') || localStorage.getItem('linkadda_admin_token') || sessionStorage.getItem('linkadda_admin_session');
@@ -7100,10 +7143,9 @@ async function loadTelegramBotAdminFullData(force = false) {
       } catch (_) {}
     }
 
-    const apiBase = getBackendApiBase();
     const [cfgRes, usersRes] = await Promise.all([
-      fetch(`${apiBase}/api/telegram/bot?action=get-bot-config`, { headers: authHeaders }).then(r => r.json()).catch(() => null),
-      fetch(`${apiBase}/api/telegram/bot?action=get-users`, { headers: authHeaders }).then(r => r.json()).catch(() => null)
+      telegramApiFetch('/api/telegram/bot?action=get-bot-config', { headers: authHeaders }).then(r => r.json()).catch(() => null),
+      telegramApiFetch('/api/telegram/bot?action=get-users', { headers: authHeaders }).then(r => r.json()).catch(() => null)
     ]);
 
     if (cfgRes && cfgRes.ok) {
@@ -7274,6 +7316,9 @@ async function loadTelegramBotAdminFullData(force = false) {
       distinctBots[0].isPrimary = true;
     }
     if (distinctBots.length > 0) {
+      distinctBots.forEach(b => {
+        b.subscribersCount = unifiedList.filter(u => userBelongsToBot(u, b)).length;
+      });
       _tgBotData.bots = distinctBots;
       const pBot = distinctBots.find(b => b.isPrimary) || distinctBots[0];
       _tgBotData.bot = { ...(_tgBotData.bot || {}), ...pBot };
@@ -7867,17 +7912,17 @@ function renderTelegramUsersTableList(users = [], filter = '') {
       </div>
     ` : `
       <!-- TABLE VIEW (Clean High-Contrast Full Data Table) -->
-      <div style="overflow-x: auto; width: 100%; -webkit-overflow-scrolling: touch;">
-        <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 13px; min-width: 780px;">
+      <div style="overflow-x: auto; width: 100%; -webkit-overflow-scrolling: touch; border-radius: 12px; border: 1px solid rgba(255,255,255,0.08); background: rgba(15, 23, 42, 0.45);">
+        <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 12.5px;">
           <thead>
-            <tr style="border-bottom: 1px solid rgba(255,255,255,0.08); background: rgba(0,0,0,0.25);">
-              <th style="padding: 13px 18px; font-weight: 700; color: var(--muted); text-transform: uppercase; font-size: 11px;">Subscriber / Name</th>
-              <th style="padding: 13px 18px; font-weight: 700; color: #38bdf8; text-transform: uppercase; font-size: 11px;">Enrolled Bot Channels</th>
-              <th style="padding: 13px 18px; font-weight: 700; color: var(--muted); text-transform: uppercase; font-size: 11px;">Telegram Username</th>
-              <th style="padding: 13px 18px; font-weight: 700; color: var(--muted); text-transform: uppercase; font-size: 11px;">Numeric ID</th>
-              <th style="padding: 13px 18px; font-weight: 700; color: var(--muted); text-transform: uppercase; font-size: 11px;">Acquisition</th>
-              <th style="padding: 13px 18px; font-weight: 700; color: var(--muted); text-transform: uppercase; font-size: 11px;">Joined / Active</th>
-              <th style="padding: 13px 18px; font-weight: 700; color: var(--muted); text-transform: uppercase; font-size: 11px; text-align: right;">Action</th>
+            <tr style="border-bottom: 1px solid rgba(255,255,255,0.08); background: rgba(0,0,0,0.3);">
+              <th style="padding: 10px 14px; font-weight: 700; color: var(--muted); text-transform: uppercase; font-size: 10.5px; letter-spacing: 0.04em;">Subscriber / Name</th>
+              <th style="padding: 10px 14px; font-weight: 700; color: #38bdf8; text-transform: uppercase; font-size: 10.5px; letter-spacing: 0.04em;">Enrolled Bot Channels</th>
+              <th style="padding: 10px 14px; font-weight: 700; color: var(--muted); text-transform: uppercase; font-size: 10.5px; letter-spacing: 0.04em;">Telegram Username</th>
+              <th style="padding: 10px 14px; font-weight: 700; color: var(--muted); text-transform: uppercase; font-size: 10.5px; letter-spacing: 0.04em;">Numeric ID</th>
+              <th style="padding: 10px 14px; font-weight: 700; color: var(--muted); text-transform: uppercase; font-size: 10.5px; letter-spacing: 0.04em;">Acquisition</th>
+              <th style="padding: 10px 14px; font-weight: 700; color: var(--muted); text-transform: uppercase; font-size: 10.5px; letter-spacing: 0.04em;">Joined / Active</th>
+              <th style="padding: 10px 14px; font-weight: 700; color: var(--muted); text-transform: uppercase; font-size: 10.5px; letter-spacing: 0.04em; text-align: right;">Action</th>
             </tr>
           </thead>
           <tbody>
@@ -7926,17 +7971,17 @@ function renderTelegramUsersTableList(users = [], filter = '') {
 
               return `
                 <tr style="border-bottom: 1px solid rgba(255,255,255,0.04); transition: background 0.15s ease;">
-                  <td style="padding: 13px 18px;">
+                  <td style="padding: 10px 14px;">
                     <div style="display: flex; align-items: center; gap: 10px;">
-                      <div style="width: 34px; height: 34px; border-radius: 50%; background: linear-gradient(135deg, #0284c7, #6366f1); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; color: white; flex-shrink: 0; box-shadow: 0 2px 8px rgba(2,132,199,0.3);">
+                      <div style="width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, #0284c7, #6366f1); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; color: white; flex-shrink: 0; box-shadow: 0 2px 8px rgba(2,132,199,0.3);">
                         ${escapeHtml(initials)}
                       </div>
                       <div>
-                        <strong style="color: var(--text); font-size: 13.5px; display: block;">${escapeHtml(displayName)}</strong>
+                        <strong style="color: var(--text); font-size: 13px; display: block;">${escapeHtml(displayName)}</strong>
                       </div>
                     </div>
                   </td>
-                  <td style="padding: 13px 18px; white-space: nowrap;">
+                  <td style="padding: 10px 14px; white-space: nowrap;">
                     <div style="display: flex; flex-wrap: wrap; gap: 4px;">
                       ${userBotBadges.map(b => `
                         <span style="display: inline-flex; align-items: center; gap: 3px; padding: 2.5px 7px; border-radius: 6px; background: rgba(56, 189, 248, 0.12); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); font-size: 11px; font-weight: 700;">
@@ -7946,35 +7991,35 @@ function renderTelegramUsersTableList(users = [], filter = '') {
                       `).join('')}
                     </div>
                   </td>
-                  <td style="padding: 13px 18px; white-space: nowrap;">
+                  <td style="padding: 10px 14px; white-space: nowrap;">
                     ${hasUsername 
                       ? `<a href="https://t.me/${escapeHtml(u.username)}" target="_blank" style="color: #38bdf8; text-decoration: none; font-weight: 600; display: inline-flex; align-items: center; gap: 4px;">@${escapeHtml(u.username)} <i data-lucide="external-link" style="width: 12px; height: 12px;"></i></a>`
                       : `<span style="color: var(--muted); font-style: italic;">No username</span>`}
                   </td>
-                  <td style="padding: 13px 18px; white-space: nowrap;">
+                  <td style="padding: 10px 14px; white-space: nowrap;">
                     <div style="display: inline-flex; align-items: center; gap: 4px;">
-                      <code style="font-size: 12px; background: rgba(0,0,0,0.35); padding: 3px 6px; border-radius: 4px; color: #cbd5e1; font-family: monospace; font-weight: 700;">${escapeHtml(String(u.id))}</code>
+                      <code style="font-size: 11.5px; background: rgba(0,0,0,0.35); padding: 3px 6px; border-radius: 4px; color: #cbd5e1; font-family: monospace; font-weight: 700;">${escapeHtml(String(u.id))}</code>
                       <button type="button" class="btn btn-ghost" onclick="navigator.clipboard.writeText('${escapeHtml(String(u.id))}'); showToast('Copied ID: ${escapeHtml(String(u.id))}', 'info');" title="Copy Telegram User ID" style="padding: 2px 4px; border-radius: 4px; border: none; color: #94a3b8; cursor: pointer;">
                         <i data-lucide="copy" style="width: 11px; height: 11px;"></i>
                       </button>
                     </div>
                   </td>
-                  <td style="padding: 13px 18px; white-space: nowrap;">
-                    <span style="font-size: 10.5px; font-weight: 700; padding: 3px 8px; border-radius: 6px; background: rgba(255,255,255,0.05); color: ${sourceColor}; border: 1px solid rgba(255,255,255,0.08); text-transform: uppercase;">
+                  <td style="padding: 10px 14px; white-space: nowrap;">
+                    <span style="font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 6px; background: rgba(255,255,255,0.05); color: ${sourceColor}; border: 1px solid rgba(255,255,255,0.08); text-transform: uppercase;">
                       ${escapeHtml(sourceLabel)}
                     </span>
                   </td>
-                  <td style="padding: 13px 18px; white-space: nowrap;">
-                    <div style="font-size: 12px; color: var(--text);">${escapeHtml(timeStr)}</div>
-                    ${timeRel ? `<div style="font-size: 10.5px; color: var(--muted);">${escapeHtml(timeRel)}</div>` : ''}
+                  <td style="padding: 10px 14px; white-space: nowrap;">
+                    <div style="font-size: 11.5px; color: var(--text);">${escapeHtml(timeStr)}</div>
+                    ${timeRel ? `<div style="font-size: 10px; color: var(--muted);">${escapeHtml(timeRel)}</div>` : ''}
                   </td>
-                  <td style="padding: 13px 18px; text-align: right; white-space: nowrap;">
+                  <td style="padding: 10px 14px; text-align: right; white-space: nowrap;">
                     ${hasUsername 
-                      ? `<a href="https://t.me/${escapeHtml(u.username)}" target="_blank" class="btn btn-ghost btn-sm" style="font-size: 11.5px; padding: 5px 10px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px; border: 1px solid rgba(56, 189, 248, 0.3); color: #38bdf8;">
-                          <i data-lucide="message-circle" style="width: 13px; height: 13px;"></i> Chat
+                      ? `<a href="https://t.me/${escapeHtml(u.username)}" target="_blank" class="btn btn-ghost btn-sm" style="font-size: 11px; padding: 4px 9px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px; border: 1px solid rgba(56, 189, 248, 0.3); color: #38bdf8;">
+                          <i data-lucide="message-circle" style="width: 12px; height: 12px;"></i> Chat
                          </a>`
-                      : `<button type="button" class="btn btn-ghost btn-sm" onclick="navigator.clipboard.writeText('${escapeHtml(String(u.id))}'); showToast('User ID copied: ${escapeHtml(String(u.id))}', 'info');" style="font-size: 11.5px; padding: 5px 10px; border-radius: 6px; border: 1px solid var(--border);">
-                          <i data-lucide="copy" style="width: 12px; height: 12px;"></i> Copy ID
+                      : `<button type="button" class="btn btn-ghost btn-sm" onclick="navigator.clipboard.writeText('${escapeHtml(String(u.id))}'); showToast('User ID copied: ${escapeHtml(String(u.id))}', 'info');" style="font-size: 11px; padding: 4px 9px; border-radius: 6px; border: 1px solid var(--border);">
+                          <i data-lucide="copy" style="width: 11px; height: 11px;"></i> Copy ID
                          </button>`}
                   </td>
                 </tr>
@@ -8095,7 +8140,9 @@ function renderTelegramBotsFleetCards(bots = []) {
         const isPrimary = Boolean(b.isPrimary);
         const username = b.username || 'Bot';
         const masked = b.maskedToken || (b.id ? `${b.id}:...` : '***');
-        const subscribers = b.subscribersCount || 0;
+        const allUsers = Array.isArray(_tgBotData.users) ? _tgBotData.users : [];
+        const botSubscribers = allUsers.filter(u => userBelongsToBot(u, b)).length;
+        const subscribers = botSubscribers > 0 ? botSubscribers : (Number(b.subscribersCount) || 0);
         const botIdStr = b.botId || `bot_${b.id}`;
 
         return `
@@ -12086,7 +12133,7 @@ function attachGlobalHandlers() {
       }
 
       try {
-        const res = await fetch('/api/telegram/bot?action=switch-bot', {
+        const res = await telegramApiFetch('/api/telegram/bot?action=switch-bot', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', ...getAdminAuthHeaders() },
           body: JSON.stringify({
@@ -12165,7 +12212,7 @@ function attachGlobalHandlers() {
       const originalHtml = actionBtn.innerHTML;
       actionBtn.innerHTML = `<span class="spin-loader" style="width:14px;height:14px;border:2px solid #818cf8;border-top-color:transparent;border-radius:50%;display:inline-block;animation:authSpin 0.75s linear infinite;margin-right:6px;"></span> Sending...`;
       try {
-        const res = await fetch('/api/telegram/bot?action=test-bot', {
+        const res = await telegramApiFetch('/api/telegram/bot?action=test-bot', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', ...getAdminAuthHeaders() }
         });
@@ -12196,7 +12243,7 @@ function attachGlobalHandlers() {
       const originalHtml = actionBtn.innerHTML;
       actionBtn.innerHTML = `<span class="spin-loader" style="width:13px;height:13px;border:2px solid #818cf8;border-top-color:transparent;border-radius:50%;display:inline-block;animation:authSpin 0.75s linear infinite;margin-right:6px;"></span> Re-syncing...`;
       try {
-        const res = await fetch('/api/telegram/bot?action=re-register-webhook', {
+        const res = await telegramApiFetch('/api/telegram/bot?action=re-register-webhook', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', ...getAdminAuthHeaders() }
         });
@@ -12365,7 +12412,7 @@ function attachGlobalHandlers() {
       }
 
       try {
-        const res = await fetch(`${getBackendApiBase()}/api/telegram/bot?action=add-bot`, {
+        const res = await telegramApiFetch('/api/telegram/bot?action=add-bot', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', ...getAdminAuthHeaders() },
           body: JSON.stringify({ token })
@@ -12422,7 +12469,7 @@ function attachGlobalHandlers() {
       actionBtn.innerHTML = '<span class="spin-loader" style="width:12px;height:12px;border:2px solid currentColor;border-top-color:transparent;border-radius:50%;display:inline-block;animation:authSpin 0.75s linear infinite;margin-right:4px;"></span> Updating...';
 
       try {
-        const res = await fetch('/api/telegram/bot?action=toggle-bot-status', {
+        const res = await telegramApiFetch('/api/telegram/bot?action=toggle-bot-status', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', ...getAdminAuthHeaders() },
           body: JSON.stringify({ botId, status: targetStatus, notifyUsers: false })
@@ -12458,7 +12505,7 @@ function attachGlobalHandlers() {
 
       actionBtn.disabled = true;
       try {
-        const res = await fetch('/api/telegram/bot?action=delete-bot', {
+        const res = await telegramApiFetch('/api/telegram/bot?action=delete-bot', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', ...getAdminAuthHeaders() },
           body: JSON.stringify({ botId })
@@ -12491,7 +12538,7 @@ function attachGlobalHandlers() {
       }
       actionBtn.disabled = true;
       try {
-        const res = await fetch(`${getBackendApiBase()}/api/telegram/bot?action=set-primary-bot`, {
+        const res = await telegramApiFetch('/api/telegram/bot?action=set-primary-bot', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', ...getAdminAuthHeaders() },
           body: JSON.stringify({ botId })
@@ -12519,7 +12566,7 @@ function attachGlobalHandlers() {
       actionBtn.innerHTML = '<span class="spin-loader" style="width:12px;height:12px;border:2px solid currentColor;border-top-color:transparent;border-radius:50%;display:inline-block;animation:authSpin 0.75s linear infinite;"></span>';
 
       try {
-        const res = await fetch('/api/telegram/bot?action=test-bot-ping', {
+        const res = await telegramApiFetch('/api/telegram/bot?action=test-bot-ping', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', ...getAdminAuthHeaders() },
           body: JSON.stringify({ botId })
@@ -12566,7 +12613,7 @@ function attachGlobalHandlers() {
       }
 
       try {
-        const res = await fetch('/api/telegram/bot?action=add-admin', {
+        const res = await telegramApiFetch('/api/telegram/bot?action=add-admin', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', ...getAdminAuthHeaders() },
           body: JSON.stringify({ chatId })
@@ -12616,7 +12663,7 @@ function attachGlobalHandlers() {
 
       actionBtn.disabled = true;
       try {
-        const res = await fetch('/api/telegram/bot?action=remove-admin', {
+        const res = await telegramApiFetch('/api/telegram/bot?action=remove-admin', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', ...getAdminAuthHeaders() },
           body: JSON.stringify({ chatId })
@@ -12650,7 +12697,7 @@ function attachGlobalHandlers() {
       actionBtn.innerHTML = '<span class="spin-loader" style="width:12px;height:12px;border:2px solid currentColor;border-top-color:transparent;border-radius:50%;display:inline-block;animation:authSpin 0.75s linear infinite;"></span>';
 
       try {
-        const res = await fetch('/api/telegram/bot?action=ping-admin', {
+        const res = await telegramApiFetch('/api/telegram/bot?action=ping-admin', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', ...getAdminAuthHeaders() },
           body: JSON.stringify({ chatId })
@@ -12729,7 +12776,7 @@ function attachGlobalHandlers() {
           targetBotIds
         };
 
-        const res = await fetch('/api/telegram/bot?action=broadcast-message', {
+        const res = await telegramApiFetch('/api/telegram/bot?action=broadcast-message', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', ...getAdminAuthHeaders() },
           body: JSON.stringify(payload)
@@ -13441,7 +13488,7 @@ function attachGlobalHandlers() {
 
         // Notify customer on Telegram Bot via the exact bot they ordered from
         try {
-          const tgNotifyRes = await fetch('/api/telegram/bot?action=approve-order', {
+          const tgNotifyRes = await telegramApiFetch('/api/telegram/bot?action=approve-order', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', ...getAdminAuthHeaders() },
             body: JSON.stringify({
@@ -13620,7 +13667,7 @@ function attachGlobalHandlers() {
 
         // Notify customer on Telegram Bot if customer ordered via Telegram
         try {
-          fetch('/api/telegram/bot?action=reject-order', {
+          telegramApiFetch('/api/telegram/bot?action=reject-order', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', ...getAdminAuthHeaders() },
             body: JSON.stringify({
@@ -13967,7 +14014,7 @@ function attachGlobalHandlers() {
             await createRecord(node, next);
             if (node === 'products') {
               try {
-                fetch('/api/telegram/broadcast', {
+                telegramApiFetch('/api/telegram/broadcast', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify(next)
