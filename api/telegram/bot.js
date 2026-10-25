@@ -711,8 +711,6 @@ export async function switchTelegramBot(newToken, adminUser = 'Admin Panel', req
 }
 
 /**
- * Store unique bot users in high-speed local store & Supabase (permanent persistence)
-/**
  * Helper to check if a Telegram user belongs to a specific bot in the fleet.
  * Completely preserves multi-bot enrollment!
  */
