@@ -876,14 +876,68 @@ export async function getAllBotUsers() {
 
     const users = Object.values(usersMap).filter(u => u && u.id && u.source !== 'admin_account').map(u => {
       const sId = u.lastBotId || u.sourceBotId || primaryBot.botId;
-      const bMatch = allBots.find(b => b.botId === sId) || primaryBot;
-      const uBots = u.bots && Object.keys(u.bots).length ? u.bots : { [sId]: { botId: sId, botUsername: bMatch.username } };
+      const bMatch = allBots.find(b => b.botId === sId || b.id === sId) || primaryBot;
+
+      // Deeply enrich all bots this user belongs to
+      const enrichedBots = {};
+      if (u.bots && typeof u.bots === 'object') {
+        for (const [bKey, bVal] of Object.entries(u.bots)) {
+          const matchedBot = allBots.find(b => b.botId === bKey || b.id === bKey || (b.username && b.username.toLowerCase() === bKey.toLowerCase()));
+          const canonId = matchedBot ? matchedBot.botId : bKey;
+          const canonUname = matchedBot ? matchedBot.username : (bVal?.botUsername || bVal?.username || bKey.replace(/^bot_/, ''));
+          enrichedBots[canonId] = {
+            botId: canonId,
+            botUsername: canonUname,
+            joinedAt: bVal?.joinedAt || u.createdAt || Date.now(),
+            source: bVal?.source || u.source || 'bot_start'
+          };
+        }
+      }
+
+      // Check sourceBotIds list
+      if (Array.isArray(u.sourceBotIds)) {
+        u.sourceBotIds.forEach(id => {
+          const matchedBot = allBots.find(b => b.botId === id || b.id === id);
+          if (matchedBot && !enrichedBots[matchedBot.botId]) {
+            enrichedBots[matchedBot.botId] = {
+              botId: matchedBot.botId,
+              botUsername: matchedBot.username,
+              joinedAt: u.createdAt || Date.now(),
+              source: u.source || 'bot_start'
+            };
+          }
+        });
+      }
+
+      // If user has scalar sourceBotId or sourceBotUsername
+      if (u.sourceBotId) {
+        const matched = allBots.find(b => b.botId === u.sourceBotId || b.id === u.sourceBotId);
+        if (matched && !enrichedBots[matched.botId]) {
+          enrichedBots[matched.botId] = {
+            botId: matched.botId,
+            botUsername: matched.username,
+            joinedAt: u.createdAt || Date.now(),
+            source: u.source || 'bot_start'
+          };
+        }
+      }
+
+      // Fallback for primary bot if user has zero bot links
+      if (!Object.keys(enrichedBots).length && primaryBot) {
+        enrichedBots[primaryBot.botId] = {
+          botId: primaryBot.botId,
+          botUsername: primaryBot.username,
+          joinedAt: u.createdAt || Date.now(),
+          source: u.source || 'bot_start'
+        };
+      }
+
       return {
         ...u,
         sourceBotId: sId,
-        sourceBotUsername: u.sourceBotUsername || bMatch.username || 'Myshop9876_bot',
-        bots: uBots,
-        sourceBotIds: Object.keys(uBots)
+        sourceBotUsername: u.sourceBotUsername || bMatch.username || primaryBot.username || 'Myshop9876_bot',
+        bots: enrichedBots,
+        sourceBotIds: Object.keys(enrichedBots)
       };
     });
     return users.sort((a, b) => (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0));
@@ -2164,35 +2218,45 @@ export default async function handler(req, res) {
   const url = new URL(req.url, 'http://localhost');
   const action = url.searchParams.get('action') || '';
 
-  // Setup / Re-register Webhook endpoint
+  // Setup / Re-register Webhook endpoint across all fleet bots
   if ((action === 'setup-webhook' || action === 're-register-webhook') || (req.body && req.body.action === 're-register-webhook')) {
     const appUrl = getAppUrl(req);
-    const webhookUrl = `${appUrl}/api/telegram/bot`;
-    const setRes = await callTelegram('setWebhook', {
-      url: webhookUrl,
-      drop_pending_updates: false,
-      allowed_updates: ['message', 'callback_query']
-    });
-    // Rebind Telegram mini app button
     const allBots = getConnectedBots();
     const primaryBot = allBots.find(b => b.isPrimary) || allBots[0] || { botId: 'bot_8923608774', username: 'Myshop9876_bot' };
-    const storeWebUrl = `${appUrl}?botId=${primaryBot.botId}&botUser=${encodeURIComponent(primaryBot.username || '')}`;
-    await callTelegram('setChatMenuButton', {
-      menu_button: {
-        type: 'web_app',
-        text: '🛍️ Open Store',
-        web_app: { url: storeWebUrl }
-      }
-    }).catch(() => {});
-    const webhookInfo = await callTelegram('getWebhookInfo');
+
+    let lastHookRes = null;
+    let registeredCount = 0;
+    for (const b of allBots) {
+      if (!b.token || b.status === 'inactive') continue;
+      const bWebhook = `${appUrl}/api/telegram/bot?botId=${b.botId}`;
+      const setRes = await callTelegram('setWebhook', {
+        url: bWebhook,
+        drop_pending_updates: false,
+        allowed_updates: ['message', 'callback_query']
+      }, b.token).catch(() => null);
+      if (setRes && setRes.ok) registeredCount++;
+      lastHookRes = setRes;
+
+      const storeWebUrl = `${appUrl}?botId=${b.botId}&botUser=${encodeURIComponent(b.username || '')}`;
+      await callTelegram('setChatMenuButton', {
+        menu_button: {
+          type: 'web_app',
+          text: '🛍️ Open Store',
+          web_app: { url: storeWebUrl }
+        }
+      }, b.token).catch(() => {});
+    }
+
+    const webhookInfo = await callTelegram('getWebhookInfo', {}, primaryBot.token).catch(() => null);
     const hookData = (webhookInfo && webhookInfo.ok && webhookInfo.result) 
       ? webhookInfo.result 
-      : { url: webhookUrl, pending_update_count: 0 };
+      : { url: `${appUrl}/api/telegram/bot?botId=${primaryBot.botId}`, pending_update_count: 0 };
 
     return res.status(200).json({ 
-      ok: setRes?.ok !== false, 
-      webhookUrl, 
-      result: setRes, 
+      ok: true, 
+      registeredCount,
+      webhookUrl: `${appUrl}/api/telegram/bot?botId=${primaryBot.botId}`, 
+      result: lastHookRes, 
       webhook: hookData 
     });
   }
@@ -2293,10 +2357,23 @@ export default async function handler(req, res) {
       const token = cfg.token || '';
       const maskedToken = token.length > 10 ? `${token.slice(0, 6)}...${token.slice(-4)}` : '***';
       const allUsers = await getAllBotUsers();
+      const connectedBotsList = getConnectedBots();
       const botCounts = {};
-      allUsers.forEach(u => {
-        const sId = u.sourceBotId || 'bot_8923608774';
-        botCounts[sId] = (botCounts[sId] || 0) + 1;
+      connectedBotsList.forEach(b => {
+        const bId = b.botId;
+        const bRawId = String(b.id || '');
+        const bUname = (b.username || '').toLowerCase();
+        let c = 0;
+        allUsers.forEach(u => {
+          let inBot = false;
+          if (u.bots && (u.bots[bId] || (bRawId && u.bots[`bot_${bRawId}`]) || (bRawId && u.bots[bRawId]) || (bUname && u.bots[bUname]))) inBot = true;
+          else if (Array.isArray(u.sourceBotIds) && (u.sourceBotIds.includes(bId) || u.sourceBotIds.includes(bRawId))) inBot = true;
+          else if (u.sourceBotId === bId || u.sourceBotId === bRawId || u.lastBotId === bId) inBot = true;
+          else if (u.sourceBotUsername && bUname && u.sourceBotUsername.toLowerCase() === bUname) inBot = true;
+          else if (b.isPrimary && (!u.bots || !Object.keys(u.bots).length)) inBot = true;
+          if (inBot) c++;
+        });
+        botCounts[bId] = c;
       });
 
       const hookData = (webhookInfo && webhookInfo.ok && webhookInfo.result) 
@@ -2313,7 +2390,7 @@ export default async function handler(req, res) {
           maskedToken,
           lastActivatedAt: cfg.lastActivatedAt
         },
-        bots: getConnectedBots().map(b => ({
+        bots: connectedBotsList.map(b => ({
           ...b,
           status: b.status === 'inactive' ? 'inactive' : 'active',
           subscribersCount: botCounts[b.botId] || (b.isPrimary ? allUsers.length : 0),
@@ -2336,15 +2413,28 @@ export default async function handler(req, res) {
       return res.status(401).json({ ok: false, error: 'Unauthorized: Admin authentication required.' });
     }
     const allUsers = await getAllBotUsers();
+    const connectedBotsList = getConnectedBots();
     const botCounts = {};
-    allUsers.forEach(u => {
-      const sId = u.sourceBotId || 'bot_8923608774';
-      botCounts[sId] = (botCounts[sId] || 0) + 1;
+    connectedBotsList.forEach(b => {
+      const bId = b.botId;
+      const bRawId = String(b.id || '');
+      const bUname = (b.username || '').toLowerCase();
+      let c = 0;
+      allUsers.forEach(u => {
+        let inBot = false;
+        if (u.bots && (u.bots[bId] || (bRawId && u.bots[`bot_${bRawId}`]) || (bRawId && u.bots[bRawId]) || (bUname && u.bots[bUname]))) inBot = true;
+        else if (Array.isArray(u.sourceBotIds) && (u.sourceBotIds.includes(bId) || u.sourceBotIds.includes(bRawId))) inBot = true;
+        else if (u.sourceBotId === bId || u.sourceBotId === bRawId || u.lastBotId === bId) inBot = true;
+        else if (u.sourceBotUsername && bUname && u.sourceBotUsername.toLowerCase() === bUname) inBot = true;
+        else if (b.isPrimary && (!u.bots || !Object.keys(u.bots).length)) inBot = true;
+        if (inBot) c++;
+      });
+      botCounts[bId] = c;
     });
 
     return res.status(200).json({
       ok: true,
-      bots: getConnectedBots().map(b => ({
+      bots: connectedBotsList.map(b => ({
         ...b,
         status: b.status === 'inactive' ? 'inactive' : 'active',
         subscribersCount: botCounts[b.botId] || (b.isPrimary ? allUsers.length : 0),

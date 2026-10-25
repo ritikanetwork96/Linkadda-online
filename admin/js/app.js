@@ -7009,8 +7009,10 @@ try {
 } catch (_) {}
 
 let _tgBotData = {
-  activeTab: 'tgTabBots',
+  activeTab: 'tgTabUsers',
   botUserFilter: 'all',
+  sourceFilter: 'all',
+  userViewMode: 'table',
   bot: {
     id: '8923608774',
     botId: 'bot_8923608774',
@@ -7330,14 +7332,16 @@ function renderTelegramUsersTableList(users = [], filter = '') {
   if (_tgBotData.isLoading && (!users || !users.length)) {
     return `
       <div style="padding: 48px 20px; text-align: center; color: var(--muted);">
-        <div class="spin-loader" style="width: 34px; height: 34px; border: 3px solid rgba(99,102,241,0.2); border-top-color: #6366f1; border-radius: 50%; display: inline-block; animation: authSpin 0.75s linear infinite; margin-bottom: 14px;"></div>
-        <div style="font-size: 14.5px; font-weight: 700; color: var(--text);">Syncing Live Telegram Subscribers...</div>
-        <div style="font-size: 12px; color: var(--muted); margin-top: 4px;">Connecting to database & Telegram directory...</div>
+        <div class="spin-loader" style="width: 36px; height: 36px; border: 3px solid rgba(99,102,241,0.2); border-top-color: #6366f1; border-radius: 50%; display: inline-block; animation: authSpin 0.75s linear infinite; margin-bottom: 14px;"></div>
+        <div style="font-size: 15px; font-weight: 700; color: var(--text);">Syncing Live Telegram Subscribers...</div>
+        <div style="font-size: 12px; color: var(--muted); margin-top: 4px;">Connecting to database & Telegram directory across all connected bots...</div>
       </div>
     `;
   }
 
   const currentBotFilter = _tgBotData.botUserFilter || 'all';
+  const currentSourceFilter = _tgBotData.sourceFilter || 'all';
+  const currentViewMode = _tgBotData.userViewMode || 'table';
   const fleetBots = (_tgBotData.bots && _tgBotData.bots.length) ? _tgBotData.bots : [_tgBotData.bot].filter(Boolean);
   const primaryBot = fleetBots.find(b => b.isPrimary) || fleetBots[0] || { username: 'Myshop9876_bot', id: '8923608774', botId: 'bot_8923608774' };
 
@@ -7354,7 +7358,7 @@ function renderTelegramUsersTableList(users = [], filter = '') {
       if (bUname && u.bots[bUname]) return true;
       for (const [k, v] of Object.entries(u.bots)) {
         if (k === bId || k === rawId || k === `bot_${rawId}`) return true;
-        if (v && ((v.botId && (v.botId === bId || v.botId === rawId)) || (v.username && v.username.toLowerCase() === bUname))) return true;
+        if (v && ((v.botId && (v.botId === bId || v.botId === rawId)) || (v.username && v.username.toLowerCase() === bUname) || (v.botUsername && v.botUsername.toLowerCase() === bUname))) return true;
       }
     }
 
@@ -7363,8 +7367,8 @@ function renderTelegramUsersTableList(users = [], filter = '') {
       if (u.sourceBotIds.includes(bId) || (rawId && u.sourceBotIds.includes(rawId)) || (rawId && u.sourceBotIds.includes(`bot_${rawId}`))) return true;
     }
 
-    // 3. Check scalar sourceBotId
-    const uBotId = String(u.sourceBotId || '');
+    // 3. Check scalar sourceBotId or lastBotId
+    const uBotId = String(u.sourceBotId || u.lastBotId || '');
     if (uBotId && (uBotId === bId || uBotId === rawId || (rawId && uBotId === `bot_${rawId}`))) return true;
 
     // 4. Check sourceBotUsername
@@ -7387,16 +7391,29 @@ function renderTelegramUsersTableList(users = [], filter = '') {
   // Filter users by selected bot
   let botFilteredUsers = users;
   let activeBotLabel = 'All Connected Bots';
+  let activeBotUsername = '';
   if (currentBotFilter !== 'all') {
     const targetBot = fleetBots.find(b => String(b.botId || `bot_${b.id}` || b.id) === currentBotFilter);
     if (targetBot) {
+      activeBotUsername = targetBot.username || '';
       activeBotLabel = `@${targetBot.username || 'Selected Bot'}`;
       botFilteredUsers = users.filter(u => userBelongsToBot(u, targetBot));
     }
   }
 
+  // Filter by source
+  let sourceFiltered = botFilteredUsers;
+  if (currentSourceFilter !== 'all') {
+    if (currentSourceFilter === 'admin_tester') {
+      sourceFiltered = botFilteredUsers.filter(u => u.isAdmin || u.source === 'admin_tester' || u.source === 'admin_account');
+    } else {
+      sourceFiltered = botFilteredUsers.filter(u => !u.isAdmin && (u.source === currentSourceFilter || (currentSourceFilter === 'bot_start' && (u.source === 'bot_interaction' || u.source === 'bot_start' || !u.source))));
+    }
+  }
+
+  // Filter by search query
   const q = String(filter || '').toLowerCase().trim();
-  const filtered = botFilteredUsers.filter((u) => {
+  const filtered = sourceFiltered.filter((u) => {
     if (!q) return true;
     const name = `${u.firstName || ''} ${u.lastName || ''}`.toLowerCase();
     const uname = String(u.username || '').toLowerCase();
@@ -7409,74 +7426,283 @@ function renderTelegramUsersTableList(users = [], filter = '') {
   if (countPill) {
     countPill.textContent = currentBotFilter === 'all'
       ? `Showing ${filtered.length} of ${users.length} total subscribers`
-      : `Showing ${filtered.length} subscribers for ${activeBotLabel} (${users.length} total in fleet)`;
+      : `Showing ${filtered.length} subscribers in ${activeBotLabel} (${users.length} combined in fleet)`;
   }
 
+  // Summary counts for source filter pills
+  const sourceCounts = {
+    all: botFilteredUsers.length,
+    bot_start: botFilteredUsers.filter(u => !u.isAdmin && (u.source === 'bot_start' || u.source === 'bot_interaction' || !u.source)).length,
+    order_checkout: botFilteredUsers.filter(u => !u.isAdmin && (u.source === 'order_checkout' || u.source === 'customer_order')).length,
+    mini_app_visit: botFilteredUsers.filter(u => !u.isAdmin && u.source === 'mini_app_visit').length,
+    admin_tester: botFilteredUsers.filter(u => u.isAdmin || u.source === 'admin_tester' || u.source === 'admin_account').length
+  };
+
   return `
-    <!-- Dedicated Interactive Bot Filter Pills Bar -->
-    <div style="padding: 12px 16px; background: rgba(0,0,0,0.3); border-bottom: 1px solid rgba(255,255,255,0.08);">
-      <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; flex-wrap: wrap;">
-        <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: #94a3b8; letter-spacing: 0.05em; display: inline-flex; align-items: center; gap: 5px;">
-          <i data-lucide="filter" style="width: 12px; height: 12px; color: #818cf8;"></i> Filter Subscribers by Bot Channel:
-        </span>
-        <span style="font-size: 11.5px; color: #38bdf8; font-weight: 600;">
-          ${currentBotFilter === 'all' ? 'Showing All Bots Combined' : `Active Filter: ${activeBotLabel}`}
-        </span>
+    <div style="padding: 18px 20px; background: rgba(0,0,0,0.32); border-bottom: 1px solid rgba(255,255,255,0.08);">
+
+      <!-- 1. TOP BOT CHANNEL SELECTOR DECK (Cards) -->
+      <div style="margin-bottom: 16px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; flex-wrap: wrap;">
+          <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: #94a3b8; letter-spacing: 0.05em; display: inline-flex; align-items: center; gap: 6px;">
+            <i data-lucide="radio" style="width: 13px; height: 13px; color: #38bdf8;"></i> Select Bot Channel to View Subscribers:
+          </span>
+          <span style="font-size: 12px; color: #38bdf8; font-weight: 700; display: inline-flex; align-items: center; gap: 5px;">
+            Active Channel: <span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; padding: 2px 8px; border-radius: 6px; border: 1px solid rgba(56, 189, 248, 0.3);">${escapeHtml(activeBotLabel)}</span>
+          </span>
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px;">
+          
+          <!-- All Bots Card -->
+          <div data-action="set-bot-user-filter" data-bot-id="all" style="cursor: pointer; padding: 12px 14px; border-radius: 12px; transition: all 0.2s ease; ${currentBotFilter === 'all' ? 'background: linear-gradient(135deg, rgba(99,102,241,0.25), rgba(139,92,246,0.25)); border: 1.5px solid #818cf8; box-shadow: 0 4px 16px rgba(99,102,241,0.3);' : 'background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);'}; display: flex; align-items: center; justify-content: space-between; gap: 10px;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <div style="width: 36px; height: 36px; border-radius: 10px; background: linear-gradient(135deg, #6366f1, #8b5cf6); display: flex; align-items: center; justify-content: center; color: white; flex-shrink: 0; box-shadow: 0 2px 8px rgba(99,102,241,0.3);">
+                <i data-lucide="globe" style="width: 18px; height: 18px;"></i>
+              </div>
+              <div>
+                <strong style="color: var(--text); font-size: 13px; display: block;">All Bots Combined</strong>
+                <span style="font-size: 11px; color: var(--muted);">Unified Multi-Bot Pool</span>
+              </div>
+            </div>
+            <div style="text-align: right;">
+              <div style="font-size: 18px; font-weight: 800; color: #a5b4fc;">${users.length}</div>
+              <span style="font-size: 10px; color: var(--muted); text-transform: uppercase; font-weight: 600;">Users</span>
+            </div>
+          </div>
+
+          <!-- Per-Bot Cards -->
+          ${fleetBots.map(b => {
+            const bId = String(b.botId || `bot_${b.id}` || b.id || '');
+            const isSelected = currentBotFilter === bId;
+            const count = botCounts[bId] || 0;
+            const uName = b.username || 'Bot';
+            const isPrimary = Boolean(b.isPrimary);
+
+            return `
+              <div data-action="set-bot-user-filter" data-bot-id="${escapeHtml(bId)}" data-bot-username="${escapeHtml(uName)}" style="cursor: pointer; padding: 12px 14px; border-radius: 12px; transition: all 0.2s ease; ${isSelected ? 'background: linear-gradient(135deg, rgba(2,132,199,0.25), rgba(56,189,248,0.25)); border: 1.5px solid #38bdf8; box-shadow: 0 4px 16px rgba(2,132,199,0.35);' : 'background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);'}; display: flex; align-items: center; justify-content: space-between; gap: 10px;">
+                <div style="display: flex; align-items: center; gap: 10px; min-width: 0;">
+                  <div style="width: 36px; height: 36px; border-radius: 10px; background: ${isPrimary ? 'linear-gradient(135deg, #0284c7, #38bdf8)' : 'linear-gradient(135deg, #475569, #64748b)'}; display: flex; align-items: center; justify-content: center; color: white; flex-shrink: 0;">
+                    <i data-lucide="bot" style="width: 18px; height: 18px;"></i>
+                  </div>
+                  <div style="min-width: 0;">
+                    <div style="display: flex; align-items: center; gap: 5px;">
+                      <strong style="color: var(--text); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block;">@${escapeHtml(uName)}</strong>
+                    </div>
+                    <span style="font-size: 10px; font-weight: 700; color: ${isPrimary ? '#fbbf24' : '#94a3b8'}; text-transform: uppercase;">
+                      ${isPrimary ? '⭐ Primary Bot' : '🤖 Fleet Channel'}
+                    </span>
+                  </div>
+                </div>
+                <div style="text-align: right; flex-shrink: 0;">
+                  <div style="font-size: 18px; font-weight: 800; color: ${isSelected ? '#38bdf8' : 'var(--text)'};">${count}</div>
+                  <span style="font-size: 10px; color: var(--muted); text-transform: uppercase; font-weight: 600;">Users</span>
+                </div>
+              </div>
+            `;
+          }).join('')}
+
+        </div>
       </div>
 
-      <div class="tg-bot-filter-pills-bar" style="display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; -webkit-overflow-scrolling: touch; scrollbar-width: none;">
-        <!-- All Bots Combined Pill -->
-        <button type="button" class="btn btn-sm ${currentBotFilter === 'all' ? 'active-filter-pill' : ''}" data-action="set-bot-user-filter" data-bot-id="all" style="font-size: 12px; font-weight: 700; padding: 6px 14px; border-radius: 20px; white-space: nowrap; cursor: pointer; transition: all 0.15s ease; ${currentBotFilter === 'all' ? 'background: linear-gradient(135deg, #6366f1, #8b5cf6) !important; color: white !important; border: none; box-shadow: 0 2px 10px rgba(99,102,241,0.45);' : 'background: rgba(255,255,255,0.06); color: var(--text); border: 1px solid rgba(255,255,255,0.1);'}">
-          🌐 All Bots (${users.length})
-        </button>
+      <!-- 2. TOOLBAR: Source Filter Pills, View Mode Switcher, & Search -->
+      <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.06);">
+        
+        <!-- Source Filter Pills -->
+        <div style="display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; -webkit-overflow-scrolling: touch; scrollbar-width: none;">
+          <button type="button" class="btn btn-sm" data-action="set-user-source-filter" data-source="all" style="font-size: 11.5px; padding: 4px 10px; border-radius: 16px; cursor: pointer; transition: all 0.15s ease; ${currentSourceFilter === 'all' ? 'background: #6366f1; color: white; border: none;' : 'background: rgba(255,255,255,0.05); color: var(--muted); border: 1px solid rgba(255,255,255,0.08);'}">
+            All Users (${sourceCounts.all})
+          </button>
+          <button type="button" class="btn btn-sm" data-action="set-user-source-filter" data-source="bot_start" style="font-size: 11.5px; padding: 4px 10px; border-radius: 16px; cursor: pointer; transition: all 0.15s ease; ${currentSourceFilter === 'bot_start' ? 'background: #a855f7; color: white; border: none;' : 'background: rgba(255,255,255,0.05); color: var(--muted); border: 1px solid rgba(255,255,255,0.08);'}">
+            🟢 Bot /start (${sourceCounts.bot_start})
+          </button>
+          <button type="button" class="btn btn-sm" data-action="set-user-source-filter" data-source="order_checkout" style="font-size: 11.5px; padding: 4px 10px; border-radius: 16px; cursor: pointer; transition: all 0.15s ease; ${currentSourceFilter === 'order_checkout' ? 'background: #10b981; color: white; border: none;' : 'background: rgba(255,255,255,0.05); color: var(--muted); border: 1px solid rgba(255,255,255,0.08);'}">
+            🛍️ Store Buyers (${sourceCounts.order_checkout})
+          </button>
+          <button type="button" class="btn btn-sm" data-action="set-user-source-filter" data-source="mini_app_visit" style="font-size: 11.5px; padding: 4px 10px; border-radius: 16px; cursor: pointer; transition: all 0.15s ease; ${currentSourceFilter === 'mini_app_visit' ? 'background: #38bdf8; color: white; border: none;' : 'background: rgba(255,255,255,0.05); color: var(--muted); border: 1px solid rgba(255,255,255,0.08);'}">
+            📱 Mini App (${sourceCounts.mini_app_visit})
+          </button>
+          <button type="button" class="btn btn-sm" data-action="set-user-source-filter" data-source="admin_tester" style="font-size: 11.5px; padding: 4px 10px; border-radius: 16px; cursor: pointer; transition: all 0.15s ease; ${currentSourceFilter === 'admin_tester' ? 'background: #ec4899; color: white; border: none;' : 'background: rgba(255,255,255,0.05); color: var(--muted); border: 1px solid rgba(255,255,255,0.08);'}">
+            👑 Admins (${sourceCounts.admin_tester})
+          </button>
+        </div>
 
-        <!-- Each Connected Bot Pill -->
-        ${fleetBots.map(b => {
-          const bId = String(b.botId || `bot_${b.id}` || b.id || '');
-          const isSelected = currentBotFilter === bId;
-          const count = botCounts[bId] || 0;
-          const uName = b.username || 'Bot';
-          return `
-            <button type="button" class="btn btn-sm ${isSelected ? 'active-filter-pill' : ''}" data-action="set-bot-user-filter" data-bot-id="${escapeHtml(bId)}" data-bot-username="${escapeHtml(uName)}" style="font-size: 12px; font-weight: 700; padding: 6px 14px; border-radius: 20px; white-space: nowrap; cursor: pointer; transition: all 0.15s ease; ${isSelected ? 'background: linear-gradient(135deg, #0284c7, #38bdf8) !important; color: white !important; border: none; box-shadow: 0 2px 10px rgba(2,132,199,0.45);' : 'background: rgba(255,255,255,0.06); color: var(--text); border: 1px solid rgba(255,255,255,0.1);'}">
-              🤖 @${escapeHtml(uName)}
-              <span style="background: ${isSelected ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.1)'}; padding: 1px 7px; border-radius: 10px; font-size: 11px; margin-left: 5px; font-weight: 800;">
-                ${count}
-              </span>
+        <!-- View Mode Switcher & Quick Copy -->
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <div style="display: flex; background: rgba(0,0,0,0.4); border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); padding: 2px;">
+            <button type="button" data-action="set-user-view-mode" data-mode="table" title="Table View" style="padding: 5px 9px; border-radius: 6px; border: none; font-size: 12px; cursor: pointer; display: flex; align-items: center; gap: 4px; ${currentViewMode === 'table' ? 'background: #6366f1; color: white;' : 'background: transparent; color: var(--muted);'}">
+              <i data-lucide="list" style="width: 13px; height: 13px;"></i> Table
             </button>
+            <button type="button" data-action="set-user-view-mode" data-mode="cards" title="Visual Cards View" style="padding: 5px 9px; border-radius: 6px; border: none; font-size: 12px; cursor: pointer; display: flex; align-items: center; gap: 4px; ${currentViewMode === 'cards' ? 'background: #6366f1; color: white;' : 'background: transparent; color: var(--muted);'}">
+              <i data-lucide="layout-grid" style="width: 13px; height: 13px;"></i> Cards
+            </button>
+          </div>
+
+          <button type="button" data-action="copy-all-user-ids" class="btn btn-ghost btn-sm" style="font-size: 11.5px; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--border); display: inline-flex; align-items: center; gap: 4px;" title="Copy all filtered user IDs to clipboard">
+            <i data-lucide="copy" style="width: 12px; height: 12px;"></i> Copy IDs (${filtered.length})
+          </button>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- 3. MAIN SUBSCRIBERS DIRECTORY VIEW -->
+    ${!filtered.length ? `
+      <div style="padding: 54px 20px; text-align: center; color: var(--muted);">
+        <div style="width: 58px; height: 58px; border-radius: 18px; background: rgba(99, 102, 241, 0.12); display: inline-flex; align-items: center; justify-content: center; color: #818cf8; margin-bottom: 14px; box-shadow: 0 4px 14px rgba(99, 102, 241, 0.15);">
+          <i data-lucide="users" style="width: 28px; height: 28px;"></i>
+        </div>
+        <div style="font-size: 16px; font-weight: 800; color: var(--text);">No Subscribers Found</div>
+        <div style="font-size: 12.5px; color: var(--muted); margin-top: 6px; max-width: 480px; margin-left: auto; margin-right: auto; line-height: 1.5;">
+          ${q 
+            ? `No users matched "${escapeHtml(q)}" under <b>${activeBotLabel}</b>. Try clearing your search keyword.`
+            : `No users have interacted with <b>${activeBotLabel}</b> yet. When a user sends <code>/start</code> or opens your store in this bot, they will appear here instantly!`}
+        </div>
+        <div style="margin-top: 18px; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
+          ${activeBotUsername ? `
+            <a href="https://t.me/${escapeHtml(activeBotUsername)}" target="_blank" class="btn btn-primary btn-sm" style="font-size: 12px; padding: 8px 16px; border-radius: 8px; display: inline-flex; align-items: center; gap: 6px; background: linear-gradient(135deg, #0284c7, #38bdf8) !important; color: white !important;">
+              <i data-lucide="external-link" style="width: 13px; height: 13px;"></i> Test /start in @${escapeHtml(activeBotUsername)}
+            </a>
+          ` : ''}
+          ${currentBotFilter !== 'all' ? `
+            <button type="button" class="btn btn-ghost btn-sm" data-action="set-bot-user-filter" data-bot-id="all" style="font-size: 12px; padding: 8px 16px; border: 1px solid rgba(99,102,241,0.4); color: #a5b4fc; border-radius: 8px;">
+              View All ${users.length} Subscribers Combined →
+            </button>
+          ` : ''}
+        </div>
+      </div>
+    ` : currentViewMode === 'cards' ? `
+      <!-- CARDS VIEW (Visual Profile Cards Grid) -->
+      <div style="padding: 18px; display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 14px;">
+        ${filtered.map((u) => {
+          const fName = String(u.firstName || u.name || '').replace(/^undefined$/i, '').trim();
+          const lName = String(u.lastName || '').replace(/^undefined$/i, '').trim();
+          let initials = 'TG';
+          if (fName && lName) {
+            initials = (fName.charAt(0) + lName.charAt(0)).toUpperCase();
+          } else if (fName.length >= 2) {
+            initials = fName.slice(0, 2).toUpperCase();
+          } else if (fName.length === 1) {
+            initials = fName.toUpperCase();
+          } else if (u.username) {
+            initials = String(u.username).slice(0, 2).toUpperCase();
+          }
+          const displayName = [fName, lName].filter(Boolean).join(' ') || (u.username ? `@${u.username}` : 'Telegram User');
+          const hasUsername = Boolean(u.username);
+          const isAdmin = u.isAdmin || u.source === 'admin_tester' || u.source === 'admin_account';
+          const sourceLabel = isAdmin ? 'Admin / Tester' : (u.source === 'mini_app_visit' ? 'Mini App Visit' : (u.source === 'order_checkout' ? 'Store Buyer' : (u.source === 'customer_order' ? 'Store Buyer' : 'Bot /start')));
+          const sourceColor = isAdmin ? '#ec4899' : (u.source === 'mini_app_visit' ? '#38bdf8' : (u.source === 'order_checkout' || u.source === 'customer_order' ? '#10b981' : '#a855f7'));
+
+          // Resolve all bots this user belongs to
+          let userBotBadges = [];
+          fleetBots.forEach(b => {
+            if (userBelongsToBot(u, b)) {
+              userBotBadges.push({ username: b.username || 'Bot', isPrimary: Boolean(b.isPrimary), id: b.botId });
+            }
+          });
+          if (!userBotBadges.length) {
+            const fbName = u.sourceBotUsername || (primaryBot ? primaryBot.username : 'Myshop9876_bot');
+            userBotBadges.push({ username: fbName, isPrimary: true, id: primaryBot?.botId });
+          }
+
+          const userTime = u.updatedAt || u.lastSeenAt || u.createdAt;
+          let timeFull = 'Recent';
+          let timeRel = 'Recently';
+          if (userTime) {
+            try {
+              timeFull = formatDateTime(userTime);
+              timeRel = formatRelativeTime(userTime);
+            } catch (_) {
+              timeFull = String(userTime);
+            }
+          }
+
+          return `
+            <div class="panel glass" style="padding: 16px 18px; border-radius: 14px; border: 1px solid rgba(255,255,255,0.08); background: linear-gradient(135deg, rgba(255,255,255,0.03) 0%, rgba(0,0,0,0.4) 100%); display: flex; flex-direction: column; justify-content: space-between; gap: 12px; transition: transform 0.15s ease, border-color 0.15s ease;">
+              
+              <!-- Card Header: Avatar, Name, Handle -->
+              <div>
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px;">
+                  <div style="display: flex; align-items: center; gap: 10px; min-width: 0;">
+                    <div style="width: 40px; height: 40px; border-radius: 12px; background: linear-gradient(135deg, #0284c7, #6366f1); display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 800; color: white; flex-shrink: 0; box-shadow: 0 4px 12px rgba(2,132,199,0.35);">
+                      ${escapeHtml(initials)}
+                    </div>
+                    <div style="min-width: 0;">
+                      <strong style="color: var(--text); font-size: 14px; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(displayName)}</strong>
+                      ${hasUsername 
+                        ? `<a href="https://t.me/${escapeHtml(u.username)}" target="_blank" style="color: #38bdf8; text-decoration: none; font-size: 12px; font-weight: 600; display: inline-flex; align-items: center; gap: 3px;">@${escapeHtml(u.username)} <i data-lucide="external-link" style="width: 10px; height: 10px;"></i></a>`
+                        : `<span style="color: var(--muted); font-size: 11px; font-style: italic;">No @username</span>`}
+                    </div>
+                  </div>
+
+                  <span style="font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 6px; background: rgba(255,255,255,0.05); color: ${sourceColor}; border: 1px solid rgba(255,255,255,0.08); text-transform: uppercase; flex-shrink: 0;">
+                    ${escapeHtml(sourceLabel)}
+                  </span>
+                </div>
+
+                <!-- Telegram ID chip -->
+                <div style="display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; background: rgba(0,0,0,0.3); border-radius: 8px; border: 1px solid rgba(255,255,255,0.05); margin-bottom: 10px;">
+                  <span style="font-size: 11px; color: var(--muted); font-weight: 600;">Telegram ID:</span>
+                  <div style="display: flex; align-items: center; gap: 6px;">
+                    <code style="font-size: 12px; font-weight: 800; color: #cbd5e1; font-family: monospace;">${escapeHtml(String(u.id))}</code>
+                    <button type="button" class="btn btn-ghost" onclick="navigator.clipboard.writeText('${escapeHtml(String(u.id))}'); showToast('Copied ID: ${escapeHtml(String(u.id))}', 'info');" title="Copy Telegram User ID" style="padding: 2px 5px; border-radius: 4px; border: none; color: #94a3b8; cursor: pointer;">
+                      <i data-lucide="copy" style="width: 11px; height: 11px;"></i>
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Enrolled Bot Badges -->
+                <div>
+                  <div style="font-size: 10.5px; font-weight: 700; text-transform: uppercase; color: var(--muted); letter-spacing: 0.04em; margin-bottom: 5px;">
+                    Connected Bot Channels (${userBotBadges.length}):
+                  </div>
+                  <div style="display: flex; flex-wrap: wrap; gap: 5px;">
+                    ${userBotBadges.map(b => `
+                      <span style="display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 6px; background: rgba(56, 189, 248, 0.12); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); font-size: 11.5px; font-weight: 700;">
+                        <i data-lucide="bot" style="width: 11px; height: 11px;"></i> @${escapeHtml(b.username)}
+                        ${b.isPrimary ? '<span style="font-size: 9px; padding: 0 4px; border-radius: 3px; background: rgba(245,158,11,0.25); color: #fbbf24;">⭐</span>' : ''}
+                      </span>
+                    `).join('')}
+                  </div>
+                </div>
+              </div>
+
+              <!-- Card Footer: Time & Action Buttons -->
+              <div style="padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.06); display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+                <div style="font-size: 11px; color: var(--muted);">
+                  <i data-lucide="clock" style="width: 11px; height: 11px; vertical-align: -1px; margin-right: 2px;"></i>
+                  ${escapeHtml(timeRel)}
+                </div>
+                <div style="display: flex; gap: 6px;">
+                  ${hasUsername ? `
+                    <a href="https://t.me/${escapeHtml(u.username)}" target="_blank" class="btn btn-ghost btn-sm" style="font-size: 11.5px; padding: 5px 10px; border-radius: 6px; border: 1px solid rgba(56, 189, 248, 0.3); color: #38bdf8; display: inline-flex; align-items: center; gap: 4px;">
+                      <i data-lucide="message-circle" style="width: 12px; height: 12px;"></i> Chat
+                    </a>
+                  ` : ''}
+                  <button type="button" class="btn btn-ghost btn-sm" onclick="navigator.clipboard.writeText('${escapeHtml(String(u.id))}'); showToast('User ID copied: ${escapeHtml(String(u.id))}', 'info');" style="font-size: 11.5px; padding: 5px 10px; border-radius: 6px; border: 1px solid var(--border); display: inline-flex; align-items: center; gap: 4px;">
+                    <i data-lucide="copy" style="width: 12px; height: 12px;"></i> Copy ID
+                  </button>
+                </div>
+              </div>
+
+            </div>
           `;
         }).join('')}
       </div>
-    </div>
-
-    ${!filtered.length ? `
-      <div style="padding: 48px 20px; text-align: center; color: var(--muted);">
-        <div style="width: 52px; height: 52px; border-radius: 16px; background: rgba(99, 102, 241, 0.1); display: inline-flex; align-items: center; justify-content: center; color: #818cf8; margin-bottom: 12px;">
-          <i data-lucide="users" style="width: 26px; height: 26px;"></i>
-        </div>
-        <div style="font-size: 15px; font-weight: 700; color: var(--text);">No Subscribers Found</div>
-        <div style="font-size: 12px; color: var(--muted); margin-top: 5px; max-width: 440px; margin-left: auto; margin-right: auto; line-height: 1.5;">
-          ${q 
-            ? `No users matched "${escapeHtml(q)}" in ${activeBotLabel}. Try clearing the search box.`
-            : `No users have joined via <b>${activeBotLabel}</b> yet. As soon as someone starts this bot or opens your store inside it, they will automatically appear here!`}
-        </div>
-        ${currentBotFilter !== 'all' ? `
-          <button type="button" class="btn btn-ghost btn-sm" data-action="set-bot-user-filter" data-bot-id="all" style="margin-top: 14px; font-size: 12px; border: 1px solid rgba(99,102,241,0.4); color: #a5b4fc;">
-            View All ${users.length} Subscribers Combined →
-          </button>
-        ` : ''}
-      </div>
     ` : `
+      <!-- TABLE VIEW (Clean High-Contrast Full Data Table) -->
       <div style="overflow-x: auto; width: 100%; -webkit-overflow-scrolling: touch;">
-        <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 13px; min-width: 720px;">
+        <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 13px; min-width: 780px;">
           <thead>
             <tr style="border-bottom: 1px solid rgba(255,255,255,0.08); background: rgba(0,0,0,0.25);">
-              <th style="padding: 12px 16px; font-weight: 700; color: var(--muted); text-transform: uppercase; font-size: 11px;">User</th>
-              <th style="padding: 12px 16px; font-weight: 700; color: #38bdf8; text-transform: uppercase; font-size: 11px;">Bot Channel</th>
-              <th style="padding: 12px 16px; font-weight: 700; color: var(--muted); text-transform: uppercase; font-size: 11px;">Username</th>
-              <th style="padding: 12px 16px; font-weight: 700; color: var(--muted); text-transform: uppercase; font-size: 11px;">Telegram ID</th>
-              <th style="padding: 12px 16px; font-weight: 700; color: var(--muted); text-transform: uppercase; font-size: 11px;">Source</th>
-              <th style="padding: 12px 16px; font-weight: 700; color: var(--muted); text-transform: uppercase; font-size: 11px;">Last Seen</th>
-              <th style="padding: 12px 16px; font-weight: 700; color: var(--muted); text-transform: uppercase; font-size: 11px; text-align: right;">Action</th>
+              <th style="padding: 13px 18px; font-weight: 700; color: var(--muted); text-transform: uppercase; font-size: 11px;">Subscriber / Name</th>
+              <th style="padding: 13px 18px; font-weight: 700; color: #38bdf8; text-transform: uppercase; font-size: 11px;">Enrolled Bot Channels</th>
+              <th style="padding: 13px 18px; font-weight: 700; color: var(--muted); text-transform: uppercase; font-size: 11px;">Telegram Username</th>
+              <th style="padding: 13px 18px; font-weight: 700; color: var(--muted); text-transform: uppercase; font-size: 11px;">Numeric ID</th>
+              <th style="padding: 13px 18px; font-weight: 700; color: var(--muted); text-transform: uppercase; font-size: 11px;">Acquisition</th>
+              <th style="padding: 13px 18px; font-weight: 700; color: var(--muted); text-transform: uppercase; font-size: 11px;">Joined / Active</th>
+              <th style="padding: 13px 18px; font-weight: 700; color: var(--muted); text-transform: uppercase; font-size: 11px; text-align: right;">Action</th>
             </tr>
           </thead>
           <tbody>
@@ -7496,26 +7722,28 @@ function renderTelegramUsersTableList(users = [], filter = '') {
               const displayName = [fName, lName].filter(Boolean).join(' ') || (u.username ? `@${u.username}` : 'Telegram User');
               const hasUsername = Boolean(u.username);
               const isAdmin = u.isAdmin || u.source === 'admin_tester' || u.source === 'admin_account';
-              const sourceLabel = isAdmin ? 'Admin / Tester' : (u.source === 'mini_app_visit' ? 'Mini App Visit' : (u.source === 'order_checkout' ? 'Order Checkout' : (u.source === 'customer_order' ? 'Store Buyer' : 'Bot /start')));
+              const sourceLabel = isAdmin ? 'Admin / Tester' : (u.source === 'mini_app_visit' ? 'Mini App Visit' : (u.source === 'order_checkout' ? 'Store Buyer' : (u.source === 'customer_order' ? 'Store Buyer' : 'Bot /start')));
               const sourceColor = isAdmin ? '#ec4899' : (u.source === 'mini_app_visit' ? '#38bdf8' : (u.source === 'order_checkout' || u.source === 'customer_order' ? '#10b981' : '#a855f7'));
-              // Render badges for all bots this user belongs to
-              let botBadges = [];
+
+              // Resolve all bots this user belongs to
+              let userBotBadges = [];
               fleetBots.forEach(b => {
                 if (userBelongsToBot(u, b)) {
-                  botBadges.push(`@${b.username || 'Bot'}`);
+                  userBotBadges.push({ username: b.username || 'Bot', isPrimary: Boolean(b.isPrimary), id: b.botId });
                 }
               });
-              if (!botBadges.length) {
+              if (!userBotBadges.length) {
                 const fbName = u.sourceBotUsername || (primaryBot ? primaryBot.username : 'Myshop9876_bot');
-                botBadges.push(`@${fbName}`);
+                userBotBadges.push({ username: fbName, isPrimary: true, id: primaryBot?.botId });
               }
-              botBadges = [...new Set(botBadges)];
 
               const userTime = u.updatedAt || u.lastSeenAt || u.createdAt;
               let timeStr = 'Recent';
+              let timeRel = '';
               if (userTime) {
                 try {
                   timeStr = formatDateTime(userTime);
+                  timeRel = formatRelativeTime(userTime);
                 } catch (_) {
                   timeStr = String(userTime);
                 }
@@ -7523,45 +7751,52 @@ function renderTelegramUsersTableList(users = [], filter = '') {
 
               return `
                 <tr style="border-bottom: 1px solid rgba(255,255,255,0.04); transition: background 0.15s ease;">
-                  <td style="padding: 12px 16px;">
+                  <td style="padding: 13px 18px;">
                     <div style="display: flex; align-items: center; gap: 10px;">
-                      <div style="width: 34px; height: 34px; border-radius: 50%; background: linear-gradient(135deg, #0284c7, #6366f1); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; color: white; flex-shrink: 0;">
+                      <div style="width: 34px; height: 34px; border-radius: 50%; background: linear-gradient(135deg, #0284c7, #6366f1); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; color: white; flex-shrink: 0; box-shadow: 0 2px 8px rgba(2,132,199,0.3);">
                         ${escapeHtml(initials)}
                       </div>
                       <div>
-                        <strong style="color: var(--text); font-size: 13px; display: block;">${escapeHtml(displayName)}</strong>
+                        <strong style="color: var(--text); font-size: 13.5px; display: block;">${escapeHtml(displayName)}</strong>
                       </div>
                     </div>
                   </td>
-                  <td style="padding: 12px 16px; white-space: nowrap;">
+                  <td style="padding: 13px 18px; white-space: nowrap;">
                     <div style="display: flex; flex-wrap: wrap; gap: 4px;">
-                      ${botBadges.map(bName => `
+                      ${userBotBadges.map(b => `
                         <span style="display: inline-flex; align-items: center; gap: 3px; padding: 2.5px 7px; border-radius: 6px; background: rgba(56, 189, 248, 0.12); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); font-size: 11px; font-weight: 700;">
-                          <i data-lucide="bot" style="width: 11px; height: 11px;"></i> ${escapeHtml(bName)}
+                          <i data-lucide="bot" style="width: 11px; height: 11px;"></i> @${escapeHtml(b.username)}
+                          ${b.isPrimary ? '<span style="font-size: 8.5px; padding: 0 3px; border-radius: 2px; background: rgba(245,158,11,0.25); color: #fbbf24;">⭐</span>' : ''}
                         </span>
                       `).join('')}
                     </div>
                   </td>
-                  <td style="padding: 12px 16px; white-space: nowrap;">
+                  <td style="padding: 13px 18px; white-space: nowrap;">
                     ${hasUsername 
                       ? `<a href="https://t.me/${escapeHtml(u.username)}" target="_blank" style="color: #38bdf8; text-decoration: none; font-weight: 600; display: inline-flex; align-items: center; gap: 4px;">@${escapeHtml(u.username)} <i data-lucide="external-link" style="width: 12px; height: 12px;"></i></a>`
                       : `<span style="color: var(--muted); font-style: italic;">No username</span>`}
                   </td>
-                  <td style="padding: 12px 16px; white-space: nowrap;">
-                    <code style="font-size: 12px; background: rgba(0,0,0,0.3); padding: 3px 6px; border-radius: 4px; color: #cbd5e1; font-family: monospace;">${escapeHtml(String(u.id))}</code>
+                  <td style="padding: 13px 18px; white-space: nowrap;">
+                    <div style="display: inline-flex; align-items: center; gap: 4px;">
+                      <code style="font-size: 12px; background: rgba(0,0,0,0.35); padding: 3px 6px; border-radius: 4px; color: #cbd5e1; font-family: monospace; font-weight: 700;">${escapeHtml(String(u.id))}</code>
+                      <button type="button" class="btn btn-ghost" onclick="navigator.clipboard.writeText('${escapeHtml(String(u.id))}'); showToast('Copied ID: ${escapeHtml(String(u.id))}', 'info');" title="Copy Telegram User ID" style="padding: 2px 4px; border-radius: 4px; border: none; color: #94a3b8; cursor: pointer;">
+                        <i data-lucide="copy" style="width: 11px; height: 11px;"></i>
+                      </button>
+                    </div>
                   </td>
-                  <td style="padding: 12px 16px; white-space: nowrap;">
+                  <td style="padding: 13px 18px; white-space: nowrap;">
                     <span style="font-size: 10.5px; font-weight: 700; padding: 3px 8px; border-radius: 6px; background: rgba(255,255,255,0.05); color: ${sourceColor}; border: 1px solid rgba(255,255,255,0.08); text-transform: uppercase;">
                       ${escapeHtml(sourceLabel)}
                     </span>
                   </td>
-                  <td style="padding: 12px 16px; color: var(--muted); font-size: 12px; white-space: nowrap;">
-                    ${escapeHtml(timeStr)}
+                  <td style="padding: 13px 18px; white-space: nowrap;">
+                    <div style="font-size: 12px; color: var(--text);">${escapeHtml(timeStr)}</div>
+                    ${timeRel ? `<div style="font-size: 10.5px; color: var(--muted);">${escapeHtml(timeRel)}</div>` : ''}
                   </td>
-                  <td style="padding: 12px 16px; text-align: right; white-space: nowrap;">
+                  <td style="padding: 13px 18px; text-align: right; white-space: nowrap;">
                     ${hasUsername 
-                      ? `<a href="https://t.me/${escapeHtml(u.username)}" target="_blank" class="btn btn-ghost btn-sm" style="font-size: 11.5px; padding: 5px 10px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--border);">
-                          <i data-lucide="message-circle" style="width: 13px; height: 13px; color: #0284c7;"></i> Chat
+                      ? `<a href="https://t.me/${escapeHtml(u.username)}" target="_blank" class="btn btn-ghost btn-sm" style="font-size: 11.5px; padding: 5px 10px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px; border: 1px solid rgba(56, 189, 248, 0.3); color: #38bdf8;">
+                          <i data-lucide="message-circle" style="width: 13px; height: 13px;"></i> Chat
                          </a>`
                       : `<button type="button" class="btn btn-ghost btn-sm" onclick="navigator.clipboard.writeText('${escapeHtml(String(u.id))}'); showToast('User ID copied: ${escapeHtml(String(u.id))}', 'info');" style="font-size: 11.5px; padding: 5px 10px; border-radius: 6px; border: 1px solid var(--border);">
                           <i data-lucide="copy" style="width: 12px; height: 12px;"></i> Copy ID
@@ -7810,7 +8045,7 @@ function renderTelegramAdminsCards(admins = []) {
 }
 
 function renderTelegramBotPageView(data = {}) {
-  const activeTab = _tgBotData.activeTab || 'tgTabBots';
+  const activeTab = _tgBotData.activeTab || 'tgTabUsers';
   const bot = _tgBotData.bot || { username: 'Myshop9876_bot', name: 'LinkAdda Store Bot', id: '8923608774', maskedToken: '892360...dVlE' };
   const bots = (_tgBotData.bots && _tgBotData.bots.length) ? _tgBotData.bots : [bot];
   const admins = (_tgBotData.admins && _tgBotData.admins.length) ? _tgBotData.admins : ['8802192472', '6966868142'];
@@ -7994,11 +8229,11 @@ function renderTelegramBotPageView(data = {}) {
 
       <!-- Prominent Quick Navigation Tabs (Active state preserved across re-renders!) -->
       <div class="tg-tabs-nav-bar">
-        <button type="button" class="btn ${activeTab === 'tgTabBots' ? 'active-tab-btn' : ''}" data-action="switch-tg-tab" data-target="tgTabBots" style="padding: 11px 20px; font-weight: 800; font-size: 13.5px; border-radius: 10px; ${activeTab === 'tgTabBots' ? 'background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; border: none; box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);' : 'background: rgba(255,255,255,0.05); color: var(--text); border: 1px solid var(--border); box-shadow: none;'} display: inline-flex; align-items: center; gap: 8px; cursor: pointer;">
-          <i data-lucide="bot" style="width: 16px; height: 16px;"></i> 🤖 Connected Bots Fleet (<span id="tgTabBotsCountBadge">${bots.length}</span>)
-        </button>
-        <button type="button" class="btn ${activeTab === 'tgTabUsers' ? 'active-tab-btn' : ''}" data-action="switch-tg-tab" data-target="tgTabUsers" style="padding: 11px 20px; font-weight: 700; font-size: 13.5px; border-radius: 10px; ${activeTab === 'tgTabUsers' ? 'background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; border: none; box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);' : 'background: rgba(255,255,255,0.05); color: var(--text); border: 1px solid var(--border); box-shadow: none;'} display: inline-flex; align-items: center; gap: 8px; cursor: pointer;">
+        <button type="button" class="btn ${activeTab === 'tgTabUsers' ? 'active-tab-btn' : ''}" data-action="switch-tg-tab" data-target="tgTabUsers" style="padding: 11px 20px; font-weight: 800; font-size: 13.5px; border-radius: 10px; ${activeTab === 'tgTabUsers' ? 'background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; border: none; box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);' : 'background: rgba(255,255,255,0.05); color: var(--text); border: 1px solid var(--border); box-shadow: none;'} display: inline-flex; align-items: center; gap: 8px; cursor: pointer;">
           <i data-lucide="users" style="width: 16px; height: 16px;"></i> 👥 Bot Subscribers & Users (<span id="tgTabUsersCountBadge">${usersCount}</span>)
+        </button>
+        <button type="button" class="btn ${activeTab === 'tgTabBots' ? 'active-tab-btn' : ''}" data-action="switch-tg-tab" data-target="tgTabBots" style="padding: 11px 20px; font-weight: 700; font-size: 13.5px; border-radius: 10px; ${activeTab === 'tgTabBots' ? 'background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; border: none; box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);' : 'background: rgba(255,255,255,0.05); color: var(--text); border: 1px solid var(--border); box-shadow: none;'} display: inline-flex; align-items: center; gap: 8px; cursor: pointer;">
+          <i data-lucide="bot" style="width: 16px; height: 16px;"></i> 🤖 Connected Bots Fleet (<span id="tgTabBotsCountBadge">${bots.length}</span>)
         </button>
         <button type="button" class="btn ${activeTab === 'tgTabBroadcast' ? 'active-tab-btn' : ''}" data-action="switch-tg-tab" data-target="tgTabBroadcast" style="padding: 11px 20px; font-weight: 700; font-size: 13.5px; border-radius: 10px; ${activeTab === 'tgTabBroadcast' ? 'background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; border: none; box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);' : 'background: rgba(255,255,255,0.05); color: var(--text); border: 1px solid var(--border); box-shadow: none;'} display: inline-flex; align-items: center; gap: 8px; cursor: pointer;">
           <i data-lucide="send" style="width: 16px; height: 16px;"></i> 📢 Mass Broadcast Message
@@ -11790,6 +12025,41 @@ function attachGlobalHandlers() {
           try { lucide.createIcons(); } catch (_) {}
         }
       }
+      return;
+    }
+    if (action === 'set-user-view-mode') {
+      const mode = actionBtn.getAttribute('data-mode') || 'table';
+      _tgBotData.userViewMode = mode;
+      const tableContainer = document.getElementById('tgUsersTableContainer');
+      if (tableContainer) {
+        tableContainer.innerHTML = renderTelegramUsersTableList(_tgBotData.users || [], _tgBotData.searchFilter || '');
+        if (window.lucide) {
+          try { lucide.createIcons(); } catch (_) {}
+        }
+      }
+      return;
+    }
+    if (action === 'set-user-source-filter') {
+      const source = actionBtn.getAttribute('data-source') || 'all';
+      _tgBotData.sourceFilter = source;
+      const tableContainer = document.getElementById('tgUsersTableContainer');
+      if (tableContainer) {
+        tableContainer.innerHTML = renderTelegramUsersTableList(_tgBotData.users || [], _tgBotData.searchFilter || '');
+        if (window.lucide) {
+          try { lucide.createIcons(); } catch (_) {}
+        }
+      }
+      return;
+    }
+    if (action === 'copy-all-user-ids') {
+      const users = _tgBotData.users || [];
+      const ids = users.map(u => String(u.id || '')).filter(Boolean);
+      if (!ids.length) {
+        showToast('No user IDs found to copy.', 'info');
+        return;
+      }
+      navigator.clipboard.writeText(ids.join('\n'));
+      showToast(`Copied ${ids.length} Telegram User IDs to clipboard!`, 'success');
       return;
     }
     if (action === 'filter-users-by-bot') {
