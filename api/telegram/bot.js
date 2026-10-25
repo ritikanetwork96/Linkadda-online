@@ -504,10 +504,12 @@ export async function switchTelegramBot(newToken, adminUser = 'Admin Panel', req
   }
 
   const botUser = meRes.result;
+  const rawId = String(botUser.id || '');
+  const botId = `bot_${rawId}`;
   const appUrl = getAppUrl(req);
-  const webhookUrl = `${appUrl}/api/telegram/bot`;
+  const webhookUrl = `${appUrl}/api/telegram/bot?botId=${botId}`;
 
-  // 2. Set Webhook on Telegram for this new bot
+  // 2. Set Webhook on Telegram for this bot with dedicated botId routing
   let hookRes = null;
   let webhookWarning = null;
   try {
@@ -525,8 +527,8 @@ export async function switchTelegramBot(newToken, adminUser = 'Admin Panel', req
     webhookWarning = err.message;
   }
 
-  // 3. Set WebApp Menu Button ("Open Store") with bot binding
-  const storeWebUrl = `${appUrl}?botId=${botUser.id}&botUser=${encodeURIComponent(botUser.username || '')}`;
+  // 3. Set WebApp Menu Button ("Open Store") with exact bot binding
+  const storeWebUrl = `${appUrl}?botId=${botId}&botUser=${encodeURIComponent(botUser.username || '')}`;
   await callTelegram('setChatMenuButton', {
     menu_button: {
       type: 'web_app',
@@ -543,17 +545,33 @@ export async function switchTelegramBot(newToken, adminUser = 'Admin Panel', req
     ]
   }, cleanToken).catch(() => {});
 
-  // 5. Instantly persist to local bot_store.json (0ms lag)
+  // 5. Instantly persist to local bot_store.json (0ms lag) & fleet registry
   const store = readBotStore();
+  if (!store.bots) store.bots = {};
   store.activeToken = cleanToken;
   store.bot = {
     username: botUser.username || '',
     name: botUser.first_name || '',
-    id: String(botUser.id || ''),
+    id: rawId,
     source: 'hot_swap',
     lastActivatedAt: new Date().toISOString(),
     activatedBy: adminUser
   };
+  store.bots[botId] = {
+    id: rawId,
+    botId,
+    token: cleanToken,
+    username: botUser.username || '',
+    name: botUser.first_name || 'LinkAdda Bot',
+    status: 'active',
+    isPrimary: true,
+    createdAt: store.bots[botId]?.createdAt || Date.now(),
+    lastActivatedAt: new Date().toISOString()
+  };
+  // Ensure only this bot is marked isPrimary across fleet
+  Object.values(store.bots).forEach(b => {
+    if (b.botId !== botId) b.isPrimary = false;
+  });
   writeBotStore(store);
 
   // 6. Update in-memory cache
@@ -561,12 +579,15 @@ export async function switchTelegramBot(newToken, adminUser = 'Admin Panel', req
     token: cleanToken,
     username: botUser.username || '',
     name: botUser.first_name || '',
-    botId: String(botUser.id || ''),
+    botId: botId,
     source: 'hot_swap',
     lastActivatedAt: Date.now(),
     updatedAt: Date.now()
   };
   lastBotCacheFetch = Date.now();
+
+  // Non-blocking sync to Supabase site_settings for fleet and telegram_bot
+  syncBotsToSupabase(store.bots).catch(() => {});
 
   // 7. Non-blocking async backup to Supabase (1.5s timeout)
   (async () => {
@@ -656,12 +677,24 @@ export async function recordBotUser(fromUser, source = 'bot_interaction', source
   const cleanFirstName = String(rawFirstName).replace(/^undefined$/i, '').trim() || (cleanUsername ? cleanUsername : 'Telegram User');
   const cleanLastName = String(fromUser.last_name || fromUser.lastName || existing.lastName || '').replace(/^undefined$/i, '').trim();
 
-  // Multi-bot mapping: preserve and accumulate all bots this user interacts with!
-  const allBots = getConnectedBots();
+  // Multi-bot mapping: strictly resolve the exact bot this user interacted with
+  await syncBotsFromSupabase().catch(() => {});
+  let allBots = getConnectedBots();
+  let currentBot = null;
+  if (sourceBotId) {
+    const cleanId = String(sourceBotId).toLowerCase().replace('@', '');
+    currentBot = allBots.find(b => b.botId.toLowerCase() === cleanId || b.id === cleanId || (b.username && b.username.toLowerCase() === cleanId));
+    if (!currentBot) {
+      await syncBotsFromSupabase(true).catch(() => {});
+      allBots = getConnectedBots();
+      currentBot = allBots.find(b => b.botId.toLowerCase() === cleanId || b.id === cleanId || (b.username && b.username.toLowerCase() === cleanId));
+    }
+  }
+
   const primaryBot = allBots.find(b => b.isPrimary) || allBots[0] || { botId: 'bot_8923608774', username: 'Myshop9876_bot' };
-  const currentBot = sourceBotId ? (allBots.find(b => b.botId === sourceBotId || b.id === sourceBotId) || primaryBot) : (existing.sourceBotId ? (allBots.find(b => b.botId === existing.sourceBotId) || primaryBot) : primaryBot);
-  const currentBotId = currentBot.botId;
-  const currentBotUsername = currentBot.username;
+  const targetBot = currentBot || (sourceBotId ? { botId: String(sourceBotId).startsWith('bot_') ? String(sourceBotId) : `bot_${sourceBotId}`, username: '' } : (existing.sourceBotId ? (allBots.find(b => b.botId === existing.sourceBotId) || primaryBot) : primaryBot));
+  const currentBotId = targetBot.botId;
+  const currentBotUsername = targetBot.username || '';
 
   const userBots = { ...(existing.bots || {}) };
   if (currentBotId) {
@@ -778,6 +811,9 @@ export async function recordBotUser(fromUser, source = 'bot_interaction', source
  */
 export async function getAllBotUsers() {
   try {
+    // 1. Force sync bot fleet from Supabase so allBots is 100% up to date
+    await syncBotsFromSupabase(true).catch(() => {});
+
     const store = readBotStore();
     const adminIds = new Set(getAdminChatIds());
     let usersMap = { ...(store.users || {}) };
@@ -826,13 +862,14 @@ export async function getAllBotUsers() {
             const rawCustName = ord.customer_name || data.customerName || data.name || data.firstName || '';
             const custName = String(rawCustName).replace(/^undefined$/i, '').trim() || (tgUser ? `@${tgUser}` : 'Telegram Customer');
             const hasValidTgId = tgId && tgId !== 'undefined' && tgId !== 'null';
-            const ordBotId = data.sourceBotId || ord.source_bot_id || null;
+            const ordBotId = ord.source_bot_id || data.sourceBotId || data.source_bot_id || null;
+            const ordBotUname = ord.source_bot_username || data.sourceBotUsername || data.source_bot_username || null;
 
             // Only capture REAL telegram users (with a numeric tgId or valid @username)
             if (hasValidTgId || tgUser) {
               const userKey = hasValidTgId ? tgId : `tg_${tgUser}`;
               if (!usersMap[userKey]) {
-                const bMap = ordBotId ? { [ordBotId]: { botId: ordBotId, joinedAt: Date.now(), source: 'order_checkout' } } : {};
+                const bMap = ordBotId ? { [ordBotId]: { botId: ordBotId, botUsername: ordBotUname, joinedAt: Date.now(), source: 'order_checkout' } } : {};
                 usersMap[userKey] = {
                   id: hasValidTgId ? tgId : `@${tgUser}`,
                   username: tgUser,
@@ -840,6 +877,7 @@ export async function getAllBotUsers() {
                   lastName: '',
                   source: 'order_checkout',
                   sourceBotId: ordBotId,
+                  sourceBotUsername: ordBotUname,
                   bots: bMap,
                   sourceBotIds: Object.keys(bMap),
                   createdAt: new Date(ord.created_at || Date.now()).getTime(),
@@ -847,9 +885,10 @@ export async function getAllBotUsers() {
                 };
               } else if (ordBotId && usersMap[userKey]) {
                 if (!usersMap[userKey].bots) usersMap[userKey].bots = {};
-                usersMap[userKey].bots[ordBotId] = { botId: ordBotId, joinedAt: Date.now(), source: 'order_checkout' };
+                usersMap[userKey].bots[ordBotId] = { botId: ordBotId, botUsername: ordBotUname, joinedAt: Date.now(), source: 'order_checkout' };
                 usersMap[userKey].sourceBotIds = Object.keys(usersMap[userKey].bots);
                 usersMap[userKey].lastBotId = ordBotId;
+                if (!usersMap[userKey].sourceBotId) usersMap[userKey].sourceBotId = ordBotId;
               }
             }
           }
@@ -911,19 +950,22 @@ export async function getAllBotUsers() {
 
       // If user has scalar sourceBotId or sourceBotUsername
       if (u.sourceBotId) {
-        const matched = allBots.find(b => b.botId === u.sourceBotId || b.id === u.sourceBotId);
-        if (matched && !enrichedBots[matched.botId]) {
-          enrichedBots[matched.botId] = {
-            botId: matched.botId,
-            botUsername: matched.username,
+        const cleanS = String(u.sourceBotId).toLowerCase().replace('@', '');
+        const matched = allBots.find(b => b.botId.toLowerCase() === cleanS || b.id === cleanS || (b.username && b.username.toLowerCase() === cleanS));
+        const canonId = matched ? matched.botId : (String(u.sourceBotId).startsWith('bot_') ? String(u.sourceBotId) : `bot_${u.sourceBotId}`);
+        const canonUname = matched ? matched.username : (u.sourceBotUsername || canonId.replace(/^bot_/, ''));
+        if (!enrichedBots[canonId]) {
+          enrichedBots[canonId] = {
+            botId: canonId,
+            botUsername: canonUname,
             joinedAt: u.createdAt || Date.now(),
             source: u.source || 'bot_start'
           };
         }
       }
 
-      // Fallback for primary bot if user has zero bot links
-      if (!Object.keys(enrichedBots).length && primaryBot) {
+      // Fallback for primary bot ONLY if user has completely ZERO bot associations anywhere
+      if (!Object.keys(enrichedBots).length && !u.sourceBotId && primaryBot) {
         enrichedBots[primaryBot.botId] = {
           botId: primaryBot.botId,
           botUsername: primaryBot.username,
@@ -932,10 +974,13 @@ export async function getAllBotUsers() {
         };
       }
 
+      const sId = u.lastBotId || u.sourceBotId || Object.keys(enrichedBots)[0] || (primaryBot ? primaryBot.botId : null);
+      const bMatch = allBots.find(b => b.botId === sId || b.id === sId) || null;
+
       return {
         ...u,
         sourceBotId: sId,
-        sourceBotUsername: u.sourceBotUsername || bMatch.username || primaryBot.username || 'Myshop9876_bot',
+        sourceBotUsername: u.sourceBotUsername || bMatch?.username || (primaryBot?.username || 'Myshop9876_bot'),
         bots: enrichedBots,
         sourceBotIds: Object.keys(enrichedBots)
       };
@@ -1241,14 +1286,25 @@ export async function notifyAdminsNewOrder(order) {
   }
 
   // Resolve originating bot for this order so notifications and deliveries are 100% accurate
+  await syncBotsFromSupabase().catch(() => {});
   const store = readBotStore();
-  const allBots = getConnectedBots();
+  let allBots = getConnectedBots();
   const primaryBot = allBots.find(b => b.isPrimary) || allBots[0] || { botId: 'bot_8923608774', username: 'Myshop9876_bot', token: store.activeToken };
 
   const customerTgId = order.telegramUserId || order.data?.telegramUserId || order.telegram_user_id;
   const userRecord = customerTgId ? store.users?.[String(customerTgId)] : null;
-  const rawBotId = order.sourceBotId || order.data?.sourceBotId || userRecord?.lastBotId || userRecord?.sourceBotId || null;
-  const originatingBot = (rawBotId ? allBots.find(b => b.botId === rawBotId || b.id === rawBotId) : null) || primaryBot;
+  const rawBotId = order.source_bot_id || order.sourceBotId || order.data?.source_bot_id || order.data?.sourceBotId || userRecord?.lastBotId || userRecord?.sourceBotId || null;
+  let originatingBot = null;
+  if (rawBotId) {
+    const cleanId = String(rawBotId).toLowerCase().replace('@', '');
+    originatingBot = allBots.find(b => b.botId.toLowerCase() === cleanId || b.id === cleanId || (b.username && b.username.toLowerCase() === cleanId));
+    if (!originatingBot) {
+      await syncBotsFromSupabase(true).catch(() => {});
+      allBots = getConnectedBots();
+      originatingBot = allBots.find(b => b.botId.toLowerCase() === cleanId || b.id === cleanId || (b.username && b.username.toLowerCase() === cleanId));
+    }
+  }
+  if (!originatingBot) originatingBot = primaryBot;
   const originatingToken = originatingBot.token || primaryBot.token;
 
   // Persist resolved bot onto order data so Supabase and future callbacks remember it
@@ -1421,9 +1477,9 @@ export async function notifyAdminsNewOrder(order) {
   }
 
   // Send instant receipt / acknowledgement to customer via the EXACT bot they ordered from
-  if (order.telegramUserId) {
+  if (customerTgId) {
     let custRes = await callTelegram('sendMessage', {
-      chat_id: order.telegramUserId,
+      chat_id: customerTgId,
       text: 
         `🕒 <b>Order #${orderId} Received!</b>\n\n` +
         `📦 <b>Product:</b> ${escapeTelegramHtml(productTitle)}\n` +
@@ -1436,7 +1492,7 @@ export async function notifyAdminsNewOrder(order) {
     // Fallback: If originating bot returned error, try primary bot so customer gets receipt
     if (!custRes?.ok && originatingToken !== primaryBot.token) {
       await callTelegram('sendMessage', {
-        chat_id: order.telegramUserId,
+        chat_id: customerTgId,
         text: 
           `🕒 <b>Order #${orderId} Received!</b>\n\n` +
           `📦 <b>Product:</b> ${escapeTelegramHtml(productTitle)}\n` +
@@ -1554,12 +1610,23 @@ async function processOrderApproval(orderId, adminUser) {
   } catch (_) {}
 
   // ━━ LIVE SYNC: Update all Telegram Admin Messages for this Order ━━
-  const allBots = getConnectedBots();
+  await syncBotsFromSupabase().catch(() => {});
+  let allBots = getConnectedBots();
   const primaryBot = allBots.find(b => b.isPrimary) || allBots[0] || { botId: 'bot_8923608774', username: 'Myshop9876_bot', token: store.activeToken };
   const customerTgId = order?.telegram_user_id || order?.data?.telegramUserId || order?.telegramUserId;
   const userRecord = customerTgId ? store.users?.[String(customerTgId)] : null;
-  const rawBotId = order?.sourceBotId || order?.data?.sourceBotId || userRecord?.lastBotId || userRecord?.sourceBotId || null;
-  const deliveryBot = (rawBotId ? allBots.find(b => b.botId === rawBotId || b.id === rawBotId) : null) || primaryBot;
+  const rawBotId = order?.source_bot_id || order?.sourceBotId || order?.data?.source_bot_id || order?.data?.sourceBotId || userRecord?.lastBotId || userRecord?.sourceBotId || null;
+  let deliveryBot = null;
+  if (rawBotId) {
+    const cleanId = String(rawBotId).toLowerCase().replace('@', '');
+    deliveryBot = allBots.find(b => b.botId.toLowerCase() === cleanId || b.id === cleanId || (b.username && b.username.toLowerCase() === cleanId));
+    if (!deliveryBot) {
+      await syncBotsFromSupabase(true).catch(() => {});
+      allBots = getConnectedBots();
+      deliveryBot = allBots.find(b => b.botId.toLowerCase() === cleanId || b.id === cleanId || (b.username && b.username.toLowerCase() === cleanId));
+    }
+  }
+  if (!deliveryBot) deliveryBot = primaryBot;
   const deliveryToken = deliveryBot.token;
 
   try {
@@ -2176,9 +2243,7 @@ export async function ensureWebhookActive(req = null) {
     const appUrl = getAppUrl(req);
     for (const bot of activeBots) {
       if (!bot.token) continue;
-      const expectedWebhook = bot.isPrimary 
-        ? `${appUrl}/api/telegram/bot` 
-        : `${appUrl}/api/telegram/bot?botId=${bot.botId}`;
+      const expectedWebhook = `${appUrl}/api/telegram/bot?botId=${bot.botId}`;
       const info = await callTelegram('getWebhookInfo', {}, bot.token).catch(() => null);
       const currentUrl = info?.result?.url || '';
       if (!currentUrl || currentUrl !== expectedWebhook) {
@@ -2220,6 +2285,7 @@ export default async function handler(req, res) {
 
   // Setup / Re-register Webhook endpoint across all fleet bots
   if ((action === 'setup-webhook' || action === 're-register-webhook') || (req.body && req.body.action === 're-register-webhook')) {
+    await syncBotsFromSupabase(true).catch(() => {});
     const appUrl = getAppUrl(req);
     const allBots = getConnectedBots();
     const primaryBot = allBots.find(b => b.isPrimary) || allBots[0] || { botId: 'bot_8923608774', username: 'Myshop9876_bot' };
@@ -2329,7 +2395,7 @@ export default async function handler(req, res) {
     try {
       const cfg = await getActiveBotConfig();
       const appUrl = getAppUrl(req);
-      const expectedWebhook = `${appUrl}/api/telegram/bot`;
+      const expectedWebhook = `${appUrl}/api/telegram/bot?botId=${cfg.botId || 'bot_8923608774'}`;
       let webhookInfo = await callTelegram('getWebhookInfo');
 
       // ⚡ Auto-Connect: If webhook URL is missing or empty, automatically connect it to this server!
@@ -2342,11 +2408,12 @@ export default async function handler(req, res) {
             allowed_updates: ['message', 'callback_query']
           });
           if (autoRes?.ok) {
+            const storeWebUrl = `${appUrl}?botId=${cfg.botId || 'bot_8923608774'}&botUser=${encodeURIComponent(cfg.username || '')}`;
             await callTelegram('setChatMenuButton', {
               menu_button: {
                 type: 'web_app',
                 text: '🛍️ Open Store',
-                web_app: { url: appUrl }
+                web_app: { url: storeWebUrl }
               }
             });
             webhookInfo = await callTelegram('getWebhookInfo');
@@ -2591,9 +2658,9 @@ export default async function handler(req, res) {
       cachedBotConfig = null;
       await syncBotsToSupabase(store.bots);
 
-      // Re-register default webhook for primary bot
+      // Re-register webhook for primary bot with dedicated botId
       const appUrl = getAppUrl(req);
-      const webhookUrl = `${appUrl}/api/telegram/bot`;
+      const webhookUrl = `${appUrl}/api/telegram/bot?botId=${target.botId}`;
       await callTelegram('setWebhook', {
         url: webhookUrl,
         drop_pending_updates: false,
@@ -2907,10 +2974,32 @@ export default async function handler(req, res) {
   if (req.method === 'POST') {
     try {
       const update = req.body || {};
-      const webhookBotId = url.searchParams.get('botId');
-      const receivingBot = webhookBotId ? getBotByIdOrToken(webhookBotId) : getBotByIdOrToken();
+
+      // 1. Resolve bot identifier with maximum precision (query param, path, or command mention)
+      let webhookBotId = url.searchParams.get('botId') || url.searchParams.get('bot_id');
+      if (!webhookBotId) {
+        const pathMatch = url.pathname.match(/\/api\/telegram\/bot\/(bot_[a-zA-Z0-9_-]+|[0-9]+)/i);
+        if (pathMatch) webhookBotId = pathMatch[1];
+      }
+      if (!webhookBotId && update.message?.text) {
+        const cmdMatch = update.message.text.match(/^\/[a-zA-Z0-9_]+@([a-zA-Z0-9_]+)/i);
+        if (cmdMatch) webhookBotId = cmdMatch[1];
+      }
+
+      // 2. Lookup receiving bot in fleet
+      await syncBotsFromSupabase().catch(() => {});
+      let receivingBot = webhookBotId ? getBotByIdOrToken(webhookBotId) : null;
+      if (!receivingBot && webhookBotId) {
+        await syncBotsFromSupabase(true).catch(() => {});
+        receivingBot = getBotByIdOrToken(webhookBotId);
+      }
+      if (!receivingBot) {
+        receivingBot = getBotByIdOrToken();
+      }
+
       const currentToken = receivingBot?.token || null;
       const currentBotId = receivingBot?.botId || null;
+      const currentBotUsername = receivingBot?.username || '';
 
       // Maintenance notice if bot is marked inactive
       if (receivingBot && receivingBot.status === 'inactive') {
@@ -2941,7 +3030,7 @@ export default async function handler(req, res) {
         }
 
         if (text === '/start' || text.startsWith('/start')) {
-          const payload = text.replace('/start', '').trim();
+          const payload = text.replace(/^\/start(?:@[a-zA-Z0-9_]+)?\s*/i, '').trim();
           const appUrl = getAppUrl(req);
           const botParam = currentBotId ? `botId=${encodeURIComponent(currentBotId)}&botUser=${encodeURIComponent(receivingBot?.username || '')}` : '';
           const storeWebUrl = botParam ? `${appUrl}?${botParam}` : appUrl;

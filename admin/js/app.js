@@ -7124,8 +7124,11 @@ async function loadTelegramBotAdminFullData(force = false) {
           const rawId = d.telegramUserId || d.telegram_user_id || ord.telegram_user_id || '';
           const uname = (d.telegramUsername || d.telegram || '').replace('@', '').trim();
           const custName = ord.customer_name || d.customerName || d.name || 'Telegram Buyer';
+          const ordBotId = ord.source_bot_id || d.sourceBotId || d.source_bot_id || null;
+          const ordBotUname = ord.source_bot_username || d.sourceBotUsername || d.source_bot_username || null;
           if (rawId || uname) {
             const key = rawId ? String(rawId) : `tg_${uname}`;
+            const bMap = ordBotId ? { [ordBotId]: { botId: ordBotId, botUsername: ordBotUname, joinedAt: Date.now(), source: 'order_checkout' } } : {};
             if (!userUnion[key]) {
               userUnion[key] = {
                 id: rawId || `@${uname}`,
@@ -7133,9 +7136,18 @@ async function loadTelegramBotAdminFullData(force = false) {
                 firstName: custName,
                 lastName: '',
                 source: 'order_checkout',
+                sourceBotId: ordBotId,
+                sourceBotUsername: ordBotUname,
+                bots: bMap,
+                sourceBotIds: Object.keys(bMap),
                 createdAt: ord.created_at ? new Date(ord.created_at).getTime() : Date.now(),
                 updatedAt: ord.updated_at ? new Date(ord.updated_at).getTime() : Date.now()
               };
+            } else if (ordBotId) {
+              if (!userUnion[key].bots) userUnion[key].bots = {};
+              userUnion[key].bots[ordBotId] = { botId: ordBotId, botUsername: ordBotUname, joinedAt: Date.now(), source: 'order_checkout' };
+              userUnion[key].sourceBotIds = Object.keys(userUnion[key].bots);
+              if (!userUnion[key].sourceBotId) userUnion[key].sourceBotId = ordBotId;
             }
           }
         });
@@ -7375,8 +7387,8 @@ function renderTelegramUsersTableList(users = [], filter = '') {
     const uBotUname = String(u.sourceBotUsername || '').toLowerCase();
     if (uBotUname && bUname && uBotUname === bUname) return true;
 
-    // 5. Fallback for primary bot if user has no bot records
-    if (!uBotId && !uBotUname && (!u.bots || !Object.keys(u.bots).length) && targetBot.isPrimary) return true;
+    // 5. Fallback for primary bot ONLY if user has truly NO bot records anywhere
+    if (!uBotId && !uBotUname && (!u.bots || !Object.keys(u.bots).length) && (!u.sourceBotIds || !u.sourceBotIds.length) && targetBot.isPrimary) return true;
 
     return false;
   }
@@ -12073,6 +12085,20 @@ function attachGlobalHandlers() {
         usersTab.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }
       showToast(`Showing subscribers for @${uName}`, 'info');
+      return;
+    }
+    if (action === 'set-bot-user-filter') {
+      const botId = actionBtn.getAttribute('data-bot-id') || 'all';
+      const uName = actionBtn.getAttribute('data-bot-username') || 'bot';
+      _tgBotData.botUserFilter = botId;
+      const tableContainer = document.getElementById('tgUsersTableContainer');
+      if (tableContainer) {
+        tableContainer.innerHTML = renderTelegramUsersTableList(_tgBotData.users || [], _tgBotData.searchFilter || '');
+        if (window.lucide) {
+          try { lucide.createIcons(); } catch (_) {}
+        }
+      }
+      showToast(botId === 'all' ? 'Showing all subscribers across all bots' : `Filtered subscribers for @${uName}`, 'info');
       return;
     }
     if (action === 'add-new-bot-submit') {
