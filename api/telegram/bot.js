@@ -636,7 +636,7 @@ export async function switchTelegramBot(newToken, adminUser = 'Admin Panel', req
 }
 
 /**
- * Store unique bot users in high-speed local store & async backup (0ms lag)
+ * Store unique bot users in high-speed local store & Supabase (permanent persistence)
  */
 export async function recordBotUser(fromUser, source = 'bot_interaction', sourceBotId = null) {
   if (!fromUser?.id) return;
@@ -649,12 +649,17 @@ export async function recordBotUser(fromUser, source = 'bot_interaction', source
 
   const existing = store.users[uidStr] || {};
   const boundBotId = sourceBotId || existing.sourceBotId || null;
+  const cleanUsername = String(fromUser.username || existing.username || '').replace('@', '').trim();
+  const rawFirstName = fromUser.first_name || fromUser.firstName || existing.firstName || '';
+  const cleanFirstName = String(rawFirstName).replace(/^undefined$/i, '').trim() || (cleanUsername ? cleanUsername : 'Telegram User');
+  const cleanLastName = String(fromUser.last_name || fromUser.lastName || existing.lastName || '').replace(/^undefined$/i, '').trim();
+
   const userObj = {
     id: uidStr,
-    username: fromUser.username || existing.username || '',
-    firstName: fromUser.first_name || fromUser.firstName || existing.firstName || 'Telegram User',
-    lastName: fromUser.last_name || fromUser.lastName || existing.lastName || '',
-    source: isAdmin ? 'admin_tester' : (source || existing.source || 'bot_interaction'),
+    username: cleanUsername,
+    firstName: cleanFirstName,
+    lastName: cleanLastName,
+    source: isAdmin ? 'admin_tester' : (source || existing.source || 'bot_start'),
     sourceBotId: boundBotId,
     isAdmin,
     createdAt: existing.createdAt || Date.now(),
@@ -670,43 +675,45 @@ export async function recordBotUser(fromUser, source = 'bot_interaction', source
 
   writeBotStore(store);
 
-  // Non-blocking async push to Supabase using Service Role Key (bypasses RLS)
-  (async () => {
+  // Directly await push to Supabase using Service Role Key (bypasses RLS)
+  try {
+    const { url, key } = getSupabaseConfig();
+    const headers = { 
+      'apikey': key, 
+      'Authorization': `Bearer ${key}`, 
+      'Content-Type': 'application/json' 
+    };
+
+    // 1. Fetch current users from Supabase to guarantee no users are ever dropped
+    let mergedUsers = { ...store.users };
     try {
-      const { url, key } = getSupabaseConfig();
-      const headers = { 
-        'apikey': key, 
-        'Authorization': `Bearer ${key}`, 
-        'Content-Type': 'application/json' 
-      };
-
-      // 1. Fetch current users from Supabase to guarantee no users are ever dropped
-      let mergedUsers = { ...store.users };
-      try {
-        const getRes = await fetch(`${url}/rest/v1/site_settings?key=eq.tg_bot_users&select=value`, {
-          headers
-        });
-        if (getRes.ok) {
-          const rows = await getRes.json();
-          if (rows && rows[0] && rows[0].value && typeof rows[0].value === 'object') {
-            mergedUsers = { ...rows[0].value, ...store.users };
-          }
-        }
-      } catch (_) {}
-
-      // Keep newly recorded user updated
-      mergedUsers[uidStr] = userObj;
-      store.users = mergedUsers;
-      writeBotStore(store);
-
-      // 2. Send ONLY valid table columns (key, value)
-      await fetch(`${url}/rest/v1/site_settings`, {
-        method: 'POST',
-        headers: { ...headers, 'Prefer': 'resolution=merge-duplicates' },
-        body: JSON.stringify([{ key: 'tg_bot_users', value: mergedUsers, updated_at: new Date().toISOString() }])
+      const getRes = await fetch(`${url}/rest/v1/site_settings?key=eq.tg_bot_users&select=value`, {
+        headers,
+        signal: AbortSignal.timeout(3000)
       });
+      if (getRes.ok) {
+        const rows = await getRes.json();
+        if (rows && rows[0] && rows[0].value && typeof rows[0].value === 'object') {
+          mergedUsers = { ...rows[0].value, ...mergedUsers };
+        }
+      }
     } catch (_) {}
-  })();
+
+    // Ensure newly recorded user is freshest
+    mergedUsers[uidStr] = userObj;
+    store.users = mergedUsers;
+    writeBotStore(store);
+
+    // 2. Persist to Supabase site_settings
+    await fetch(`${url}/rest/v1/site_settings`, {
+      method: 'POST',
+      headers: { ...headers, 'Prefer': 'resolution=merge-duplicates' },
+      body: JSON.stringify([{ key: 'tg_bot_users', value: mergedUsers, updated_at: new Date().toISOString() }]),
+      signal: AbortSignal.timeout(4000)
+    });
+  } catch (err) {
+    console.warn('recordBotUser Supabase write note:', err.message);
+  }
 }
 
 /**
@@ -727,14 +734,15 @@ export async function getAllBotUsers() {
       // 1. Fetch site_settings -> tg_bot_users
       // 2. Discover all customers from orders table who provided Telegram User ID / Username (only query existing columns: id, order_id, created_at, status, data)
       const [settingsRes, ordersRes] = await Promise.all([
-        fetch(`${url}/rest/v1/site_settings?key=eq.tg_bot_users&select=*`, { headers, signal: AbortSignal.timeout(4000) }).catch(() => null),
-        fetch(`${url}/rest/v1/orders?select=id,order_id,created_at,status,data&order=created_at.desc&limit=500`, { headers, signal: AbortSignal.timeout(4000) }).catch(() => null)
+        fetch(`${url}/rest/v1/site_settings?key=eq.tg_bot_users&select=*`, { headers, signal: AbortSignal.timeout(4500) }).catch(() => null),
+        fetch(`${url}/rest/v1/orders?select=id,order_id,created_at,status,data&order=created_at.desc&limit=500`, { headers, signal: AbortSignal.timeout(4500) }).catch(() => null)
       ]);
 
       if (settingsRes && settingsRes.ok) {
         const rows = await settingsRes.json();
         if (rows && rows[0] && rows[0].value && typeof rows[0].value === 'object') {
-          usersMap = { ...rows[0].value, ...usersMap };
+          // Supabase is authoritative! Merge so Supabase data takes priority over static local file
+          usersMap = { ...usersMap, ...rows[0].value };
         }
       }
 
@@ -746,7 +754,8 @@ export async function getAllBotUsers() {
             const rawId = data.telegramUserId || data.telegram_user_id || data.telegramId || ord.telegram_user_id || '';
             const tgId = String(rawId).trim();
             const tgUser = (data.telegramUsername || data.telegram || '').replace('@', '').trim();
-            const custName = ord.customer_name || data.customerName || data.name || data.firstName || 'Telegram Customer';
+            const rawCustName = ord.customer_name || data.customerName || data.name || data.firstName || '';
+            const custName = String(rawCustName).replace(/^undefined$/i, '').trim() || (tgUser ? `@${tgUser}` : 'Telegram Customer');
             const hasValidTgId = tgId && tgId !== 'undefined' && tgId !== 'null';
 
             // Only capture REAL telegram users (with a numeric tgId or valid @username)
@@ -776,7 +785,7 @@ export async function getAllBotUsers() {
       fetch(`${url}/rest/v1/site_settings`, {
         method: 'POST',
         headers: { ...headers, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates' },
-        body: JSON.stringify([{ key: 'tg_bot_users', value: usersMap }]),
+        body: JSON.stringify([{ key: 'tg_bot_users', value: usersMap, updated_at: new Date().toISOString() }]),
         signal: AbortSignal.timeout(3000)
       }).catch(() => {});
     } catch (sbErr) {
@@ -2644,7 +2653,8 @@ export default async function handler(req, res) {
         const fromUser = msg.from;
 
         if (fromUser) {
-          recordBotUser(fromUser, 'bot_chat', currentBotId).catch(() => {});
+          const isStartCmd = text === '/start' || text.startsWith('/start');
+          await recordBotUser(fromUser, isStartCmd ? 'bot_start' : 'bot_chat', currentBotId).catch(() => {});
         }
 
         // ⚡ User entered bot / sent message -> Trigger 2-minute auto-delete on any unread VIP messages!
@@ -2716,7 +2726,7 @@ export default async function handler(req, res) {
 
         // ⚡ User clicked any inline button -> Record user & trigger 2-minute auto-delete on any unread VIP messages!
         if (user && user.id) {
-          recordBotUser(user, 'inline_interaction', currentBotId).catch(() => {});
+          await recordBotUser(user, 'inline_interaction', currentBotId).catch(() => {});
           markUserMessagesAsRead(user.id);
         }
 

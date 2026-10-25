@@ -7395,8 +7395,19 @@ function renderTelegramUsersTableList(users = [], filter = '') {
           </thead>
           <tbody>
             ${filtered.map((u) => {
-              const initials = ((u.firstName || 'T')[0] + (u.lastName || '')[0] || 'U').toUpperCase();
-              const displayName = [u.firstName, u.lastName].filter(Boolean).join(' ') || 'Telegram User';
+              const fName = String(u.firstName || u.name || '').replace(/^undefined$/i, '').trim();
+              const lName = String(u.lastName || '').replace(/^undefined$/i, '').trim();
+              let initials = 'TG';
+              if (fName && lName) {
+                initials = (fName.charAt(0) + lName.charAt(0)).toUpperCase();
+              } else if (fName.length >= 2) {
+                initials = fName.slice(0, 2).toUpperCase();
+              } else if (fName.length === 1) {
+                initials = fName.toUpperCase();
+              } else if (u.username) {
+                initials = String(u.username).slice(0, 2).toUpperCase();
+              }
+              const displayName = [fName, lName].filter(Boolean).join(' ') || (u.username ? `@${u.username}` : 'Telegram User');
               const hasUsername = Boolean(u.username);
               const isAdmin = u.isAdmin || u.source === 'admin_tester' || u.source === 'admin_account';
               const sourceLabel = isAdmin ? 'Admin / Tester' : (u.source === 'mini_app_visit' ? 'Mini App Visit' : (u.source === 'order_checkout' ? 'Order Checkout' : (u.source === 'customer_order' ? 'Store Buyer' : 'Bot /start')));
@@ -7876,17 +7887,14 @@ function renderTelegramBotPageView(data = {}) {
         <button type="button" class="btn ${activeTab === 'tgTabBots' ? 'active-tab-btn' : ''}" data-action="switch-tg-tab" data-target="tgTabBots" style="padding: 11px 20px; font-weight: 800; font-size: 13.5px; border-radius: 10px; ${activeTab === 'tgTabBots' ? 'background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; border: none; box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);' : 'background: rgba(255,255,255,0.05); color: var(--text); border: 1px solid var(--border); box-shadow: none;'} display: inline-flex; align-items: center; gap: 8px; cursor: pointer;">
           <i data-lucide="bot" style="width: 16px; height: 16px;"></i> 🤖 Connected Bots Fleet (<span id="tgTabBotsCountBadge">${bots.length}</span>)
         </button>
-        <button type="button" class="btn ${activeTab === 'tgTabAdmins' ? 'active-tab-btn' : ''}" data-action="switch-tg-tab" data-target="tgTabAdmins" style="padding: 11px 20px; font-weight: 700; font-size: 13.5px; border-radius: 10px; ${activeTab === 'tgTabAdmins' ? 'background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; border: none; box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);' : 'background: rgba(255,255,255,0.05); color: var(--text); border: 1px solid var(--border); box-shadow: none;'} display: inline-flex; align-items: center; gap: 8px; cursor: pointer;">
-          <i data-lucide="shield-check" style="width: 16px; height: 16px;"></i> 👑 Telegram Admins (<span id="tgTabAdminsCountBadge">${admins.length}</span>)
+        <button type="button" class="btn ${activeTab === 'tgTabUsers' ? 'active-tab-btn' : ''}" data-action="switch-tg-tab" data-target="tgTabUsers" style="padding: 11px 20px; font-weight: 700; font-size: 13.5px; border-radius: 10px; ${activeTab === 'tgTabUsers' ? 'background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; border: none; box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);' : 'background: rgba(255,255,255,0.05); color: var(--text); border: 1px solid var(--border); box-shadow: none;'} display: inline-flex; align-items: center; gap: 8px; cursor: pointer;">
+          <i data-lucide="users" style="width: 16px; height: 16px;"></i> 👥 Bot Subscribers & Users (<span id="tgTabUsersCountBadge">${usersCount}</span>)
         </button>
         <button type="button" class="btn ${activeTab === 'tgTabBroadcast' ? 'active-tab-btn' : ''}" data-action="switch-tg-tab" data-target="tgTabBroadcast" style="padding: 11px 20px; font-weight: 700; font-size: 13.5px; border-radius: 10px; ${activeTab === 'tgTabBroadcast' ? 'background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; border: none; box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);' : 'background: rgba(255,255,255,0.05); color: var(--text); border: 1px solid var(--border); box-shadow: none;'} display: inline-flex; align-items: center; gap: 8px; cursor: pointer;">
           <i data-lucide="send" style="width: 16px; height: 16px;"></i> 📢 Mass Broadcast Message
         </button>
-        <button type="button" class="btn ${activeTab === 'tgTabUsers' ? 'active-tab-btn' : ''}" data-action="switch-tg-tab" data-target="tgTabUsers" style="padding: 11px 20px; font-weight: 700; font-size: 13.5px; border-radius: 10px; ${activeTab === 'tgTabUsers' ? 'background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; border: none; box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);' : 'background: rgba(255,255,255,0.05); color: var(--text); border: 1px solid var(--border); box-shadow: none;'} display: inline-flex; align-items: center; gap: 8px; cursor: pointer;">
-          <i data-lucide="users" style="width: 16px; height: 16px;"></i> 👥 Bot Subscribers & Users (<span id="tgTabUsersCountBadge">${usersCount}</span>)
-        </button>
-        <button type="button" class="btn ${activeTab === 'tgTabSettings' ? 'active-tab-btn' : ''}" data-action="switch-tg-tab" data-target="tgTabSettings" style="padding: 11px 20px; font-weight: 700; font-size: 13.5px; border-radius: 10px; ${activeTab === 'tgTabSettings' ? 'background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; border: none; box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);' : 'background: rgba(255,255,255,0.05); color: var(--text); border: 1px solid var(--border); box-shadow: none;'} display: inline-flex; align-items: center; gap: 8px; cursor: pointer;">
-          <i data-lucide="zap" style="width: 16px; height: 16px;"></i> ⚡ Token Switcher & Webhook
+        <button type="button" class="btn ${activeTab === 'tgTabAdmins' ? 'active-tab-btn' : ''}" data-action="switch-tg-tab" data-target="tgTabAdmins" style="padding: 11px 20px; font-weight: 700; font-size: 13.5px; border-radius: 10px; ${activeTab === 'tgTabAdmins' ? 'background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; border: none; box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);' : 'background: rgba(255,255,255,0.05); color: var(--text); border: 1px solid var(--border); box-shadow: none;'} display: inline-flex; align-items: center; gap: 8px; cursor: pointer;">
+          <i data-lucide="shield-check" style="width: 16px; height: 16px;"></i> 👑 Telegram Admins (<span id="tgTabAdminsCountBadge">${admins.length}</span>)
         </button>
       </div>
 
@@ -7902,9 +7910,14 @@ function renderTelegramBotPageView(data = {}) {
               <p style="margin: 3px 0 0 0; font-size: 12px; color: var(--muted);">Connect multiple bots simultaneously. No bots are hardcoded. Add new bots from @BotFather in seconds.</p>
             </div>
           </div>
-          <button type="button" data-action="refresh-tg-bot" class="btn btn-ghost btn-sm" style="font-size: 12px; padding: 6px 12px; border: 1px solid var(--border); border-radius: 8px;">
-            <i data-lucide="refresh-cw" style="width: 12px; height: 12px;"></i> Refresh Fleet
-          </button>
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <button type="button" data-action="resync-tg-webhook" class="btn btn-ghost btn-sm" style="font-size: 12px; padding: 6px 12px; border: 1px solid var(--border); border-radius: 8px;">
+              <i data-lucide="refresh-cw" style="width: 12px; height: 12px;"></i> Re-sync Webhooks
+            </button>
+            <button type="button" data-action="refresh-tg-bot" class="btn btn-ghost btn-sm" style="font-size: 12px; padding: 6px 12px; border: 1px solid var(--border); border-radius: 8px;">
+              <i data-lucide="refresh-cw" style="width: 12px; height: 12px;"></i> Refresh Fleet
+            </button>
+          </div>
         </div>
 
         <!-- Dynamic Bots Cards Grid Container -->
@@ -8132,61 +8145,6 @@ function renderTelegramBotPageView(data = {}) {
         <!-- Dynamic Subscribers Table Container -->
         <div id="tgUsersTableContainer" style="background: rgba(0,0,0,0.25); border: 1px solid var(--border); border-radius: 12px; overflow: hidden;">
           ${renderTelegramUsersTableList(users, '')}
-        </div>
-      </section>
-
-      <!-- TAB 5: Bot Token Switcher & Webhook Settings -->
-      <section id="tgTabSettings" class="tg-tab-section panel glass" style="display: ${activeTab === 'tgTabSettings' ? 'block' : 'none'}; padding: 24px 28px; border-radius: 16px; border: 1px solid rgba(99, 102, 241, 0.35); background: linear-gradient(180deg, rgba(99, 102, 241, 0.03) 0%, rgba(15, 23, 42, 0.6) 100%); margin-bottom: 24px;">
-        <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.06);">
-          <div style="display: flex; align-items: center; gap: 10px;">
-            <div style="width: 36px; height: 36px; border-radius: 10px; background: linear-gradient(135deg, #f59e0b, #ef4444); display: flex; align-items: center; justify-content: center; color: white;">
-              <i data-lucide="zap" style="width: 20px; height: 20px;"></i>
-            </div>
-            <div>
-              <h3 style="margin: 0; font-size: 16px; font-weight: 800; color: var(--text);">Dynamic Bot Token Transfer</h3>
-              <span style="font-size: 11px; color: #a5b4fc;">Zero hardcoding · Zero downtime switch</span>
-            </div>
-          </div>
-          <span style="font-size: 10.5px; color: #38bdf8; background: rgba(56, 189, 248, 0.1); padding: 3px 8px; border-radius: 6px; border: 1px solid rgba(56, 189, 248, 0.25); font-weight: 700;">
-            Hot-Swap Active
-          </span>
-        </div>
-
-        <p style="font-size: 12.5px; color: var(--muted); margin: 0 0 16px 0; line-height: 1.55;">
-          Whenever you need to change or replace your bot, enter the new bot token from <strong>@BotFather</strong> below. The system verifies the token, updates the webhook, reconfigures the WebApp menu button, and routes all order alerts to the new bot instantly.
-        </p>
-
-        <div style="background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; margin-bottom: 16px; font-size: 12px;">
-          <div style="display: flex; justify-content: space-between; align-items: center;">
-            <span style="color: var(--muted);">Currently Active Token:</span>
-            <code id="tgActiveTokenCode" style="color: #38bdf8; font-family: monospace;">${escapeHtml(bot.maskedToken || (bot.id ? `${bot.id}:...` : '892360...dVlE'))}</code>
-          </div>
-        </div>
-
-        <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px;">
-          <label style="font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em;">New Telegram Bot Token</label>
-          <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-            <input type="text" id="hotSwapBotTokenInput" placeholder="Paste Bot Token (e.g. 8923608774:AAFhvO4Yzly7toIf5qoI-TSW4EzVzWCdVlE)" class="input" style="flex: 1; min-width: 240px; padding: 12px 14px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 13px; font-family: monospace;" />
-            <button type="button" id="activateNewBotBtn" data-action="activate-new-tg-bot" class="btn btn-primary" style="padding: 12px 20px; font-weight: 700; font-size: 13px; border-radius: 8px; background: linear-gradient(135deg, #6366f1, #8b5cf6) !important; border: none !important; color: white !important; display: inline-flex; align-items: center; gap: 8px; cursor: pointer; flex-shrink: 0; box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);">
-              <i data-lucide="zap" style="width: 16px; height: 16px;"></i> Transfer & Activate
-            </button>
-          </div>
-        </div>
-
-        <div id="hotSwapFeedback" style="margin-bottom: 16px; font-size: 12.5px; display: none; padding: 10px 14px; border-radius: 8px;"></div>
-
-        <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 16px;">
-          <button type="button" data-action="resync-tg-webhook" class="btn btn-ghost btn-sm" style="font-size: 12px; padding: 6px 12px; border: 1px solid var(--border); border-radius: 8px;">
-            <i data-lucide="refresh-cw" style="width: 13px; height: 13px;"></i> Re-sync Webhook & Menu Button
-          </button>
-        </div>
-
-        <!-- Quick 30-Second Guide -->
-        <div style="padding-top: 14px; border-top: 1px solid rgba(255,255,255,0.06); font-size: 12px; color: #94a3b8; line-height: 1.55;">
-          <strong style="color: #cbd5e1; display: block; margin-bottom: 4px;">🚀 How to get a new Bot Token in 30 seconds:</strong>
-          1. Open Telegram and search for <code>@BotFather</code>.<br />
-          2. Send <code>/newbot</code>, give it any name & username (e.g. <code>LinkAdda_Store_Bot</code>).<br />
-          3. Copy the HTTP API token, paste it in the box above, and click <strong>Transfer & Activate</strong>.
         </div>
       </section>
 
