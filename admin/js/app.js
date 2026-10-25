@@ -7124,10 +7124,28 @@ async function loadTelegramBotAdminFullData(force = false) {
       _tgBotData.usersCount = usersRes.totalCount || usersRes.users.length;
     }
 
-    // ⚡ Realtime Directory: Unify server users with client cache
+    // ⚡ Realtime Directory: Unify server users with client cache and preserve all bots!
     const userUnion = {};
+    (_tgCachedUsers || []).forEach(u => {
+      if (u && u.id) {
+        userUnion[String(u.id)] = { ...u, bots: { ...(u.bots || {}) } };
+      }
+    });
     (_tgBotData.users || []).forEach(u => {
-      if (u && u.id) userUnion[String(u.id)] = u;
+      if (u && u.id) {
+        const k = String(u.id);
+        if (userUnion[k]) {
+          const mergedBots = { ...(userUnion[k].bots || {}), ...(u.bots || {}) };
+          userUnion[k] = {
+            ...userUnion[k],
+            ...u,
+            bots: mergedBots,
+            sourceBotIds: Object.keys(mergedBots)
+          };
+        } else {
+          userUnion[k] = { ...u, bots: { ...(u.bots || {}) } };
+        }
+      }
     });
 
     // ⚡ Orders Customer Capture: Capture real customers who provided Telegram
@@ -7168,6 +7186,27 @@ async function loadTelegramBotAdminFullData(force = false) {
         });
       } catch (_) {}
     }
+
+    // ⚡ Local Store fallback / union: fetch local bot_store.json if available
+    try {
+      const localStoreRes = await fetch('/data/bot_store.json').catch(() => null);
+      if (localStoreRes && localStoreRes.ok) {
+        const localStore = await localStoreRes.json();
+        if (localStore && localStore.users && typeof localStore.users === 'object') {
+          Object.values(localStore.users).forEach(lu => {
+            if (lu && lu.id) {
+              const k = String(lu.id);
+              if (userUnion[k]) {
+                const combined = { ...(userUnion[k].bots || {}), ...(lu.bots || {}) };
+                userUnion[k] = { ...userUnion[k], ...lu, bots: combined, sourceBotIds: Object.keys(combined) };
+              } else {
+                userUnion[k] = { ...lu, bots: { ...(lu.bots || {}) }, sourceBotIds: Object.keys(lu.bots || {}) };
+              }
+            }
+          });
+        }
+      }
+    } catch (_) {}
 
     const unifiedList = Object.values(userUnion).filter(u => u && u.id);
     unifiedList.sort((a, b) => (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0));

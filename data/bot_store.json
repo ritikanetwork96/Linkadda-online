@@ -19,7 +19,19 @@
       "status": "active",
       "isPrimary": true,
       "createdAt": 1792841000000,
-      "lastActivatedAt": "2026-10-23T20:00:00.000Z"
+      "lastActivatedAt": "2026-10-23T20:00:00.000Z",
+      "subscribersCount": 3
+    },
+    "bot_8869143190": {
+      "id": "8869143190",
+      "botId": "bot_8869143190",
+      "username": "Testnot565_bot",
+      "name": "Testnot Bot",
+      "status": "active",
+      "isPrimary": false,
+      "createdAt": 1792842000000,
+      "lastActivatedAt": "2026-10-24T10:00:00.000Z",
+      "subscribersCount": 2
     }
   },
   "admins": [
@@ -34,7 +46,21 @@
       "username": "testuser",
       "createdAt": 1792841127833,
       "firstName": "TestUser",
-      "updatedAt": 1792841127833
+      "updatedAt": 1792841127833,
+      "sourceBotId": "bot_8923608774",
+      "sourceBotUsername": "Myshop9876_bot",
+      "lastBotId": "bot_8923608774",
+      "bots": {
+        "bot_8923608774": {
+          "botId": "bot_8923608774",
+          "botUsername": "Myshop9876_bot",
+          "joinedAt": 1792841127833,
+          "source": "bot_start"
+        }
+      },
+      "sourceBotIds": [
+        "bot_8923608774"
+      ]
     },
     "8770964308": {
       "id": "8770964308",
@@ -43,7 +69,28 @@
       "username": "TRUSTED_BROTHER1234",
       "createdAt": 1792841878126,
       "firstName": "𓆩✶𓆪𝐓𝐑𝐔𝐒𝐓𝐄𝐃",
-      "updatedAt": 1792841880499
+      "updatedAt": 1792841880499,
+      "sourceBotId": "bot_8923608774",
+      "sourceBotUsername": "Myshop9876_bot",
+      "lastBotId": "bot_8869143190",
+      "bots": {
+        "bot_8923608774": {
+          "botId": "bot_8923608774",
+          "botUsername": "Myshop9876_bot",
+          "joinedAt": 1792841878126,
+          "source": "bot_start"
+        },
+        "bot_8869143190": {
+          "botId": "bot_8869143190",
+          "botUsername": "Testnot565_bot",
+          "joinedAt": 1792842000000,
+          "source": "bot_start"
+        }
+      },
+      "sourceBotIds": [
+        "bot_8923608774",
+        "bot_8869143190"
+      ]
     },
     "6966868142": {
       "id": "6966868142",
@@ -53,7 +100,28 @@
       "username": "GhostLayer73",
       "createdAt": 1792841000000,
       "firstName": "Ghost",
-      "updatedAt": 1792843062242
+      "updatedAt": 1792843062242,
+      "sourceBotId": "bot_8923608774",
+      "sourceBotUsername": "Myshop9876_bot",
+      "lastBotId": "bot_8869143190",
+      "bots": {
+        "bot_8923608774": {
+          "botId": "bot_8923608774",
+          "botUsername": "Myshop9876_bot",
+          "joinedAt": 1792841000000,
+          "source": "bot_start"
+        },
+        "bot_8869143190": {
+          "botId": "bot_8869143190",
+          "botUsername": "Testnot565_bot",
+          "joinedAt": 1792842000000,
+          "source": "bot_start"
+        }
+      },
+      "sourceBotIds": [
+        "bot_8923608774",
+        "bot_8869143190"
+      ]
     }
   },
   "pendingDeletions": {},

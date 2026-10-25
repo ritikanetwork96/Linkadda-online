@@ -398,7 +398,7 @@ export async function toggleBotStatus(botId, newStatus, notifyUsers = false, not
   if (notifyUsers && noticeMessage && noticeMessage.trim()) {
     try {
       const allUsers = await getAllBotUsers();
-      const targetUsers = allUsers.filter(u => u && (u.sourceBotId === target.botId || !u.sourceBotId));
+      const targetUsers = allUsers.filter(u => u && doesUserBelongToFleetBot(u, target));
       for (const user of targetUsers) {
         if (!user.id) continue;
         try {
@@ -712,6 +712,53 @@ export async function switchTelegramBot(newToken, adminUser = 'Admin Panel', req
 
 /**
  * Store unique bot users in high-speed local store & Supabase (permanent persistence)
+/**
+ * Helper to check if a Telegram user belongs to a specific bot in the fleet.
+ * Completely preserves multi-bot enrollment!
+ */
+export function doesUserBelongToFleetBot(u, b, fleet = []) {
+  if (!u || !b) return false;
+  const bId = String(b.botId || `bot_${b.id}` || b.id || '').trim();
+  const bRawId = String(b.id || '').trim();
+  const bUname = String(b.username || '').replace(/^@/, '').toLowerCase().trim();
+
+  // 1. Check user.bots dictionary
+  if (u.bots && typeof u.bots === 'object') {
+    if (u.bots[bId] || (bRawId && u.bots[`bot_${bRawId}`]) || (bRawId && u.bots[bRawId])) return true;
+    if (bUname && (u.bots[bUname] || u.bots[`@${bUname}`])) return true;
+    for (const [k, v] of Object.entries(u.bots)) {
+      if (k === bId || k === bRawId || k === `bot_${bRawId}` || (bUname && k.toLowerCase() === bUname)) return true;
+      if (v && ((v.botId && (v.botId === bId || v.botId === bRawId || v.botId === `bot_${bRawId}`)) ||
+                (v.username && v.username.toLowerCase() === bUname) ||
+                (v.botUsername && v.botUsername.toLowerCase() === bUname))) {
+        return true;
+      }
+    }
+  }
+
+  // 2. Check sourceBotIds array
+  if (Array.isArray(u.sourceBotIds)) {
+    if (u.sourceBotIds.includes(bId) || (bRawId && u.sourceBotIds.includes(bRawId)) || (bRawId && u.sourceBotIds.includes(`bot_${bRawId}`))) return true;
+    if (bUname && u.sourceBotIds.some(x => String(x).toLowerCase() === bUname)) return true;
+  }
+
+  // 3. Check scalar sourceBotId or lastBotId
+  const uBotId = String(u.sourceBotId || u.lastBotId || '');
+  if (uBotId && (uBotId === bId || uBotId === bRawId || (bRawId && uBotId === `bot_${bRawId}`))) return true;
+
+  // 4. Check scalar sourceBotUsername
+  const uBotUname = String(u.sourceBotUsername || '').replace(/^@/, '').toLowerCase();
+  if (uBotUname && bUname && uBotUname === bUname) return true;
+
+  // 5. Fallback for primary bot ONLY if user has completely zero bot records anywhere
+  const hasAnyBots = (u.bots && Object.keys(u.bots).length > 0) || (u.sourceBotIds && u.sourceBotIds.length > 0) || u.sourceBotId;
+  if (!hasAnyBots && (b.isPrimary || (fleet && fleet.length === 1))) return true;
+
+  return false;
+}
+
+/**
+ * Record and sync a telegram user interaction in local JSON and Supabase site_settings
  * Supports users belonging to MULTIPLE bots simultaneously!
  */
 export async function recordBotUser(fromUser, source = 'bot_interaction', sourceBotId = null) {
@@ -723,11 +770,11 @@ export async function recordBotUser(fromUser, source = 'bot_interaction', source
   const store = readBotStore();
   if (!store.users) store.users = {};
 
-  const existing = store.users[uidStr] || {};
-  const cleanUsername = String(fromUser.username || existing.username || '').replace('@', '').trim();
-  const rawFirstName = fromUser.first_name || fromUser.firstName || existing.firstName || '';
+  const existingLocal = store.users[uidStr] || {};
+  const cleanUsername = String(fromUser.username || existingLocal.username || '').replace('@', '').trim();
+  const rawFirstName = fromUser.first_name || fromUser.firstName || existingLocal.firstName || '';
   const cleanFirstName = String(rawFirstName).replace(/^undefined$/i, '').trim() || (cleanUsername ? cleanUsername : 'Telegram User');
-  const cleanLastName = String(fromUser.last_name || fromUser.lastName || existing.lastName || '').replace(/^undefined$/i, '').trim();
+  const cleanLastName = String(fromUser.last_name || fromUser.lastName || existingLocal.lastName || '').replace(/^undefined$/i, '').trim();
 
   // Multi-bot mapping: strictly resolve the exact bot this user interacted with
   await syncBotsFromSupabase().catch(() => {});
@@ -744,47 +791,114 @@ export async function recordBotUser(fromUser, source = 'bot_interaction', source
   }
 
   const primaryBot = allBots.find(b => b.isPrimary) || allBots[0] || { botId: 'bot_8923608774', username: 'Myshop9876_bot' };
-  const targetBot = currentBot || (sourceBotId ? { botId: String(sourceBotId).startsWith('bot_') ? String(sourceBotId) : `bot_${sourceBotId}`, username: '' } : (existing.sourceBotId ? (allBots.find(b => b.botId === existing.sourceBotId) || primaryBot) : primaryBot));
+  const targetBot = currentBot || (sourceBotId ? { botId: String(sourceBotId).startsWith('bot_') ? String(sourceBotId) : `bot_${sourceBotId}`, username: '' } : (existingLocal.sourceBotId ? (allBots.find(b => b.botId === existingLocal.sourceBotId) || primaryBot) : primaryBot));
   const currentBotId = targetBot.botId;
   const currentBotUsername = targetBot.username || '';
 
-  const userBots = { ...(existing.bots || {}) };
-  if (currentBotId) {
-    userBots[currentBotId] = {
-      botId: currentBotId,
-      botUsername: currentBotUsername,
-      joinedAt: (existing.bots && existing.bots[currentBotId]?.joinedAt) || Date.now(),
-      lastActiveAt: Date.now(),
-      source: source || 'bot_start'
-    };
+  // 1. Fetch remote users from Supabase FIRST so we NEVER overwrite historical bot memberships!
+  const { url, key } = getSupabaseConfig();
+  const headers = { 
+    'apikey': key, 
+    'Authorization': `Bearer ${key}`, 
+    'Content-Type': 'application/json' 
+  };
+
+  let remoteUsers = {};
+  try {
+    const getRes = await fetch(`${url}/rest/v1/site_settings?key=eq.tg_bot_users&select=value`, {
+      headers,
+      signal: AbortSignal.timeout(3500)
+    });
+    if (getRes.ok) {
+      const rows = await getRes.json();
+      if (rows && rows[0] && rows[0].value && typeof rows[0].value === 'object') {
+        remoteUsers = rows[0].value;
+      }
+    }
+  } catch (err) {
+    console.warn('recordBotUser remote fetch note:', err.message);
   }
-  if (existing.sourceBotId && !userBots[existing.sourceBotId]) {
-    const prevB = allBots.find(b => b.botId === existing.sourceBotId);
-    userBots[existing.sourceBotId] = {
-      botId: existing.sourceBotId,
-      botUsername: prevB?.username || existing.sourceBotUsername || '',
-      joinedAt: existing.createdAt || Date.now(),
-      lastActiveAt: Date.now(),
-      source: existing.source || 'bot_start'
+
+  const existingRemote = remoteUsers[uidStr] || {};
+
+  // 2. Deep-merge all bot associations across Remote, Local, and Current Bot
+  const combinedBots = {
+    ...(existingRemote.bots || {}),
+    ...(existingLocal.bots || {})
+  };
+
+  // Preserve any previously known single-bot association from remote
+  if (existingRemote.sourceBotId && !combinedBots[existingRemote.sourceBotId]) {
+    const bMatch = allBots.find(b => b.botId === existingRemote.sourceBotId || b.id === existingRemote.sourceBotId);
+    combinedBots[existingRemote.sourceBotId] = {
+      botId: existingRemote.sourceBotId,
+      botUsername: bMatch?.username || existingRemote.sourceBotUsername || existingRemote.sourceBotId.replace(/^bot_/, ''),
+      joinedAt: existingRemote.createdAt || Date.now(),
+      lastActiveAt: existingRemote.updatedAt || Date.now(),
+      source: existingRemote.source || 'bot_start'
     };
   }
 
+  // Preserve any previously known single-bot association from local
+  if (existingLocal.sourceBotId && !combinedBots[existingLocal.sourceBotId]) {
+    const bMatch = allBots.find(b => b.botId === existingLocal.sourceBotId || b.id === existingLocal.sourceBotId);
+    combinedBots[existingLocal.sourceBotId] = {
+      botId: existingLocal.sourceBotId,
+      botUsername: bMatch?.username || existingLocal.sourceBotUsername || existingLocal.sourceBotId.replace(/^bot_/, ''),
+      joinedAt: existingLocal.createdAt || Date.now(),
+      lastActiveAt: existingLocal.updatedAt || Date.now(),
+      source: existingLocal.source || 'bot_start'
+    };
+  }
+
+  // Add or update current bot interaction
+  if (currentBotId) {
+    const prevEntry = combinedBots[currentBotId] || {};
+    combinedBots[currentBotId] = {
+      botId: currentBotId,
+      botUsername: currentBotUsername || prevEntry.botUsername || currentBotId.replace(/^bot_/, ''),
+      joinedAt: prevEntry.joinedAt || Date.now(),
+      lastActiveAt: Date.now(),
+      source: source || prevEntry.source || 'bot_start'
+    };
+  }
+
+  const allBotIds = Object.keys(combinedBots);
+  const primaryRecordedBotId = currentBotId || existingRemote.sourceBotId || existingLocal.sourceBotId || primaryBot.botId;
+  const primaryRecordedBotUname = currentBotUsername || existingRemote.sourceBotUsername || existingLocal.sourceBotUsername || primaryBot.username;
+
   const userObj = {
     id: uidStr,
-    username: cleanUsername,
-    firstName: cleanFirstName,
-    lastName: cleanLastName,
-    source: isAdmin ? 'admin_tester' : (source || existing.source || 'bot_start'),
-    sourceBotId: currentBotId,
-    sourceBotUsername: currentBotUsername,
-    lastBotId: currentBotId,
-    bots: userBots,
-    sourceBotIds: Object.keys(userBots),
+    username: cleanUsername || existingRemote.username || '',
+    firstName: cleanFirstName || existingRemote.firstName || 'Telegram User',
+    lastName: cleanLastName || existingRemote.lastName || '',
+    source: isAdmin ? 'admin_tester' : (source || existingLocal.source || existingRemote.source || 'bot_start'),
+    sourceBotId: primaryRecordedBotId,
+    sourceBotUsername: primaryRecordedBotUname,
+    lastBotId: currentBotId || existingLocal.lastBotId || existingRemote.lastBotId || primaryRecordedBotId,
+    bots: combinedBots,
+    sourceBotIds: allBotIds,
     isAdmin,
-    createdAt: existing.createdAt || Date.now(),
+    createdAt: existingRemote.createdAt || existingLocal.createdAt || Date.now(),
     updatedAt: Date.now()
   };
-  store.users[uidStr] = userObj;
+
+  // 3. Merge full directories together so NO user and NO bot is EVER dropped
+  let mergedUsers = { ...remoteUsers, ...store.users };
+  for (const [k, v] of Object.entries(remoteUsers)) {
+    if (v && v.id) {
+      if (mergedUsers[k]) {
+        mergedUsers[k].bots = { ...(v.bots || {}), ...(mergedUsers[k].bots || {}) };
+        mergedUsers[k].sourceBotIds = Object.keys(mergedUsers[k].bots);
+      } else {
+        mergedUsers[k] = v;
+      }
+    }
+  }
+
+  // Set the freshly updated user record (with all bots preserved!)
+  mergedUsers[uidStr] = userObj;
+  store.users = mergedUsers;
 
   // Re-calculate subscriber count across all connected bots
   if (store.bots && typeof store.bots === 'object') {
@@ -792,60 +906,14 @@ export async function recordBotUser(fromUser, source = 'bot_interaction', source
     for (const bKey of Object.keys(store.bots)) {
       const bObj = store.bots[bKey];
       if (!bObj) continue;
-      const bId = String(bObj.botId || `bot_${bObj.id}` || bObj.id);
-      const bUname = String(bObj.username || '').toLowerCase();
-
-      const count = allUsersList.filter(u => {
-        if (u.bots && (u.bots[bId] || (bUname && u.bots[bUname]))) return true;
-        if (String(u.sourceBotId) === bId || String(u.lastBotId) === bId) return true;
-        if (u.sourceBotUsername && bUname && u.sourceBotUsername.toLowerCase() === bUname) return true;
-        return false;
-      }).length;
-      bObj.subscribersCount = count;
+      bObj.subscribersCount = allUsersList.filter(u => doesUserBelongToFleetBot(u, bObj, allBots)).length;
     }
   }
 
   writeBotStore(store);
 
-  // Directly await push to Supabase using Service Role Key (bypasses RLS)
+  // 4. Persist to Supabase site_settings
   try {
-    const { url, key } = getSupabaseConfig();
-    const headers = { 
-      'apikey': key, 
-      'Authorization': `Bearer ${key}`, 
-      'Content-Type': 'application/json' 
-    };
-
-    // 1. Fetch current users from Supabase to guarantee no users are ever dropped
-    let mergedUsers = { ...store.users };
-    try {
-      const getRes = await fetch(`${url}/rest/v1/site_settings?key=eq.tg_bot_users&select=value`, {
-        headers,
-        signal: AbortSignal.timeout(3000)
-      });
-      if (getRes.ok) {
-        const rows = await getRes.json();
-        if (rows && rows[0] && rows[0].value && typeof rows[0].value === 'object') {
-          for (const [k, v] of Object.entries(rows[0].value)) {
-            if (v && v.id) {
-              if (mergedUsers[k]) {
-                mergedUsers[k].bots = { ...(v.bots || {}), ...(mergedUsers[k].bots || {}) };
-                mergedUsers[k].sourceBotIds = Object.keys(mergedUsers[k].bots);
-              } else {
-                mergedUsers[k] = v;
-              }
-            }
-          }
-        }
-      }
-    } catch (_) {}
-
-    // Ensure newly recorded user is freshest
-    mergedUsers[uidStr] = userObj;
-    store.users = mergedUsers;
-    writeBotStore(store);
-
-    // 2. Persist to Supabase site_settings
     await fetch(`${url}/rest/v1/site_settings`, {
       method: 'POST',
       headers: { ...headers, 'Prefer': 'resolution=merge-duplicates' },
@@ -2052,6 +2120,7 @@ export async function broadcastNewProduct(rawProduct, targetBotIds = ['all']) {
   let totalRecipients = 0;
   const sampleErrors = [];
   const botBreakdown = {};
+  const deliveredChatIds = new Set();
 
   for (let bIndex = 0; bIndex < fleet.length; bIndex++) {
     const currentBot = fleet[bIndex];
@@ -2070,12 +2139,11 @@ export async function broadcastNewProduct(rawProduct, targetBotIds = ['all']) {
       }
     }
 
-    // Subscribers belonging to this bot
+    // Subscribers belonging to this bot (supports users enrolled in multiple bots!)
     for (const user of (botUsers || [])) {
       const uid = String(user?.id || user?.telegramUserId || '').trim();
       if (!uid) continue;
-      const belongs = user.sourceBotId === currentBot.botId || 
-        ((currentBot.isPrimary || fleet.length === 1) && !user.sourceBotId);
+      const belongs = doesUserBelongToFleetBot(user, currentBot, fleet);
       if (belongs) {
         recipientMap.set(uid, { ...(user || {}), id: uid });
       }
@@ -2087,6 +2155,10 @@ export async function broadcastNewProduct(rawProduct, targetBotIds = ['all']) {
     for (const target of recipients) {
       const chatId = target.id;
       if (!chatId) continue;
+      // Skip non-admins if already successfully delivered by an earlier bot in this multi-bot run
+      if (isAll && target.role !== 'admin' && deliveredChatIds.has(chatId)) {
+        continue;
+      }
       let delivered = false;
 
       if (image && (image.startsWith('http://') || image.startsWith('https://'))) {
@@ -2124,6 +2196,7 @@ export async function broadcastNewProduct(rawProduct, targetBotIds = ['all']) {
 
       if (delivered) {
         sentCount++;
+        deliveredChatIds.add(chatId);
         botBreakdown[botKey].sent++;
       } else {
         failCount++;
@@ -2192,6 +2265,7 @@ export async function broadcastCustomMessage({ message, photo, buttonText, butto
   let totalRecipients = 0;
   const sampleErrors = [];
   const botBreakdown = {};
+  const deliveredChatIds = new Set();
 
   for (let bIndex = 0; bIndex < fleet.length; bIndex++) {
     const currentBot = fleet[bIndex];
@@ -2210,12 +2284,11 @@ export async function broadcastCustomMessage({ message, photo, buttonText, butto
       }
     }
 
-    // Subscribers belonging to this bot
+    // Subscribers belonging to this bot (supports users enrolled in multiple bots!)
     for (const user of (botUsers || [])) {
       const uid = String(user?.id || user?.telegramUserId || '').trim();
       if (!uid) continue;
-      const belongs = user.sourceBotId === currentBot.botId || 
-        ((currentBot.isPrimary || fleet.length === 1) && !user.sourceBotId);
+      const belongs = doesUserBelongToFleetBot(user, currentBot, fleet);
       if (belongs) {
         recipientMap.set(uid, { ...(user || {}), id: uid });
       }
@@ -2227,6 +2300,10 @@ export async function broadcastCustomMessage({ message, photo, buttonText, butto
     for (const target of recipients) {
       const chatId = target.id;
       if (!chatId) continue;
+      // Skip non-admins if already successfully delivered by an earlier bot in this multi-bot run
+      if (isAll && target.role !== 'admin' && deliveredChatIds.has(chatId)) {
+        continue;
+      }
       let delivered = false;
 
       if (cleanPhoto) {
@@ -2264,6 +2341,7 @@ export async function broadcastCustomMessage({ message, photo, buttonText, butto
 
       if (delivered) {
         sentCount++;
+        deliveredChatIds.add(chatId);
         botBreakdown[botKey].sent++;
       } else {
         failCount++;
@@ -2479,20 +2557,7 @@ export default async function handler(req, res) {
       const connectedBotsList = getConnectedBots();
       const botCounts = {};
       connectedBotsList.forEach(b => {
-        const bId = b.botId;
-        const bRawId = String(b.id || '');
-        const bUname = (b.username || '').toLowerCase();
-        let c = 0;
-        allUsers.forEach(u => {
-          let inBot = false;
-          if (u.bots && (u.bots[bId] || (bRawId && u.bots[`bot_${bRawId}`]) || (bRawId && u.bots[bRawId]) || (bUname && u.bots[bUname]))) inBot = true;
-          else if (Array.isArray(u.sourceBotIds) && (u.sourceBotIds.includes(bId) || u.sourceBotIds.includes(bRawId))) inBot = true;
-          else if (u.sourceBotId === bId || u.sourceBotId === bRawId || u.lastBotId === bId) inBot = true;
-          else if (u.sourceBotUsername && bUname && u.sourceBotUsername.toLowerCase() === bUname) inBot = true;
-          else if (b.isPrimary && (!u.bots || !Object.keys(u.bots).length)) inBot = true;
-          if (inBot) c++;
-        });
-        botCounts[bId] = c;
+        botCounts[b.botId] = allUsers.filter(u => doesUserBelongToFleetBot(u, b, connectedBotsList)).length;
       });
 
       const hookData = (webhookInfo && webhookInfo.ok && webhookInfo.result) 
@@ -2535,20 +2600,7 @@ export default async function handler(req, res) {
     const connectedBotsList = getConnectedBots();
     const botCounts = {};
     connectedBotsList.forEach(b => {
-      const bId = b.botId;
-      const bRawId = String(b.id || '');
-      const bUname = (b.username || '').toLowerCase();
-      let c = 0;
-      allUsers.forEach(u => {
-        let inBot = false;
-        if (u.bots && (u.bots[bId] || (bRawId && u.bots[`bot_${bRawId}`]) || (bRawId && u.bots[bRawId]) || (bUname && u.bots[bUname]))) inBot = true;
-        else if (Array.isArray(u.sourceBotIds) && (u.sourceBotIds.includes(bId) || u.sourceBotIds.includes(bRawId))) inBot = true;
-        else if (u.sourceBotId === bId || u.sourceBotId === bRawId || u.lastBotId === bId) inBot = true;
-        else if (u.sourceBotUsername && bUname && u.sourceBotUsername.toLowerCase() === bUname) inBot = true;
-        else if (b.isPrimary && (!u.bots || !Object.keys(u.bots).length)) inBot = true;
-        if (inBot) c++;
-      });
-      botCounts[bId] = c;
+      botCounts[b.botId] = allUsers.filter(u => doesUserBelongToFleetBot(u, b, connectedBotsList)).length;
     });
 
     return res.status(200).json({
