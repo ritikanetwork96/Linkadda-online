@@ -7511,6 +7511,16 @@ function renderTelegramUsersTableList(users = [], filter = '') {
               }
               botBadges = [...new Set(botBadges)];
 
+              const userTime = u.updatedAt || u.lastSeenAt || u.createdAt;
+              let timeStr = 'Recent';
+              if (userTime) {
+                try {
+                  timeStr = formatDateTime(userTime);
+                } catch (_) {
+                  timeStr = String(userTime);
+                }
+              }
+
               return `
                 <tr style="border-bottom: 1px solid rgba(255,255,255,0.04); transition: background 0.15s ease;">
                   <td style="padding: 12px 16px;">
