@@ -8151,7 +8151,7 @@ function renderTelegramBotControlSection(settings = {}) {
 
         <div style="background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px;">
           <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--muted);">Admin Chat IDs</div>
-          <div style="font-size: 14px; font-weight: 800; color: #f59e0b; margin-top: 4px;">8516979341, 6966868142</div>
+          <div style="font-size: 14px; font-weight: 800; color: #f59e0b; margin-top: 4px;">${escapeHtml(admins.join(', ') || '8802192472, 6966868142')}</div>
           <small style="color: var(--muted); font-size: 11px;">Alerts dispatch to both admins</small>
         </div>
       </div>

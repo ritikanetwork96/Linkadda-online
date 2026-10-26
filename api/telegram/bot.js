@@ -3414,7 +3414,7 @@ export default async function handler(req, res) {
               id: fromIdStr,
               name: realName,
               username: realUname,
-              badge: (fromIdStr === '8516979341' || fromIdStr === '8802192472') ? '👑 OWNER' : '🛡️ ADMIN',
+              badge: (fromIdStr === '8802192472') ? '👑 OWNER' : '🛡️ ADMIN',
               role: 'Order Proof Alerts & Instant Approve/Reject Buttons Across All Bots',
               updatedAt: Date.now()
             };
