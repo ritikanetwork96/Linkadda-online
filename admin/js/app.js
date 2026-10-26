@@ -7053,7 +7053,7 @@ let _tgBotData = {
   webhook: { url: 'https://linkadda-online.onrender.com/api/telegram/bot', pending_update_count: 0 },
   users: _tgCachedUsers,
   usersCount: _tgCachedUsers.length,
-  admins: ['8516979341', '6966868142'],
+  admins: ['8802192472', '6966868142'],
   appUrl: '',
   isLoading: false,
   isSendingBroadcast: false,
@@ -8256,12 +8256,12 @@ function renderTelegramBotsFleetCards(bots = []) {
 }
 
 function renderTelegramAdminsCards(admins = []) {
-  const adminList = (Array.isArray(admins) && admins.length) ? admins : ['8516979341', '6966868142'];
-  const defaultIds = ['8516979341', '8802192472'];
+  const adminList = (Array.isArray(admins) && admins.length) ? admins : ['8802192472', '6966868142'];
+  const defaultIds = ['8802192472'];
   const customProfiles = _tgBotData.adminProfiles || {};
 
   const baseProfiles = {
-    '8516979341': {
+    '8802192472': {
       name: 'No name',
       username: 'noname8828211',
       email: '',
@@ -8279,16 +8279,6 @@ function renderTelegramAdminsCards(admins = []) {
       badgeBg: 'rgba(168, 85, 247, 0.2)',
       badgeColor: '#c084fc',
       badgeBorder: 'rgba(168, 85, 247, 0.4)',
-      role: 'Authorized Admin · Order Proof Alerts & Approve Buttons'
-    },
-    '8802192472': {
-      name: 'Admin Owner',
-      username: '',
-      email: '',
-      badge: '👑 OWNER',
-      badgeBg: 'rgba(245, 158, 11, 0.2)',
-      badgeColor: '#fbbf24',
-      badgeBorder: 'rgba(245, 158, 11, 0.4)',
       role: 'Authorized Admin · Order Proof Alerts & Approve Buttons'
     }
   };
