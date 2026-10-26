@@ -561,6 +561,8 @@ export async function removeAdminChatId(chatId) {
 let cachedBotConfig = null;
 let lastBotCacheFetch = 0;
 const BOT_CACHE_TTL_MS = 5000;
+let _cachedWebhookData = null;
+let _cachedWebhookDataTime = 0;
 
 /**
  * Fetch currently active bot token instantly (<0.1ms) from local store
@@ -1633,6 +1635,7 @@ export async function notifyAdminsNewOrder(order) {
     let sentRes = null;
     let isPhoto = false;
     let usedToken = originatingToken;
+    let usedBot = originatingBot;
 
     // Helper: Build a FRESH multipart FormData for every send attempt (prevents body consumed errors)
     const buildPhotoFormData = () => {
@@ -1646,74 +1649,65 @@ export async function notifyAdminsNewOrder(order) {
       return fd;
     };
 
-    // A. Priority 1: Direct Binary Multipart Upload (Fresh FormData per attempt)
-    if (photoBuffer && photoBuffer.length > 200) {
-      try {
-        sentRes = await callTelegram('sendPhoto', buildPhotoFormData(), originatingToken);
-        if (sentRes && sentRes.ok) {
-          isPhoto = true;
-        } else if (originatingToken !== primaryBot.token) {
-          const fallbackRes = await callTelegram('sendPhoto', buildPhotoFormData(), primaryBot.token);
-          if (fallbackRes && fallbackRes.ok) {
-            sentRes = fallbackRes;
+    // Fleet candidate bots: Originating bot first, followed by all other active fleet bots
+    const candidateFleetBots = [
+      originatingBot,
+      ...allBots.filter(b => b.token && b.token !== originatingToken && b.status !== 'inactive')
+    ];
+
+    for (const targetBot of candidateFleetBots) {
+      const candidateToken = targetBot.token;
+      if (!candidateToken) continue;
+
+      // A. Priority 1: Direct Binary Multipart Upload
+      if (photoBuffer && photoBuffer.length > 200) {
+        try {
+          sentRes = await callTelegram('sendPhoto', buildPhotoFormData(), candidateToken);
+          if (sentRes && sentRes.ok) {
             isPhoto = true;
-            usedToken = primaryBot.token;
+            usedToken = candidateToken;
+            usedBot = targetBot;
+            break;
           }
-        }
-      } catch (uploadErr) {
-        console.warn(`Multipart sendPhoto error for admin ${adminId}:`, uploadErr.message);
+        } catch (_) {}
       }
-    }
 
-    // B. Priority 2: Remote URL sendPhoto fallback
-    if (!sentRes?.ok && viewScreenshotUrl) {
-      try {
-        sentRes = await callTelegram('sendPhoto', {
-          chat_id: String(adminId),
-          photo: viewScreenshotUrl,
-          caption: caption,
-          parse_mode: 'HTML',
-          reply_markup: inlineKeyboard
-        }, originatingToken);
-
-        if (sentRes && sentRes.ok) {
-          isPhoto = true;
-        } else if (originatingToken !== primaryBot.token) {
-          const fallbackRes = await callTelegram('sendPhoto', {
+      // B. Priority 2: Remote URL sendPhoto fallback
+      if (!sentRes?.ok && viewScreenshotUrl) {
+        try {
+          sentRes = await callTelegram('sendPhoto', {
             chat_id: String(adminId),
             photo: viewScreenshotUrl,
             caption: caption,
             parse_mode: 'HTML',
             reply_markup: inlineKeyboard
-          }, primaryBot.token);
-          if (fallbackRes && fallbackRes.ok) {
-            sentRes = fallbackRes;
+          }, candidateToken);
+          if (sentRes && sentRes.ok) {
             isPhoto = true;
-            usedToken = primaryBot.token;
+            usedToken = candidateToken;
+            usedBot = targetBot;
+            break;
           }
-        }
-      } catch (_) {}
-    }
-
-    // C. Priority 3: HTML text fallback with link to screenshot and Approve/Reject inline keyboard
-    if (!sentRes?.ok) {
-      sentRes = await callTelegram('sendMessage', {
-        chat_id: String(adminId),
-        text: caption + (viewScreenshotUrl ? `\n\n📸 <b>Payment Proof:</b> <a href="${viewScreenshotUrl}">Tap to View Screenshot</a>` : ''),
-        parse_mode: 'HTML',
-        reply_markup: inlineKeyboard
-      }, originatingToken);
-
-      if (!sentRes?.ok && originatingToken !== primaryBot.token) {
-        sentRes = await callTelegram('sendMessage', {
-          chat_id: String(adminId),
-          text: caption + (viewScreenshotUrl ? `\n\n📸 <b>Payment Proof:</b> <a href="${viewScreenshotUrl}">Tap to View Screenshot</a>` : ''),
-          parse_mode: 'HTML',
-          reply_markup: inlineKeyboard
-        }, primaryBot.token);
-        usedToken = primaryBot.token;
+        } catch (_) {}
       }
-      isPhoto = false;
+
+      // C. Priority 3: HTML text fallback with link to screenshot and Approve/Reject inline keyboard
+      if (!sentRes?.ok) {
+        try {
+          sentRes = await callTelegram('sendMessage', {
+            chat_id: String(adminId),
+            text: caption + (viewScreenshotUrl ? `\n\n📸 <b>Payment Proof:</b> <a href="${viewScreenshotUrl}">Tap to View Screenshot</a>` : ''),
+            parse_mode: 'HTML',
+            reply_markup: inlineKeyboard
+          }, candidateToken);
+          if (sentRes && sentRes.ok) {
+            isPhoto = false;
+            usedToken = candidateToken;
+            usedBot = targetBot;
+            break;
+          }
+        } catch (_) {}
+      }
     }
 
     results.push(sentRes);
@@ -1723,7 +1717,7 @@ export async function notifyAdminsNewOrder(order) {
       sentAdminMessages.push({
         chatId: String(adminId),
         messageId: sentRes.result.message_id,
-        botId: originatingBot.botId,
+        botId: usedBot.botId,
         botToken: usedToken,
         isPhoto,
         caption,
@@ -2665,29 +2659,18 @@ export default async function handler(req, res) {
       const cfg = await getActiveBotConfig();
       const appUrl = getAppUrl(req);
       const expectedWebhook = `${appUrl}/api/telegram/bot?botId=${cfg.botId || 'bot_8923608774'}`;
-      let webhookInfo = await callTelegram('getWebhookInfo');
-
-      // ⚡ Auto-Connect: If webhook URL is missing or empty, automatically connect it to this server!
-      const currentHookUrl = webhookInfo?.result?.url || '';
-      if (!currentHookUrl && cfg.token) {
-        try {
-          const autoRes = await callTelegram('setWebhook', {
-            url: expectedWebhook,
-            drop_pending_updates: false,
-            allowed_updates: ['message', 'callback_query']
-          });
-          if (autoRes?.ok) {
-            const storeWebUrl = `${appUrl}?botId=${cfg.botId || 'bot_8923608774'}&botUser=${encodeURIComponent(cfg.username || '')}`;
-            await callTelegram('setChatMenuButton', {
-              menu_button: {
-                type: 'web_app',
-                text: '🛍️ Open Store',
-                web_app: { url: storeWebUrl }
-              }
-            });
-            webhookInfo = await callTelegram('getWebhookInfo');
+      // Fast cached webhook info (<0.1ms) - refresh asynchronously in background
+      let hookData = _cachedWebhookData;
+      if (!hookData || (Date.now() - _cachedWebhookDataTime > 60000)) {
+        callTelegram('getWebhookInfo').then(info => {
+          if (info && info.ok && info.result) {
+            _cachedWebhookData = info.result;
+            _cachedWebhookDataTime = Date.now();
           }
-        } catch (_) {}
+        }).catch(() => {});
+        if (!hookData) {
+          hookData = { url: expectedWebhook, pending_update_count: 0 };
+        }
       }
 
       const token = cfg.token || '';
@@ -2699,47 +2682,47 @@ export default async function handler(req, res) {
         botCounts[b.botId] = allUsers.filter(u => doesUserBelongToFleetBot(u, b, connectedBotsList)).length;
       });
 
-      const hookData = (webhookInfo && webhookInfo.ok && webhookInfo.result) 
-        ? webhookInfo.result 
-        : { url: expectedWebhook, pending_update_count: 0 };
-
-        // Auto-resolve any missing Telegram admin names & usernames across fleet bots
-        const currentAdmins = getAdminChatIds();
-        const store = readBotStore();
-        if (!store.adminProfiles) store.adminProfiles = {};
-        let adminProfilesModified = false;
-        for (const aid of currentAdmins) {
-          const cleanAid = String(aid).trim();
-          if (!cleanAid) continue;
-          if (!store.adminProfiles[cleanAid] || !store.adminProfiles[cleanAid].username) {
-            for (const b of connectedBotsList) {
-              if (!b.token) continue;
-              try {
-                const res = await callTelegram('getChat', { chat_id: cleanAid }, b.token);
-                if (res && res.ok && res.result) {
-                  const r = res.result;
-                  const realFirst = r.first_name || '';
-                  const realLast = r.last_name || '';
-                  const realUname = (r.username || '').replace('@', '');
-                  const realName = [realFirst, realLast].filter(Boolean).join(' ').trim();
-                  store.adminProfiles[cleanAid] = {
-                    id: cleanAid,
-                    name: realName || (cleanAid === '6966868142' ? 'Ghost Layer' : `Admin #${cleanAid}`),
-                    username: realUname || (cleanAid === '6966868142' ? 'GhostLayer73' : ''),
-                    badge: '🛡️ ADMIN',
-                    role: 'Order Proof Alerts & Instant Approve/Reject Buttons Across All Bots',
-                    updatedAt: Date.now()
-                  };
-                  adminProfilesModified = true;
-                  break;
-                }
-              } catch (_) {}
+      // Background asynchronous profile enrichment (never delays HTTP response)
+      setTimeout(async () => {
+        try {
+          const currentAdmins = getAdminChatIds();
+          const store = readBotStore();
+          if (!store.adminProfiles) store.adminProfiles = {};
+          let adminProfilesModified = false;
+          for (const aid of currentAdmins) {
+            const cleanAid = String(aid).trim();
+            if (!cleanAid) continue;
+            if (!store.adminProfiles[cleanAid] || !store.adminProfiles[cleanAid].username) {
+              for (const b of connectedBotsList) {
+                if (!b.token) continue;
+                try {
+                  const res = await callTelegram('getChat', { chat_id: cleanAid }, b.token);
+                  if (res && res.ok && res.result) {
+                    const r = res.result;
+                    const realFirst = r.first_name || '';
+                    const realLast = r.last_name || '';
+                    const realUname = (r.username || '').replace('@', '');
+                    const realName = [realFirst, realLast].filter(Boolean).join(' ').trim();
+                    store.adminProfiles[cleanAid] = {
+                      id: cleanAid,
+                      name: realName || (cleanAid === '6966868142' ? 'Ghost Layer' : `Admin #${cleanAid}`),
+                      username: realUname || (cleanAid === '6966868142' ? 'GhostLayer73' : ''),
+                      badge: '🛡️ ADMIN',
+                      role: 'Order Proof Alerts & Instant Approve/Reject Buttons Across All Bots',
+                      updatedAt: Date.now()
+                    };
+                    adminProfilesModified = true;
+                    break;
+                  }
+                } catch (_) {}
+              }
             }
           }
-        }
-        if (adminProfilesModified) {
-          writeBotStore(store);
-        }
+          if (adminProfilesModified) {
+            writeBotStore(store);
+          }
+        } catch (_) {}
+      }, 0);
 
         return res.status(200).json({
           ok: true,

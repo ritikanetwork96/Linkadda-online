@@ -3496,11 +3496,25 @@ function percentChange(current, previous) {
   return Math.round(((current - previous) / previous) * 100);
 }
 
+let _memoDashboardSummary = null;
+let _memoDashboardKey = '';
+let _memoDashboardTime = 0;
+
 function summarizeDashboard(range = ui.dashboardRange) {
-  const visitors = listCollection('visitors');
-  const orders = listCollection('orders');
-  const events = listCollection('events');
-  const products = listCollection('products');
+  const ordersList = listCollection('orders');
+  const visitorsList = listCollection('visitors');
+  const eventsList = listCollection('events');
+  const productsList = listCollection('products');
+  const digest = `${range}_${ordersList.length}_${visitorsList.length}_${eventsList.length}_${productsList.length}`;
+  const now = Date.now();
+  if (_memoDashboardSummary && _memoDashboardKey === digest && (now - _memoDashboardTime < 8000)) {
+    return _memoDashboardSummary;
+  }
+
+  const visitors = visitorsList;
+  const orders = ordersList;
+  const events = eventsList;
+  const products = productsList;
   const currentWindow = getRangeWindow(range);
   const previousWindow = getRangeWindow(range, 1);
   const clickPredicate = (item) => {
@@ -3569,7 +3583,7 @@ function summarizeDashboard(range = ui.dashboardRange) {
   const topProducts = buildTopProducts({ range, clicks: currentClicks });
   const top = topProducts[0] ? [topProducts[0].title || topProducts[0].name, topProducts[0].clicks] : [];
 
-  return {
+  const result = {
     range,
     rangeDays: getRangeDays(range),
     visitors: currentVisitors,
@@ -3606,6 +3620,10 @@ function summarizeDashboard(range = ui.dashboardRange) {
     liveCategories: listCollection('categories').length,
     mediaAssets: getAllUnifiedMediaItems(ui.data || getSnapshot()).length,
   };
+  _memoDashboardSummary = result;
+  _memoDashboardKey = digest;
+  _memoDashboardTime = now;
+  return result;
 }
 
 function renderRangeSwitch() {
@@ -7391,25 +7409,29 @@ async function loadTelegramBotAdminFullData(force = false) {
     console.warn('Telegram bot full data fetch note:', err);
   } finally {
     _tgBotData.isLoading = false;
+    _tgBotData.lastLoadedAt = Date.now();
   }
 }
 
 // Backwards compatibility alias
 async function loadTelegramBotAdminStatus() {
-  return loadTelegramBotAdminFullData(true);
+  return loadTelegramBotAdminFullData(false);
 }
 
 let _tgBotPollInterval = null;
 function syncTelegramBotRealtimePolling(current) {
-  if (current === 'telegram' || current === 'settings') {
-    loadTelegramBotAdminFullData(true);
+  if (current === 'telegram') {
+    // Only fetch if data is older than 15 seconds to prevent unnecessary network load
+    if (!_tgBotData.lastLoadedAt || (Date.now() - _tgBotData.lastLoadedAt > 15000)) {
+      setTimeout(() => loadTelegramBotAdminFullData(false), 50);
+    }
     if (!_tgBotPollInterval) {
       _tgBotPollInterval = setInterval(() => {
         const isTgActive = document.getElementById('tgBotPageRoot') || document.getElementById('tgTabUsers');
         if (isTgActive && document.visibilityState !== 'hidden') {
-          loadTelegramBotAdminFullData(true);
+          loadTelegramBotAdminFullData(false);
         }
-      }, 8000);
+      }, 10000);
     }
   } else {
     if (_tgBotPollInterval) {
@@ -11607,11 +11629,17 @@ function renderView(data) {
     else if (current === 'banner') html = renderSingleEditorPage('banner', singleEditors.banner, data.banner || {});
     else html = renderDashboard(data);
     viewRoot.innerHTML = html;
-    if (window.lucide) {
-      try { lucide.createIcons({ root: viewRoot }); } catch (_) {}
+    if (window.lucide && typeof lucide.createIcons === 'function') {
+      requestAnimationFrame(() => {
+        try { lucide.createIcons({ root: viewRoot }); } catch (_) {}
+      });
     }
-    if (current === 'catalog' || current === 'products' || current === 'categories') initCatalogDragAndDrop();
-    if (current === 'analytics') mountAnalyticsCharts();
+    if (current === 'catalog' || current === 'products' || current === 'categories') {
+      requestAnimationFrame(() => initCatalogDragAndDrop());
+    }
+    if (current === 'analytics') {
+      requestAnimationFrame(() => mountAnalyticsCharts());
+    }
     syncTelegramBotRealtimePolling(current);
     if (notifyCount) {
       notifyCount.textContent = String(recentActivity(12).length);
