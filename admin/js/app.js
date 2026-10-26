@@ -8257,20 +8257,9 @@ function renderTelegramBotsFleetCards(bots = []) {
 
 function renderTelegramAdminsCards(admins = []) {
   const adminList = (Array.isArray(admins) && admins.length) ? admins : ['8802192472', '6966868142'];
-  const defaultIds = ['8802192472'];
   const customProfiles = _tgBotData.adminProfiles || {};
 
   const baseProfiles = {
-    '8802192472': {
-      name: 'No name',
-      username: 'noname8828211',
-      email: '',
-      badge: '👑 OWNER',
-      badgeBg: 'rgba(245, 158, 11, 0.2)',
-      badgeColor: '#fbbf24',
-      badgeBorder: 'rgba(245, 158, 11, 0.4)',
-      role: 'Primary Store Owner · Order Proof Alerts & Approve Buttons'
-    },
     '6966868142': {
       name: 'Ghost Layer',
       username: 'GhostLayer73',
@@ -8289,16 +8278,15 @@ function renderTelegramAdminsCards(admins = []) {
     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 14px;">
       ${adminList.map(aid => {
         const cleanId = String(aid).trim();
-        const isDefault = defaultIds.includes(cleanId);
         const dynamicProf = customProfiles[cleanId] || {};
         const profile = adminProfiles[cleanId] || {
-          name: dynamicProf.name || (isDefault ? 'Admin Owner' : `Admin #${cleanId}`),
+          name: dynamicProf.name || `Admin #${cleanId}`,
           username: dynamicProf.username || '',
           email: '',
-          badge: isDefault ? '👑 OWNER' : '🛡️ ADMIN',
-          badgeBg: isDefault ? 'rgba(245, 158, 11, 0.2)' : 'rgba(56, 189, 248, 0.15)',
-          badgeColor: isDefault ? '#fbbf24' : '#38bdf8',
-          badgeBorder: isDefault ? 'rgba(245, 158, 11, 0.4)' : 'rgba(56, 189, 248, 0.35)',
+          badge: dynamicProf.badge || '🛡️ ADMIN',
+          badgeBg: 'rgba(56, 189, 248, 0.15)',
+          badgeColor: '#38bdf8',
+          badgeBorder: 'rgba(56, 189, 248, 0.35)',
           role: 'Receives Order Alerts & Instant Approve/Reject Buttons Across All Bots'
         };
 
@@ -8364,11 +8352,9 @@ function renderTelegramAdminsCards(admins = []) {
                 <button type="button" class="btn btn-ghost btn-sm" data-action="ping-admin-action" data-chat-id="${escapeHtml(cleanId)}" title="Send test ping to this admin" style="font-size: 11.5px; padding: 5px 10px; border-radius: 6px; border: 1px solid rgba(245, 158, 11, 0.4); color: #fbbf24; display: inline-flex; align-items: center; gap: 4px;">
                   <i data-lucide="send" style="width: 12px; height: 12px;"></i> Ping
                 </button>
-                ${!isDefault ? `
-                  <button type="button" class="btn btn-ghost btn-sm" data-action="remove-admin-action" data-chat-id="${escapeHtml(cleanId)}" title="Remove Admin" style="font-size: 11.5px; padding: 5px 10px; border-radius: 6px; border: 1px solid rgba(239, 68, 68, 0.3); color: #ef4444; display: inline-flex; align-items: center; gap: 4px;">
-                    <i data-lucide="trash-2" style="width: 12px; height: 12px;"></i> Remove
-                  </button>
-                ` : ''}
+                <button type="button" class="btn btn-ghost btn-sm" data-action="remove-admin-action" data-chat-id="${escapeHtml(cleanId)}" title="Remove Admin" style="font-size: 11.5px; padding: 5px 10px; border-radius: 6px; border: 1px solid rgba(239, 68, 68, 0.3); color: #ef4444; display: inline-flex; align-items: center; gap: 4px;">
+                  <i data-lucide="trash-2" style="width: 12px; height: 12px;"></i> Remove
+                </button>
               </div>
             </div>
           </div>

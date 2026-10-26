@@ -9,14 +9,14 @@ const __dirname = path.dirname(__filename);
 const DEFAULT_ADMIN_IDS = ['8802192472', '6966868142'];
 
 export function getAdminChatIds() {
-  const envAdmins = (process.env.ADMIN_CHAT_IDS || '').split(',').map(s => s.trim()).filter(Boolean);
-  let storeAdmins = [];
   try {
     const store = readBotStore();
-    if (Array.isArray(store.admins)) storeAdmins = store.admins.map(s => String(s).trim()).filter(Boolean);
+    if (Array.isArray(store.admins) && store.admins.length > 0) {
+      return store.admins.map(s => String(s).trim()).filter(Boolean);
+    }
   } catch (_) {}
-  const combined = [...new Set([...DEFAULT_ADMIN_IDS, ...envAdmins, ...storeAdmins])];
-  return combined;
+  const envAdmins = (process.env.ADMIN_CHAT_IDS || '').split(',').map(s => s.trim()).filter(Boolean);
+  return envAdmins.length > 0 ? envAdmins : DEFAULT_ADMIN_IDS;
 }
 
 export function getAppUrl(req = null) {
@@ -456,13 +456,13 @@ export async function addAdminChatId(chatId, label = '') {
     tgUsername = (u.username || '').replace('@', '');
   }
 
-  const resolvedName = [tgFirstName, tgLastName].filter(Boolean).join(' ').trim() || label || (cleanId === '8516979341' ? 'No name' : (cleanId === '6966868142' ? 'Ghost Layer' : `Admin #${cleanId}`));
+  const resolvedName = [tgFirstName, tgLastName].filter(Boolean).join(' ').trim() || label || `Admin #${cleanId}`;
   store.adminProfiles[cleanId] = {
     id: cleanId,
     name: resolvedName,
     username: tgUsername || '',
-    badge: (cleanId === '8516979341' || cleanId === '8802192472') ? '👑 OWNER' : '🛡️ ADMIN',
-    role: 'Receives Order Alerts & Instant Approve/Reject Buttons Across All Bots',
+    badge: '🛡️ ADMIN',
+    role: 'Order Proof Alerts & Instant Approve/Reject Buttons Across All Bots',
     updatedAt: Date.now()
   };
 
@@ -2672,9 +2672,9 @@ export default async function handler(req, res) {
                   const realName = [realFirst, realLast].filter(Boolean).join(' ').trim();
                   store.adminProfiles[cleanAid] = {
                     id: cleanAid,
-                    name: realName || (cleanAid === '8516979341' ? 'No name' : (cleanAid === '6966868142' ? 'Ghost Layer' : `Admin #${cleanAid}`)),
-                    username: realUname || '',
-                    badge: (cleanAid === '8516979341' || cleanAid === '8802192472') ? '👑 OWNER' : '🛡️ ADMIN',
+                    name: realName || (cleanAid === '6966868142' ? 'Ghost Layer' : `Admin #${cleanAid}`),
+                    username: realUname || (cleanAid === '6966868142' ? 'GhostLayer73' : ''),
+                    badge: '🛡️ ADMIN',
                     role: 'Order Proof Alerts & Instant Approve/Reject Buttons Across All Bots',
                     updatedAt: Date.now()
                   };
@@ -3428,8 +3428,11 @@ export default async function handler(req, res) {
             return res.status(200).json({ ok: true });
           }
 
+          const isAdminSender = adminIds.includes(String(msg.chat.id));
           const welcomeText = 
             `👋 <b>Welcome ${escapeTelegramHtml(fromUser.first_name || 'VIP Member')}!</b>\n\n` +
+            (isAdminSender ? `👑 <b>Administrator Mode Active!</b> Order alerts & approve/reject buttons are connected.\n\n` : '') +
+            `🆔 <b>Your Telegram Chat ID:</b> <code>${msg.chat.id}</code>\n\n` +
             `🔥 Welcome to <b>LinkAdda Online Store</b>!\n\n` +
             `Explore all Exclusive VIP Packs & Collections:\n` +
             `⚡ Instant High-Speed Cloud Access\n` +
