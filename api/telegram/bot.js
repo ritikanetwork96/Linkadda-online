@@ -418,7 +418,7 @@ export async function toggleBotStatus(botId, newStatus, notifyUsers = false, not
   return { ok: true, bot: target, sentNoticeCount };
 }
 
-export async function addAdminChatId(chatId, label = '') {
+export async function addAdminChatId(chatId, label = '', assignedBotId = 'all', assignedBotUsername = 'All Fleet Bots') {
   const cleanId = String(chatId || '').replace(/[^0-9-]/g, '').trim();
   if (!cleanId || cleanId.length < 5) {
     throw new Error('Invalid Telegram Chat ID. Chat IDs are 8-10 digit numbers.');
@@ -476,7 +476,9 @@ export async function addAdminChatId(chatId, label = '') {
     name: resolvedName,
     username: tgUsername || '',
     badge: '🛡️ ADMIN',
-    role: 'Order Proof Alerts & Instant Approve/Reject Buttons Across All Bots',
+    assignedBotId: assignedBotId || 'all',
+    assignedBotUsername: assignedBotUsername || 'All Fleet Bots',
+    role: assignedBotId && assignedBotId !== 'all' ? `Admin for @${assignedBotUsername || assignedBotId}` : 'Order Proof Alerts & Instant Approve/Reject Buttons Across All Bots',
     updatedAt: Date.now()
   };
 
@@ -1567,6 +1569,17 @@ export async function notifyAdminsNewOrder(order) {
   const sentAdminMessages = [];
 
   for (const adminId of adminIds) {
+    // ⚡ Bot-Specific Admin Routing: check if admin is assigned to a specific bot
+    const adminProf = store.adminProfiles?.[String(adminId)] || {};
+    if (adminProf.assignedBotId && adminProf.assignedBotId !== 'all') {
+      const assignedTarget = String(adminProf.assignedBotId).toLowerCase().replace('@', '');
+      const ordTarget = String(originatingBot.botId || originatingBot.id || '').toLowerCase().replace('@', '');
+      const ordUsername = String(originatingBot.username || '').toLowerCase().replace('@', '');
+      if (assignedTarget !== ordTarget && assignedTarget !== ordUsername) {
+        continue; // Skip admin: order came from a different bot!
+      }
+    }
+
     let sentRes = null;
     let isPhoto = false;
     let usedToken = originatingToken;
@@ -3020,8 +3033,8 @@ export default async function handler(req, res) {
       return res.status(401).json({ ok: false, error: 'Unauthorized: Admin authentication required.' });
     }
     try {
-      const { chatId, label } = req.body || {};
-      const result = await addAdminChatId(chatId, label);
+      const { chatId, label, assignedBotId, assignedBotUsername } = req.body || {};
+      const result = await addAdminChatId(chatId, label, assignedBotId, assignedBotUsername);
       return res.status(200).json({ ok: true, ...result });
     } catch (e) {
       return res.status(400).json({ ok: false, error: e.message });
@@ -3105,19 +3118,23 @@ export default async function handler(req, res) {
       return res.status(401).json({ ok: false, error: 'Unauthorized: Admin authentication required.' });
     }
     try {
-      const { chatId, name, username, badge } = req.body || {};
+      const { chatId, name, username, badge, assignedBotId, assignedBotUsername } = req.body || {};
       const cleanId = String(chatId || '').trim();
       if (!cleanId) return res.status(400).json({ ok: false, error: 'chatId is required' });
       const store = readBotStore();
       if (!store.adminProfiles) store.adminProfiles = {};
       const existing = store.adminProfiles[cleanId] || {};
+      const resolvedBotId = assignedBotId !== undefined ? assignedBotId : (existing.assignedBotId || 'all');
+      const resolvedBotUname = assignedBotUsername !== undefined ? assignedBotUsername : (existing.assignedBotUsername || 'All Fleet Bots');
       store.adminProfiles[cleanId] = {
         ...existing,
         id: cleanId,
         name: (name || '').trim() || existing.name || `Admin #${cleanId}`,
         username: (username || '').replace('@', '').trim(),
-        badge: badge || existing.badge || ((cleanId === '8516979341' || cleanId === '8802192472') ? '👑 OWNER' : '🛡️ ADMIN'),
-        role: existing.role || 'Order Proof Alerts & Instant Approve/Reject Buttons Across All Bots',
+        badge: badge || existing.badge || '🛡️ ADMIN',
+        assignedBotId: resolvedBotId,
+        assignedBotUsername: resolvedBotUname,
+        role: resolvedBotId && resolvedBotId !== 'all' ? `Admin for @${resolvedBotUname || resolvedBotId}` : 'Order Proof Alerts & Instant Approve/Reject Buttons Across All Bots',
         updatedAt: Date.now()
       };
       writeBotStore(store);

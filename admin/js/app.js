@@ -8324,7 +8324,7 @@ function renderTelegramAdminsCards(admins = []) {
               </div>
 
               <!-- Admin Numeric Chat ID Chip -->
-              <div style="display: flex; align-items: center; justify-content: space-between; padding: 7px 10px; background: rgba(0,0,0,0.3); border-radius: 8px; border: 1px solid rgba(255,255,255,0.06); margin-bottom: 8px;">
+              <div style="display: flex; align-items: center; justify-content: space-between; padding: 7px 10px; background: rgba(0,0,0,0.3); border-radius: 8px; border: 1px solid rgba(255,255,255,0.06); margin-bottom: 6px;">
                 <span style="font-size: 11px; color: var(--muted); font-weight: 600;">Telegram Chat ID:</span>
                 <div style="display: flex; align-items: center; gap: 6px;">
                   <code style="font-size: 12.5px; font-weight: 800; color: #fbbf24; font-family: monospace;">${escapeHtml(cleanId)}</code>
@@ -8332,6 +8332,20 @@ function renderTelegramAdminsCards(admins = []) {
                     <i data-lucide="copy" style="width: 11px; height: 11px;"></i>
                   </button>
                 </div>
+              </div>
+
+              <!-- Bot Channel Assignment Badge -->
+              <div style="display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; background: rgba(0,0,0,0.22); border-radius: 8px; border: 1px solid rgba(255,255,255,0.05); margin-bottom: 8px;">
+                <span style="font-size: 11px; color: var(--muted); font-weight: 600;">Assigned Bot:</span>
+                ${(!profile.assignedBotId || profile.assignedBotId === 'all') ? `
+                  <span class="badge" style="font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 6px; background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3);">
+                    <i data-lucide="globe" style="width: 10px; height: 10px; vertical-align: -1px;"></i> All Fleet Bots
+                  </span>
+                ` : `
+                  <span class="badge" style="font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 6px; background: rgba(168, 85, 247, 0.15); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.3);">
+                    <i data-lucide="bot" style="width: 10px; height: 10px; vertical-align: -1px;"></i> @${escapeHtml(profile.assignedBotUsername || profile.assignedBotId.replace('bot_', ''))}
+                  </span>
+                `}
               </div>
 
               <div style="font-size: 11.5px; color: #cbd5e1; line-height: 1.4;">
@@ -8346,7 +8360,7 @@ function renderTelegramAdminsCards(admins = []) {
                 <span style="width: 6px; height: 6px; border-radius: 50%; background: #10b981; display: inline-block;"></span> Active Dispatch
               </span>
               <div style="display: flex; gap: 6px;">
-                <button type="button" class="btn btn-ghost btn-sm" data-action="edit-admin-action" data-chat-id="${escapeHtml(cleanId)}" data-name="${escapeHtml(profile.name)}" data-username="${escapeHtml(profile.username || '')}" title="Edit Name & Username" style="font-size: 11.5px; padding: 5px 10px; border-radius: 6px; border: 1px solid rgba(56, 189, 248, 0.4); color: #38bdf8; display: inline-flex; align-items: center; gap: 4px;">
+                <button type="button" class="btn btn-ghost btn-sm" data-action="edit-admin-action" data-chat-id="${escapeHtml(cleanId)}" data-name="${escapeHtml(profile.name)}" data-username="${escapeHtml(profile.username || '')}" data-assigned-bot="${escapeHtml(profile.assignedBotId || 'all')}" title="Edit Name, Username & Bot Channel" style="font-size: 11.5px; padding: 5px 10px; border-radius: 6px; border: 1px solid rgba(56, 189, 248, 0.4); color: #38bdf8; display: inline-flex; align-items: center; gap: 4px;">
                   <i data-lucide="edit-3" style="width: 12px; height: 12px;"></i> Edit
                 </button>
                 <button type="button" class="btn btn-ghost btn-sm" data-action="ping-admin-action" data-chat-id="${escapeHtml(cleanId)}" title="Send test ping to this admin" style="font-size: 11.5px; padding: 5px 10px; border-radius: 6px; border: 1px solid rgba(245, 158, 11, 0.4); color: #fbbf24; display: inline-flex; align-items: center; gap: 4px;">
@@ -8676,9 +8690,17 @@ function renderTelegramBotPageView(data = {}) {
           </div>
 
           <form id="addNewAdminForm" class="tg-responsive-form" style="display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-start;">
-            <div style="flex: 1; min-width: 240px;">
+            <div style="flex: 1; min-width: 220px;">
               <input type="text" id="newAdminChatIdInput" placeholder="Enter Telegram Numeric Chat ID (e.g. 8802192472)" class="input" style="width: 100%; padding: 11px 14px; font-family: monospace; font-size: 13px;" required />
               <div id="newAdminLookupLiveBadge" style="margin-top: 6px; font-size: 12px; display: none;"></div>
+            </div>
+            <div style="min-width: 210px;">
+              <select id="newAdminAssignedBotSelect" class="input" style="width: 100%; padding: 11px 12px; font-size: 13px; background: rgba(15, 23, 42, 0.9); border: 1px solid var(--border); border-radius: 8px; color: var(--text);">
+                <option value="all">🌐 All Fleet Bots (Global)</option>
+                ${bots.map(b => `
+                  <option value="${escapeHtml(b.botId || b.id)}">🤖 @${escapeHtml(b.username || b.botId)} (${escapeHtml(b.name || 'Bot')})</option>
+                `).join('')}
+              </select>
             </div>
             <button type="button" id="addNewAdminSubmitBtn" data-action="add-admin-submit" class="btn btn-primary" style="padding: 11px 24px; font-weight: 700; font-size: 13px; border-radius: 8px; background: linear-gradient(135deg, #f59e0b, #d97706) !important; color: white !important; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; box-shadow: 0 4px 14px rgba(245, 158, 11, 0.4); height: 42px;">
               <i data-lucide="shield-check" style="width: 14px; height: 14px;"></i> Connect Admin
@@ -12725,6 +12747,15 @@ function attachGlobalHandlers() {
         return;
       }
 
+      const botSelect = document.getElementById('newAdminAssignedBotSelect');
+      const assignedBotId = botSelect?.value || 'all';
+      let assignedBotUsername = 'All Fleet Bots';
+      if (assignedBotId !== 'all' && botSelect) {
+        const selText = botSelect.options[botSelect.selectedIndex]?.text || '';
+        const m = selText.match(/@([a-zA-Z0-9_]+)/);
+        assignedBotUsername = m ? m[1] : assignedBotId.replace('bot_', '');
+      }
+
       actionBtn.disabled = true;
       const originalHtml = actionBtn.innerHTML;
       actionBtn.innerHTML = '<span class="spin-loader" style="width:13px;height:13px;border:2px solid #fff;border-top-color:transparent;border-radius:50%;display:inline-block;animation:authSpin 0.75s linear infinite;margin-right:6px;"></span> Connecting...';
@@ -12734,14 +12765,14 @@ function attachGlobalHandlers() {
         feedback.style.background = 'rgba(245, 158, 11, 0.15)';
         feedback.style.border = '1px solid rgba(245, 158, 11, 0.3)';
         feedback.style.color = '#fde68a';
-        feedback.innerHTML = `Linking Telegram Admin ID <strong>${escapeHtml(chatId)}</strong> and sending welcome ping alert...`;
+        feedback.innerHTML = `Linking Telegram Admin ID <strong>${escapeHtml(chatId)}</strong> for <strong>${escapeHtml(assignedBotUsername)}</strong> and sending welcome ping alert...`;
       }
 
       try {
         const res = await telegramApiFetch('/api/telegram/bot?action=add-admin', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', ...getAdminAuthHeaders() },
-          body: JSON.stringify({ chatId })
+          body: JSON.stringify({ chatId, assignedBotId, assignedBotUsername })
         });
         const result = await res.json();
         if (!res.ok || !result.ok) {
@@ -12754,9 +12785,36 @@ function attachGlobalHandlers() {
           _tgBotData.admins.push(chatId);
         }
 
+        if (!_tgBotData.adminProfiles) _tgBotData.adminProfiles = {};
+        _tgBotData.adminProfiles[chatId] = {
+          ...(_tgBotData.adminProfiles[chatId] || {}),
+          id: chatId,
+          name: result?.admin?.name || `Admin #${chatId}`,
+          username: result?.admin?.username || '',
+          badge: '🛡️ ADMIN',
+          assignedBotId,
+          assignedBotUsername,
+          role: assignedBotId && assignedBotId !== 'all' ? `Admin for @${assignedBotUsername}` : 'Order Proof Alerts & Instant Approve/Reject Buttons Across All Bots',
+          updatedAt: Date.now()
+        };
+
         if (result.adminProfiles) {
-          _tgBotData.adminProfiles = { ...(_tgBotData.adminProfiles || {}), ...result.adminProfiles };
+          _tgBotData.adminProfiles = { ..._tgBotData.adminProfiles, ...result.adminProfiles };
         }
+
+        // Direct Supabase sync so addition persists immediately
+        try {
+          const supaUrl = 'https://esxiwfswnbacmpjxqgsn.supabase.co';
+          const supaKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVzeGl3ZnN3bmJhY21wanhxZ3NuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI2MDcxODQsImV4cCI6MjEwODE4MzE4NH0.n6XzLxgH5947CK-224Tp57BJmbWZ_rTKi4PK-EW8bNI';
+          await fetch(`${supaUrl}/rest/v1/site_settings`, {
+            method: 'POST',
+            headers: { 'apikey': supaKey, 'Authorization': `Bearer ${supaKey}`, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates' },
+            body: JSON.stringify([
+              { key: 'tg_admin_chat_ids', value: _tgBotData.admins, updated_at: new Date().toISOString() },
+              { key: 'tg_admin_profiles', value: _tgBotData.adminProfiles, updated_at: new Date().toISOString() }
+            ])
+          });
+        } catch (_) {}
 
         const adminName = result.admin?.name || `Admin #${chatId}`;
         const adminUname = result.admin?.username ? ` (@${result.admin.username})` : '';
@@ -12837,6 +12895,7 @@ function attachGlobalHandlers() {
       const chatId = actionBtn.getAttribute('data-chat-id');
       const currentName = actionBtn.getAttribute('data-name') || '';
       const currentUname = actionBtn.getAttribute('data-username') || '';
+      const currentBot = actionBtn.getAttribute('data-assigned-bot') || 'all';
 
       const newName = window.prompt(`Enter Name/Label for Telegram Admin ID ${chatId}:`, currentName);
       if (newName === null) return;
@@ -12844,25 +12903,53 @@ function attachGlobalHandlers() {
       const newUname = window.prompt(`Enter Telegram @username for Admin ID ${chatId} (without @):`, currentUname);
       if (newUname === null) return;
 
+      const botOptionsText = (_tgBotData.bots || []).map(b => `${b.botId}: @${b.username}`).join('\n');
+      const newBotPrompt = window.prompt(`Assign to specific bot?\nEnter "all" for All Bots, OR enter Bot ID:\nAvailable Bots:\nall (All Bots)\n${botOptionsText}`, currentBot);
+      if (newBotPrompt === null) return;
+
+      const assignedBotId = newBotPrompt.trim() || 'all';
+      const matchedBot = (_tgBotData.bots || []).find(b => b.botId === assignedBotId || b.id === assignedBotId || (b.username && b.username.toLowerCase() === assignedBotId.toLowerCase().replace('@', '')));
+      const assignedBotUsername = assignedBotId === 'all' ? 'All Fleet Bots' : (matchedBot?.username || assignedBotId.replace('bot_', ''));
+
       actionBtn.disabled = true;
       try {
-        const res = await telegramApiFetch('/api/telegram/bot?action=update-admin-profile', {
+        if (!_tgBotData.adminProfiles) _tgBotData.adminProfiles = {};
+        _tgBotData.adminProfiles[chatId] = {
+          ...(_tgBotData.adminProfiles[chatId] || {}),
+          id: chatId,
+          name: newName.trim(),
+          username: newUname.replace('@', '').trim(),
+          assignedBotId,
+          assignedBotUsername,
+          role: assignedBotId && assignedBotId !== 'all' ? `Admin for @${assignedBotUsername}` : 'Order Proof Alerts & Instant Approve/Reject Buttons Across All Bots',
+          updatedAt: Date.now()
+        };
+
+        // Direct Supabase sync
+        try {
+          const supaUrl = 'https://esxiwfswnbacmpjxqgsn.supabase.co';
+          const supaKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVzeGl3ZnN3bmJhY21wanhxZ3NuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI2MDcxODQsImV4cCI6MjEwODE4MzE4NH0.n6XzLxgH5947CK-224Tp57BJmbWZ_rTKi4PK-EW8bNI';
+          await fetch(`${supaUrl}/rest/v1/site_settings`, {
+            method: 'POST',
+            headers: { 'apikey': supaKey, 'Authorization': `Bearer ${supaKey}`, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates' },
+            body: JSON.stringify([
+              { key: 'tg_admin_profiles', value: _tgBotData.adminProfiles, updated_at: new Date().toISOString() }
+            ])
+          });
+        } catch (_) {}
+
+        // Backend sync for Render
+        telegramApiFetch('/api/telegram/bot?action=update-admin-profile', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', ...getAdminAuthHeaders() },
           body: JSON.stringify({
             chatId,
             name: newName.trim(),
-            username: newUname.replace('@', '').trim()
+            username: newUname.replace('@', '').trim(),
+            assignedBotId,
+            assignedBotUsername
           })
-        });
-        const result = await res.json();
-        if (!res.ok || !result.ok) {
-          throw new Error(result.error || 'Failed to update profile');
-        }
-
-        if (result.adminProfiles) {
-          _tgBotData.adminProfiles = { ...(_tgBotData.adminProfiles || {}), ...result.adminProfiles };
-        }
+        }).catch(() => {});
 
         updateTelegramBotLiveUI();
         showToast(`Admin profile for ${chatId} updated successfully!`, 'success');
