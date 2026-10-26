@@ -86,12 +86,12 @@ export default async function handler(req, res) {
         paymentProof: proof,
         utr,
         customerName: custName,
+        telegramUserId: order.telegramUserId || order.data?.telegramUserId || order.telegram_user_id || '',
+        telegramUsername: order.telegramUsername || order.data?.telegramUsername || order.telegram || '',
         sourceBotId,
         sourceBotUsername
       }
     };
-    if (sourceBotId) orderRow.source_bot_id = sourceBotId;
-    if (sourceBotUsername) orderRow.source_bot_username = sourceBotUsername;
 
     let supabaseSaved = false;
     try {
@@ -116,7 +116,7 @@ export default async function handler(req, res) {
       console.warn('Server-side order save error:', sbErr.message);
     }
 
-    // 2. Dispatch instant Telegram notification with photo & Approve/Reject buttons to all Admins
+    // 2. Dispatch instant Telegram notification with photo & Approve/Reject buttons to all Admins + Customer confirmation
     let telegramResult = null;
     try {
       telegramResult = await notifyAdminsNewOrder({
@@ -128,6 +128,8 @@ export default async function handler(req, res) {
         amount: order.amount || `₹${cleanAmt}`,
         payment_proof: proof,
         utr: utr,
+        telegramUserId: order.telegramUserId || order.data?.telegramUserId || order.telegram_user_id || '',
+        telegramUsername: order.telegramUsername || order.data?.telegramUsername || order.telegram || '',
         sourceBotId,
         sourceBotUsername
       });

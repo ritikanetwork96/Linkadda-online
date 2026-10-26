@@ -53,6 +53,21 @@
           }
           var tgUser = window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.user;
           if (tgUser && tgUser.id) {
+            try {
+              localStorage.setItem('linkadda_tg_user', JSON.stringify({
+                id: tgUser.id,
+                username: tgUser.username || '',
+                first_name: tgUser.first_name || '',
+                last_name: tgUser.last_name || ''
+              }));
+              sessionStorage.setItem('linkadda_tg_user', JSON.stringify({
+                id: tgUser.id,
+                username: tgUser.username || '',
+                first_name: tgUser.first_name || '',
+                last_name: tgUser.last_name || ''
+              }));
+            } catch (_) {}
+
             fetch('/api/telegram/bot?action=record-user', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -4945,11 +4960,17 @@ async function saveOrderToFirebase(amountText, methodName) {
         payload.source_bot_username = resolvedBotUser;
       }
 
-      const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
+      let tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
+      if (!tgUser || !tgUser.id) {
+        try {
+          const cached = localStorage.getItem('linkadda_tg_user') || sessionStorage.getItem('linkadda_tg_user');
+          if (cached) tgUser = JSON.parse(cached);
+        } catch (_) {}
+      }
       if (tgUser && tgUser.id) {
         payload.telegramUserId = String(tgUser.id);
-        payload.telegramUsername = tgUser.username || '';
-        payload.telegramName = [tgUser.first_name, tgUser.last_name].filter(Boolean).join(' ') || 'Telegram User';
+        payload.telegramUsername = (tgUser.username || '').replace('@', '');
+        payload.telegramName = [tgUser.first_name, tgUser.last_name].filter(Boolean).join(' ') || (payload.telegramUsername ? `@${payload.telegramUsername}` : 'Telegram Member');
         payload.customerName = payload.telegramName;
         payload.customerUid = `tg_${tgUser.id}`;
       }
@@ -4982,7 +5003,7 @@ async function saveOrderToFirebase(amountText, methodName) {
           'apikey': supaKey,
           'Authorization': `Bearer ${supaKey}`,
           'Content-Type': 'application/json',
-          'Prefer': 'return=minimal'
+          'Prefer': 'resolution=merge-duplicates,return=minimal'
         };
 
         const orderRow = {

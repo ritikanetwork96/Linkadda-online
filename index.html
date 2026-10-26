@@ -53,6 +53,21 @@
           }
           var tgUser = window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.user;
           if (tgUser && tgUser.id) {
+            try {
+              localStorage.setItem('linkadda_tg_user', JSON.stringify({
+                id: tgUser.id,
+                username: tgUser.username || '',
+                first_name: tgUser.first_name || '',
+                last_name: tgUser.last_name || ''
+              }));
+              sessionStorage.setItem('linkadda_tg_user', JSON.stringify({
+                id: tgUser.id,
+                username: tgUser.username || '',
+                first_name: tgUser.first_name || '',
+                last_name: tgUser.last_name || ''
+              }));
+            } catch (_) {}
+
             fetch('/api/telegram/bot?action=record-user', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },

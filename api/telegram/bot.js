@@ -181,19 +181,34 @@ export async function syncBotsFromSupabase(force = false) {
   try {
     const { url, key } = getSupabaseConfig();
     const headers = { 'apikey': key, 'Authorization': `Bearer ${key}` };
-    const res = await fetch(`${url}/rest/v1/site_settings?key=eq.tg_connected_bots&select=*`, {
+    const res = await fetch(`${url}/rest/v1/site_settings?key=in.(tg_connected_bots,tg_admin_chat_ids,tg_admin_profiles)&select=*`, {
       headers,
       signal: AbortSignal.timeout(4500)
     }).catch(() => null);
 
     if (res && res.ok) {
       const rows = await res.json();
-      if (rows && rows[0] && rows[0].value && typeof rows[0].value === 'object') {
+      if (Array.isArray(rows) && rows.length > 0) {
         const store = readBotStore();
-        if (!store.bots) store.bots = {};
-        store.bots = { ...store.bots, ...rows[0].value };
-        writeBotStore(store);
-        return store.bots;
+        let changed = false;
+        for (const row of rows) {
+          if (row.key === 'tg_connected_bots' && row.value && typeof row.value === 'object') {
+            store.bots = { ...(store.bots || {}), ...row.value };
+            changed = true;
+          }
+          if (row.key === 'tg_admin_chat_ids' && Array.isArray(row.value) && row.value.length > 0) {
+            store.admins = row.value.map(s => String(s).trim()).filter(Boolean);
+            changed = true;
+          }
+          if (row.key === 'tg_admin_profiles' && row.value && typeof row.value === 'object') {
+            store.adminProfiles = { ...(store.adminProfiles || {}), ...row.value };
+            changed = true;
+          }
+        }
+        if (changed) {
+          writeBotStore(store);
+        }
+        return store.bots || {};
       }
     }
   } catch (err) {
@@ -1565,6 +1580,41 @@ export async function notifyAdminsNewOrder(order) {
     ]
   };
 
+  // ── 1. INSTANT CUSTOMER RECEIPT NOTIFICATION ──
+  // Send instant confirmation receipt directly into customer's chat in the EXACT bot they purchased from
+  if (customerTgId) {
+    try {
+      const custText =
+        `🛍️ <b>Order Placed Successfully!</b>\n\n` +
+        `🆔 <b>Order ID:</b> <code>${orderId}</code>\n` +
+        `📦 <b>Product:</b> <b>${escapeTelegramHtml(productTitle)}</b>\n` +
+        `💰 <b>Amount:</b> <b>${amount}</b>\n` +
+        `💳 <b>Payment Method:</b> ${method}\n` +
+        (utr && utr !== 'Not provided' ? `🔢 <b>UTR / Transaction Ref:</b> <code>${escapeTelegramHtml(utr)}</code>\n` : '') +
+        `\n⏳ <b>Status: Payment Under Verification</b>\n` +
+        `Our admin team has received your payment proof and is verifying the transaction.\n` +
+        `<b>Your exclusive VIP content access link will be delivered right here in this chat as soon as verified!</b>\n\n` +
+        `💬 <i>24/7 Priority Support Desk: @VIP_KINK</i>`;
+
+      let custRes = await callTelegram('sendMessage', {
+        chat_id: String(customerTgId),
+        text: custText,
+        parse_mode: 'HTML'
+      }, originatingToken).catch(() => null);
+
+      if (!custRes?.ok && originatingToken !== primaryBot.token) {
+        await callTelegram('sendMessage', {
+          chat_id: String(customerTgId),
+          text: custText,
+          parse_mode: 'HTML'
+        }, primaryBot.token).catch(() => {});
+      }
+    } catch (custErr) {
+      console.warn('Customer confirmation dispatch error:', custErr.message);
+    }
+  }
+
+  // ── 2. INSTANT ADMIN PROOF ALERT DISPATCH WITH APPROVE / REJECT BUTTONS ──
   const results = [];
   const sentAdminMessages = [];
 
@@ -1584,23 +1634,26 @@ export async function notifyAdminsNewOrder(order) {
     let isPhoto = false;
     let usedToken = originatingToken;
 
-    // A. Priority 1: Direct Binary Multipart Upload (100% Reliable, Zero CDN failure)
+    // Helper: Build a FRESH multipart FormData for every send attempt (prevents body consumed errors)
+    const buildPhotoFormData = () => {
+      const fd = new FormData();
+      fd.append('chat_id', String(adminId));
+      fd.append('caption', caption);
+      fd.append('parse_mode', 'HTML');
+      fd.append('reply_markup', JSON.stringify(inlineKeyboard));
+      const blob = new Blob([photoBuffer], { type: 'image/jpeg' });
+      fd.append('photo', blob, `payment_${orderId}.jpg`);
+      return fd;
+    };
+
+    // A. Priority 1: Direct Binary Multipart Upload (Fresh FormData per attempt)
     if (photoBuffer && photoBuffer.length > 200) {
       try {
-        const formData = new FormData();
-        formData.append('chat_id', String(adminId));
-        formData.append('caption', caption);
-        formData.append('parse_mode', 'HTML');
-        formData.append('reply_markup', JSON.stringify(inlineKeyboard));
-        const blob = new Blob([photoBuffer], { type: 'image/jpeg' });
-        formData.append('photo', blob, `payment_${orderId}.jpg`);
-
-        sentRes = await callTelegram('sendPhoto', formData, originatingToken);
+        sentRes = await callTelegram('sendPhoto', buildPhotoFormData(), originatingToken);
         if (sentRes && sentRes.ok) {
           isPhoto = true;
         } else if (originatingToken !== primaryBot.token) {
-          // If sending from originating bot failed (e.g. admin has not started bot B), fallback to primary bot
-          const fallbackRes = await callTelegram('sendPhoto', formData, primaryBot.token);
+          const fallbackRes = await callTelegram('sendPhoto', buildPhotoFormData(), primaryBot.token);
           if (fallbackRes && fallbackRes.ok) {
             sentRes = fallbackRes;
             isPhoto = true;
@@ -1613,10 +1666,10 @@ export async function notifyAdminsNewOrder(order) {
     }
 
     // B. Priority 2: Remote URL sendPhoto fallback
-    if (!sentRes && viewScreenshotUrl) {
+    if (!sentRes?.ok && viewScreenshotUrl) {
       try {
         sentRes = await callTelegram('sendPhoto', {
-          chat_id: adminId,
+          chat_id: String(adminId),
           photo: viewScreenshotUrl,
           caption: caption,
           parse_mode: 'HTML',
@@ -1627,7 +1680,7 @@ export async function notifyAdminsNewOrder(order) {
           isPhoto = true;
         } else if (originatingToken !== primaryBot.token) {
           const fallbackRes = await callTelegram('sendPhoto', {
-            chat_id: adminId,
+            chat_id: String(adminId),
             photo: viewScreenshotUrl,
             caption: caption,
             parse_mode: 'HTML',
@@ -1642,10 +1695,10 @@ export async function notifyAdminsNewOrder(order) {
       } catch (_) {}
     }
 
-    // C. Priority 3: Text fallback
-    if (!sentRes) {
+    // C. Priority 3: HTML text fallback with link to screenshot and Approve/Reject inline keyboard
+    if (!sentRes?.ok) {
       sentRes = await callTelegram('sendMessage', {
-        chat_id: adminId,
+        chat_id: String(adminId),
         text: caption + (viewScreenshotUrl ? `\n\n📸 <b>Payment Proof:</b> <a href="${viewScreenshotUrl}">Tap to View Screenshot</a>` : ''),
         parse_mode: 'HTML',
         reply_markup: inlineKeyboard
@@ -1653,7 +1706,7 @@ export async function notifyAdminsNewOrder(order) {
 
       if (!sentRes?.ok && originatingToken !== primaryBot.token) {
         sentRes = await callTelegram('sendMessage', {
-          chat_id: adminId,
+          chat_id: String(adminId),
           text: caption + (viewScreenshotUrl ? `\n\n📸 <b>Payment Proof:</b> <a href="${viewScreenshotUrl}">Tap to View Screenshot</a>` : ''),
           parse_mode: 'HTML',
           reply_markup: inlineKeyboard
@@ -1692,34 +1745,6 @@ export async function notifyAdminsNewOrder(order) {
       writeBotStore(store);
     } catch (saveErr) {
       console.warn('Could not save orderAdminMessages:', saveErr.message);
-    }
-  }
-
-  // Send instant receipt / acknowledgement to customer via the EXACT bot they ordered from
-  if (customerTgId) {
-    let custRes = await callTelegram('sendMessage', {
-      chat_id: customerTgId,
-      text: 
-        `🕒 <b>Order #${orderId} Received!</b>\n\n` +
-        `📦 <b>Product:</b> ${escapeTelegramHtml(productTitle)}\n` +
-        `💰 <b>Amount:</b> ${amount}\n\n` +
-        `🔍 Admin is currently reviewing your payment proof and transaction reference. <b>You will receive an instant notification right here once verified.</b>\n\n` +
-        `For 24/7 priority support: @VIP_KINK`,
-      parse_mode: 'HTML'
-    }, originatingToken);
-
-    // Fallback: If originating bot returned error, try primary bot so customer gets receipt
-    if (!custRes?.ok && originatingToken !== primaryBot.token) {
-      await callTelegram('sendMessage', {
-        chat_id: customerTgId,
-        text: 
-          `🕒 <b>Order #${orderId} Received!</b>\n\n` +
-          `📦 <b>Product:</b> ${escapeTelegramHtml(productTitle)}\n` +
-          `💰 <b>Amount:</b> ${amount}\n\n` +
-          `🔍 Admin is currently reviewing your payment proof and transaction reference. <b>You will receive an instant notification right here once verified.</b>\n\n` +
-          `For 24/7 priority support: @VIP_KINK`,
-        parse_mode: 'HTML'
-      }, primaryBot.token).catch(() => {});
     }
   }
 
