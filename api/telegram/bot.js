@@ -430,18 +430,23 @@ export async function addAdminChatId(chatId, label = '') {
   }
   if (!store.adminProfiles) store.adminProfiles = {};
 
-  // Auto-fetch real Telegram First Name & Username via getChat API
+  // Auto-fetch real Telegram First Name & Username via getChat API across all fleet bots
   let tgFirstName = '';
   let tgLastName = '';
   let tgUsername = '';
-  try {
-    const chatInfo = await callTelegram('getChat', { chat_id: cleanId });
-    if (chatInfo && chatInfo.ok && chatInfo.result) {
-      tgFirstName = chatInfo.result.first_name || '';
-      tgLastName = chatInfo.result.last_name || '';
-      tgUsername = (chatInfo.result.username || '').replace('@', '');
-    }
-  } catch (_) {}
+  const allFleetBots = getConnectedBots();
+  for (const b of allFleetBots) {
+    if (!b.token) continue;
+    try {
+      const chatInfo = await callTelegram('getChat', { chat_id: cleanId }, b.token);
+      if (chatInfo && chatInfo.ok && chatInfo.result) {
+        tgFirstName = chatInfo.result.first_name || '';
+        tgLastName = chatInfo.result.last_name || '';
+        tgUsername = (chatInfo.result.username || '').replace('@', '');
+        if (tgFirstName || tgUsername) break;
+      }
+    } catch (_) {}
+  }
 
   // Fallback to store.users if user interacted with bot
   if (!tgFirstName && store.users?.[cleanId]) {
@@ -2983,6 +2988,63 @@ export default async function handler(req, res) {
     } catch (e) {
       return res.status(400).json({ ok: false, error: e.message });
     }
+  }
+
+  // Lookup Telegram User info by Numeric ID across all fleet bots (Admin only)
+  if (action === 'lookup-tg-user' || (req.body && req.body.action === 'lookup-tg-user')) {
+    if (!await verifyAdminRequest(req)) {
+      return res.status(401).json({ ok: false, error: 'Unauthorized: Admin authentication required.' });
+    }
+    const targetId = String(url.searchParams.get('id') || req.body?.id || '').trim();
+    if (!targetId) return res.status(400).json({ ok: false, error: 'id parameter is required' });
+
+    const store = readBotStore();
+    if (store.adminProfiles?.[targetId]) {
+      const p = store.adminProfiles[targetId];
+      if (p.name && !p.name.startsWith('Admin #')) {
+        return res.status(200).json({ ok: true, found: true, source: 'adminProfiles', user: p });
+      }
+    }
+    if (store.users?.[targetId]) {
+      const u = store.users[targetId];
+      const fullName = [u.firstName, u.lastName].filter(Boolean).join(' ').trim() || u.name || '';
+      if (fullName || u.username) {
+        return res.status(200).json({
+          ok: true,
+          found: true,
+          source: 'users',
+          user: { id: targetId, name: fullName, username: u.username || '' }
+        });
+      }
+    }
+
+    const allFleetBots = getConnectedBots();
+    for (const b of allFleetBots) {
+      if (!b.token) continue;
+      try {
+        const res = await callTelegram('getChat', { chat_id: targetId }, b.token);
+        if (res && res.ok && res.result) {
+          const r = res.result;
+          const fullName = [r.first_name, r.last_name].filter(Boolean).join(' ').trim();
+          const uname = (r.username || '').replace('@', '');
+          const profile = {
+            id: targetId,
+            name: fullName || uname || `User #${targetId}`,
+            username: uname,
+            source: 'telegram_api',
+            botUsername: b.username
+          };
+          return res.status(200).json({ ok: true, found: true, user: profile });
+        }
+      } catch (_) {}
+    }
+
+    return res.status(200).json({
+      ok: true,
+      found: false,
+      error: 'chat_not_found',
+      message: 'User has not started any bot yet.'
+    });
   }
 
   // Real Telegram Admin: Update Admin Profile Name & Username (Admin only)

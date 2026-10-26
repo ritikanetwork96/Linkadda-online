@@ -8685,10 +8685,12 @@ function renderTelegramBotPageView(data = {}) {
             </div>
           </div>
 
-          <form id="addNewAdminForm" class="tg-responsive-form" style="display: flex; gap: 10px; flex-wrap: wrap;">
-            <input type="text" id="newAdminChatIdInput" placeholder="Telegram Chat ID (e.g. 8802192472)" class="input" style="flex: 1; min-width: 200px; padding: 11px 14px; font-family: monospace; font-size: 13px;" required />
-            <input type="text" id="newAdminLabelInput" placeholder="Admin Name / Alias (optional, auto-detected from Telegram)" class="input" style="flex: 1; min-width: 200px; padding: 11px 14px; font-size: 13px;" />
-            <button type="button" id="addNewAdminSubmitBtn" data-action="add-admin-submit" class="btn btn-primary" style="padding: 11px 22px; font-weight: 700; font-size: 13px; border-radius: 8px; background: linear-gradient(135deg, #f59e0b, #d97706) !important; color: white !important; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; box-shadow: 0 4px 14px rgba(245, 158, 11, 0.4);">
+          <form id="addNewAdminForm" class="tg-responsive-form" style="display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-start;">
+            <div style="flex: 1; min-width: 240px;">
+              <input type="text" id="newAdminChatIdInput" placeholder="Enter Telegram Numeric Chat ID (e.g. 8802192472)" class="input" style="width: 100%; padding: 11px 14px; font-family: monospace; font-size: 13px;" required />
+              <div id="newAdminLookupLiveBadge" style="margin-top: 6px; font-size: 12px; display: none;"></div>
+            </div>
+            <button type="button" id="addNewAdminSubmitBtn" data-action="add-admin-submit" class="btn btn-primary" style="padding: 11px 24px; font-weight: 700; font-size: 13px; border-radius: 8px; background: linear-gradient(135deg, #f59e0b, #d97706) !important; color: white !important; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; box-shadow: 0 4px 14px rgba(245, 158, 11, 0.4); height: 42px;">
               <i data-lucide="shield-check" style="width: 14px; height: 14px;"></i> Connect Admin
             </button>
           </form>
@@ -12745,14 +12747,11 @@ function attachGlobalHandlers() {
         feedback.innerHTML = `Linking Telegram Admin ID <strong>${escapeHtml(chatId)}</strong> and sending welcome ping alert...`;
       }
 
-      const labelInput = document.getElementById('newAdminLabelInput');
-      const label = String(labelInput?.value || '').trim();
-
       try {
         const res = await telegramApiFetch('/api/telegram/bot?action=add-admin', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', ...getAdminAuthHeaders() },
-          body: JSON.stringify({ chatId, label })
+          body: JSON.stringify({ chatId })
         });
         const result = await res.json();
         if (!res.ok || !result.ok) {
@@ -12769,7 +12768,7 @@ function attachGlobalHandlers() {
           _tgBotData.adminProfiles = { ...(_tgBotData.adminProfiles || {}), ...result.adminProfiles };
         }
 
-        const adminName = result.admin?.name || label || `Admin #${chatId}`;
+        const adminName = result.admin?.name || `Admin #${chatId}`;
         const adminUname = result.admin?.username ? ` (@${result.admin.username})` : '';
 
         if (feedback) {
@@ -12781,7 +12780,8 @@ function attachGlobalHandlers() {
 
         showToast(`👑 Admin ${adminName} connected!`, 'success');
         if (input) input.value = '';
-        if (labelInput) labelInput.value = '';
+        const badge = document.getElementById('newAdminLookupLiveBadge');
+        if (badge) badge.style.display = 'none';
         updateTelegramBotLiveUI();
       } catch (err) {
         if (feedback) {
@@ -14394,7 +14394,38 @@ function attachGlobalHandlers() {
     }
   });
 
+  let _tgAdminLookupTimer = null;
   document.addEventListener('input', (event) => {
+    if (event.target.id === 'newAdminChatIdInput') {
+      const val = String(event.target.value || '').trim();
+      const badge = document.getElementById('newAdminLookupLiveBadge');
+      if (!badge) return;
+      clearTimeout(_tgAdminLookupTimer);
+      if (!/^\d{5,15}$/.test(val)) {
+        badge.style.display = 'none';
+        return;
+      }
+      badge.style.display = 'block';
+      badge.innerHTML = '<span style="color: #94a3b8;"><span class="spin-loader" style="width:10px;height:10px;border:2px solid #38bdf8;border-top-color:transparent;border-radius:50%;display:inline-block;animation:authSpin 0.75s linear infinite;margin-right:4px;"></span> Looking up Telegram user in bot fleet...</span>';
+      _tgAdminLookupTimer = setTimeout(async () => {
+        try {
+          const res = await telegramApiFetch('/api/telegram/bot?action=lookup-tg-user&id=' + encodeURIComponent(val), {
+            headers: getAdminAuthHeaders()
+          });
+          const d = await res.json();
+          if (d && d.ok && d.found && d.user) {
+            const unameStr = d.user.username ? ` (@${d.user.username})` : '';
+            badge.innerHTML = `<span style="color: #10b981; font-weight: 700;"><i data-lucide="check-circle" style="width:13px;height:13px;vertical-align:-2px;margin-right:3px;"></i> Verified Telegram User: <strong>${escapeHtml(d.user.name)}</strong>${escapeHtml(unameStr)}</span>`;
+          } else {
+            badge.innerHTML = `<span style="color: #fbbf24;"><i data-lucide="alert-circle" style="width:13px;height:13px;vertical-align:-2px;margin-right:3px;"></i> Telegram bot ko yeh ID abhi nahi mili. User ko bole ki bot (@Myshop9876_bot) me <strong>START</strong> dabayein, taaki Telegram se unka real name & username auto-fetch ho sake.</span>`;
+          }
+          if (typeof lucide !== 'undefined') lucide.createIcons();
+        } catch (_) {
+          badge.style.display = 'none';
+        }
+      }, 350);
+      return;
+    }
     if (event.target.id === 'collectionSearch') {
       ui.search = event.target.value;
       ui.page = 1;
