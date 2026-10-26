@@ -1999,8 +1999,7 @@
           <div class="addr-text" id="paypalLink">—</div>
           <button class="copy-btn" onclick="copyText(document.getElementById('paypalLink').innerText, this)"><i class="fa-solid fa-copy"></i> Copy Link</button>
         </div>
-        <div class="pay-note">Send payment via PayPal → Choose <strong>Friends & Family</strong> if available → Upload payment screenshot.</div>
-        <a id="paypalDirectLink" href="#" target="_blank" rel="noreferrer" style="display: none; align-items: center; justify-content: center; gap: 8px; width: 100%; margin-top: 12px; padding: 13px 18px; background: linear-gradient(135deg, #003087, #0079c1); color: #fff; border-radius: 14px; text-decoration: none; font-weight: 700; font-size: 13.5px; box-shadow: 0 4px 18px rgba(0,121,193,0.3); transition: all 0.2s;">
+        <a id="paypalDirectLink" href="#" onclick="handlePaypalClick(event)" target="_blank" rel="noreferrer" style="display: none; align-items: center; justify-content: center; gap: 8px; width: 100%; margin-top: 12px; padding: 13px 18px; background: linear-gradient(135deg, #003087, #0079c1); color: #fff; border-radius: 14px; text-decoration: none; font-weight: 700; font-size: 13.5px; box-shadow: 0 4px 18px rgba(0,121,193,0.3); transition: all 0.2s; cursor: pointer;">
           <i class="fa-brands fa-paypal"></i> Open PayPal & Pay Exact Amount
         </a>
       </div>
@@ -2248,7 +2247,7 @@ const CONFIG = {
   ethAddress: '0x7186b11f8fD49fe472Af49Cda490f168e09Fef0a',
   binanceId: '1197561104',
   binanceGiftCardUrl: 'https://www.g2a.com/binance-gift-card-205-usdt-key-i10000337768061',
-  paypalLink: '',
+  paypalLink: 'https://paypal.me/Jayagupta601',
 };
 
 // Immediate cached payment config application (0ms instant render)
@@ -4297,20 +4296,35 @@ async function gotoPayScreen() {
             generateQR('binancepayQR', 'https://app.binance.com/en/send-crypto-payment?recipientId=' + CONFIG.binanceId, 180);
           }
         } else if (selectedMethod === 'paypal') {
-          setText('paypalLink', CONFIG.paypalLink || '—');
+          const rawPaypalBase = (CONFIG.paypalLink || (window.__paymentPayment && window.__paymentPayment.paypalLink) || 'https://paypal.me/Jayagupta601').trim();
+          const cleanPaypalBase = rawPaypalBase.replace(/\/+$/, '');
+          const usdVal = Number(orderData.amountUSDValue || extractMoneyNumber(orderData.rawUSD || orderData.usd));
+
+          let finalPaypalUrl = cleanPaypalBase;
+          if (cleanPaypalBase && usdVal > 0 && !/\/\d+/.test(cleanPaypalBase)) {
+            finalPaypalUrl = `${cleanPaypalBase}/${usdVal}USD`;
+          }
+
+          setText('paypalLink', finalPaypalUrl || cleanPaypalBase || '—');
+
           const paypalDirectLink = document.getElementById('paypalDirectLink');
           if (paypalDirectLink) {
-            if (CONFIG.paypalLink) {
-              paypalDirectLink.href = CONFIG.paypalLink;
+            if (cleanPaypalBase) {
+              paypalDirectLink.href = finalPaypalUrl;
+              paypalDirectLink.setAttribute('data-href', finalPaypalUrl);
               paypalDirectLink.style.display = 'inline-flex';
             } else {
               paypalDirectLink.style.display = 'none';
             }
           }
-          const paypalQrImg = document.getElementById('paypalQrImg');
-          const paypalQr = CONFIG.paypalQr || (window.__paymentPayment && (window.__paymentPayment.paypalQr || window.__paymentPayment.paypalLogo)) || CONFIG.paypalLogo;
-          if (paypalQrImg && paypalQr) {
-            paypalQrImg.src = paypalQr;
+
+          const paypalQRFrame = document.getElementById('paypalQRFrame');
+          const customPaypalQr = CONFIG.paypalQr || (window.__paymentPayment && window.__paymentPayment.paypalQr);
+          if (customPaypalQr) {
+            if (paypalQRFrame) paypalQRFrame.innerHTML = `<img id="paypalQrImg" src="${customPaypalQr}" style="width:180px;height:180px;object-fit:contain;border-radius:12px;" alt="PayPal QR" />`;
+          } else if (finalPaypalUrl) {
+            if (paypalQRFrame) paypalQRFrame.innerHTML = '<div id="paypalQRCanvas"></div>';
+            generateQR('paypalQRCanvas', finalPaypalUrl, 180);
           }
         }
       }
@@ -4323,6 +4337,25 @@ async function gotoPayScreen() {
     }
   });
 }
+
+window.handlePaypalClick = function(e) {
+  if (e && e.preventDefault) e.preventDefault();
+  const directLink = document.getElementById('paypalDirectLink');
+  const targetUrl = directLink?.getAttribute('data-href') || directLink?.href || CONFIG.paypalLink || 'https://paypal.me/Jayagupta601';
+  if (!targetUrl || targetUrl === '#' || targetUrl.trim() === '') {
+    if (typeof showToast === 'function') showToast('PayPal link is currently not configured.', 'warning');
+    return false;
+  }
+  // Check if running inside Telegram Mini App
+  if (window.Telegram && window.Telegram.WebApp && typeof window.Telegram.WebApp.openLink === 'function') {
+    try {
+      window.Telegram.WebApp.openLink(targetUrl);
+      return false;
+    } catch (_) {}
+  }
+  window.open(targetUrl, '_blank', 'noopener,noreferrer');
+  return false;
+};
 
 // ━━ GOTO UPLOAD SCREEN ━━
 function gotoUploadScreen() {

@@ -7180,7 +7180,7 @@ async function loadTelegramBotAdminFullData(force = false) {
     const [cfgRes, usersRes, sbSettingsRes] = await Promise.all([
       telegramApiFetch('/api/telegram/bot?action=get-bot-config', { headers: authHeaders }).then(r => r.json()).catch(() => null),
       telegramApiFetch('/api/telegram/bot?action=get-users', { headers: authHeaders }).then(r => r.json()).catch(() => null),
-      fetch('https://esxiwfswnbacmpjxqgsn.supabase.co/rest/v1/site_settings?key=in.(tg_bot_users,tg_connected_bots)&select=key,value', {
+      fetch('https://esxiwfswnbacmpjxqgsn.supabase.co/rest/v1/site_settings?key=in.(tg_bot_users,tg_connected_bots,tg_admin_chat_ids,tg_admin_profiles)&select=key,value', {
         headers: { 'apikey': supaAnonKey, 'Authorization': `Bearer ${supaAnonKey}` }
       }).then(r => r.json()).catch(() => null)
     ]);
@@ -7190,6 +7190,9 @@ async function loadTelegramBotAdminFullData(force = false) {
       if (Array.isArray(cfgRes.bots)) _tgBotData.bots = cfgRes.bots;
       if (cfgRes.webhook) _tgBotData.webhook = cfgRes.webhook;
       if (Array.isArray(cfgRes.admins)) _tgBotData.admins = cfgRes.admins;
+      if (cfgRes.adminProfiles && typeof cfgRes.adminProfiles === 'object') {
+        _tgBotData.adminProfiles = { ...(_tgBotData.adminProfiles || {}), ...cfgRes.adminProfiles };
+      }
       if (cfgRes.appUrl) _tgBotData.appUrl = cfgRes.appUrl;
       if (typeof cfgRes.usersCount === 'number') _tgBotData.usersCount = cfgRes.usersCount;
       if (Array.isArray(cfgRes.users) && cfgRes.users.length) {
@@ -7210,6 +7213,16 @@ async function loadTelegramBotAdminFullData(force = false) {
       if (botsRow && botsRow.value && typeof botsRow.value === 'object') {
         const liveBots = Object.values(botsRow.value).filter(Boolean);
         if (liveBots.length > 0) _tgBotData.bots = liveBots;
+      }
+
+      const adminsRow = sbSettingsRes.find(r => r.key === 'tg_admin_chat_ids');
+      if (adminsRow && Array.isArray(adminsRow.value)) {
+        _tgBotData.admins = adminsRow.value;
+      }
+
+      const adminProfilesRow = sbSettingsRes.find(r => r.key === 'tg_admin_profiles');
+      if (adminProfilesRow && adminProfilesRow.value && typeof adminProfilesRow.value === 'object') {
+        _tgBotData.adminProfiles = { ...(_tgBotData.adminProfiles || {}), ...adminProfilesRow.value };
       }
 
       const usersRow = sbSettingsRes.find(r => r.key === 'tg_bot_users');
@@ -8242,9 +8255,10 @@ function renderTelegramBotsFleetCards(bots = []) {
 
 function renderTelegramAdminsCards(admins = []) {
   const adminList = (Array.isArray(admins) && admins.length) ? admins : ['8802192472', '6966868142'];
-  const defaultIds = ['8802192472', '6966868142'];
+  const defaultIds = ['8802192472'];
+  const customProfiles = _tgBotData.adminProfiles || {};
 
-  const adminProfiles = {
+  const baseProfiles = {
     '8802192472': {
       name: 'Admin Owner',
       username: 'botforword',
@@ -8267,23 +8281,30 @@ function renderTelegramAdminsCards(admins = []) {
     }
   };
 
+  const adminProfiles = { ...baseProfiles, ...customProfiles };
+
   return `
     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 14px;">
       ${adminList.map(aid => {
         const cleanId = String(aid).trim();
         const isDefault = defaultIds.includes(cleanId);
+        const dynamicProf = customProfiles[cleanId] || {};
         const profile = adminProfiles[cleanId] || {
-          name: isDefault ? 'Authorized Admin' : `Admin #${cleanId}`,
-          username: '',
+          name: dynamicProf.name || (isDefault ? 'Authorized Admin' : `Admin #${cleanId}`),
+          username: dynamicProf.username || '',
           email: '',
-          badge: isDefault ? '🛡️ ADMIN' : 'CUSTOM',
-          badgeBg: 'rgba(245, 158, 11, 0.15)',
-          badgeColor: '#f59e0b',
-          badgeBorder: 'rgba(245, 158, 11, 0.3)',
+          badge: isDefault ? '👑 OWNER' : '🛡️ ADMIN',
+          badgeBg: isDefault ? 'rgba(245, 158, 11, 0.2)' : 'rgba(56, 189, 248, 0.15)',
+          badgeColor: isDefault ? '#fbbf24' : '#38bdf8',
+          badgeBorder: isDefault ? 'rgba(245, 158, 11, 0.4)' : 'rgba(56, 189, 248, 0.35)',
           role: 'Receives Order Alerts & Instant Approve/Reject Buttons Across All Bots'
         };
 
-        const initials = cleanId === '8802192472' ? 'AO' : (cleanId === '6966868142' ? 'GL' : 'AD');
+        const rawName = profile.name || cleanId;
+        const nameParts = rawName.split(/\s+/).filter(Boolean);
+        const initials = nameParts.length >= 2 
+          ? (nameParts[0][0] + nameParts[1][0]).toUpperCase() 
+          : rawName.substring(0, 2).toUpperCase();
 
         return `
           <div class="panel glass" style="padding: 16px 18px; border-radius: 14px; border: 1px solid rgba(245, 158, 11, 0.35); background: linear-gradient(135deg, rgba(245, 158, 11, 0.04) 0%, rgba(15, 23, 42, 0.75) 100%); display: flex; flex-direction: column; justify-content: space-between; gap: 12px; box-shadow: 0 4px 16px rgba(0,0,0,0.25);">
@@ -8660,7 +8681,8 @@ function renderTelegramBotPageView(data = {}) {
           </div>
 
           <form id="addNewAdminForm" class="tg-responsive-form" style="display: flex; gap: 10px; flex-wrap: wrap;">
-            <input type="text" id="newAdminChatIdInput" placeholder="Enter Telegram Numeric Chat ID (e.g. 8802192472)" class="input" style="flex: 1; min-width: 240px; padding: 11px 14px; font-family: monospace; font-size: 13px;" required />
+            <input type="text" id="newAdminChatIdInput" placeholder="Telegram Chat ID (e.g. 8802192472)" class="input" style="flex: 1; min-width: 200px; padding: 11px 14px; font-family: monospace; font-size: 13px;" required />
+            <input type="text" id="newAdminLabelInput" placeholder="Admin Name / Alias (optional, auto-detected from Telegram)" class="input" style="flex: 1; min-width: 200px; padding: 11px 14px; font-size: 13px;" />
             <button type="button" id="addNewAdminSubmitBtn" data-action="add-admin-submit" class="btn btn-primary" style="padding: 11px 22px; font-weight: 700; font-size: 13px; border-radius: 8px; background: linear-gradient(135deg, #f59e0b, #d97706) !important; color: white !important; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; box-shadow: 0 4px 14px rgba(245, 158, 11, 0.4);">
               <i data-lucide="shield-check" style="width: 14px; height: 14px;"></i> Connect Admin
             </button>
@@ -12718,11 +12740,14 @@ function attachGlobalHandlers() {
         feedback.innerHTML = `Linking Telegram Admin ID <strong>${escapeHtml(chatId)}</strong> and sending welcome ping alert...`;
       }
 
+      const labelInput = document.getElementById('newAdminLabelInput');
+      const label = String(labelInput?.value || '').trim();
+
       try {
         const res = await telegramApiFetch('/api/telegram/bot?action=add-admin', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', ...getAdminAuthHeaders() },
-          body: JSON.stringify({ chatId })
+          body: JSON.stringify({ chatId, label })
         });
         const result = await res.json();
         if (!res.ok || !result.ok) {
@@ -12735,15 +12760,23 @@ function attachGlobalHandlers() {
           _tgBotData.admins.push(chatId);
         }
 
+        if (result.adminProfiles) {
+          _tgBotData.adminProfiles = { ...(_tgBotData.adminProfiles || {}), ...result.adminProfiles };
+        }
+
+        const adminName = result.admin?.name || label || `Admin #${chatId}`;
+        const adminUname = result.admin?.username ? ` (@${result.admin.username})` : '';
+
         if (feedback) {
           feedback.style.background = 'rgba(16, 185, 129, 0.15)';
           feedback.style.border = '1px solid rgba(16, 185, 129, 0.3)';
           feedback.style.color = '#6ee7b7';
-          feedback.innerHTML = `🎉 <strong>Success!</strong> Admin ID <strong>${escapeHtml(chatId)}</strong> added! Live order alerts and approval buttons will be dispatched to this chat.`;
+          feedback.innerHTML = `🎉 <strong>Success!</strong> Connected <strong>${escapeHtml(adminName)}</strong>${escapeHtml(adminUname)} (ID: <code>${escapeHtml(chatId)}</code>)! Live alerts & approval buttons are now active.`;
         }
 
-        showToast(`👑 Admin ${chatId} connected successfully!`, 'success');
+        showToast(`👑 Admin ${adminName} connected!`, 'success');
         if (input) input.value = '';
+        if (labelInput) labelInput.value = '';
         updateTelegramBotLiveUI();
       } catch (err) {
         if (feedback) {
@@ -12783,6 +12816,12 @@ function attachGlobalHandlers() {
           _tgBotData.admins = result.admins;
         } else {
           _tgBotData.admins = (_tgBotData.admins || []).filter(a => a !== chatId);
+        }
+
+        if (result.adminProfiles) {
+          _tgBotData.adminProfiles = result.adminProfiles;
+        } else if (_tgBotData.adminProfiles && _tgBotData.adminProfiles[chatId]) {
+          delete _tgBotData.adminProfiles[chatId];
         }
 
         updateTelegramBotLiveUI();

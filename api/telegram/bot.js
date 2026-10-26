@@ -427,14 +427,50 @@ export async function addAdminChatId(chatId, label = '') {
   if (!Array.isArray(store.admins)) store.admins = [...DEFAULT_ADMIN_IDS];
   if (!store.admins.includes(cleanId)) {
     store.admins.push(cleanId);
-    writeBotStore(store);
   }
+  if (!store.adminProfiles) store.adminProfiles = {};
+
+  // Auto-fetch real Telegram First Name & Username via getChat API
+  let tgFirstName = '';
+  let tgLastName = '';
+  let tgUsername = '';
+  try {
+    const chatInfo = await callTelegram('getChat', { chat_id: cleanId });
+    if (chatInfo && chatInfo.ok && chatInfo.result) {
+      tgFirstName = chatInfo.result.first_name || '';
+      tgLastName = chatInfo.result.last_name || '';
+      tgUsername = (chatInfo.result.username || '').replace('@', '');
+    }
+  } catch (_) {}
+
+  // Fallback to store.users if user interacted with bot
+  if (!tgFirstName && store.users?.[cleanId]) {
+    const u = store.users[cleanId];
+    tgFirstName = u.firstName || '';
+    tgLastName = u.lastName || '';
+    tgUsername = (u.username || '').replace('@', '');
+  }
+
+  const resolvedName = [tgFirstName, tgLastName].filter(Boolean).join(' ').trim() || label || (cleanId === '8802192472' ? 'Admin Owner' : (cleanId === '6966868142' ? 'Ghost Layer' : `Admin #${cleanId}`));
+  store.adminProfiles[cleanId] = {
+    id: cleanId,
+    name: resolvedName,
+    username: tgUsername || '',
+    badge: cleanId === '8802192472' ? '👑 OWNER' : '🛡️ ADMIN',
+    role: 'Receives Order Alerts & Instant Approve/Reject Buttons Across All Bots',
+    updatedAt: Date.now()
+  };
+
+  writeBotStore(store);
 
   let welcomeSent = false;
   try {
     const res = await callTelegram('sendMessage', {
       chat_id: cleanId,
-      text: `👑 <b>Administrator Connected!</b>\n\nYou have been connected as an Administrator for <b>LinkAdda Online</b>.\nYou will now receive realtime order notifications, payment screenshots, and approval alerts directly here!`,
+      text: `👑 <b>Administrator Connected!</b>\n\n` +
+            `Hello <b>${escapeTelegramHtml(resolvedName)}</b>,\n` +
+            `You have been connected as an Administrator for <b>LinkAdda Online</b>.\n` +
+            `You will now receive realtime order notifications, payment screenshots, and approval alerts directly here!`,
       parse_mode: 'HTML'
     });
     welcomeSent = Boolean(res?.ok);
@@ -446,12 +482,15 @@ export async function addAdminChatId(chatId, label = '') {
       await fetch(`${url}/rest/v1/site_settings`, {
         method: 'POST',
         headers: { 'apikey': key, 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates' },
-        body: JSON.stringify([{ key: 'tg_admin_chat_ids', value: store.admins, updated_at: new Date().toISOString() }])
+        body: JSON.stringify([
+          { key: 'tg_admin_chat_ids', value: store.admins, updated_at: new Date().toISOString() },
+          { key: 'tg_admin_profiles', value: store.adminProfiles, updated_at: new Date().toISOString() }
+        ])
       });
     } catch (_) {}
   })();
 
-  return { ok: true, admins: getAdminChatIds(), welcomeSent };
+  return { ok: true, admins: getAdminChatIds(), adminProfiles: store.adminProfiles, admin: store.adminProfiles[cleanId], welcomeSent };
 }
 
 export async function removeAdminChatId(chatId) {
@@ -459,6 +498,9 @@ export async function removeAdminChatId(chatId) {
   const store = readBotStore();
   if (Array.isArray(store.admins)) {
     store.admins = store.admins.filter(id => String(id).trim() !== cleanId);
+    if (store.adminProfiles && store.adminProfiles[cleanId]) {
+      delete store.adminProfiles[cleanId];
+    }
     writeBotStore(store);
   }
 
@@ -468,12 +510,15 @@ export async function removeAdminChatId(chatId) {
       await fetch(`${url}/rest/v1/site_settings`, {
         method: 'POST',
         headers: { 'apikey': key, 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates' },
-        body: JSON.stringify([{ key: 'tg_admin_chat_ids', value: store.admins, updated_at: new Date().toISOString() }])
+        body: JSON.stringify([
+          { key: 'tg_admin_chat_ids', value: store.admins, updated_at: new Date().toISOString() },
+          { key: 'tg_admin_profiles', value: store.adminProfiles || {}, updated_at: new Date().toISOString() }
+        ])
       });
     } catch (_) {}
   })();
 
-  return { ok: true, admins: getAdminChatIds() };
+  return { ok: true, admins: getAdminChatIds(), adminProfiles: store.adminProfiles || {} };
 }
 
 // In-memory cache for ultra-speed active bot config
@@ -2619,6 +2664,7 @@ export default async function handler(req, res) {
         })),
         webhook: hookData,
         admins: getAdminChatIds(),
+        adminProfiles: readBotStore()?.adminProfiles || {},
         users: allUsers,
         usersCount: allUsers.length,
         appUrl
