@@ -8273,14 +8273,14 @@ function renderTelegramAdminsCards(admins = []) {
 
   const baseProfiles = {
     '8802192472': {
-      name: 'No name',
-      username: 'noname8828211',
+      name: 'Owner (Main Admin)',
+      username: '',
       email: '',
-      badge: '🛡️ ADMIN',
-      badgeBg: 'rgba(56, 189, 248, 0.15)',
-      badgeColor: '#38bdf8',
-      badgeBorder: 'rgba(56, 189, 248, 0.35)',
-      role: 'Order Proof Alerts & Instant Approve/Reject Buttons Across All Bots'
+      badge: '👑 OWNER',
+      badgeBg: 'rgba(234, 179, 8, 0.15)',
+      badgeColor: '#eab308',
+      badgeBorder: 'rgba(234, 179, 8, 0.35)',
+      role: 'Full Access · Order Proof Alerts & Instant Approve/Reject Buttons Across All Bots'
     },
     '6966868142': {
       name: 'Ghost Layer',

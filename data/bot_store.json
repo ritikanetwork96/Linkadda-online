@@ -39,10 +39,10 @@
   "adminProfiles": {
     "8802192472": {
       "id": "8802192472",
-      "name": "Admin #8802192472",
+      "name": "Owner (Main Admin)",
       "username": "",
       "badge": "👑 OWNER",
-      "role": "Primary Administrator · Order Alerts & Approvals"
+      "role": "Full Access · Order Proof Alerts & Instant Approve/Reject Buttons Across All Bots"
     },
     "6966868142": {
       "id": "6966868142",
