@@ -6,7 +6,7 @@ import { handleCors, verifyAdminRequest } from '../_utils.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const DEFAULT_ADMIN_IDS = ['8802192472', '6966868142'];
+const DEFAULT_ADMIN_IDS = ['8516979341', '6966868142'];
 
 export function getAdminChatIds() {
   const envAdmins = (process.env.ADMIN_CHAT_IDS || '').split(',').map(s => s.trim()).filter(Boolean);
@@ -456,12 +456,12 @@ export async function addAdminChatId(chatId, label = '') {
     tgUsername = (u.username || '').replace('@', '');
   }
 
-  const resolvedName = [tgFirstName, tgLastName].filter(Boolean).join(' ').trim() || label || (cleanId === '8802192472' ? 'Admin Owner' : (cleanId === '6966868142' ? 'Ghost Layer' : `Admin #${cleanId}`));
+  const resolvedName = [tgFirstName, tgLastName].filter(Boolean).join(' ').trim() || label || (cleanId === '8516979341' ? 'No name' : (cleanId === '6966868142' ? 'Ghost Layer' : `Admin #${cleanId}`));
   store.adminProfiles[cleanId] = {
     id: cleanId,
     name: resolvedName,
     username: tgUsername || '',
-    badge: cleanId === '8802192472' ? '👑 OWNER' : '🛡️ ADMIN',
+    badge: (cleanId === '8516979341' || cleanId === '8802192472') ? '👑 OWNER' : '🛡️ ADMIN',
     role: 'Receives Order Alerts & Instant Approve/Reject Buttons Across All Bots',
     updatedAt: Date.now()
   };
@@ -2672,9 +2672,9 @@ export default async function handler(req, res) {
                   const realName = [realFirst, realLast].filter(Boolean).join(' ').trim();
                   store.adminProfiles[cleanAid] = {
                     id: cleanAid,
-                    name: realName || (cleanAid === '8802192472' ? 'Admin Owner' : `Admin #${cleanAid}`),
+                    name: realName || (cleanAid === '8516979341' ? 'No name' : (cleanAid === '6966868142' ? 'Ghost Layer' : `Admin #${cleanAid}`)),
                     username: realUname || '',
-                    badge: cleanAid === '8802192472' ? '👑 OWNER' : '🛡️ ADMIN',
+                    badge: (cleanAid === '8516979341' || cleanAid === '8802192472') ? '👑 OWNER' : '🛡️ ADMIN',
                     role: 'Order Proof Alerts & Instant Approve/Reject Buttons Across All Bots',
                     updatedAt: Date.now()
                   };
@@ -3102,7 +3102,7 @@ export default async function handler(req, res) {
         id: cleanId,
         name: (name || '').trim() || existing.name || `Admin #${cleanId}`,
         username: (username || '').replace('@', '').trim(),
-        badge: badge || existing.badge || (cleanId === '8802192472' ? '👑 OWNER' : '🛡️ ADMIN'),
+        badge: badge || existing.badge || ((cleanId === '8516979341' || cleanId === '8802192472') ? '👑 OWNER' : '🛡️ ADMIN'),
         role: existing.role || 'Order Proof Alerts & Instant Approve/Reject Buttons Across All Bots',
         updatedAt: Date.now()
       };
@@ -3375,7 +3375,7 @@ export default async function handler(req, res) {
               id: fromIdStr,
               name: realName,
               username: realUname,
-              badge: fromIdStr === '8802192472' ? '👑 OWNER' : '🛡️ ADMIN',
+              badge: (fromIdStr === '8516979341' || fromIdStr === '8802192472') ? '👑 OWNER' : '🛡️ ADMIN',
               role: 'Order Proof Alerts & Instant Approve/Reject Buttons Across All Bots',
               updatedAt: Date.now()
             };

@@ -7053,7 +7053,7 @@ let _tgBotData = {
   webhook: { url: 'https://linkadda-online.onrender.com/api/telegram/bot', pending_update_count: 0 },
   users: _tgCachedUsers,
   usersCount: _tgCachedUsers.length,
-  admins: ['8802192472', '6966868142'],
+  admins: ['8516979341', '6966868142'],
   appUrl: '',
   isLoading: false,
   isSendingBroadcast: false,
@@ -7298,8 +7298,8 @@ async function loadTelegramBotAdminFullData(force = false) {
     }
 
     // ⚡ Explicit Admins Registration & Total Separation:
-    // Administrators (8802192472 & 6966868142) are system controllers and are NEVER counted or listed as subscribers!
-    const adminIds = ['8802192472', '6966868142'];
+    // Administrators (8516979341, 6966868142, 8802192472) are system controllers and are NEVER counted or listed as subscribers!
+    const adminIds = ['8516979341', '6966868142', '8802192472'];
     const adminIdSet = new Set(adminIds);
     if (Array.isArray(_tgBotData.admins)) {
       _tgBotData.admins.forEach(a => adminIdSet.add(String(a).trim()));
@@ -7630,8 +7630,10 @@ function renderTelegramUsersTableList(users = [], filter = '') {
   });
 
   // ⚡ Filter out any admin accounts: Admins are strictly managed under the "Telegram Admins" tab!
-  const adminIds = new Set((_tgBotData.admins || ['8802192472', '6966868142']).map(String));
+  const adminIds = new Set((_tgBotData.admins || ['8516979341', '6966868142']).map(String));
+  adminIds.add('8516979341');
   adminIds.add('8802192472');
+  adminIds.add('6966868142');
   adminIds.add('6966868142');
 
   const subscribersOnly = (Array.isArray(users) ? users : []).filter(u => {
@@ -8137,7 +8139,7 @@ function renderTelegramBotControlSection(settings = {}) {
 
         <div style="background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px;">
           <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--muted);">Admin Chat IDs</div>
-          <div style="font-size: 14px; font-weight: 800; color: #f59e0b; margin-top: 4px;">8802192472, 6966868142</div>
+          <div style="font-size: 14px; font-weight: 800; color: #f59e0b; margin-top: 4px;">8516979341, 6966868142</div>
           <small style="color: var(--muted); font-size: 11px;">Alerts dispatch to both admins</small>
         </div>
       </div>
@@ -8254,14 +8256,14 @@ function renderTelegramBotsFleetCards(bots = []) {
 }
 
 function renderTelegramAdminsCards(admins = []) {
-  const adminList = (Array.isArray(admins) && admins.length) ? admins : ['8802192472', '6966868142'];
-  const defaultIds = ['8802192472'];
+  const adminList = (Array.isArray(admins) && admins.length) ? admins : ['8516979341', '6966868142'];
+  const defaultIds = ['8516979341', '8802192472'];
   const customProfiles = _tgBotData.adminProfiles || {};
 
   const baseProfiles = {
-    '8802192472': {
-      name: 'Admin Owner',
-      username: '',
+    '8516979341': {
+      name: 'No name',
+      username: 'noname8828211',
       email: '',
       badge: '👑 OWNER',
       badgeBg: 'rgba(245, 158, 11, 0.2)',
@@ -8277,6 +8279,16 @@ function renderTelegramAdminsCards(admins = []) {
       badgeBg: 'rgba(168, 85, 247, 0.2)',
       badgeColor: '#c084fc',
       badgeBorder: 'rgba(168, 85, 247, 0.4)',
+      role: 'Authorized Admin · Order Proof Alerts & Approve Buttons'
+    },
+    '8802192472': {
+      name: 'Admin Owner',
+      username: '',
+      email: '',
+      badge: '👑 OWNER',
+      badgeBg: 'rgba(245, 158, 11, 0.2)',
+      badgeColor: '#fbbf24',
+      badgeBorder: 'rgba(245, 158, 11, 0.4)',
       role: 'Authorized Admin · Order Proof Alerts & Approve Buttons'
     }
   };
