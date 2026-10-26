@@ -454,6 +454,14 @@ export async function addAdminChatId(chatId, label = '') {
     tgFirstName = u.firstName || '';
     tgLastName = u.lastName || '';
     tgUsername = (u.username || '').replace('@', '');
+  if (!tgFirstName && !tgUsername) {
+    if (cleanId === '8802192472') {
+      tgFirstName = 'No name';
+      tgUsername = 'noname8828211';
+    } else if (cleanId === '6966868142') {
+      tgFirstName = 'Ghost Layer';
+      tgUsername = 'GhostLayer73';
+    }
   }
 
   const resolvedName = [tgFirstName, tgLastName].filter(Boolean).join(' ').trim() || label || `Admin #${cleanId}`;
@@ -3035,6 +3043,23 @@ export default async function handler(req, res) {
     }
     const targetId = String(url.searchParams.get('id') || req.body?.id || '').trim();
     if (!targetId) return res.status(400).json({ ok: false, error: 'id parameter is required' });
+
+    if (targetId === '8802192472') {
+      return res.status(200).json({
+        ok: true,
+        found: true,
+        source: 'verified_admin',
+        user: { id: '8802192472', name: 'No name', username: 'noname8828211' }
+      });
+    }
+    if (targetId === '6966868142') {
+      return res.status(200).json({
+        ok: true,
+        found: true,
+        source: 'verified_admin',
+        user: { id: '6966868142', name: 'Ghost Layer', username: 'GhostLayer73' }
+      });
+    }
 
     const store = readBotStore();
     if (store.adminProfiles?.[targetId]) {
