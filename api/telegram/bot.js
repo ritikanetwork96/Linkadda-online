@@ -771,7 +771,7 @@ export async function recordBotUser(fromUser, source = 'bot_interaction', source
   const existingLocal = store.users[uidStr] || {};
   const cleanUsername = String(fromUser.username || existingLocal.username || '').replace('@', '').trim();
   const rawFirstName = fromUser.first_name || fromUser.firstName || existingLocal.firstName || '';
-  const cleanFirstName = String(rawFirstName).replace(/^undefined$/i, '').trim() || (cleanUsername ? cleanUsername : 'Telegram User');
+  const cleanFirstName = String(rawFirstName).replace(/^undefined$/i, '').trim() || (cleanUsername ? cleanUsername : `User #${uidStr}`);
   const cleanLastName = String(fromUser.last_name || fromUser.lastName || existingLocal.lastName || '').replace(/^undefined$/i, '').trim();
 
   // Multi-bot mapping: strictly resolve the exact bot this user interacted with
@@ -977,36 +977,38 @@ export async function getAllBotUsers() {
             const rawId = data.telegramUserId || data.telegram_user_id || data.telegramId || ord.telegram_user_id || '';
             const tgId = String(rawId).trim();
             const tgUser = (data.telegramUsername || data.telegram || '').replace('@', '').trim();
+            const rawEmail = ord.customer_email || data.customerEmail || data.email || '';
             const rawCustName = ord.customer_name || data.customerName || data.name || data.firstName || '';
-            const custName = String(rawCustName).replace(/^undefined$/i, '').trim() || (tgUser ? `@${tgUser}` : 'Telegram Customer');
+            const email = String(rawEmail).trim().toLowerCase();
+            const custName = String(rawCustName).replace(/^undefined$/i, '').trim() || (tgUser ? `@${tgUser}` : (email ? email.split('@')[0] : 'Telegram Customer'));
             const hasValidTgId = tgId && tgId !== 'undefined' && tgId !== 'null';
-            const ordBotId = ord.source_bot_id || data.sourceBotId || data.source_bot_id || null;
-            const ordBotUname = ord.source_bot_username || data.sourceBotUsername || data.source_bot_username || null;
+            const resolvedBotId = ordBotId || 'bot_8923608774';
+            const resolvedBotUname = ordBotUname || 'Myshop9876_bot';
 
             // Only capture REAL telegram users (with a numeric tgId or valid @username)
             if (hasValidTgId || tgUser) {
               const userKey = hasValidTgId ? tgId : `tg_${tgUser}`;
               if (!usersMap[userKey]) {
-                const bMap = ordBotId ? { [ordBotId]: { botId: ordBotId, botUsername: ordBotUname, joinedAt: Date.now(), source: 'order_checkout' } } : {};
+                const bMap = { [resolvedBotId]: { botId: resolvedBotId, botUsername: resolvedBotUname, joinedAt: new Date(ord.created_at || Date.now()).getTime(), source: 'order_checkout' } };
                 usersMap[userKey] = {
                   id: hasValidTgId ? tgId : `@${tgUser}`,
                   username: tgUser,
                   firstName: custName,
                   lastName: '',
                   source: 'order_checkout',
-                  sourceBotId: ordBotId,
-                  sourceBotUsername: ordBotUname,
+                  sourceBotId: resolvedBotId,
+                  sourceBotUsername: resolvedBotUname,
                   bots: bMap,
                   sourceBotIds: Object.keys(bMap),
                   createdAt: new Date(ord.created_at || Date.now()).getTime(),
                   updatedAt: new Date(ord.created_at || Date.now()).getTime()
                 };
-              } else if (ordBotId && usersMap[userKey]) {
+              } else if (resolvedBotId && usersMap[userKey]) {
                 if (!usersMap[userKey].bots) usersMap[userKey].bots = {};
-                usersMap[userKey].bots[ordBotId] = { botId: ordBotId, botUsername: ordBotUname, joinedAt: Date.now(), source: 'order_checkout' };
+                usersMap[userKey].bots[resolvedBotId] = { botId: resolvedBotId, botUsername: resolvedBotUname, joinedAt: new Date(ord.created_at || Date.now()).getTime(), source: 'order_checkout' };
                 usersMap[userKey].sourceBotIds = Object.keys(usersMap[userKey].bots);
-                usersMap[userKey].lastBotId = ordBotId;
-                if (!usersMap[userKey].sourceBotId) usersMap[userKey].sourceBotId = ordBotId;
+                usersMap[userKey].lastBotId = resolvedBotId;
+                if (!usersMap[userKey].sourceBotId) usersMap[userKey].sourceBotId = resolvedBotId;
               }
             }
           }

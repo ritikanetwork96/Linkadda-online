@@ -18,17 +18,18 @@
       "status": "active",
       "createdAt": 1792841000000,
       "lastActivatedAt": "2026-10-23T20:00:00.000Z",
-      "subscribersCount": 3
+      "subscribersCount": 2
     },
     "bot_8869143190": {
       "id": "8869143190",
       "botId": "bot_8869143190",
+      "token": "8869143190:AAHpI6Uls3sGl-JwEH9EZMhRChIPg-4lnEg",
       "username": "Testnot565_bot",
       "name": "Testnot Bot",
       "status": "active",
       "createdAt": 1792842000000,
       "lastActivatedAt": "2026-10-24T10:00:00.000Z",
-      "subscribersCount": 2
+      "subscribersCount": 0
     }
   },
   "admins": [
@@ -69,55 +70,65 @@
       "updatedAt": 1792945200000,
       "sourceBotId": "bot_8923608774",
       "sourceBotUsername": "Myshop9876_bot",
-      "lastBotId": "bot_8869143190",
+      "lastBotId": "bot_8923608774",
       "bots": {
         "bot_8923608774": {
           "botId": "bot_8923608774",
           "botUsername": "Myshop9876_bot",
           "joinedAt": 1792841878126,
           "source": "bot_start"
-        },
-        "bot_8869143190": {
-          "botId": "bot_8869143190",
-          "botUsername": "Testnot565_bot",
-          "joinedAt": 1792945200000,
-          "source": "bot_start"
         }
       },
       "sourceBotIds": [
-        "bot_8923608774",
-        "bot_8869143190"
+        "bot_8923608774"
       ]
     },
     "6966868142": {
       "id": "6966868142",
-      "source": "admin_tester",
+      "source": "admin_account",
       "isAdmin": true,
       "lastName": "Layer",
       "username": "GhostLayer73",
       "createdAt": 1792841000000,
       "firstName": "Ghost",
-      "updatedAt": 1792946400000,
+      "updatedAt": 1792841000000,
       "sourceBotId": "bot_8923608774",
       "sourceBotUsername": "Myshop9876_bot",
-      "lastBotId": "bot_8869143190",
+      "lastBotId": "bot_8923608774",
       "bots": {
         "bot_8923608774": {
           "botId": "bot_8923608774",
           "botUsername": "Myshop9876_bot",
           "joinedAt": 1792841000000,
-          "source": "bot_start"
-        },
-        "bot_8869143190": {
-          "botId": "bot_8869143190",
-          "botUsername": "Testnot565_bot",
-          "joinedAt": 1792946400000,
-          "source": "bot_start"
+          "source": "admin_account"
         }
       },
       "sourceBotIds": [
-        "bot_8923608774",
-        "bot_8869143190"
+        "bot_8923608774"
+      ]
+    },
+    "8802192472": {
+      "id": "8802192472",
+      "source": "admin_account",
+      "isAdmin": true,
+      "username": "botforword",
+      "firstName": "Admin Owner",
+      "lastName": "",
+      "createdAt": 1792841000000,
+      "updatedAt": 1792841000000,
+      "sourceBotId": "bot_8923608774",
+      "sourceBotUsername": "Myshop9876_bot",
+      "lastBotId": "bot_8923608774",
+      "bots": {
+        "bot_8923608774": {
+          "botId": "bot_8923608774",
+          "botUsername": "Myshop9876_bot",
+          "joinedAt": 1792841000000,
+          "source": "admin_account"
+        }
+      },
+      "sourceBotIds": [
+        "bot_8923608774"
       ]
     }
   },

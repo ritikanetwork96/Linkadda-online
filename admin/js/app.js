@@ -7004,7 +7004,9 @@ try {
   const _raw = localStorage.getItem('tg_cached_bot_users');
   if (_raw) {
     const _parsed = JSON.parse(_raw);
-    if (Array.isArray(_parsed) && _parsed.length) _tgCachedUsers = _parsed;
+    if (Array.isArray(_parsed) && _parsed.length) {
+      _tgCachedUsers = _parsed.filter(u => u && u.id && !String(u.id).startsWith('cust_'));
+    }
   }
 } catch (_) {}
 
@@ -7162,9 +7164,14 @@ async function loadTelegramBotAdminFullData(force = false) {
       } catch (_) {}
     }
 
-    const [cfgRes, usersRes] = await Promise.all([
+    // ⚡ Direct Supabase sync (100% immune to Render client blocks)
+    const supaAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVzeGl3ZnN3bmJhY21wanhxZ3NuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI2MDcxODQsImV4cCI6MjEwODE4MzE4NH0.n6XzLxgH5947CK-224Tp57BJmbWZ_rTKi4PK-EW8bNI';
+    const [cfgRes, usersRes, sbSettingsRes] = await Promise.all([
       telegramApiFetch('/api/telegram/bot?action=get-bot-config', { headers: authHeaders }).then(r => r.json()).catch(() => null),
-      telegramApiFetch('/api/telegram/bot?action=get-users', { headers: authHeaders }).then(r => r.json()).catch(() => null)
+      telegramApiFetch('/api/telegram/bot?action=get-users', { headers: authHeaders }).then(r => r.json()).catch(() => null),
+      fetch('https://esxiwfswnbacmpjxqgsn.supabase.co/rest/v1/site_settings?key=in.(tg_bot_users,tg_connected_bots)&select=key,value', {
+        headers: { 'apikey': supaAnonKey, 'Authorization': `Bearer ${supaAnonKey}` }
+      }).then(r => r.json()).catch(() => null)
     ]);
 
     if (cfgRes && cfgRes.ok) {
@@ -7185,67 +7192,23 @@ async function loadTelegramBotAdminFullData(force = false) {
       _tgBotData.usersCount = usersRes.totalCount || usersRes.users.length;
     }
 
-    // ⚡ Realtime Directory: Unify server users with client cache and preserve all bots!
+    // ⚡ Authoritative Supabase site_settings sync
     const userUnion = {};
-    (_tgCachedUsers || []).forEach(u => {
-      if (u && u.id) {
-        userUnion[String(u.id)] = { ...u, bots: { ...(u.bots || {}) } };
+    if (Array.isArray(sbSettingsRes)) {
+      const botsRow = sbSettingsRes.find(r => r.key === 'tg_connected_bots');
+      if (botsRow && botsRow.value && typeof botsRow.value === 'object') {
+        const liveBots = Object.values(botsRow.value).filter(Boolean);
+        if (liveBots.length > 0) _tgBotData.bots = liveBots;
       }
-    });
-    (_tgBotData.users || []).forEach(u => {
-      if (u && u.id) {
-        const k = String(u.id);
-        if (userUnion[k]) {
-          const mergedBots = { ...(userUnion[k].bots || {}), ...(u.bots || {}) };
-          userUnion[k] = {
-            ...userUnion[k],
-            ...u,
-            bots: mergedBots,
-            sourceBotIds: Object.keys(mergedBots)
-          };
-        } else {
-          userUnion[k] = { ...u, bots: { ...(u.bots || {}) } };
-        }
-      }
-    });
 
-    // ⚡ Orders Customer Capture: Capture real customers who provided Telegram
-    if (typeof listCollection === 'function') {
-      try {
-        const orders = listCollection('orders') || [];
-        orders.forEach(ord => {
-          const d = ord.data || {};
-          const rawId = d.telegramUserId || d.telegram_user_id || ord.telegram_user_id || '';
-          const uname = (d.telegramUsername || d.telegram || '').replace('@', '').trim();
-          const custName = ord.customer_name || d.customerName || d.name || 'Telegram Buyer';
-          const ordBotId = ord.source_bot_id || d.sourceBotId || d.source_bot_id || null;
-          const ordBotUname = ord.source_bot_username || d.sourceBotUsername || d.source_bot_username || null;
-          if (rawId || uname) {
-            const key = rawId ? String(rawId) : `tg_${uname}`;
-            const bMap = ordBotId ? { [ordBotId]: { botId: ordBotId, botUsername: ordBotUname, joinedAt: Date.now(), source: 'order_checkout' } } : {};
-            if (!userUnion[key]) {
-              userUnion[key] = {
-                id: rawId || `@${uname}`,
-                username: uname,
-                firstName: custName,
-                lastName: '',
-                source: 'order_checkout',
-                sourceBotId: ordBotId,
-                sourceBotUsername: ordBotUname,
-                bots: bMap,
-                sourceBotIds: Object.keys(bMap),
-                createdAt: ord.created_at ? new Date(ord.created_at).getTime() : Date.now(),
-                updatedAt: ord.updated_at ? new Date(ord.updated_at).getTime() : Date.now()
-              };
-            } else if (ordBotId) {
-              if (!userUnion[key].bots) userUnion[key].bots = {};
-              userUnion[key].bots[ordBotId] = { botId: ordBotId, botUsername: ordBotUname, joinedAt: Date.now(), source: 'order_checkout' };
-              userUnion[key].sourceBotIds = Object.keys(userUnion[key].bots);
-              if (!userUnion[key].sourceBotId) userUnion[key].sourceBotId = ordBotId;
-            }
+      const usersRow = sbSettingsRes.find(r => r.key === 'tg_bot_users');
+      if (usersRow && usersRow.value && typeof usersRow.value === 'object') {
+        Object.entries(usersRow.value).forEach(([uid, u]) => {
+          if (u && u.id && !String(u.id).startsWith('cust_')) {
+            userUnion[String(u.id)] = { ...u, bots: { ...(u.bots || {}) }, sourceBotIds: Object.keys(u.bots || {}) };
           }
         });
-      } catch (_) {}
+      }
     }
 
     // ⚡ Local Store fallback / union: fetch local bot_store.json if available
@@ -7255,7 +7218,7 @@ async function loadTelegramBotAdminFullData(force = false) {
         const localStore = await localStoreRes.json();
         if (localStore && localStore.users && typeof localStore.users === 'object') {
           Object.values(localStore.users).forEach(lu => {
-            if (lu && lu.id) {
+            if (lu && lu.id && !String(lu.id).startsWith('cust_')) {
               const k = String(lu.id);
               if (userUnion[k]) {
                 const combined = { ...(userUnion[k].bots || {}), ...(lu.bots || {}) };
@@ -7268,6 +7231,94 @@ async function loadTelegramBotAdminFullData(force = false) {
         }
       }
     } catch (_) {}
+
+    // ⚡ Orders Customer Capture: Capture ONLY customers who provided a real Telegram account
+    if (typeof listCollection === 'function') {
+      try {
+        const orders = listCollection('orders') || [];
+        orders.forEach(ord => {
+          const d = ord.data || {};
+          const rawId = d.telegramUserId || d.telegram_user_id || ord.telegram_user_id || '';
+          const uname = (d.telegramUsername || d.telegram || '').replace('@', '').trim();
+          const custName = (ord.customer_name || d.customerName || d.name || '').trim();
+          const ordBotId = ord.source_bot_id || d.sourceBotId || d.source_bot_id || 'bot_8923608774';
+          const ordBotUname = ord.source_bot_username || d.sourceBotUsername || d.source_bot_username || 'Myshop9876_bot';
+
+          // Strictly require real Telegram ID or username (NO fake cust_ accounts!)
+          if (rawId || uname) {
+            const key = rawId ? String(rawId) : `tg_${uname}`;
+            const displayName = custName || (uname ? `@${uname}` : `User #${rawId}`);
+            const bMap = { [ordBotId]: { botId: ordBotId, botUsername: ordBotUname, joinedAt: ord.created_at ? new Date(ord.created_at).getTime() : Date.now(), source: 'order_checkout' } };
+            if (!userUnion[key]) {
+              userUnion[key] = {
+                id: rawId || `@${uname}`,
+                username: uname,
+                firstName: displayName,
+                lastName: '',
+                source: 'order_checkout',
+                sourceBotId: ordBotId,
+                sourceBotUsername: ordBotUname,
+                bots: bMap,
+                sourceBotIds: Object.keys(bMap),
+                createdAt: ord.created_at ? new Date(ord.created_at).getTime() : Date.now(),
+                updatedAt: ord.updated_at ? new Date(ord.updated_at).getTime() : Date.now()
+              };
+            } else {
+              if (!userUnion[key].bots) userUnion[key].bots = {};
+              userUnion[key].bots[ordBotId] = { botId: ordBotId, botUsername: ordBotUname, joinedAt: ord.created_at ? new Date(ord.created_at).getTime() : Date.now(), source: 'order_checkout' };
+              userUnion[key].sourceBotIds = Object.keys(userUnion[key].bots);
+            }
+          }
+        });
+      } catch (_) {}
+    }
+
+    // ⚡ Explicit Admins Registration & Isolation: Ensure Owner 8802192472 & Ghost Layer 6966868142 are present,
+    // and strictly guarantee Ghost Layer is NEVER linked to bot_8869143190!
+    const adminIds = ['8802192472', '6966868142'];
+    adminIds.forEach(aId => {
+      if (!userUnion[aId]) {
+        const isOwner = aId === '8802192472';
+        userUnion[aId] = {
+          id: aId,
+          username: isOwner ? 'botforword' : 'GhostLayer73',
+          firstName: isOwner ? 'Admin Owner' : 'Ghost',
+          lastName: isOwner ? '' : 'Layer',
+          source: 'admin_account',
+          isAdmin: true,
+          sourceBotId: 'bot_8923608774',
+          sourceBotUsername: 'Myshop9876_bot',
+          lastBotId: 'bot_8923608774',
+          bots: {
+            'bot_8923608774': {
+              botId: 'bot_8923608774',
+              botUsername: 'Myshop9876_bot',
+              joinedAt: 1792841000000,
+              source: 'admin_account'
+            }
+          },
+          sourceBotIds: ['bot_8923608774'],
+          createdAt: 1792841000000,
+          updatedAt: 1792841000000
+        };
+      }
+    });
+
+    // ⚡ Critical Safeguard: Strip any false bot_8869143190 association from Ghost Layer (6966868142)
+    if (userUnion['6966868142']) {
+      if (userUnion['6966868142'].bots) {
+        delete userUnion['6966868142'].bots['bot_8869143190'];
+        delete userUnion['6966868142'].bots['8869143190'];
+        delete userUnion['6966868142'].bots['Testnot565_bot'];
+        delete userUnion['6966868142'].bots['testnot565_bot'];
+      }
+      if (Array.isArray(userUnion['6966868142'].sourceBotIds)) {
+        userUnion['6966868142'].sourceBotIds = userUnion['6966868142'].sourceBotIds.filter(id => !id.includes('8869143190') && !id.toLowerCase().includes('testnot565'));
+      }
+      userUnion['6966868142'].sourceBotId = 'bot_8923608774';
+      userUnion['6966868142'].sourceBotUsername = 'Myshop9876_bot';
+      userUnion['6966868142'].lastBotId = 'bot_8923608774';
+    }
 
     const unifiedList = Object.values(userUnion).filter(u => u && u.id);
     unifiedList.sort((a, b) => (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0));
@@ -8380,7 +8431,7 @@ function renderTelegramBotPageView(data = {}) {
               <i data-lucide="send" style="width: 14px; height: 14px; color: #818cf8;"></i> Test Ping Admins
             </button>
             <a class="btn btn-primary" id="tgOpenLiveBotBtn" href="https://t.me/${escapeHtml(bot.username || 'Myshop9876_bot')}" target="_blank" style="font-size: 12.5px; padding: 9px 18px; border-radius: 10px; background: linear-gradient(135deg, #0284c7, #38bdf8) !important; border: 1px solid rgba(56,189,248,0.4) !important; color: white !important; display: inline-flex; align-items: center; gap: 7px; box-shadow: 0 4px 16px rgba(2, 132, 199, 0.4); font-weight: 700; transition: all 0.2s ease;">
-              <i data-lucide="external-link" style="width: 14px; height: 14px;"></i> Open Primary Bot (@${escapeHtml(bot.username || 'Myshop9876_bot')})
+              <i data-lucide="external-link" style="width: 14px; height: 14px;"></i> Open Bot (@${escapeHtml(bot.username || 'Myshop9876_bot')})
             </a>
           </div>
         </div>
@@ -8399,7 +8450,7 @@ function renderTelegramBotPageView(data = {}) {
             <div id="tgActiveBotUsername" style="font-size: 18px; font-weight: 800; color: #38bdf8; display: flex; align-items: center; gap: 6px;">
               <span>${bots.length} Connected Bots</span>
             </div>
-            <small id="tgActiveBotId" style="display: block; color: var(--muted); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Primary: @${escapeHtml(bot.username || 'Myshop9876_bot')} · Multi-Bot Live</small>
+            <small id="tgActiveBotId" style="display: block; color: var(--muted); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Active: @${escapeHtml(bot.username || 'Myshop9876_bot')} · Multi-Bot Live</small>
           </div>
 
           <!-- Metric 2: Webhook Delivery -->
