@@ -7273,54 +7273,27 @@ async function loadTelegramBotAdminFullData(force = false) {
       } catch (_) {}
     }
 
-    // ⚡ Explicit Admins Registration & Isolation: Ensure Owner 8802192472 & Ghost Layer 6966868142 are present,
-    // and strictly guarantee Ghost Layer is NEVER linked to bot_8869143190!
+    // ⚡ Explicit Admins Registration & Total Separation:
+    // Administrators (8802192472 & 6966868142) are system controllers and are NEVER counted or listed as subscribers!
     const adminIds = ['8802192472', '6966868142'];
-    adminIds.forEach(aId => {
-      if (!userUnion[aId]) {
-        const isOwner = aId === '8802192472';
-        userUnion[aId] = {
-          id: aId,
-          username: isOwner ? 'botforword' : 'GhostLayer73',
-          firstName: isOwner ? 'Admin Owner' : 'Ghost',
-          lastName: isOwner ? '' : 'Layer',
-          source: 'admin_account',
-          isAdmin: true,
-          sourceBotId: 'bot_8923608774',
-          sourceBotUsername: 'Myshop9876_bot',
-          lastBotId: 'bot_8923608774',
-          bots: {
-            'bot_8923608774': {
-              botId: 'bot_8923608774',
-              botUsername: 'Myshop9876_bot',
-              joinedAt: 1792841000000,
-              source: 'admin_account'
-            }
-          },
-          sourceBotIds: ['bot_8923608774'],
-          createdAt: 1792841000000,
-          updatedAt: 1792841000000
-        };
-      }
+    const adminIdSet = new Set(adminIds);
+    if (Array.isArray(_tgBotData.admins)) {
+      _tgBotData.admins.forEach(a => adminIdSet.add(String(a).trim()));
+    }
+    _tgBotData.admins = Array.from(adminIdSet);
+
+    // Strictly purge admin accounts from userUnion so they NEVER appear in subscriber directory
+    adminIdSet.forEach(aId => {
+      delete userUnion[aId];
     });
 
-    // ⚡ Critical Safeguard: Strip any false bot_8869143190 association from Ghost Layer (6966868142)
-    if (userUnion['6966868142']) {
-      if (userUnion['6966868142'].bots) {
-        delete userUnion['6966868142'].bots['bot_8869143190'];
-        delete userUnion['6966868142'].bots['8869143190'];
-        delete userUnion['6966868142'].bots['Testnot565_bot'];
-        delete userUnion['6966868142'].bots['testnot565_bot'];
-      }
-      if (Array.isArray(userUnion['6966868142'].sourceBotIds)) {
-        userUnion['6966868142'].sourceBotIds = userUnion['6966868142'].sourceBotIds.filter(id => !id.includes('8869143190') && !id.toLowerCase().includes('testnot565'));
-      }
-      userUnion['6966868142'].sourceBotId = 'bot_8923608774';
-      userUnion['6966868142'].sourceBotUsername = 'Myshop9876_bot';
-      userUnion['6966868142'].lastBotId = 'bot_8923608774';
-    }
-
-    const unifiedList = Object.values(userUnion).filter(u => u && u.id);
+    const unifiedList = Object.values(userUnion).filter(u => {
+      if (!u || !u.id) return false;
+      const uidStr = String(u.id).trim();
+      if (adminIdSet.has(uidStr) || adminIdSet.has(uidStr.replace(/^@/, ''))) return false;
+      if (u.isAdmin || u.source === 'admin_tester' || u.source === 'admin_account') return false;
+      return true;
+    });
     unifiedList.sort((a, b) => (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0));
 
     _tgBotData.users = unifiedList;
@@ -7632,17 +7605,28 @@ function renderTelegramUsersTableList(users = [], filter = '') {
     }
   });
 
-  // Calculate user counts per bot (using universal module-level userBelongsToBot)
+  // ⚡ Filter out any admin accounts: Admins are strictly managed under the "Telegram Admins" tab!
+  const adminIds = new Set((_tgBotData.admins || ['8802192472', '6966868142']).map(String));
+  adminIds.add('8802192472');
+  adminIds.add('6966868142');
 
-  // Calculate user counts per bot
+  const subscribersOnly = (Array.isArray(users) ? users : []).filter(u => {
+    if (!u || !u.id) return false;
+    const uidStr = String(u.id).trim();
+    if (adminIds.has(uidStr) || adminIds.has(uidStr.replace(/^@/, ''))) return false;
+    if (u.isAdmin || u.source === 'admin_tester' || u.source === 'admin_account') return false;
+    return true;
+  });
+
+  // Calculate user counts per bot (strictly subscribers only)
   const botCounts = {};
   fleetBots.forEach(b => {
     const bId = String(b.botId || `bot_${b.id}` || b.id || '');
-    botCounts[bId] = users.filter(u => userBelongsToBot(u, b)).length;
+    botCounts[bId] = subscribersOnly.filter(u => userBelongsToBot(u, b)).length;
   });
 
   // Filter users by selected bot
-  let botFilteredUsers = users;
+  let botFilteredUsers = subscribersOnly;
   let activeBotLabel = 'All Connected Bots';
   let activeBotUsername = '';
   if (currentBotFilter !== 'all') {
@@ -7650,18 +7634,14 @@ function renderTelegramUsersTableList(users = [], filter = '') {
     if (targetBot) {
       activeBotUsername = targetBot.username || '';
       activeBotLabel = `@${targetBot.username || 'Selected Bot'}`;
-      botFilteredUsers = users.filter(u => userBelongsToBot(u, targetBot));
+      botFilteredUsers = subscribersOnly.filter(u => userBelongsToBot(u, targetBot));
     }
   }
 
   // Filter by source
   let sourceFiltered = botFilteredUsers;
   if (currentSourceFilter !== 'all') {
-    if (currentSourceFilter === 'admin_tester') {
-      sourceFiltered = botFilteredUsers.filter(u => u.isAdmin || u.source === 'admin_tester' || u.source === 'admin_account');
-    } else {
-      sourceFiltered = botFilteredUsers.filter(u => !u.isAdmin && (u.source === currentSourceFilter || (currentSourceFilter === 'bot_start' && (u.source === 'bot_interaction' || u.source === 'bot_start' || !u.source))));
-    }
+    sourceFiltered = botFilteredUsers.filter(u => u.source === currentSourceFilter || (currentSourceFilter === 'bot_start' && (u.source === 'bot_interaction' || u.source === 'bot_start' || !u.source)));
   }
 
   // Filter by search query
@@ -7678,17 +7658,16 @@ function renderTelegramUsersTableList(users = [], filter = '') {
   const countPill = document.getElementById('tgUsersFilteredCount');
   if (countPill) {
     countPill.textContent = currentBotFilter === 'all'
-      ? `Showing ${filtered.length} of ${users.length} total subscribers`
-      : `Showing ${filtered.length} subscribers in ${activeBotLabel} (${users.length} combined in fleet)`;
+      ? `Showing ${filtered.length} of ${subscribersOnly.length} total subscribers`
+      : `Showing ${filtered.length} subscribers in ${activeBotLabel} (${subscribersOnly.length} combined in fleet)`;
   }
 
-  // Summary counts for source filter pills
+  // Summary counts for source filter pills (strictly subscribers)
   const sourceCounts = {
     all: botFilteredUsers.length,
-    bot_start: botFilteredUsers.filter(u => !u.isAdmin && (u.source === 'bot_start' || u.source === 'bot_interaction' || !u.source)).length,
-    order_checkout: botFilteredUsers.filter(u => !u.isAdmin && (u.source === 'order_checkout' || u.source === 'customer_order')).length,
-    mini_app_visit: botFilteredUsers.filter(u => !u.isAdmin && u.source === 'mini_app_visit').length,
-    admin_tester: botFilteredUsers.filter(u => u.isAdmin || u.source === 'admin_tester' || u.source === 'admin_account').length
+    bot_start: botFilteredUsers.filter(u => (u.source === 'bot_start' || u.source === 'bot_interaction' || !u.source)).length,
+    order_checkout: botFilteredUsers.filter(u => (u.source === 'order_checkout' || u.source === 'customer_order')).length,
+    mini_app_visit: botFilteredUsers.filter(u => u.source === 'mini_app_visit').length
   };
 
   return `
@@ -7715,11 +7694,11 @@ function renderTelegramUsersTableList(users = [], filter = '') {
               </div>
               <div style="min-width: 0;">
                 <strong style="color: var(--text); font-size: 12.5px; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">All Bots Combined</strong>
-                <span style="font-size: 10.5px; color: var(--muted); white-space: nowrap;">Multi-Bot Pool</span>
+                <span style="font-size: 10.5px; color: var(--muted); white-space: nowrap;">Real Customers</span>
               </div>
             </div>
             <div style="text-align: right; flex-shrink: 0;">
-              <div style="font-size: 17px; font-weight: 800; color: #a5b4fc;">${users.length}</div>
+              <div style="font-size: 17px; font-weight: 800; color: #a5b4fc;">${subscribersOnly.length}</div>
               <span style="font-size: 9.5px; color: var(--muted); text-transform: uppercase; font-weight: 600;">Users</span>
             </div>
           </div>
@@ -7761,7 +7740,7 @@ function renderTelegramUsersTableList(users = [], filter = '') {
         <!-- Source Filter Pills -->
         <div style="display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; -webkit-overflow-scrolling: touch; scrollbar-width: none;">
           <button type="button" class="btn btn-sm" data-action="set-user-source-filter" data-source="all" style="font-size: 11.5px; padding: 4px 10px; border-radius: 16px; cursor: pointer; transition: all 0.15s ease; ${currentSourceFilter === 'all' ? 'background: #6366f1; color: white; border: none;' : 'background: rgba(255,255,255,0.05); color: var(--muted); border: 1px solid rgba(255,255,255,0.08);'}">
-            All Users (${sourceCounts.all})
+            All Subscribers (${sourceCounts.all})
           </button>
           <button type="button" class="btn btn-sm" data-action="set-user-source-filter" data-source="bot_start" style="font-size: 11.5px; padding: 4px 10px; border-radius: 16px; cursor: pointer; transition: all 0.15s ease; ${currentSourceFilter === 'bot_start' ? 'background: #a855f7; color: white; border: none;' : 'background: rgba(255,255,255,0.05); color: var(--muted); border: 1px solid rgba(255,255,255,0.08);'}">
             🟢 Bot /start (${sourceCounts.bot_start})
@@ -7771,9 +7750,6 @@ function renderTelegramUsersTableList(users = [], filter = '') {
           </button>
           <button type="button" class="btn btn-sm" data-action="set-user-source-filter" data-source="mini_app_visit" style="font-size: 11.5px; padding: 4px 10px; border-radius: 16px; cursor: pointer; transition: all 0.15s ease; ${currentSourceFilter === 'mini_app_visit' ? 'background: #38bdf8; color: white; border: none;' : 'background: rgba(255,255,255,0.05); color: var(--muted); border: 1px solid rgba(255,255,255,0.08);'}">
             📱 Mini App (${sourceCounts.mini_app_visit})
-          </button>
-          <button type="button" class="btn btn-sm" data-action="set-user-source-filter" data-source="admin_tester" style="font-size: 11.5px; padding: 4px 10px; border-radius: 16px; cursor: pointer; transition: all 0.15s ease; ${currentSourceFilter === 'admin_tester' ? 'background: #ec4899; color: white; border: none;' : 'background: rgba(255,255,255,0.05); color: var(--muted); border: 1px solid rgba(255,255,255,0.08);'}">
-            👑 Admins (${sourceCounts.admin_tester})
           </button>
         </div>
 
@@ -8257,38 +8233,102 @@ function renderTelegramAdminsCards(admins = []) {
   const adminList = (Array.isArray(admins) && admins.length) ? admins : ['8802192472', '6966868142'];
   const defaultIds = ['8802192472', '6966868142'];
 
+  const adminProfiles = {
+    '8802192472': {
+      name: 'Admin Owner',
+      username: 'botforword',
+      email: 'botforword@gmail.com',
+      badge: '👑 OWNER',
+      badgeBg: 'rgba(245, 158, 11, 0.2)',
+      badgeColor: '#fbbf24',
+      badgeBorder: 'rgba(245, 158, 11, 0.4)',
+      role: 'Primary Store Owner · Order Proof Alerts & Approve Buttons'
+    },
+    '6966868142': {
+      name: 'Ghost Layer',
+      username: 'GhostLayer73',
+      email: '',
+      badge: '🛡️ ADMIN TESTER',
+      badgeBg: 'rgba(168, 85, 247, 0.2)',
+      badgeColor: '#c084fc',
+      badgeBorder: 'rgba(168, 85, 247, 0.4)',
+      role: 'Authorized Admin · Order Proof Alerts & Approve Buttons'
+    }
+  };
+
   return `
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px;">
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 14px;">
       ${adminList.map(aid => {
         const cleanId = String(aid).trim();
         const isDefault = defaultIds.includes(cleanId);
+        const profile = adminProfiles[cleanId] || {
+          name: isDefault ? 'Authorized Admin' : `Admin #${cleanId}`,
+          username: '',
+          email: '',
+          badge: isDefault ? '🛡️ ADMIN' : 'CUSTOM',
+          badgeBg: 'rgba(245, 158, 11, 0.15)',
+          badgeColor: '#f59e0b',
+          badgeBorder: 'rgba(245, 158, 11, 0.3)',
+          role: 'Receives Order Alerts & Instant Approve/Reject Buttons Across All Bots'
+        };
+
+        const initials = cleanId === '8802192472' ? 'AO' : (cleanId === '6966868142' ? 'GL' : 'AD');
 
         return `
-          <div class="panel glass" style="padding: 16px 18px; border-radius: 12px; border: 1px solid rgba(245, 158, 11, 0.3); background: rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: space-between; gap: 12px;">
-            <div style="display: flex; align-items: center; gap: 12px;">
-              <div style="width: 38px; height: 38px; border-radius: 10px; background: linear-gradient(135deg, #f59e0b, #d97706); display: flex; align-items: center; justify-content: center; color: white; flex-shrink: 0; box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);">
-                <i data-lucide="shield-check" style="width: 20px; height: 20px;"></i>
-              </div>
-              <div>
-                <div style="display: flex; align-items: center; gap: 6px;">
-                  <code style="font-size: 13.5px; font-weight: 800; color: #fbbf24; font-family: monospace;">${escapeHtml(cleanId)}</code>
-                  <span class="badge" style="font-size: 9.5px; padding: 1px 5px; background: rgba(245, 158, 11, 0.15); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.3); font-weight: 700;">
-                    ${isDefault ? 'PRIMARY' : 'CUSTOM'}
-                  </span>
+          <div class="panel glass" style="padding: 16px 18px; border-radius: 14px; border: 1px solid rgba(245, 158, 11, 0.35); background: linear-gradient(135deg, rgba(245, 158, 11, 0.04) 0%, rgba(15, 23, 42, 0.75) 100%); display: flex; flex-direction: column; justify-content: space-between; gap: 12px; box-shadow: 0 4px 16px rgba(0,0,0,0.25);">
+            <div>
+              <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 10px;">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                  <div style="width: 42px; height: 42px; border-radius: 12px; background: linear-gradient(135deg, #f59e0b, #d97706); display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 800; color: white; flex-shrink: 0; box-shadow: 0 4px 14px rgba(245, 158, 11, 0.35);">
+                    ${initials}
+                  </div>
+                  <div>
+                    <strong style="color: var(--text); font-size: 14.5px; display: block;">${escapeHtml(profile.name)}</strong>
+                    ${profile.username ? `
+                      <a href="https://t.me/${escapeHtml(profile.username)}" target="_blank" style="color: #38bdf8; text-decoration: none; font-size: 12px; font-weight: 600; display: inline-flex; align-items: center; gap: 3px;">
+                        @${escapeHtml(profile.username)} <i data-lucide="external-link" style="width: 10px; height: 10px;"></i>
+                      </a>
+                    ` : ''}
+                  </div>
                 </div>
-                <small style="color: var(--muted); font-size: 11px; display: block; margin-top: 2px;">Receives Order Alerts & Approve Buttons</small>
+
+                <span class="badge" style="font-size: 10px; font-weight: 800; padding: 3px 8px; border-radius: 6px; background: ${profile.badgeBg}; color: ${profile.badgeColor}; border: 1px solid ${profile.badgeBorder}; text-transform: uppercase;">
+                  ${profile.badge}
+                </span>
+              </div>
+
+              <!-- Admin Numeric Chat ID Chip -->
+              <div style="display: flex; align-items: center; justify-content: space-between; padding: 7px 10px; background: rgba(0,0,0,0.3); border-radius: 8px; border: 1px solid rgba(255,255,255,0.06); margin-bottom: 8px;">
+                <span style="font-size: 11px; color: var(--muted); font-weight: 600;">Telegram Chat ID:</span>
+                <div style="display: flex; align-items: center; gap: 6px;">
+                  <code style="font-size: 12.5px; font-weight: 800; color: #fbbf24; font-family: monospace;">${escapeHtml(cleanId)}</code>
+                  <button type="button" class="btn btn-ghost" onclick="navigator.clipboard.writeText('${escapeHtml(cleanId)}'); showToast('Copied Chat ID: ${escapeHtml(cleanId)}', 'info');" title="Copy Chat ID" style="padding: 2px 5px; border-radius: 4px; border: none; color: #94a3b8; cursor: pointer;">
+                    <i data-lucide="copy" style="width: 11px; height: 11px;"></i>
+                  </button>
+                </div>
+              </div>
+
+              <div style="font-size: 11.5px; color: #cbd5e1; line-height: 1.4;">
+                <i data-lucide="bell" style="width: 12px; height: 12px; vertical-align: -1px; margin-right: 3px; color: #f59e0b;"></i>
+                ${escapeHtml(profile.role)}
               </div>
             </div>
 
-            <div style="display: flex; gap: 6px;">
-              <button type="button" class="btn btn-ghost btn-sm" data-action="ping-admin-action" data-chat-id="${escapeHtml(cleanId)}" title="Test ping this admin" style="font-size: 11.5px; padding: 5px 9px; border-radius: 6px; border: 1px solid rgba(245, 158, 11, 0.3); color: #fbbf24;">
-                <i data-lucide="send" style="width: 12px; height: 12px;"></i>
-              </button>
-              ${!isDefault ? `
-                <button type="button" class="btn btn-ghost btn-sm" data-action="remove-admin-action" data-chat-id="${escapeHtml(cleanId)}" title="Remove Admin" style="font-size: 11.5px; padding: 5px 9px; border-radius: 6px; border: 1px solid rgba(239, 68, 68, 0.3); color: #ef4444;">
-                  <i data-lucide="trash-2" style="width: 12px; height: 12px;"></i>
+            <!-- Card Actions Row -->
+            <div style="padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.06); display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+              <span style="font-size: 11px; color: #10b981; font-weight: 600; display: inline-flex; align-items: center; gap: 4px;">
+                <span style="width: 6px; height: 6px; border-radius: 50%; background: #10b981; display: inline-block;"></span> Active Dispatch
+              </span>
+              <div style="display: flex; gap: 6px;">
+                <button type="button" class="btn btn-ghost btn-sm" data-action="ping-admin-action" data-chat-id="${escapeHtml(cleanId)}" title="Send test ping to this admin" style="font-size: 11.5px; padding: 5px 10px; border-radius: 6px; border: 1px solid rgba(245, 158, 11, 0.4); color: #fbbf24; display: inline-flex; align-items: center; gap: 4px;">
+                  <i data-lucide="send" style="width: 12px; height: 12px;"></i> Ping Admin
                 </button>
-              ` : ''}
+                ${!isDefault ? `
+                  <button type="button" class="btn btn-ghost btn-sm" data-action="remove-admin-action" data-chat-id="${escapeHtml(cleanId)}" title="Remove Admin" style="font-size: 11.5px; padding: 5px 10px; border-radius: 6px; border: 1px solid rgba(239, 68, 68, 0.3); color: #ef4444; display: inline-flex; align-items: center; gap: 4px;">
+                    <i data-lucide="trash-2" style="width: 12px; height: 12px;"></i> Remove
+                  </button>
+                ` : ''}
+              </div>
             </div>
           </div>
         `;

@@ -82,54 +82,6 @@
       "sourceBotIds": [
         "bot_8923608774"
       ]
-    },
-    "6966868142": {
-      "id": "6966868142",
-      "source": "admin_account",
-      "isAdmin": true,
-      "lastName": "Layer",
-      "username": "GhostLayer73",
-      "createdAt": 1792841000000,
-      "firstName": "Ghost",
-      "updatedAt": 1792841000000,
-      "sourceBotId": "bot_8923608774",
-      "sourceBotUsername": "Myshop9876_bot",
-      "lastBotId": "bot_8923608774",
-      "bots": {
-        "bot_8923608774": {
-          "botId": "bot_8923608774",
-          "botUsername": "Myshop9876_bot",
-          "joinedAt": 1792841000000,
-          "source": "admin_account"
-        }
-      },
-      "sourceBotIds": [
-        "bot_8923608774"
-      ]
-    },
-    "8802192472": {
-      "id": "8802192472",
-      "source": "admin_account",
-      "isAdmin": true,
-      "username": "botforword",
-      "firstName": "Admin Owner",
-      "lastName": "",
-      "createdAt": 1792841000000,
-      "updatedAt": 1792841000000,
-      "sourceBotId": "bot_8923608774",
-      "sourceBotUsername": "Myshop9876_bot",
-      "lastBotId": "bot_8923608774",
-      "bots": {
-        "bot_8923608774": {
-          "botId": "bot_8923608774",
-          "botUsername": "Myshop9876_bot",
-          "joinedAt": 1792841000000,
-          "source": "admin_account"
-        }
-      },
-      "sourceBotIds": [
-        "bot_8923608774"
-      ]
     }
   },
   "pendingDeletions": {},

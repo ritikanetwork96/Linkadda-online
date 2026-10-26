@@ -898,9 +898,15 @@ export async function recordBotUser(fromUser, source = 'bot_interaction', source
   mergedUsers[uidStr] = userObj;
   store.users = mergedUsers;
 
-  // Re-calculate subscriber count across all connected bots
+  // Re-calculate subscriber count across all connected bots (Admins strictly excluded)
   if (store.bots && typeof store.bots === 'object') {
-    const allUsersList = Object.values(store.users).filter(u => u && !u.isAdmin);
+    const allUsersList = Object.values(store.users).filter(u => {
+      if (!u || !u.id) return false;
+      const uid = String(u.id);
+      if (adminIds.has(uid) || adminIds.has(String(u.id).replace('@', ''))) return false;
+      if (u.isAdmin || u.source === 'admin_account' || u.source === 'admin_tester') return false;
+      return true;
+    });
     for (const bKey of Object.keys(store.bots)) {
       const bObj = store.bots[bKey];
       if (!bObj) continue;
@@ -1033,7 +1039,13 @@ export async function getAllBotUsers() {
     const allBots = getConnectedBots();
     const primaryBot = allBots.find(b => b.isPrimary) || allBots[0] || { botId: 'bot_8923608774', username: 'Myshop9876_bot' };
 
-    const users = Object.values(usersMap).filter(u => u && u.id && u.source !== 'admin_account').map(u => {
+    const users = Object.values(usersMap).filter(u => {
+      if (!u || !u.id) return false;
+      const uid = String(u.id);
+      if (adminIds.has(uid) || adminIds.has(String(u.id).replace('@', ''))) return false;
+      if (u.isAdmin || u.source === 'admin_account' || u.source === 'admin_tester') return false;
+      return true;
+    }).map(u => {
       const sId = u.lastBotId || u.sourceBotId || primaryBot.botId;
       const bMatch = allBots.find(b => b.botId === sId || b.id === sId) || primaryBot;
 
