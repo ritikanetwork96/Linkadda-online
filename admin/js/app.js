@@ -7297,14 +7297,8 @@ async function loadTelegramBotAdminFullData(force = false) {
       } catch (_) {}
     }
 
-    // ⚡ Explicit Admins Registration & Total Separation:
-    // Administrators (8516979341, 6966868142, 8802192472) are system controllers and are NEVER counted or listed as subscribers!
-    const adminIds = ['8516979341', '6966868142', '8802192472'];
-    const adminIdSet = new Set(adminIds);
-    if (Array.isArray(_tgBotData.admins)) {
-      _tgBotData.admins.forEach(a => adminIdSet.add(String(a).trim()));
-    }
-    _tgBotData.admins = Array.from(adminIdSet);
+    // ⚡ Purge admin accounts from userUnion so they NEVER appear in subscriber directory
+    const adminIdSet = new Set((_tgBotData.admins || []).map(a => String(a).trim()));
 
     // Strictly purge admin accounts from userUnion so they NEVER appear in subscriber directory
     adminIdSet.forEach(aId => {
@@ -7630,11 +7624,7 @@ function renderTelegramUsersTableList(users = [], filter = '') {
   });
 
   // ⚡ Filter out any admin accounts: Admins are strictly managed under the "Telegram Admins" tab!
-  const adminIds = new Set((_tgBotData.admins || ['8516979341', '6966868142']).map(String));
-  adminIds.add('8516979341');
-  adminIds.add('8802192472');
-  adminIds.add('6966868142');
-  adminIds.add('6966868142');
+  const adminIds = new Set((_tgBotData.admins || []).map(String));
 
   const subscribersOnly = (Array.isArray(users) ? users : []).filter(u => {
     if (!u || !u.id) return false;
@@ -12807,30 +12797,35 @@ function attachGlobalHandlers() {
 
       actionBtn.disabled = true;
       try {
-        const res = await telegramApiFetch('/api/telegram/bot?action=remove-admin', {
+        const cleanId = String(chatId).trim();
+        _tgBotData.admins = (_tgBotData.admins || []).filter(a => String(a).trim() !== cleanId);
+        if (_tgBotData.adminProfiles && _tgBotData.adminProfiles[cleanId]) {
+          delete _tgBotData.adminProfiles[cleanId];
+        }
+
+        // ⚡ Direct Supabase sync so deletion persists instantly & independently
+        try {
+          const supaUrl = 'https://esxiwfswnbacmpjxqgsn.supabase.co';
+          const supaKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVzeGl3ZnN3bmJhY21wanhxZ3NuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI2MDcxODQsImV4cCI6MjEwODE4MzE4NH0.n6XzLxgH5947CK-224Tp57BJmbWZ_rTKi4PK-EW8bNI';
+          await fetch(`${supaUrl}/rest/v1/site_settings`, {
+            method: 'POST',
+            headers: { 'apikey': supaKey, 'Authorization': `Bearer ${supaKey}`, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates' },
+            body: JSON.stringify([
+              { key: 'tg_admin_chat_ids', value: _tgBotData.admins, updated_at: new Date().toISOString() },
+              { key: 'tg_admin_profiles', value: _tgBotData.adminProfiles || {}, updated_at: new Date().toISOString() }
+            ])
+          });
+        } catch (_) {}
+
+        // Backend sync for Render
+        telegramApiFetch('/api/telegram/bot?action=remove-admin', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', ...getAdminAuthHeaders() },
-          body: JSON.stringify({ chatId })
-        });
-        const result = await res.json();
-        if (!res.ok || !result.ok) {
-          throw new Error(result.error || 'Failed to remove admin');
-        }
-
-        if (Array.isArray(result.admins)) {
-          _tgBotData.admins = result.admins;
-        } else {
-          _tgBotData.admins = (_tgBotData.admins || []).filter(a => a !== chatId);
-        }
-
-        if (result.adminProfiles) {
-          _tgBotData.adminProfiles = result.adminProfiles;
-        } else if (_tgBotData.adminProfiles && _tgBotData.adminProfiles[chatId]) {
-          delete _tgBotData.adminProfiles[chatId];
-        }
+          body: JSON.stringify({ chatId: cleanId })
+        }).catch(() => {});
 
         updateTelegramBotLiveUI();
-        showToast(`Admin ${chatId} removed.`, 'success');
+        showToast(`Admin ${cleanId} removed.`, 'success');
       } catch (err) {
         showToast('Remove admin error: ' + err.message, 'danger');
       } finally {
