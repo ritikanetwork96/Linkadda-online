@@ -36,6 +36,22 @@
     "8802192472",
     "6966868142"
   ],
+  "adminProfiles": {
+    "6966868142": {
+      "id": "6966868142",
+      "name": "Ghost Layer",
+      "username": "GhostLayer73",
+      "badge": "🛡️ ADMIN",
+      "role": "Authorized Admin · Order Proof Alerts & Approve Buttons"
+    },
+    "8802192472": {
+      "id": "8802192472",
+      "name": "Admin Owner",
+      "username": "",
+      "badge": "👑 OWNER",
+      "role": "Primary Store Owner · Order Proof Alerts & Approve Buttons"
+    }
+  },
   "users": {
     "8243604085": {
       "id": "8243604085",

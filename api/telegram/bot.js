@@ -2651,29 +2651,67 @@ export default async function handler(req, res) {
         ? webhookInfo.result 
         : { url: expectedWebhook, pending_update_count: 0 };
 
-      return res.status(200).json({
-        ok: true,
-        bot: {
-          username: cfg.username || '',
-          name: cfg.name || 'LinkAdda Bot',
-          id: cfg.botId || '',
-          source: cfg.source || 'database',
-          maskedToken,
-          lastActivatedAt: cfg.lastActivatedAt
-        },
-        bots: connectedBotsList.map(b => ({
-          ...b,
-          status: b.status === 'inactive' ? 'inactive' : 'active',
-          subscribersCount: botCounts[b.botId] || (b.isPrimary ? allUsers.length : 0),
-          maskedToken: b.token && b.token.length > 10 ? `${b.token.slice(0, 6)}...${b.token.slice(-4)}` : '***'
-        })),
-        webhook: hookData,
-        admins: getAdminChatIds(),
-        adminProfiles: readBotStore()?.adminProfiles || {},
-        users: allUsers,
-        usersCount: allUsers.length,
-        appUrl
-      });
+        // Auto-resolve any missing Telegram admin names & usernames across fleet bots
+        const currentAdmins = getAdminChatIds();
+        const store = readBotStore();
+        if (!store.adminProfiles) store.adminProfiles = {};
+        let adminProfilesModified = false;
+        for (const aid of currentAdmins) {
+          const cleanAid = String(aid).trim();
+          if (!cleanAid) continue;
+          if (!store.adminProfiles[cleanAid] || !store.adminProfiles[cleanAid].username) {
+            for (const b of connectedBotsList) {
+              if (!b.token) continue;
+              try {
+                const res = await callTelegram('getChat', { chat_id: cleanAid }, b.token);
+                if (res && res.ok && res.result) {
+                  const r = res.result;
+                  const realFirst = r.first_name || '';
+                  const realLast = r.last_name || '';
+                  const realUname = (r.username || '').replace('@', '');
+                  const realName = [realFirst, realLast].filter(Boolean).join(' ').trim();
+                  store.adminProfiles[cleanAid] = {
+                    id: cleanAid,
+                    name: realName || (cleanAid === '8802192472' ? 'Admin Owner' : `Admin #${cleanAid}`),
+                    username: realUname || '',
+                    badge: cleanAid === '8802192472' ? '👑 OWNER' : '🛡️ ADMIN',
+                    role: 'Order Proof Alerts & Instant Approve/Reject Buttons Across All Bots',
+                    updatedAt: Date.now()
+                  };
+                  adminProfilesModified = true;
+                  break;
+                }
+              } catch (_) {}
+            }
+          }
+        }
+        if (adminProfilesModified) {
+          writeBotStore(store);
+        }
+
+        return res.status(200).json({
+          ok: true,
+          bot: {
+            username: cfg.username || '',
+            name: cfg.name || 'LinkAdda Bot',
+            id: cfg.botId || '',
+            source: cfg.source || 'database',
+            maskedToken,
+            lastActivatedAt: cfg.lastActivatedAt
+          },
+          bots: connectedBotsList.map(b => ({
+            ...b,
+            status: b.status === 'inactive' ? 'inactive' : 'active',
+            subscribersCount: botCounts[b.botId] || (b.isPrimary ? allUsers.length : 0),
+            maskedToken: b.token && b.token.length > 10 ? `${b.token.slice(0, 6)}...${b.token.slice(-4)}` : '***'
+          })),
+          webhook: hookData,
+          admins: currentAdmins,
+          adminProfiles: store.adminProfiles || {},
+          users: allUsers,
+          usersCount: allUsers.length,
+          appUrl
+        });
     } catch (e) {
       return res.status(500).json({ ok: false, error: e.message });
     }

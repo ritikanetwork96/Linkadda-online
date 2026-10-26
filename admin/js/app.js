@@ -8270,8 +8270,8 @@ function renderTelegramAdminsCards(admins = []) {
       role: 'Primary Store Owner · Order Proof Alerts & Approve Buttons'
     },
     '6966868142': {
-      name: 'Authorized Admin',
-      username: '',
+      name: 'Ghost Layer',
+      username: 'GhostLayer73',
       email: '',
       badge: '🛡️ ADMIN',
       badgeBg: 'rgba(168, 85, 247, 0.2)',
@@ -8321,7 +8321,9 @@ function renderTelegramAdminsCards(admins = []) {
                         @${escapeHtml(profile.username)} <i data-lucide="external-link" style="width: 10px; height: 10px;"></i>
                       </a>
                     ` : `
-                      <span style="color: var(--muted); font-size: 11px;">(No @username · Click Edit)</span>
+                      <span style="color: #f59e0b; font-size: 11px; display: inline-flex; align-items: center; gap: 3px;" title="User must start the bot so Telegram provides their username">
+                        <i data-lucide="info" style="width: 11px; height: 11px;"></i> Tap /start in @Myshop9876_bot
+                      </span>
                     `}
                   </div>
                 </div>
