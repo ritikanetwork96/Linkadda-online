@@ -152,6 +152,7 @@ const ui = {
     status: 'all',
     method: 'all',
     date: 'all',
+    botFilter: 'all',
   },
   reviews: {
     search: '',
@@ -6436,6 +6437,7 @@ function filterManagementList(items = [], type = 'orders') {
   const status = String(ui.management.status || 'all');
   const method = String(ui.management.method || 'all');
   const date = String(ui.management.date || 'all');
+  const botFilter = String(ui.management.botFilter || 'all');
   return items.filter((item) => {
     if (type === 'payment' && !orderPaymentProof(item)) return false;
     const searchable = JSON.stringify(item).toLowerCase();
@@ -6451,6 +6453,15 @@ function filterManagementList(items = [], type = 'orders') {
       if (status === 'all' ? false : !['paid', 'pending', 'failed'].includes(status) && itemStatus !== status) return false;
     }
     if (method !== 'all' && itemMethod !== method.toLowerCase()) return false;
+    if (botFilter !== 'all') {
+      const ordBot = String(item.source_bot_username || item.data?.sourceBotUsername || item.source_bot_id || item.data?.sourceBotId || '').toLowerCase().replace('@', '');
+      if (botFilter === 'web') {
+        if (ordBot) return false;
+      } else {
+        const cleanTarget = botFilter.toLowerCase().replace('@', '').replace(/^bot_/, '');
+        if (!ordBot || (!ordBot.includes(cleanTarget) && !ordBot.endsWith(cleanTarget))) return false;
+      }
+    }
     if (date !== 'all') {
       const today = new Date();
       const todayKey = today.toISOString().slice(0, 10);
@@ -7241,11 +7252,11 @@ async function loadTelegramBotAdminFullData(force = false) {
           const rawId = d.telegramUserId || d.telegram_user_id || ord.telegram_user_id || '';
           const uname = (d.telegramUsername || d.telegram || '').replace('@', '').trim();
           const custName = (ord.customer_name || d.customerName || d.name || '').trim();
-          const ordBotId = ord.source_bot_id || d.sourceBotId || d.source_bot_id || 'bot_8923608774';
-          const ordBotUname = ord.source_bot_username || d.sourceBotUsername || d.source_bot_username || 'Myshop9876_bot';
+          const ordBotId = ord.source_bot_id || d.sourceBotId || d.source_bot_id || null;
+          const ordBotUname = ord.source_bot_username || d.sourceBotUsername || d.source_bot_username || (ordBotId ? ordBotId.replace(/^bot_/, '') : null);
 
-          // Strictly require real Telegram ID or username (NO fake cust_ accounts!)
-          if (rawId || uname) {
+          // Strictly require real Telegram ID or username (NO fake cust_ accounts!) AND a real bot association
+          if ((rawId || uname) && ordBotId) {
             const key = rawId ? String(rawId) : `tg_${uname}`;
             const displayName = custName || (uname ? `@${uname}` : `User #${rawId}`);
             const bMap = { [ordBotId]: { botId: ordBotId, botUsername: ordBotUname, joinedAt: ord.created_at ? new Date(ord.created_at).getTime() : Date.now(), source: 'order_checkout' } };
@@ -9735,6 +9746,7 @@ function renderOrdersManagementView(data = {}, fullData = {}) {
   const activeTab = ui.management.status || 'all';
 
   const methods = [...new Set(allOrders.map((item) => orderMethodLabel(item)).filter((value) => value && value !== 'Unknown'))];
+  const fleetBots = Array.isArray(_tgBotData?.bots) ? _tgBotData.bots : [];
 
   return `
     <div class="page active management-page-shell" style="max-width: 1240px; margin: 0 auto; padding-bottom: 60px;">
@@ -9808,10 +9820,18 @@ function renderOrdersManagementView(data = {}, fullData = {}) {
 
       <!-- Search & Filters Toolbar -->
       <div class="panel glass" style="padding: 16px 20px; border-radius: 14px; margin-bottom: 20px; border: 1px solid var(--border);">
-        <div class="management-filterbar" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px;">
+        <div class="management-filterbar" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px;">
           <div class="field" style="grid-column: span 2;">
             <label for="orderSearch" style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--muted);">Search Orders</label>
             <input class="input" id="orderSearch" type="search" placeholder="Search by Product, Order ID, buyer, or amount..." value="${escapeHtml(ui.management.search || '')}" />
+          </div>
+          <div class="field">
+            <label for="orderBotFilter" style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--muted);">Channel / Bot Fleet</label>
+            <select class="select" id="orderBotFilter">
+              <option value="all" ${ui.management.botFilter === 'all' ? 'selected' : ''}>All Channels</option>
+              ${fleetBots.map((b) => `<option value="${escapeHtml(b.username || b.botId)}" ${ui.management.botFilter === (b.username || b.botId) ? 'selected' : ''}>🤖 @${escapeHtml(b.username || b.botId)}</option>`).join('')}
+              <option value="web" ${ui.management.botFilter === 'web' ? 'selected' : ''}>🌐 Direct Web (No Bot)</option>
+            </select>
           </div>
           <div class="field">
             <label for="orderMethodFilter" style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--muted);">Payment Method</label>
@@ -9837,7 +9857,7 @@ function renderOrdersManagementView(data = {}, fullData = {}) {
           <thead>
             <tr>
               <th style="min-width: 280px;">Order & Proof</th>
-              <th style="min-width: 140px;">Customer</th>
+              <th style="min-width: 150px;">Customer & Origin</th>
               <th style="min-width: 120px;">Amount</th>
               <th style="min-width: 130px;">Method</th>
               <th style="min-width: 140px;">Status</th>
@@ -9857,6 +9877,8 @@ function renderOrdersManagementView(data = {}, fullData = {}) {
               const methodLower = method.toLowerCase();
               const methodClass = methodLower.includes('upi') ? 'upi' : methodLower.includes('binance') ? 'binance' : methodLower.includes('paypal') ? 'paypal' : 'crypto';
               const formattedAmt = formatOrderAmount(item);
+              const orderBotName = item.source_bot_username || item.data?.sourceBotUsername || (item.source_bot_id || item.data?.sourceBotId || '').replace(/^bot_/, '');
+              const isBotOrder = Boolean(orderBotName);
 
               return `
                 <tr>
@@ -9884,11 +9906,24 @@ function renderOrdersManagementView(data = {}, fullData = {}) {
                     </div>
                   </td>
 
-                  <!-- Col 2: Customer -->
+                  <!-- Col 2: Customer & Origin -->
                   <td>
                     <div style="font-size: 13px; color: var(--text); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 140px;">
                       ${escapeHtml(orderCustomerLabel(item))}
                     </div>
+                    ${isBotOrder ? `
+                      <div style="margin-top: 4px;">
+                        <span class="badge" style="font-size: 10px; padding: 2px 7px; border-radius: 5px; background: rgba(56, 189, 248, 0.12); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); display: inline-flex; align-items: center; gap: 4px; font-weight: 700;">
+                          <i data-lucide="bot" style="width: 11px; height: 11px;"></i> @${escapeHtml(orderBotName)}
+                        </span>
+                      </div>
+                    ` : `
+                      <div style="margin-top: 4px;">
+                        <span class="badge" style="font-size: 10px; padding: 2px 7px; border-radius: 5px; background: rgba(255, 255, 255, 0.05); color: var(--muted); border: 1px solid rgba(255, 255, 255, 0.1); display: inline-flex; align-items: center; gap: 4px; font-weight: 600;">
+                          <i data-lucide="globe" style="width: 11px; height: 11px;"></i> Direct Web
+                        </span>
+                      </div>
+                    `}
                   </td>
 
                   <!-- Col 3: Amount -->
@@ -14438,6 +14473,11 @@ function attachGlobalHandlers() {
     }
     if (event.target.id === 'paymentDateFilter' || event.target.id === 'orderDateFilter') {
       ui.management.date = event.target.value || 'all';
+      renderView(ui.data || {});
+      return;
+    }
+    if (event.target.id === 'orderBotFilter') {
+      ui.management.botFilter = event.target.value || 'all';
       renderView(ui.data || {});
       return;
     }
