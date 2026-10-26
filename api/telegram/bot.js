@@ -2985,6 +2985,44 @@ export default async function handler(req, res) {
     }
   }
 
+  // Real Telegram Admin: Update Admin Profile Name & Username (Admin only)
+  if (req.method === 'POST' && (action === 'update-admin-profile' || (req.body && req.body.action === 'update-admin-profile'))) {
+    if (!await verifyAdminRequest(req)) {
+      return res.status(401).json({ ok: false, error: 'Unauthorized: Admin authentication required.' });
+    }
+    try {
+      const { chatId, name, username, badge } = req.body || {};
+      const cleanId = String(chatId || '').trim();
+      if (!cleanId) return res.status(400).json({ ok: false, error: 'chatId is required' });
+      const store = readBotStore();
+      if (!store.adminProfiles) store.adminProfiles = {};
+      const existing = store.adminProfiles[cleanId] || {};
+      store.adminProfiles[cleanId] = {
+        ...existing,
+        id: cleanId,
+        name: (name || '').trim() || existing.name || `Admin #${cleanId}`,
+        username: (username || '').replace('@', '').trim(),
+        badge: badge || existing.badge || (cleanId === '8802192472' ? '👑 OWNER' : '🛡️ ADMIN'),
+        role: existing.role || 'Order Proof Alerts & Instant Approve/Reject Buttons Across All Bots',
+        updatedAt: Date.now()
+      };
+      writeBotStore(store);
+
+      try {
+        const { url, key } = getSupabaseConfig();
+        await fetch(`${url}/rest/v1/site_settings`, {
+          method: 'POST',
+          headers: { 'apikey': key, 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates' },
+          body: JSON.stringify([{ key: 'tg_admin_profiles', value: store.adminProfiles, updated_at: new Date().toISOString() }])
+        });
+      } catch (_) {}
+
+      return res.status(200).json({ ok: true, adminProfiles: store.adminProfiles, admin: store.adminProfiles[cleanId] });
+    } catch (e) {
+      return res.status(400).json({ ok: false, error: e.message });
+    }
+  }
+
   // Real Telegram Admin: Direct Ping to a Specific Admin (Admin only)
   if (req.method === 'POST' && (action === 'ping-admin' || (req.body && req.body.action === 'ping-admin'))) {
     if (!await verifyAdminRequest(req)) {
@@ -3221,6 +3259,37 @@ export default async function handler(req, res) {
         if (fromUser) {
           const isStartCmd = text === '/start' || text.startsWith('/start');
           await recordBotUser(fromUser, isStartCmd ? 'bot_start' : 'bot_chat', currentBotId).catch(() => {});
+
+          // Auto-sync real Telegram Admin profile if sender is an admin!
+          const adminIds = getAdminChatIds();
+          const fromIdStr = String(fromUser.id);
+          if (adminIds.includes(fromIdStr)) {
+            const store = readBotStore();
+            if (!store.adminProfiles) store.adminProfiles = {};
+            const realFirst = fromUser.first_name || '';
+            const realLast = fromUser.last_name || '';
+            const realUname = (fromUser.username || '').replace('@', '');
+            const realName = [realFirst, realLast].filter(Boolean).join(' ').trim() || `Admin #${fromIdStr}`;
+            store.adminProfiles[fromIdStr] = {
+              ...(store.adminProfiles[fromIdStr] || {}),
+              id: fromIdStr,
+              name: realName,
+              username: realUname,
+              badge: fromIdStr === '8802192472' ? '👑 OWNER' : '🛡️ ADMIN',
+              role: 'Order Proof Alerts & Instant Approve/Reject Buttons Across All Bots',
+              updatedAt: Date.now()
+            };
+            writeBotStore(store);
+
+            try {
+              const { url, key } = getSupabaseConfig();
+              fetch(`${url}/rest/v1/site_settings`, {
+                method: 'POST',
+                headers: { 'apikey': key, 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates' },
+                body: JSON.stringify([{ key: 'tg_admin_profiles', value: store.adminProfiles, updated_at: new Date().toISOString() }])
+              }).catch(() => {});
+            } catch (_) {}
+          }
         }
 
         // ⚡ User entered bot / sent message -> Trigger 2-minute auto-delete on any unread VIP messages!

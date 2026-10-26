@@ -8261,8 +8261,8 @@ function renderTelegramAdminsCards(admins = []) {
   const baseProfiles = {
     '8802192472': {
       name: 'Admin Owner',
-      username: 'botforword',
-      email: 'botforword@gmail.com',
+      username: '',
+      email: '',
       badge: '👑 OWNER',
       badgeBg: 'rgba(245, 158, 11, 0.2)',
       badgeColor: '#fbbf24',
@@ -8270,10 +8270,10 @@ function renderTelegramAdminsCards(admins = []) {
       role: 'Primary Store Owner · Order Proof Alerts & Approve Buttons'
     },
     '6966868142': {
-      name: 'Ghost Layer',
-      username: 'GhostLayer73',
+      name: 'Authorized Admin',
+      username: '',
       email: '',
-      badge: '🛡️ ADMIN TESTER',
+      badge: '🛡️ ADMIN',
       badgeBg: 'rgba(168, 85, 247, 0.2)',
       badgeColor: '#c084fc',
       badgeBorder: 'rgba(168, 85, 247, 0.4)',
@@ -8290,7 +8290,7 @@ function renderTelegramAdminsCards(admins = []) {
         const isDefault = defaultIds.includes(cleanId);
         const dynamicProf = customProfiles[cleanId] || {};
         const profile = adminProfiles[cleanId] || {
-          name: dynamicProf.name || (isDefault ? 'Authorized Admin' : `Admin #${cleanId}`),
+          name: dynamicProf.name || (isDefault ? 'Admin Owner' : `Admin #${cleanId}`),
           username: dynamicProf.username || '',
           email: '',
           badge: isDefault ? '👑 OWNER' : '🛡️ ADMIN',
@@ -8320,7 +8320,9 @@ function renderTelegramAdminsCards(admins = []) {
                       <a href="https://t.me/${escapeHtml(profile.username)}" target="_blank" style="color: #38bdf8; text-decoration: none; font-size: 12px; font-weight: 600; display: inline-flex; align-items: center; gap: 3px;">
                         @${escapeHtml(profile.username)} <i data-lucide="external-link" style="width: 10px; height: 10px;"></i>
                       </a>
-                    ` : ''}
+                    ` : `
+                      <span style="color: var(--muted); font-size: 11px;">(No @username · Click Edit)</span>
+                    `}
                   </div>
                 </div>
 
@@ -8352,8 +8354,11 @@ function renderTelegramAdminsCards(admins = []) {
                 <span style="width: 6px; height: 6px; border-radius: 50%; background: #10b981; display: inline-block;"></span> Active Dispatch
               </span>
               <div style="display: flex; gap: 6px;">
+                <button type="button" class="btn btn-ghost btn-sm" data-action="edit-admin-action" data-chat-id="${escapeHtml(cleanId)}" data-name="${escapeHtml(profile.name)}" data-username="${escapeHtml(profile.username || '')}" title="Edit Name & Username" style="font-size: 11.5px; padding: 5px 10px; border-radius: 6px; border: 1px solid rgba(56, 189, 248, 0.4); color: #38bdf8; display: inline-flex; align-items: center; gap: 4px;">
+                  <i data-lucide="edit-3" style="width: 12px; height: 12px;"></i> Edit
+                </button>
                 <button type="button" class="btn btn-ghost btn-sm" data-action="ping-admin-action" data-chat-id="${escapeHtml(cleanId)}" title="Send test ping to this admin" style="font-size: 11.5px; padding: 5px 10px; border-radius: 6px; border: 1px solid rgba(245, 158, 11, 0.4); color: #fbbf24; display: inline-flex; align-items: center; gap: 4px;">
-                  <i data-lucide="send" style="width: 12px; height: 12px;"></i> Ping Admin
+                  <i data-lucide="send" style="width: 12px; height: 12px;"></i> Ping
                 </button>
                 ${!isDefault ? `
                   <button type="button" class="btn btn-ghost btn-sm" data-action="remove-admin-action" data-chat-id="${escapeHtml(cleanId)}" title="Remove Admin" style="font-size: 11.5px; padding: 5px 10px; border-radius: 6px; border: 1px solid rgba(239, 68, 68, 0.3); color: #ef4444; display: inline-flex; align-items: center; gap: 4px;">
@@ -12828,6 +12833,46 @@ function attachGlobalHandlers() {
         showToast(`Admin ${chatId} removed.`, 'success');
       } catch (err) {
         showToast('Remove admin error: ' + err.message, 'danger');
+      } finally {
+        actionBtn.disabled = false;
+      }
+      return;
+    }
+    if (action === 'edit-admin-action') {
+      const chatId = actionBtn.getAttribute('data-chat-id');
+      const currentName = actionBtn.getAttribute('data-name') || '';
+      const currentUname = actionBtn.getAttribute('data-username') || '';
+
+      const newName = window.prompt(`Enter Name/Label for Telegram Admin ID ${chatId}:`, currentName);
+      if (newName === null) return;
+
+      const newUname = window.prompt(`Enter Telegram @username for Admin ID ${chatId} (without @):`, currentUname);
+      if (newUname === null) return;
+
+      actionBtn.disabled = true;
+      try {
+        const res = await telegramApiFetch('/api/telegram/bot?action=update-admin-profile', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...getAdminAuthHeaders() },
+          body: JSON.stringify({
+            chatId,
+            name: newName.trim(),
+            username: newUname.replace('@', '').trim()
+          })
+        });
+        const result = await res.json();
+        if (!res.ok || !result.ok) {
+          throw new Error(result.error || 'Failed to update profile');
+        }
+
+        if (result.adminProfiles) {
+          _tgBotData.adminProfiles = { ...(_tgBotData.adminProfiles || {}), ...result.adminProfiles };
+        }
+
+        updateTelegramBotLiveUI();
+        showToast(`Admin profile for ${chatId} updated successfully!`, 'success');
+      } catch (err) {
+        showToast('Update admin profile error: ' + err.message, 'danger');
       } finally {
         actionBtn.disabled = false;
       }
