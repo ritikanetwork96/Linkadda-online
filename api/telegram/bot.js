@@ -448,19 +448,25 @@ export async function addAdminChatId(chatId, label = '') {
     } catch (_) {}
   }
 
-  // Fallback to store.users if user interacted with bot
-  if (!tgFirstName && store.users?.[cleanId]) {
-    const u = store.users[cleanId];
-    tgFirstName = u.firstName || '';
-    tgLastName = u.lastName || '';
-    tgUsername = (u.username || '').replace('@', '');
+  // Fallback to store.users or Supabase tg_bot_users if user interacted with bot
   if (!tgFirstName && !tgUsername) {
-    if (cleanId === '8802192472') {
-      tgFirstName = 'No name';
-      tgUsername = 'noname8828211';
-    } else if (cleanId === '6966868142') {
-      tgFirstName = 'Ghost Layer';
-      tgUsername = 'GhostLayer73';
+    let u = store.users?.[cleanId];
+    if (!u) {
+      try {
+        const { url, key } = getSupabaseConfig();
+        const sbRes = await fetch(`${url}/rest/v1/site_settings?key=eq.tg_bot_users`, {
+          headers: { 'apikey': key, 'Authorization': `Bearer ${key}` }
+        });
+        if (sbRes.ok) {
+          const rows = await sbRes.json();
+          u = rows?.[0]?.value?.[cleanId];
+        }
+      } catch (_) {}
+    }
+    if (u) {
+      tgFirstName = u.firstName || '';
+      tgLastName = u.lastName || '';
+      tgUsername = (u.username || '').replace('@', '');
     }
   }
 
@@ -3043,23 +3049,6 @@ export default async function handler(req, res) {
     }
     const targetId = String(url.searchParams.get('id') || req.body?.id || '').trim();
     if (!targetId) return res.status(400).json({ ok: false, error: 'id parameter is required' });
-
-    if (targetId === '8802192472') {
-      return res.status(200).json({
-        ok: true,
-        found: true,
-        source: 'verified_admin',
-        user: { id: '8802192472', name: 'No name', username: 'noname8828211' }
-      });
-    }
-    if (targetId === '6966868142') {
-      return res.status(200).json({
-        ok: true,
-        found: true,
-        source: 'verified_admin',
-        user: { id: '6966868142', name: 'Ghost Layer', username: 'GhostLayer73' }
-      });
-    }
 
     const store = readBotStore();
     if (store.adminProfiles?.[targetId]) {
