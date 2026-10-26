@@ -4998,8 +4998,6 @@ async function saveOrderToFirebase(amountText, methodName) {
           payment_method: payload.paymentMethod || methodName || '',
           payment_proof: payload.paymentProof || payload.screenshotUrl || '',
           utr: payload.utr || payload.transactionId || '',
-          source_bot_id: payload.sourceBotId || null,
-          source_bot_username: payload.sourceBotUsername || null,
           status: 'pending',
           data: payload
         };
