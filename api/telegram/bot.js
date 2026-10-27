@@ -1505,6 +1505,7 @@ const ORDER_NOTIFY_DEBOUNCE_MS = 45000;
  * Send New Order Notification to BOTH Admins with Screenshot + [Approve] [Reject] buttons
  */
 export async function notifyAdminsNewOrder(order) {
+  await syncBotsFromSupabase().catch(() => {});
   const adminIds = getAdminChatIds();
   const orderId = String(order.order_id || order.id || order.orderId || '').trim();
   if (!orderId) {
@@ -1719,60 +1720,45 @@ export async function notifyAdminsNewOrder(order) {
     return fd;
   };
 
-  for (const adminId of adminIds) {
+  let targetAdmins = adminIds.filter(adminId => {
     const adminProf = store.adminProfiles?.[String(adminId)] || {};
     if (adminProf.assignedBotId && adminProf.assignedBotId !== 'all') {
       const assignedTarget = String(adminProf.assignedBotId).toLowerCase().replace('@', '');
       const ordTarget = String(originatingBot.botId || originatingBot.id || '').toLowerCase().replace('@', '');
       const ordUsername = String(originatingBot.username || '').toLowerCase().replace('@', '');
-      if (assignedTarget !== ordTarget && assignedTarget !== ordUsername) {
-        continue; // Skip admin: assigned to different bot
-      }
+      return assignedTarget === ordTarget || assignedTarget === ordUsername;
     }
+    return true;
+  });
+  if (targetAdmins.length === 0) targetAdmins = adminIds;
 
+  // Build ordered list of candidate fleet bots to reach each admin:
+  // 1) originatingBot (maintains context if admin started this bot)
+  // 2) primaryBot (high probability admin has active chat with primary bot)
+  // 3) any remaining active fleet bots
+  const candidateBots = [];
+  if (originatingBot && originatingBot.token) candidateBots.push(originatingBot);
+  if (primaryBot && primaryBot.token && (!originatingBot || primaryBot.token !== originatingBot.token)) {
+    candidateBots.push(primaryBot);
+  }
+  for (const b of allBots) {
+    if (b && b.token && b.status === 'active' && !candidateBots.some(cb => cb.token === b.token)) {
+      candidateBots.push(b);
+    }
+  }
+
+  for (const adminId of targetAdmins) {
     const adminSendPromise = (async () => {
       let sentRes = null;
       let isPhoto = false;
-      let effectiveToken = targetToken;
+      let effectiveToken = null;
+      let effectiveBot = null;
 
-      // Priority 1: Direct CDN URL sendPhoto (instant ~150ms without buffering)
-      if (viewScreenshotUrl && viewScreenshotUrl.startsWith('http')) {
-        try {
-          sentRes = await callTelegram('sendPhoto', {
-            chat_id: String(adminId),
-            photo: viewScreenshotUrl,
-            caption: caption,
-            parse_mode: 'HTML',
-            reply_markup: inlineKeyboard
-          }, targetToken);
-          if (sentRes && sentRes.ok) isPhoto = true;
-        } catch (_) {}
-      }
+      for (const botCandidate of candidateBots) {
+        const curToken = botCandidate.token;
+        if (!curToken) continue;
 
-      // Priority 2: Direct Binary Multipart (if uploaded as raw base64)
-      if (!sentRes?.ok && photoBuffer && photoBuffer.length > 200) {
-        try {
-          sentRes = await callTelegram('sendPhoto', buildPhotoFormData(adminId), targetToken);
-          if (sentRes && sentRes.ok) isPhoto = true;
-        } catch (_) {}
-      }
-
-      // Priority 3: HTML text message fallback
-      if (!sentRes?.ok) {
-        try {
-          sentRes = await callTelegram('sendMessage', {
-            chat_id: String(adminId),
-            text: caption + (viewScreenshotUrl ? `\n\n📸 <b>Payment Proof:</b> <a href="${viewScreenshotUrl}">Tap to View Screenshot</a>` : ''),
-            parse_mode: 'HTML',
-            reply_markup: inlineKeyboard
-          }, targetToken);
-          if (sentRes && sentRes.ok) isPhoto = false;
-        } catch (_) {}
-      }
-
-      // ⚡ FALLBACK TO PRIMARY BOT IF FLEET BOT COULD NOT REACH ADMIN (e.g. admin hasn't started this fleet bot yet)
-      if (!sentRes?.ok && primaryBot?.token && primaryBot.token !== targetToken) {
-        effectiveToken = primaryBot.token;
+        // Priority 1: Direct CDN URL sendPhoto (instant ~150ms without buffering)
         if (viewScreenshotUrl && viewScreenshotUrl.startsWith('http')) {
           try {
             sentRes = await callTelegram('sendPhoto', {
@@ -1781,16 +1767,30 @@ export async function notifyAdminsNewOrder(order) {
               caption: caption,
               parse_mode: 'HTML',
               reply_markup: inlineKeyboard
-            }, effectiveToken);
-            if (sentRes && sentRes.ok) isPhoto = true;
+            }, curToken);
+            if (sentRes && sentRes.ok) {
+              isPhoto = true;
+              effectiveToken = curToken;
+              effectiveBot = botCandidate;
+              break;
+            }
           } catch (_) {}
         }
+
+        // Priority 2: Direct Binary Multipart (if uploaded as raw base64)
         if (!sentRes?.ok && photoBuffer && photoBuffer.length > 200) {
           try {
-            sentRes = await callTelegram('sendPhoto', buildPhotoFormData(adminId), effectiveToken);
-            if (sentRes && sentRes.ok) isPhoto = true;
+            sentRes = await callTelegram('sendPhoto', buildPhotoFormData(adminId), curToken);
+            if (sentRes && sentRes.ok) {
+              isPhoto = true;
+              effectiveToken = curToken;
+              effectiveBot = botCandidate;
+              break;
+            }
           } catch (_) {}
         }
+
+        // Priority 3: HTML text message fallback
         if (!sentRes?.ok) {
           try {
             sentRes = await callTelegram('sendMessage', {
@@ -1798,8 +1798,13 @@ export async function notifyAdminsNewOrder(order) {
               text: caption + (viewScreenshotUrl ? `\n\n📸 <b>Payment Proof:</b> <a href="${viewScreenshotUrl}">Tap to View Screenshot</a>` : ''),
               parse_mode: 'HTML',
               reply_markup: inlineKeyboard
-            }, effectiveToken);
-            if (sentRes && sentRes.ok) isPhoto = false;
+            }, curToken);
+            if (sentRes && sentRes.ok) {
+              isPhoto = false;
+              effectiveToken = curToken;
+              effectiveBot = botCandidate;
+              break;
+            }
           } catch (_) {}
         }
       }
@@ -1808,12 +1813,14 @@ export async function notifyAdminsNewOrder(order) {
         sentAdminMessages.push({
           chatId: String(adminId),
           messageId: sentRes.result.message_id,
-          botId: originatingBot.botId,
-          botToken: effectiveToken,
+          botId: effectiveBot?.botId || originatingBot?.botId || '',
+          botToken: effectiveToken || originatingToken,
           isPhoto,
           caption,
           sentAt: Date.now()
         });
+      } else {
+        console.warn(`[NOTIFY ADMIN] Order #${orderId}: could not reach admin ${adminId}. Telegram result:`, sentRes);
       }
       return sentRes;
     })();
