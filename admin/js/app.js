@@ -8252,10 +8252,13 @@ function renderTelegramBotsFleetCards(bots = []) {
               </button>
             </div>
 
-            <!-- Secondary Actions Row (Ping Test Alert + Delete Bot) -->
+            <!-- Secondary Actions Row (Ping Test Alert + Clear Bio + Delete Bot) -->
             <div style="display: flex; gap: 8px; flex-wrap: wrap;">
               <button type="button" class="btn btn-ghost btn-sm" data-action="test-bot-ping-action" data-bot-id="${escapeHtml(botIdStr)}" title="Send test alert to admin from this bot" style="flex: 1; min-width: 110px; font-size: 11.5px; padding: 6px 10px; border-radius: 8px; border: 1px solid rgba(99, 102, 241, 0.35); color: #a5b4fc; display: flex; align-items: center; justify-content: center; gap: 5px;">
                 <i data-lucide="send" style="width: 12px; height: 12px;"></i> Ping Test Alert
+              </button>
+              <button type="button" class="btn btn-ghost btn-sm" data-action="clear-bot-bio-action" data-bot-id="${escapeHtml(botIdStr)}" title="Clear Bot Bio and Description on Telegram" style="font-size: 11.5px; padding: 6px 10px; border-radius: 8px; border: 1px solid rgba(234, 179, 8, 0.35); color: #facc15; display: flex; align-items: center; justify-content: center; gap: 4px;">
+                <i data-lucide="eraser" style="width: 12px; height: 12px;"></i> Clear Bio
               </button>
               <button type="button" class="btn btn-ghost btn-sm" data-action="delete-bot-action" data-bot-id="${escapeHtml(botIdStr)}" title="Delete this bot" style="font-size: 11.5px; padding: 6px 12px; border-radius: 8px; border: 1px solid rgba(239, 68, 68, 0.3); color: #ef4444; display: flex; align-items: center; justify-content: center; gap: 4px;">
                 <i data-lucide="trash-2" style="width: 12px; height: 12px;"></i> Delete
@@ -12742,6 +12745,35 @@ function attachGlobalHandlers() {
         }
       } catch (err) {
         showToast('Ping error: ' + err.message, 'danger');
+      } finally {
+        actionBtn.disabled = false;
+        actionBtn.innerHTML = originalHtml;
+      }
+      return;
+    }
+    if (action === 'clear-bot-bio-action') {
+      const botId = actionBtn.getAttribute('data-bot-id');
+      if (!botId) return;
+      if (!confirm('Are you sure you want to remove the Bio and Description for this bot? This will wipe the About text and Start screen description on Telegram.')) return;
+
+      actionBtn.disabled = true;
+      const originalHtml = actionBtn.innerHTML;
+      actionBtn.innerHTML = '<span class="spin-loader" style="width:12px;height:12px;border:2px solid currentColor;border-top-color:transparent;border-radius:50%;display:inline-block;animation:authSpin 0.75s linear infinite;"></span>';
+
+      try {
+        const res = await telegramApiFetch('/api/telegram/bot?action=clear-bot-bio', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...getAdminAuthHeaders() },
+          body: JSON.stringify({ botId })
+        });
+        const result = await res.json();
+        if (res.ok && result.ok) {
+          showToast('🧹 Bot Bio and Description cleared from Telegram servers!', 'success');
+        } else {
+          throw new Error(result.error || 'Failed to clear bio');
+        }
+      } catch (err) {
+        showToast('Clear Bio error: ' + err.message, 'danger');
       } finally {
         actionBtn.disabled = false;
         actionBtn.innerHTML = originalHtml;

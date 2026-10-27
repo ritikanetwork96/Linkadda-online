@@ -3095,6 +3095,40 @@ export default async function handler(req, res) {
     }
   }
 
+  // Clear Bot Bio & Description on Telegram Servers (Admin only)
+  if (action === 'clear-bot-bio' || action === 'clear-bot-profile' || (req.body && (req.body.action === 'clear-bot-bio' || req.body.action === 'clear-bot-profile'))) {
+    if (!await verifyAdminRequest(req)) {
+      return res.status(401).json({ ok: false, error: 'Unauthorized: Admin authentication required.' });
+    }
+    try {
+      const targetBotId = url.searchParams.get('botId') || req.body?.botId || '';
+      const allBots = getConnectedBots();
+      const targets = targetBotId ? allBots.filter(b => b.botId === targetBotId || b.id === targetBotId) : allBots;
+      if (!targets.length) {
+        return res.status(404).json({ ok: false, error: 'No matching bot found to clear bio' });
+      }
+
+      const results = [];
+      for (const b of targets) {
+        if (!b.token) continue;
+        // 1. Wipe short_description (Bio displayed on Telegram profile)
+        const shortDescRes = await callTelegram('setMyShortDescription', { short_description: '' }, b.token).catch(err => ({ ok: false, error: err.message }));
+        // 2. Wipe description ("What can this bot do?" intro screen)
+        const descRes = await callTelegram('setMyDescription', { description: '' }, b.token).catch(err => ({ ok: false, error: err.message }));
+
+        results.push({
+          botId: b.botId,
+          username: b.username,
+          shortDescriptionCleared: shortDescRes?.ok || false,
+          descriptionCleared: descRes?.ok || false
+        });
+      }
+      return res.status(200).json({ ok: true, results });
+    } catch (e) {
+      return res.status(500).json({ ok: false, error: e.message });
+    }
+  }
+
   // Real Telegram Admin: Add New Admin Chat ID (Admin only)
   if (req.method === 'POST' && (action === 'add-admin' || (req.body && req.body.action === 'add-admin'))) {
     if (!await verifyAdminRequest(req)) {
