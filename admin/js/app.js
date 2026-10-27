@@ -8268,12 +8268,22 @@ function renderTelegramBotsFleetCards(bots = []) {
 }
 
 function renderTelegramAdminsCards(admins = []) {
-  const adminList = (Array.isArray(admins) && admins.length) ? admins : ['8802192472', '6966868142'];
+  const adminList = (Array.isArray(admins) && admins.length) ? admins : ['8516979341', '8802192472', '6966868142'];
   const customProfiles = _tgBotData.adminProfiles || {};
 
   const baseProfiles = {
-    '8802192472': {
+    '8516979341': {
       name: 'Owner (Main Admin)',
+      username: '',
+      email: '',
+      badge: '👑 OWNER',
+      badgeBg: 'rgba(234, 179, 8, 0.15)',
+      badgeColor: '#eab308',
+      badgeBorder: 'rgba(234, 179, 8, 0.35)',
+      role: 'Full Access · Order Proof Alerts & Instant Approve/Reject Buttons Across All Bots'
+    },
+    '8802192472': {
+      name: 'Owner (Backup)',
       username: '',
       email: '',
       badge: '👑 OWNER',

@@ -11,48 +11,90 @@
   "bots": {
     "bot_8923608774": {
       "id": "8923608774",
+      "name": "LinkAdda Store Bot",
       "botId": "bot_8923608774",
       "token": "8923608774:AAFhvO4Yzly7toIf5qoI-TSW4EzVzWCdVlE",
-      "username": "Myshop9876_bot",
-      "name": "LinkAdda Store Bot",
       "status": "active",
+      "username": "Myshop9876_bot",
       "createdAt": 1792841000000,
       "lastActivatedAt": "2026-10-23T20:00:00.000Z",
-      "subscribersCount": 2
+      "subscribersCount": 3
     },
     "bot_8869143190": {
       "id": "8869143190",
+      "name": "Testnot Bot",
       "botId": "bot_8869143190",
       "token": "8869143190:AAHpI6Uls3sGl-JwEH9EZMhRChIPg-4lnEg",
-      "username": "Testnot565_bot",
-      "name": "Testnot Bot",
       "status": "active",
+      "username": "Testnot565_bot",
       "createdAt": 1792842000000,
       "lastActivatedAt": "2026-10-24T10:00:00.000Z",
-      "subscribersCount": 0
+      "subscribersCount": 1
     }
   },
   "admins": [
+    "8516979341",
     "8802192472",
     "6966868142"
   ],
   "adminProfiles": {
+    "8516979341": {
+      "id": "8516979341",
+      "name": "Owner (Main Admin)",
+      "role": "Full Access · Order Proof Alerts & Instant Approve/Reject Buttons Across All Bots",
+      "badge": "👑 OWNER",
+      "username": "noname8828211"
+    },
     "8802192472": {
       "id": "8802192472",
-      "name": "Owner (Main Admin)",
-      "username": "",
+      "name": "Owner (Backup)",
+      "role": "Full Access · Order Proof Alerts & Instant Approve/Reject Buttons Across All Bots",
       "badge": "👑 OWNER",
-      "role": "Full Access · Order Proof Alerts & Instant Approve/Reject Buttons Across All Bots"
+      "username": ""
     },
     "6966868142": {
       "id": "6966868142",
       "name": "Ghost Layer",
-      "username": "GhostLayer73",
+      "role": "Order Proof Alerts & Instant Approve/Reject Buttons Across All Bots",
       "badge": "🛡️ ADMIN",
-      "role": "Authorized Admin · Order Proof Alerts & Approve Buttons"
+      "username": "GhostLayer73",
+      "updatedAt": 1793084456513
     }
   },
   "users": {
+    "6966868142": {
+      "id": "6966868142",
+      "bots": {
+        "bot_8869143190": {
+          "botId": "bot_8869143190",
+          "source": "bot_start",
+          "joinedAt": 1793037576742,
+          "botUsername": "Testnot565_bot",
+          "lastActiveAt": 1793084455841
+        },
+        "bot_8923608774": {
+          "botId": "bot_8923608774",
+          "source": "bot_start",
+          "joinedAt": 1793037075801,
+          "botUsername": "Myshop9876_bot",
+          "lastActiveAt": 1793084441916
+        }
+      },
+      "source": "admin_tester",
+      "isAdmin": true,
+      "lastName": "Layer",
+      "username": "GhostLayer73",
+      "createdAt": 1793037075801,
+      "firstName": "Ghost",
+      "lastBotId": "bot_8869143190",
+      "updatedAt": 1793084455841,
+      "sourceBotId": "bot_8869143190",
+      "sourceBotIds": [
+        "bot_8869143190",
+        "bot_8923608774"
+      ],
+      "sourceBotUsername": "Testnot565_bot"
+    },
     "8243604085": {
       "id": "8243604085",
       "source": "bot_interaction",
@@ -76,6 +118,39 @@
         "bot_8923608774"
       ]
     },
+    "8516979341": {
+      "id": "8516979341",
+      "username": "noname8828211",
+      "firstName": "No name",
+      "lastName": "",
+      "source": "order_checkout",
+      "sourceBotId": "bot_8923608774",
+      "sourceBotUsername": "Myshop9876_bot",
+      "lastBotId": "bot_8923608774",
+      "bots": {
+        "bot_8869143190": {
+          "botId": "bot_8869143190",
+          "source": "bot_start",
+          "joinedAt": 1793041757107,
+          "botUsername": "Testnot565_bot",
+          "lastActiveAt": 1793084634413
+        },
+        "bot_8923608774": {
+          "botId": "bot_8923608774",
+          "botUsername": "Myshop9876_bot",
+          "joinedAt": 1793018699748,
+          "lastActiveAt": 1793084635280,
+          "source": "order_checkout"
+        }
+      },
+      "sourceBotIds": [
+        "bot_8869143190",
+        "bot_8923608774"
+      ],
+      "isAdmin": false,
+      "createdAt": 1793018699748,
+      "updatedAt": 1793084635280
+    },
     "8770964308": {
       "id": "8770964308",
       "source": "bot_interaction",
@@ -98,8 +173,46 @@
       "sourceBotIds": [
         "bot_8923608774"
       ]
+    },
+    "8802192472": {
+      "id": "8802192472",
+      "bots": {
+        "bot_8923608774": {
+          "botId": "bot_8923608774",
+          "source": "bot_start",
+          "joinedAt": 1793018803597,
+          "botUsername": "Myshop9876_bot",
+          "lastActiveAt": 1793083870831
+        }
+      },
+      "source": "bot_start",
+      "isAdmin": false,
+      "lastName": "",
+      "username": "owner",
+      "createdAt": 1793018803597,
+      "firstName": "Owner",
+      "lastBotId": "bot_8923608774",
+      "updatedAt": 1793083870831,
+      "sourceBotId": "bot_8923608774",
+      "sourceBotIds": [
+        "bot_8923608774"
+      ],
+      "sourceBotUsername": "Myshop9876_bot"
     }
   },
   "pendingDeletions": {},
-  "orderLinks": {}
+  "orderLinks": {},
+  "orderAdminMessages": {
+    "ORD-MVQC7MVX-FOIM": [
+      {
+        "chatId": "6966868142",
+        "messageId": 178,
+        "botId": "bot_8923608774",
+        "botToken": "8923608774:AAFhvO4Yzly7toIf5qoI-TSW4EzVzWCdVlE",
+        "isPhoto": true,
+        "caption": "🚨 <b>NEW ORDER RECEIVED!</b>\n━━━━━━━━━━━━━━━━━━━━━━\n🆔 <b>Order ID:</b> <code>ORD-MVQC7MVX-FOIM</code>\n🤖 <b>Bot Channel:</b> <b>@Myshop9876_bot</b>\n📦 <b>Product:</b> <b>New Indian Spx / New Indian SPX #2</b>\n💰 <b>Amount:</b> <b>₹899</b>\n💳 <b>Payment Method:</b> UPI\n🔢 <b>UTR / Transaction Ref:</b> <code>Not provided</code>\n👤 <b>Customer:</b> @noname8828211\n━━━━━━━━━━━━━━━━━━━━━━\n<i>Review payment screenshot and tap below to Approve or Reject:</i>",
+        "sentAt": 1793084671500
+      }
+    ]
+  }
 }

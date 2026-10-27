@@ -6,7 +6,7 @@ import { handleCors, verifyAdminRequest } from '../_utils.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const DEFAULT_ADMIN_IDS = ['8802192472', '6966868142'];
+const DEFAULT_ADMIN_IDS = ['8516979341', '8802192472', '6966868142'];
 
 export function getAdminChatIds() {
   try {
@@ -3408,13 +3408,15 @@ export default async function handler(req, res) {
             const realFirst = fromUser.first_name || '';
             const realLast = fromUser.last_name || '';
             const realUname = (fromUser.username || '').replace('@', '');
-            const realName = [realFirst, realLast].filter(Boolean).join(' ').trim() || `Admin #${fromIdStr}`;
+            const rawName = [realFirst, realLast].filter(Boolean).join(' ').trim();
+            const isOwner = (fromIdStr === '8802192472' || fromIdStr === '8516979341');
+            const realName = (!rawName || rawName.toLowerCase() === 'no name') ? (isOwner ? 'Owner (Main Admin)' : `Admin #${fromIdStr}`) : rawName;
             store.adminProfiles[fromIdStr] = {
               ...(store.adminProfiles[fromIdStr] || {}),
               id: fromIdStr,
               name: realName,
               username: realUname,
-              badge: (fromIdStr === '8802192472') ? '👑 OWNER' : '🛡️ ADMIN',
+              badge: isOwner ? '👑 OWNER' : '🛡️ ADMIN',
               role: 'Order Proof Alerts & Instant Approve/Reject Buttons Across All Bots',
               updatedAt: Date.now()
             };
