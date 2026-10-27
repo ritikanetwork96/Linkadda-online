@@ -111,15 +111,8 @@ function readBotStore() {
 
   const defaultStore = {
     activeToken: (process.env.TELEGRAM_BOT_TOKEN || '').trim(),
-    bot: {
-      username: 'Myshop9876_bot',
-      name: 'LinkAdda Store Bot',
-      id: '8923608774',
-      status: 'active',
-      isPrimary: true,
-      source: 'database',
-      lastActivatedAt: new Date().toISOString()
-    },
+    bot: null,
+    bots: {},
     admins: [],
     adminProfiles: {},
     users: {},
@@ -172,6 +165,27 @@ export async function syncBotsToSupabase(botsMap) {
   }
 }
 
+export async function syncUsersToSupabase(usersMap) {
+  try {
+    const { url, key } = getSupabaseConfig();
+    const res = await fetch(`${url}/rest/v1/site_settings`, {
+      method: 'POST',
+      headers: {
+        'apikey': key,
+        'Authorization': `Bearer ${key}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'resolution=merge-duplicates'
+      },
+      body: JSON.stringify([{ key: 'tg_bot_users', value: usersMap || {}, updated_at: new Date().toISOString() }]),
+      signal: AbortSignal.timeout(5000)
+    });
+    return res.ok;
+  } catch (err) {
+    console.warn('syncUsersToSupabase warning:', err.message);
+    return false;
+  }
+}
+
 let lastBotStoreSyncTime = 0;
 export async function syncBotsFromSupabase(force = false) {
   const now = Date.now();
@@ -194,7 +208,7 @@ export async function syncBotsFromSupabase(force = false) {
         let changed = false;
         for (const row of rows) {
           if (row.key === 'tg_connected_bots' && row.value && typeof row.value === 'object') {
-            store.bots = { ...(store.bots || {}), ...row.value };
+            store.bots = { ...row.value };
             changed = true;
           }
           if (row.key === 'tg_admin_chat_ids' && Array.isArray(row.value)) {
@@ -239,78 +253,10 @@ function formatBotRecord(raw) {
 export function getConnectedBots() {
   const store = readBotStore();
   let botsMap = store.bots;
-  if (!botsMap || typeof botsMap !== 'object' || Object.keys(botsMap).length === 0) {
-    const defaultToken = (store.activeToken || process.env.TELEGRAM_BOT_TOKEN || '8923608774:AAFhvO4Yzly7toIf5qoI-TSW4EzVzWCdVlE').trim();
-    const b = store.bot || {};
-    const bid = String(b.id || '8923608774');
-    botsMap = {
-      [`bot_${bid}`]: {
-        id: bid,
-        botId: `bot_${bid}`,
-        token: defaultToken,
-        username: b.username || 'Myshop9876_bot',
-        name: b.name || 'LinkAdda Store Bot',
-        status: 'active',
-        isPrimary: true,
-        createdAt: Date.now(),
-        lastActivatedAt: b.lastActivatedAt || new Date().toISOString()
-      }
-    };
+  if (!botsMap || typeof botsMap !== 'object') {
+    botsMap = {};
     store.bots = botsMap;
-    writeBotStore(store);
   }
-
-  // Auto-discover any bots recorded in user activity so no fleet bot is ever omitted
-  if (store.users && typeof store.users === 'object') {
-    let hasNewBot = false;
-    for (const u of Object.values(store.users)) {
-      if (u && u.bots && typeof u.bots === 'object') {
-        for (const [bKey, bVal] of Object.entries(u.bots)) {
-          const bUname = String(bVal?.botUsername || bVal?.username || bKey.replace(/^bot_/, '')).replace('@', '').trim();
-          const bId = String(bVal?.botId || bKey).trim();
-          const canonId = bId.startsWith('bot_') ? bId : `bot_${bId}`;
-          if (bUname && !botsMap[canonId] && !botsMap[bKey]) {
-            botsMap[canonId] = {
-              id: canonId.replace(/^bot_/, ''),
-              botId: canonId,
-              token: bVal?.token || '',
-              username: bUname,
-              name: `@${bUname}`,
-              status: 'active',
-              isPrimary: false,
-              createdAt: bVal?.joinedAt || Date.now(),
-              subscribersCount: 0
-            };
-            hasNewBot = true;
-          }
-        }
-      }
-      if (u && u.sourceBotUsername) {
-        const sUname = String(u.sourceBotUsername).replace('@', '').trim();
-        const sId = String(u.sourceBotId || `bot_${sUname}`).trim();
-        const canonId = sId.startsWith('bot_') ? sId : `bot_${sId}`;
-        if (sUname && !botsMap[canonId] && !botsMap[sId]) {
-          botsMap[canonId] = {
-            id: canonId.replace(/^bot_/, ''),
-            botId: canonId,
-            token: '',
-            username: sUname,
-            name: `@${sUname}`,
-            status: 'active',
-            isPrimary: false,
-            createdAt: u.createdAt || Date.now(),
-            subscribersCount: 0
-          };
-          hasNewBot = true;
-        }
-      }
-    }
-    if (hasNewBot) {
-      store.bots = botsMap;
-      writeBotStore(store);
-    }
-  }
-
   return Object.values(botsMap).map(formatBotRecord).filter(Boolean);
 }
 
@@ -319,6 +265,7 @@ export function getBotByIdOrToken(identifier = null) {
   if (!identifier) {
     return all.find(b => b.status === 'active' && b.isPrimary) ||
            all.find(b => b.status === 'active') ||
+           all.find(b => b.isPrimary) ||
            all[0] ||
            null;
   }
@@ -327,7 +274,7 @@ export function getBotByIdOrToken(identifier = null) {
     b.botId.toLowerCase() === clean || 
     b.id === clean || 
     b.token === clean || 
-    b.username.toLowerCase() === clean.replace('@', '')
+    (b.username && b.username.toLowerCase() === clean.replace('@', ''))
   ) || null;
 }
 
@@ -339,16 +286,29 @@ export async function saveConnectedBot(botData) {
   if (!store.bots) store.bots = {};
   const formatted = formatBotRecord(botData);
   if (!formatted || !formatted.token) throw new Error('Invalid bot data or token missing');
+  
+  const existingKeys = Object.keys(store.bots);
+  const isFirstBot = existingKeys.length === 0;
+  if (isFirstBot) {
+    formatted.isPrimary = true;
+  }
+
   store.bots[formatted.botId] = formatted;
-  if (formatted.isPrimary || Object.keys(store.bots).length === 1) {
+  if (formatted.isPrimary || isFirstBot) {
     store.activeToken = formatted.token;
     store.bot = {
       username: formatted.username,
       name: formatted.name,
       id: formatted.id,
+      botId: formatted.botId,
+      status: formatted.status,
+      isPrimary: true,
       source: 'database',
       lastActivatedAt: formatted.lastActivatedAt
     };
+    Object.values(store.bots).forEach(b => {
+      if (b.botId !== formatted.botId) b.isPrimary = false;
+    });
   }
   writeBotStore(store);
   cachedBotConfig = null;
@@ -367,14 +327,117 @@ export async function removeConnectedBot(botId) {
   if (!target) throw new Error('Bot not found');
   
   try {
-    await callTelegram('deleteWebhook', { drop_pending_updates: false }, target.token);
+    await callTelegram('deleteWebhook', { drop_pending_updates: true }, target.token);
   } catch (_) {}
 
+  // 1. Delete bot from store.bots
   delete store.bots[target.botId];
+  delete store.bots[target.id];
+  if (target.username) {
+    delete store.bots[target.username.toLowerCase()];
+  }
+
+  // 2. If target was primary or active token, promote next available bot
+  const remainingBots = Object.values(store.bots).map(formatBotRecord).filter(Boolean);
+  const wasActive = target.isPrimary || (store.activeToken && store.activeToken === target.token) || (store.bot && (store.bot.id === target.id || store.bot.botId === target.botId));
+  if (wasActive) {
+    const nextPrimary = remainingBots.find(b => b.status === 'active') || remainingBots[0] || null;
+    if (nextPrimary) {
+      if (store.bots[nextPrimary.botId]) store.bots[nextPrimary.botId].isPrimary = true;
+      store.activeToken = nextPrimary.token;
+      store.bot = {
+        username: nextPrimary.username,
+        name: nextPrimary.name,
+        id: nextPrimary.id,
+        botId: nextPrimary.botId,
+        status: nextPrimary.status,
+        isPrimary: true,
+        source: 'database',
+        lastActivatedAt: nextPrimary.lastActivatedAt
+      };
+    } else {
+      store.activeToken = '';
+      store.bot = null;
+    }
+  }
+
+  // 3. Purge all subscriber & user data associated with this deleted bot
+  if (store.users && typeof store.users === 'object') {
+    const tCanon = target.botId.toLowerCase();
+    const tId = target.id.toLowerCase();
+    const tUname = target.username ? target.username.toLowerCase() : '';
+    const adminIds = getAdminChatIds();
+
+    for (const [uid, u] of Object.entries(store.users)) {
+      if (!u) continue;
+
+      if (u.bots && typeof u.bots === 'object') {
+        for (const bKey of Object.keys(u.bots)) {
+          const kClean = bKey.toLowerCase();
+          if (kClean === tCanon || kClean === tId || kClean === `bot_${tId}` || (tUname && kClean === tUname)) {
+            delete u.bots[bKey];
+          }
+        }
+      }
+
+      if (Array.isArray(u.sourceBotIds)) {
+        u.sourceBotIds = u.sourceBotIds.filter(bid => {
+          const bClean = String(bid).toLowerCase();
+          return bClean !== tCanon && bClean !== tId && bClean !== `bot_${tId}` && (!tUname || bClean !== tUname);
+        });
+      }
+
+      const remainingUserBots = u.bots && typeof u.bots === 'object' ? Object.keys(u.bots) : [];
+      const userSourceBot = String(u.sourceBotId || '').toLowerCase();
+      const userLastBot = String(u.lastBotId || '').toLowerCase();
+      const isDeletedSource = (userSourceBot === tCanon || userSourceBot === tId || userSourceBot === `bot_${tId}` || (tUname && userSourceBot === tUname));
+      const isDeletedLast = (userLastBot === tCanon || userLastBot === tId || userLastBot === `bot_${tId}` || (tUname && userLastBot === tUname));
+
+      if (remainingUserBots.length > 0) {
+        if (isDeletedSource || isDeletedLast) {
+          const firstKey = remainingUserBots[0];
+          const firstVal = u.bots[firstKey];
+          u.sourceBotId = firstVal?.botId || firstKey;
+          u.sourceBotUsername = firstVal?.botUsername || firstVal?.username || '';
+          u.lastBotId = u.sourceBotId;
+        }
+      } else {
+        // User solely belonged to the deleted bot. If not an admin, delete cleanly!
+        if (!adminIds.includes(String(uid))) {
+          delete store.users[uid];
+        }
+      }
+    }
+  }
+
+  // 4. Reset admin profiles assigned to this deleted bot
+  if (store.adminProfiles && typeof store.adminProfiles === 'object') {
+    for (const p of Object.values(store.adminProfiles)) {
+      if (p && (p.assignedBotId === target.botId || p.assignedBotId === target.id)) {
+        p.assignedBotId = 'all';
+        p.assignedBotUsername = 'All Fleet Bots';
+        p.role = 'Order Proof Alerts & Instant Approve/Reject Buttons Across All Bots';
+      }
+    }
+  }
+
+  // 5. Recalculate subscribersCount for remaining bots
+  if (store.users && typeof store.users === 'object') {
+    const remainingUsers = Object.values(store.users);
+    for (const b of Object.values(store.bots)) {
+      b.subscribersCount = remainingUsers.filter(u => doesUserBelongToFleetBot(u, b, remainingBots)).length;
+    }
+  }
+
   writeBotStore(store);
   cachedBotConfig = null;
 
-  await syncBotsToSupabase(store.bots);
+  // 6. Guarantee Supabase sync for both bots and users
+  await Promise.all([
+    syncBotsToSupabase(store.bots),
+    syncUsersToSupabase(store.users)
+  ]);
+
   return true;
 }
 
@@ -574,15 +637,21 @@ export async function getActiveBotConfig(forceRefresh = false) {
     return cachedBotConfig;
   }
 
-  const primaryBot = getBotByIdOrToken();
-  const token = (primaryBot?.token || process.env.TELEGRAM_BOT_TOKEN || '8923608774:AAFhvO4Yzly7toIf5qoI-TSW4EzVzWCdVlE').trim();
+  const allBots = getConnectedBots();
+  const primaryBot = allBots.find(b => b.status === 'active' && b.isPrimary) ||
+                     allBots.find(b => b.status === 'active') ||
+                     allBots.find(b => b.isPrimary) ||
+                     allBots[0] ||
+                     null;
+
+  const token = (primaryBot?.token || process.env.TELEGRAM_BOT_TOKEN || '').trim();
 
   cachedBotConfig = {
     token,
-    username: primaryBot?.username || 'Myshop9876_bot',
-    name: primaryBot?.name || 'LinkAdda Store Bot',
-    botId: String(primaryBot?.id || '8923608774'),
-    source: 'multi_bot_store',
+    username: primaryBot?.username || '',
+    name: primaryBot?.name || (primaryBot ? 'LinkAdda Bot' : 'No Bot Configured'),
+    botId: primaryBot?.botId || (primaryBot?.id ? `bot_${primaryBot.id}` : ''),
+    source: primaryBot ? 'multi_bot_store' : 'none',
     lastActivatedAt: primaryBot?.lastActivatedAt || null,
     updatedAt: now
   };
@@ -1128,7 +1197,7 @@ export async function getAllBotUsers() {
     }
 
     const allBots = getConnectedBots();
-    const primaryBot = allBots.find(b => b.isPrimary) || allBots[0] || { botId: 'bot_8923608774', username: 'Myshop9876_bot' };
+    const primaryBot = allBots.find(b => b.isPrimary) || allBots[0] || null;
 
     const users = Object.values(usersMap).filter(u => {
       if (!u || !u.id) return false;
@@ -1528,10 +1597,10 @@ export async function notifyAdminsNewOrder(order) {
     }
   }
 
-  const primaryBot = allBots.find(b => b.isPrimary) || allBots[0] || { botId: 'bot_8923608774', username: 'Myshop9876_bot', token: store.activeToken };
+  const primaryBot = allBots.find(b => b.isPrimary) || allBots[0] || null;
   const isRealBotOrder = Boolean(rawBotId || customerTgId);
   if (!originatingBot) originatingBot = primaryBot;
-  const originatingToken = originatingBot?.token || primaryBot.token;
+  const originatingToken = originatingBot?.token || primaryBot?.token || store.activeToken || process.env.TELEGRAM_BOT_TOKEN || '';
 
   // Persist resolved bot onto order data ONLY if it originated from a real bot
   if (isRealBotOrder) {
@@ -1981,7 +2050,7 @@ async function processOrderApproval(orderId, adminUser, triggerMessage = null) {
   // ━━ LIVE SYNC: Update all Telegram Admin Messages for this Order ━━
   await syncBotsFromSupabase().catch(() => {});
   let allBots = getConnectedBots();
-  const primaryBot = allBots.find(b => b.isPrimary) || allBots[0] || { botId: 'bot_8923608774', username: 'Myshop9876_bot', token: store.activeToken };
+  const primaryBot = allBots.find(b => b.isPrimary) || allBots[0] || null;
   const customerTgId = order?.telegram_user_id || order?.data?.telegramUserId || order?.telegramUserId;
   const userRecord = customerTgId ? store.users?.[String(customerTgId)] : null;
   const rawBotId = order?.source_bot_id || order?.sourceBotId || order?.data?.source_bot_id || order?.data?.sourceBotId || userRecord?.lastBotId || userRecord?.sourceBotId || null;
@@ -1996,7 +2065,7 @@ async function processOrderApproval(orderId, adminUser, triggerMessage = null) {
     }
   }
   if (!deliveryBot) deliveryBot = primaryBot;
-  const deliveryToken = deliveryBot?.token || primaryBot.token;
+  const deliveryToken = deliveryBot?.token || primaryBot?.token || store.activeToken || process.env.TELEGRAM_BOT_TOKEN || '';
 
   try {
     const adminMsgs = [...(store.orderAdminMessages?.[orderId] || [])];
@@ -2154,7 +2223,7 @@ async function processOrderRejection(orderId, adminUser, triggerMessage = null) 
   // ━━ LIVE SYNC: Update all Telegram Admin Messages for this Order ━━
   await syncBotsFromSupabase().catch(() => {});
   let allBots = getConnectedBots();
-  const primaryBot = allBots.find(b => b.isPrimary) || allBots[0] || { botId: 'bot_8923608774', username: 'Myshop9876_bot', token: store.activeToken };
+  const primaryBot = allBots.find(b => b.isPrimary) || allBots[0] || null;
   const rawBotId = order?.source_bot_id || order?.sourceBotId || order?.data?.source_bot_id || order?.data?.sourceBotId || null;
   let deliveryBot = null;
   if (rawBotId) {
@@ -2162,7 +2231,7 @@ async function processOrderRejection(orderId, adminUser, triggerMessage = null) 
     deliveryBot = allBots.find(b => b.botId.toLowerCase() === cleanId || b.id === cleanId || (b.username && b.username.toLowerCase() === cleanId));
   }
   if (!deliveryBot) deliveryBot = primaryBot;
-  const deliveryToken = deliveryBot?.token || primaryBot.token;
+  const deliveryToken = deliveryBot?.token || primaryBot?.token || store.activeToken || process.env.TELEGRAM_BOT_TOKEN || '';
 
   try {
     const adminMsgs = [...(store.orderAdminMessages?.[orderId] || [])];
@@ -2664,7 +2733,7 @@ export default async function handler(req, res) {
     await syncBotsFromSupabase(true).catch(() => {});
     const appUrl = getAppUrl(req);
     const allBots = getConnectedBots();
-    const primaryBot = allBots.find(b => b.isPrimary) || allBots[0] || { botId: 'bot_8923608774', username: 'Myshop9876_bot' };
+    const primaryBot = allBots.find(b => b.status === 'active' && b.isPrimary) || allBots.find(b => b.status === 'active') || allBots[0] || null;
 
     let lastHookRes = null;
     let registeredCount = 0;
@@ -2689,15 +2758,17 @@ export default async function handler(req, res) {
       }, b.token).catch(() => {});
     }
 
-    const webhookInfo = await callTelegram('getWebhookInfo', {}, primaryBot.token).catch(() => null);
+    const hookToken = primaryBot?.token || store.activeToken;
+    const webhookInfo = hookToken ? await callTelegram('getWebhookInfo', {}, hookToken).catch(() => null) : null;
+    const primaryHookUrl = primaryBot ? `${appUrl}/api/telegram/bot?botId=${primaryBot.botId}` : `${appUrl}/api/telegram/bot`;
     const hookData = (webhookInfo && webhookInfo.ok && webhookInfo.result) 
       ? webhookInfo.result 
-      : { url: `${appUrl}/api/telegram/bot?botId=${primaryBot.botId}`, pending_update_count: 0 };
+      : { url: primaryHookUrl, pending_update_count: 0 };
 
     return res.status(200).json({ 
       ok: true, 
       registeredCount,
-      webhookUrl: `${appUrl}/api/telegram/bot?botId=${primaryBot.botId}`, 
+      webhookUrl: primaryHookUrl, 
       result: lastHookRes, 
       webhook: hookData 
     });
@@ -2771,7 +2842,7 @@ export default async function handler(req, res) {
     try {
       const cfg = await getActiveBotConfig();
       const appUrl = getAppUrl(req);
-      const expectedWebhook = `${appUrl}/api/telegram/bot?botId=${cfg.botId || 'bot_8923608774'}`;
+      const expectedWebhook = cfg.botId ? `${appUrl}/api/telegram/bot?botId=${cfg.botId}` : `${appUrl}/api/telegram/bot`;
       // Fast cached webhook info (<0.1ms) - refresh asynchronously in background
       let hookData = _cachedWebhookData;
       if (!hookData || (Date.now() - _cachedWebhookDataTime > 60000)) {
@@ -3105,8 +3176,8 @@ export default async function handler(req, res) {
     try {
       const { botId } = req.body || {};
       const target = getBotByIdOrToken(botId);
-      if (target?.isPrimary) {
-        return res.status(400).json({ ok: false, error: 'Cannot delete primary default bot. You can toggle its status or switch primary first.' });
+      if (!target) {
+        return res.status(404).json({ ok: false, error: 'Bot not found in fleet.' });
       }
       await removeConnectedBot(botId);
       return res.status(200).json({
@@ -3493,10 +3564,10 @@ export default async function handler(req, res) {
 
       const store = readBotStore();
       const allFleetBots = getConnectedBots();
-      const primaryBot = allFleetBots.find(b => b.isPrimary) || allFleetBots[0] || { botId: 'bot_8923608774', username: 'Myshop9876_bot', token: store.activeToken };
-      const currentToken = receivingBot?.token || primaryBot?.token || store.activeToken || process.env.TELEGRAM_BOT_TOKEN;
-      const currentBotId = receivingBot?.botId || primaryBot?.botId || 'bot_8923608774';
-      const currentBotUsername = receivingBot?.username || primaryBot?.username || 'Myshop9876_bot';
+      const primaryBot = allFleetBots.find(b => b.status === 'active' && b.isPrimary) || allFleetBots.find(b => b.status === 'active') || allFleetBots[0] || null;
+      const currentToken = receivingBot?.token || primaryBot?.token || store.activeToken || process.env.TELEGRAM_BOT_TOKEN || '';
+      const currentBotId = receivingBot?.botId || primaryBot?.botId || (receivingBot?.id ? `bot_${receivingBot.id}` : '');
+      const currentBotUsername = receivingBot?.username || primaryBot?.username || '';
 
       // Maintenance notice if bot is marked inactive
       if (receivingBot && receivingBot.status === 'inactive') {

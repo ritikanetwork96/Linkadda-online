@@ -7044,30 +7044,8 @@ let _tgBotData = {
   botUserFilter: 'all',
   sourceFilter: 'all',
   userViewMode: 'table',
-  bot: {
-    id: '8923608774',
-    botId: 'bot_8923608774',
-    username: 'Myshop9876_bot',
-    name: 'LinkAdda Store Bot',
-    status: 'active',
-    isPrimary: true,
-    source: 'database',
-    maskedToken: '892360...dVlE',
-    lastActivatedAt: null
-  },
-  bots: [
-    {
-      id: '8923608774',
-      botId: 'bot_8923608774',
-      token: '8923608774:AAFhvO4Yzly7toIf5qoI-TSW4EzVzWCdVlE',
-      username: 'Myshop9876_bot',
-      name: 'LinkAdda Store Bot',
-      status: 'active',
-      isPrimary: true,
-      maskedToken: '892360...dVlE',
-      subscribersCount: _tgCachedUsers.length
-    }
-  ],
+  bot: null,
+  bots: [],
   webhook: { url: 'https://linkadda-online.onrender.com/api/telegram/bot', pending_update_count: 0 },
   users: _tgCachedUsers,
   usersCount: _tgCachedUsers.length,
@@ -7230,8 +7208,7 @@ async function loadTelegramBotAdminFullData(force = false) {
     if (Array.isArray(sbSettingsRes)) {
       const botsRow = sbSettingsRes.find(r => r.key === 'tg_connected_bots');
       if (botsRow && botsRow.value && typeof botsRow.value === 'object') {
-        const liveBots = Object.values(botsRow.value).filter(Boolean);
-        if (liveBots.length > 0) _tgBotData.bots = liveBots;
+        _tgBotData.bots = Object.values(botsRow.value).filter(Boolean);
       }
 
       const adminsRow = sbSettingsRes.find(r => r.key === 'tg_admin_chat_ids');
@@ -7363,26 +7340,6 @@ async function loadTelegramBotAdminFullData(force = false) {
     if (_tgBotData.bot) registerFleetBot({ ..._tgBotData.bot, isPrimary: true });
     (_tgBotData.bots || []).forEach(b => registerFleetBot(b));
 
-    // Discover any bot from users
-    unifiedList.forEach(u => {
-      if (u && u.bots && typeof u.bots === 'object') {
-        Object.entries(u.bots).forEach(([k, v]) => {
-          registerFleetBot({
-            id: v?.botId || k,
-            username: v?.botUsername || v?.username || k.replace(/^bot_/, ''),
-            isPrimary: false
-          });
-        });
-      }
-      if (u && u.sourceBotUsername) {
-        registerFleetBot({
-          id: u.sourceBotId || u.sourceBotUsername,
-          username: u.sourceBotUsername,
-          isPrimary: false
-        });
-      }
-    });
-
     const distinctBots = [];
     const seenIds = new Set();
     Object.values(botMap).forEach(b => {
@@ -7397,8 +7354,11 @@ async function loadTelegramBotAdminFullData(force = false) {
         b.subscribersCount = unifiedList.filter(u => userBelongsToBot(u, b)).length;
       });
       _tgBotData.bots = distinctBots;
-      const activeBot = distinctBots[0];
-      _tgBotData.bot = { ...(_tgBotData.bot || {}), ...activeBot };
+      const primaryBot = distinctBots.find(b => b.isPrimary) || distinctBots[0];
+      _tgBotData.bot = { ...primaryBot };
+    } else {
+      _tgBotData.bots = [];
+      _tgBotData.bot = null;
     }
 
     try {
@@ -7461,24 +7421,28 @@ function updateTelegramBotLiveUI() {
   const activeTokenCode = document.getElementById('tgActiveTokenCode');
 
   if (activeTokenCode) {
-    activeTokenCode.textContent = bot.maskedToken || (bot.id ? `${bot.id}:...` : '892360...dVlE');
+    activeTokenCode.textContent = bot.maskedToken || (bot.id ? `${bot.id}:...` : 'No Token Configured');
   }
 
   if (usernameEl) {
     if (bot.username) {
       usernameEl.innerHTML = `<a href="https://t.me/${escapeHtml(bot.username)}" target="_blank" style="color: #38bdf8; text-decoration: none; display: inline-flex; align-items: center; gap: 4px;">@${escapeHtml(bot.username)} <i data-lucide="external-link" style="width: 13px; height: 13px;"></i></a>`;
     } else {
-      usernameEl.textContent = bot.name || 'Bot Connected';
+      usernameEl.textContent = bot.name || (fleetBots.length ? `${fleetBots.length} Connected Bots` : 'No Bot Connected');
     }
   }
 
-  if (openBotBtn && bot.username) {
-    openBotBtn.href = `https://t.me/${escapeHtml(bot.username)}`;
-    openBotBtn.style.display = 'inline-flex';
+  if (openBotBtn) {
+    if (bot.username) {
+      openBotBtn.href = `https://t.me/${escapeHtml(bot.username)}`;
+      openBotBtn.style.display = 'inline-flex';
+    } else {
+      openBotBtn.style.display = 'none';
+    }
   }
 
   if (idEl) {
-    idEl.textContent = `Bot ID: ${bot.id || '8923608774'} · Token: ${bot.maskedToken || '892360...dVlE'} (${bot.source === 'database' || bot.source === 'hot_swap' ? 'Dynamic Hot-Swap' : 'Active'})`;
+    idEl.textContent = bot.id ? `Bot ID: ${bot.id} · Token: ${bot.maskedToken || '***'} (${bot.source === 'database' || bot.source === 'hot_swap' ? 'Dynamic Hot-Swap' : 'Active'})` : 'No Active Bot Configured';
   }
 
   if (badgeEl) {
@@ -8085,96 +8049,7 @@ function renderTelegramUsersTableList(users = [], filter = '') {
   `;
 }
 
-function renderTelegramBotControlSection(settings = {}) {
-  const bot = _tgBotData.bot || { username: 'Myshop9876_bot', name: 'LinkAdda Store Bot', id: '8923608774', maskedToken: '892360...dVlE' };
-  const webhook = _tgBotData.webhook || {};
-  const usersCount = _tgBotData.usersCount || (_tgBotData.users || []).length;
-  const isHookConnected = Boolean(webhook.url);
-  const admins = (_tgBotData.admins && _tgBotData.admins.length) ? _tgBotData.admins : [];
 
-  return `
-    <section class="panel glass" style="padding: 24px 28px; border-radius: 16px; border: 1px solid rgba(99, 102, 241, 0.35); background: linear-gradient(135deg, rgba(99, 102, 241, 0.05) 0%, rgba(15, 23, 42, 0.6) 100%); margin-bottom: 24px;">
-      
-      <!-- Top Banner directing to the dedicated full page -->
-      <div style="background: linear-gradient(135deg, rgba(99, 102, 241, 0.15), rgba(56, 189, 248, 0.15)); border: 1px solid rgba(99, 102, 241, 0.3); border-radius: 12px; padding: 14px 18px; margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap;">
-        <div style="display: flex; align-items: center; gap: 12px;">
-          <div style="width: 36px; height: 36px; border-radius: 10px; background: linear-gradient(135deg, #0088cc, #6366f1); display: flex; align-items: center; justify-content: center; color: white; flex-shrink: 0;">
-            <i data-lucide="bot" style="width: 20px; height: 20px;"></i>
-          </div>
-          <div>
-            <strong style="color: #a5b4fc; font-size: 14.5px; display: block;">Dedicated Telegram Bot & Users Dashboard Ready</strong>
-            <span style="font-size: 12px; color: var(--muted);">View all bot subscribers (${usersCount} users), dispatch mass broadcasts, and manage live bot operations in the dedicated section.</span>
-          </div>
-        </div>
-        <a href="#/telegram" data-route="telegram" class="btn btn-primary btn-sm" style="background: linear-gradient(135deg, #6366f1, #0284c7) !important; color: white !important; font-weight: 700; padding: 8px 18px; border-radius: 8px; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);">
-          <i data-lucide="external-link" style="width: 14px; height: 14px;"></i> Open Bot & Users Page →
-        </a>
-      </div>
-
-      <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.06);">
-        <div style="display: flex; align-items: center; gap: 10px;">
-          <div style="width: 34px; height: 34px; border-radius: 8px; background: linear-gradient(135deg, #0088cc, #6366f1); display: flex; align-items: center; justify-content: center; color: white;">
-            <i data-lucide="bot" style="width: 18px; height: 18px;"></i>
-          </div>
-          <div>
-            <h3 style="margin: 0; font-size: 16px; font-weight: 700; color: var(--text);">Telegram Bot & Instant Hot-Swap Center</h3>
-            <p style="margin: 2px 0 0 0; font-size: 12px; color: var(--muted);">If your bot is ever banned or changed, switch it here in 10 seconds with zero downtime.</p>
-          </div>
-        </div>
-        <div style="display: flex; gap: 8px;">
-          <button class="btn btn-ghost btn-sm" type="button" data-action="refresh-tg-bot" style="font-size: 12px; padding: 6px 12px; border: 1px solid var(--border);">
-            <i data-lucide="refresh-cw" style="width: 12px; height: 12px;"></i> Refresh
-          </button>
-          <button class="btn btn-ghost btn-sm" type="button" data-action="test-tg-bot" style="font-size: 12px; padding: 6px 12px; border: 1px solid rgba(99, 102, 241, 0.4); color: #a5b4fc;">
-            <i data-lucide="send" style="width: 12px; height: 12px;"></i> Test Ping
-          </button>
-        </div>
-      </div>
-
-      <!-- Quick 3 Stats -->
-      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 18px;">
-        <div style="background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px;">
-          <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--muted);">Active Bot</div>
-          <div style="font-size: 15px; font-weight: 800; color: #38bdf8; margin-top: 4px;">
-            <a href="https://t.me/${escapeHtml(bot.username || 'Myshop9876_bot')}" target="_blank" style="color: #38bdf8; text-decoration: none;">@${escapeHtml(bot.username || 'Myshop9876_bot')}</a>
-          </div>
-          <small style="color: var(--muted); font-size: 11px;">Bot ID: ${escapeHtml(bot.id || '8923608774')}</small>
-        </div>
-
-        <div style="background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px;">
-          <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--muted);">Webhook Status</div>
-          <div id="tgWebhookStatusSettings" style="font-size: 14px; font-weight: 700; color: ${isHookConnected ? '#10b981' : '#f59e0b'}; margin-top: 4px; display: flex; align-items: center; gap: 6px;">
-            ${isHookConnected 
-              ? `<span style="color:#10b981;">✅ Connected</span>` 
-              : `<span style="color:#f59e0b;">⚠️ Pending</span> <button type="button" data-action="resync-tg-webhook" class="btn btn-primary btn-sm" style="font-size: 11px; padding: 2px 8px; border-radius: 6px; background: #6366f1 !important; color: white !important;">⚡ Activate Now</button>`}
-          </div>
-          <small style="color: var(--muted); font-size: 11px;">Pending updates: ${webhook.pending_update_count ?? 0}</small>
-        </div>
-
-        <div style="background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px;">
-          <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--muted);">Admin Chat IDs</div>
-          <div style="font-size: 14px; font-weight: 800; color: #f59e0b; margin-top: 4px;">${escapeHtml(admins.join(', ') || 'None configured')}</div>
-          <small style="color: var(--muted); font-size: 11px;">Alerts dispatch to both admins</small>
-        </div>
-      </div>
-
-      <!-- Hot-Swap Input -->
-      <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 12px;">
-        <input type="text" id="hotSwapBotTokenInputSettings" placeholder="Enter New Bot Token from @BotFather" class="input" style="flex: 1; min-width: 240px; padding: 10px 14px; font-size: 13px; font-family: monospace;" />
-        <button type="button" data-action="activate-new-tg-bot" class="btn btn-primary" style="padding: 10px 18px; font-weight: 700; font-size: 13px; border-radius: 8px; background: linear-gradient(135deg, #6366f1, #8b5cf6) !important; color: white !important;">
-          <i data-lucide="zap" style="width: 14px; height: 14px;"></i> Switch & Activate
-        </button>
-      </div>
-
-      <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11.5px; color: var(--muted);">
-        <span>Instant switch: updates webhook & Mini App menu button automatically.</span>
-        <button type="button" data-action="resync-tg-webhook" class="btn btn-ghost btn-sm" style="font-size: 11.5px; padding: 3px 8px; color: #38bdf8;">
-          <i data-lucide="refresh-cw" style="width: 11px; height: 11px;"></i> Re-sync Webhook
-        </button>
-      </div>
-    </section>
-  `;
-}
 
 function renderTelegramBotsFleetCards(bots = []) {
   const fleet = (Array.isArray(bots) && bots.length) ? bots : [_tgBotData.bot].filter(Boolean);
@@ -8391,8 +8266,8 @@ function renderTelegramAdminsCards(admins = []) {
 
 function renderTelegramBotPageView(data = {}) {
   const activeTab = _tgBotData.activeTab || 'tgTabUsers';
-  const bot = _tgBotData.bot || { username: 'Myshop9876_bot', name: 'LinkAdda Store Bot', id: '8923608774', maskedToken: '892360...dVlE' };
-  const bots = (_tgBotData.bots && _tgBotData.bots.length) ? _tgBotData.bots : [bot];
+  const bots = (_tgBotData.bots && _tgBotData.bots.length) ? _tgBotData.bots : ([_tgBotData.bot].filter(Boolean));
+  const bot = _tgBotData.bot || bots[0] || { username: '', name: 'Telegram Bot', id: '', maskedToken: '***' };
   const admins = (_tgBotData.admins && _tgBotData.admins.length) ? _tgBotData.admins : [];
   const webhook = _tgBotData.webhook || {};
   const users = _tgBotData.users || [];
@@ -9029,8 +8904,6 @@ function renderSettingsManagementView(data = {}, fullData = {}) {
           </div>
         </section>
 
-        <!-- Telegram Bot Management & Instant Hot-Swap Center -->
-        ${renderTelegramBotControlSection(settings)}
 
         <!-- 3. Currency & Pricing -->
         <section class="panel glass" style="padding: 24px 28px; border-radius: 16px; border: 1px solid var(--border);">
