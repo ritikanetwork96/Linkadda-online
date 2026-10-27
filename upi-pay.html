@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Opening UPI Payment · LinkAdda</title>
+  <meta name="theme-color" content="#0c0d14" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+  <style>
+    :root {
+      --bg: #0c0d14;
+      --card: #141522;
+      --border: rgba(255, 255, 255, 0.09);
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --accent: #5f259f;
+      --emerald: #10b981;
+      --gold: #fbbf24;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+    body {
+      background-color: var(--bg);
+      background-image: 
+        radial-gradient(circle at 50% 0%, rgba(95, 37, 159, 0.22), transparent 55%),
+        radial-gradient(circle at 100% 100%, rgba(16, 185, 129, 0.12), transparent 45%);
+      color: var(--text);
+      font-family: 'Outfit', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 20px 16px;
+    }
+    .pay-card {
+      width: 100%;
+      max-width: 440px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 28px 22px;
+      text-align: center;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.04);
+      position: relative;
+      overflow: hidden;
+    }
+    .pay-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, #5f259f, #ec4899, #10b981);
+    }
+    .brand-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 5px 12px;
+      border-radius: 30px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      color: #cbd5e1;
+      margin-bottom: 20px;
+      text-transform: uppercase;
+    }
+    .brand-pill i {
+      color: var(--emerald);
+    }
+    .app-icon-wrap {
+      width: 76px;
+      height: 76px;
+      border-radius: 20px;
+      margin: 0 auto 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #5f259f;
+      box-shadow: 0 10px 25px rgba(95, 37, 159, 0.45);
+      position: relative;
+    }
+    .app-icon-wrap.gpay {
+      background: #ffffff;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.35);
+    }
+    .app-icon-wrap.paytm {
+      background: #002970;
+      box-shadow: 0 10px 25px rgba(0, 41, 112, 0.45);
+    }
+    .app-icon-wrap.upi {
+      background: rgba(16, 185, 129, 0.15);
+      border: 2px solid var(--emerald);
+      box-shadow: 0 10px 25px rgba(16, 185, 129, 0.25);
+    }
+    .app-icon-wrap img {
+      width: 48px;
+      height: 48px;
+      object-fit: contain;
+    }
+    .pulse-ring {
+      position: absolute;
+      inset: -6px;
+      border-radius: 26px;
+      border: 2px solid rgba(16, 185, 129, 0.5);
+      animation: pulseAnim 2s infinite ease-out;
+      pointer-events: none;
+    }
+    @keyframes pulseAnim {
+      0% { transform: scale(0.96); opacity: 0.9; }
+      50% { transform: scale(1.08); opacity: 0.3; }
+      100% { transform: scale(0.96); opacity: 0.9; }
+    }
+    .pay-title {
+      font-size: 20px;
+      font-weight: 800;
+      color: #ffffff;
+      margin-bottom: 6px;
+    }
+    .pay-sub {
+      font-size: 13.5px;
+      color: var(--muted);
+      margin-bottom: 18px;
+    }
+    .amount-box {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px dashed rgba(255, 255, 255, 0.15);
+      border-radius: 16px;
+      padding: 14px 18px;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .amount-label {
+      font-size: 13px;
+      font-weight: 600;
+      color: #94a3b8;
+    }
+    .amount-val {
+      font-size: 26px;
+      font-weight: 900;
+      color: #34d399;
+      letter-spacing: -0.5px;
+    }
+    .btn-main-launch {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      width: 100%;
+      padding: 15px 20px;
+      border-radius: 14px;
+      background: linear-gradient(135deg, #5f259f 0%, #8b5cf6 100%);
+      color: #ffffff;
+      text-decoration: none;
+      font-size: 15px;
+      font-weight: 800;
+      box-shadow: 0 8px 24px rgba(95, 37, 159, 0.45);
+      transition: all 0.2s ease;
+      margin-bottom: 12px;
+      border: none;
+      cursor: pointer;
+    }
+    .btn-main-launch:active {
+      transform: scale(0.98);
+    }
+    .btn-main-launch.gpay {
+      background: linear-gradient(135deg, #1a73e8 0%, #4285f4 100%);
+      box-shadow: 0 8px 24px rgba(26, 115, 232, 0.45);
+    }
+    .btn-main-launch.paytm {
+      background: linear-gradient(135deg, #002970 0%, #00b9f5 100%);
+      box-shadow: 0 8px 24px rgba(0, 185, 245, 0.4);
+    }
+    .btn-main-launch.upi {
+      background: linear-gradient(135deg, #059669 0%, #10b981 100%);
+      box-shadow: 0 8px 24px rgba(16, 185, 129, 0.45);
+    }
+    .btn-secondary {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      width: 100%;
+      padding: 12px 16px;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: #e2e8f0;
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 700;
+      transition: all 0.2s;
+      margin-bottom: 10px;
+      cursor: pointer;
+    }
+    .btn-secondary:hover, .btn-secondary:active {
+      background: rgba(255, 255, 255, 0.09);
+    }
+    .upi-id-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 10px 14px;
+      border-radius: 12px;
+      background: rgba(0, 0, 0, 0.35);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      margin-top: 14px;
+      margin-bottom: 16px;
+    }
+    .upi-id-text {
+      font-family: monospace;
+      font-size: 13px;
+      color: #f1f5f9;
+      font-weight: 700;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .btn-copy {
+      padding: 6px 12px;
+      border-radius: 8px;
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      color: #34d399;
+      font-size: 11.5px;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      flex-shrink: 0;
+      transition: all 0.2s;
+    }
+    .qr-toggle-btn {
+      font-size: 12px;
+      color: #94a3b8;
+      background: none;
+      border: none;
+      text-decoration: underline;
+      cursor: pointer;
+      margin-top: 8px;
+    }
+    .qr-container {
+      display: none;
+      margin-top: 14px;
+      padding: 14px;
+      border-radius: 16px;
+      background: #ffffff;
+      width: 190px;
+      margin-left: auto;
+      margin-right: auto;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+    }
+    .qr-container canvas, .qr-container img {
+      width: 100% !important;
+      height: auto !important;
+      display: block;
+    }
+    .btn-return {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 14px;
+      color: #94a3b8;
+      text-decoration: none;
+      font-size: 12.5px;
+      font-weight: 600;
+      transition: color 0.2s;
+    }
+    .btn-return:hover {
+      color: #ffffff;
+    }
+    .toast-msg {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #10b981;
+      color: #ffffff;
+      font-size: 13px;
+      font-weight: 700;
+      padding: 10px 20px;
+      border-radius: 30px;
+      box-shadow: 0 10px 25px rgba(16, 185, 129, 0.4);
+      display: none;
+      z-index: 999;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="pay-card">
+    <div class="brand-pill">
+      <i class="fa-solid fa-shield-halved"></i>
+      <span>LinkAdda Secure Pay</span>
+    </div>
+
+    <div class="app-icon-wrap" id="appIconWrap">
+      <div class="pulse-ring"></div>
+      <img id="appIconImg" src="images/phonepe.svg" alt="PhonePe" />
+    </div>
+
+    <h1 class="pay-title" id="payTitle">Opening PhonePe...</h1>
+    <p class="pay-sub" id="paySub">Your payment is being prepared with auto-filled amount.</p>
+
+    <div class="amount-box">
+      <span class="amount-label">Amount Payable:</span>
+      <span class="amount-val" id="displayAmount">₹0.00</span>
+    </div>
+
+    <!-- Direct Launch Button (Native click target) -->
+    <a href="#" id="mainLaunchBtn" class="btn-main-launch">
+      <i class="fa-solid fa-arrow-up-right-from-square"></i>
+      <span id="mainBtnText">Tap to Open PhonePe Now</span>
+    </a>
+
+    <!-- Fallback App Options -->
+    <a href="#" id="anyUpiBtn" class="btn-secondary">
+      <i class="fa-solid fa-bolt"></i> Pay with Any Other UPI App
+    </a>
+
+    <div class="upi-id-bar">
+      <span class="upi-id-text" id="upiIdVal">—</span>
+      <button type="button" class="btn-copy" id="copyBtn" onclick="copyUpiId()">
+        <i class="fa-solid fa-copy"></i> Copy
+      </button>
+    </div>
+
+    <button type="button" class="qr-toggle-btn" id="qrToggle" onclick="toggleQr()">
+      <i class="fa-solid fa-qrcode"></i> Show Payment QR Code
+    </button>
+    <div class="qr-container" id="qrContainer"></div>
+
+    <div>
+      <a href="javascript:void(0)" class="btn-return" onclick="returnToStore()">
+        <i class="fa-solid fa-arrow-left"></i> Done? Return to LinkAdda & Upload Proof
+      </a>
+    </div>
+  </div>
+
+  <div class="toast-msg" id="toastMsg">UPI ID copied!</div>
+
+  <script>
+    const urlParams = new URLSearchParams(window.location.search);
+    const app = (urlParams.get('app') || 'phonepe').toLowerCase();
+    const pa = urlParams.get('pa') || 'Ritikane@ptyes';
+    const pn = urlParams.get('pn') || 'LinkAdda Digital Market';
+    const cu = urlParams.get('cu') || 'INR';
+    const am = urlParams.get('am') || '';
+    const tn = urlParams.get('tn') || 'LinkAdda Digital Market';
+    const tr = urlParams.get('tr') || '';
+
+    // Update UI text
+    const displayAmountEl = document.getElementById('displayAmount');
+    if (displayAmountEl) {
+      displayAmountEl.textContent = am ? ('₹' + parseFloat(am).toFixed(2)) : '₹0.00';
+    }
+    const upiIdValEl = document.getElementById('upiIdVal');
+    if (upiIdValEl) {
+      upiIdValEl.textContent = pa;
+    }
+
+    const appConfig = {
+      phonepe: {
+        name: 'PhonePe',
+        icon: 'images/phonepe.svg',
+        className: 'phonepe',
+        btnClass: '',
+        pkg: 'com.phonepe.app',
+        iosScheme: 'phonepe://upi/pay?'
+      },
+      gpay: {
+        name: 'Google Pay',
+        icon: 'images/gpay.svg',
+        className: 'gpay',
+        btnClass: 'gpay',
+        pkg: 'com.google.android.apps.nbu.paisa.user',
+        iosScheme: 'gpay://upi/pay?'
+      },
+      paytm: {
+        name: 'Paytm',
+        icon: 'images/paytm.svg',
+        className: 'paytm',
+        btnClass: 'paytm',
+        pkg: 'net.one97.paytm',
+        iosScheme: 'paytmmp://pay?'
+      },
+      any: {
+        name: 'UPI App',
+        icon: 'images/upi.svg',
+        className: 'upi',
+        btnClass: 'upi',
+        pkg: '',
+        iosScheme: 'upi://pay?'
+      }
+    };
+
+    const cfg = appConfig[app] || appConfig.phonepe;
+
+    // Apply app branding
+    document.title = `Pay with ${cfg.name} · LinkAdda`;
+    const iconWrap = document.getElementById('appIconWrap');
+    const iconImg = document.getElementById('appIconImg');
+    const payTitle = document.getElementById('payTitle');
+    const mainBtn = document.getElementById('mainLaunchBtn');
+    const mainBtnText = document.getElementById('mainBtnText');
+
+    if (iconWrap && cfg.className) {
+      iconWrap.className = 'app-icon-wrap ' + cfg.className;
+    }
+    if (iconImg) {
+      iconImg.src = cfg.icon;
+      iconImg.alt = cfg.name;
+    }
+    if (payTitle) {
+      payTitle.textContent = `Opening ${cfg.name}...`;
+    }
+    if (mainBtn && cfg.btnClass) {
+      mainBtn.className = 'btn-main-launch ' + cfg.btnClass;
+    }
+    if (mainBtnText) {
+      mainBtnText.textContent = `Tap to Open ${cfg.name} Now`;
+    }
+
+    // Build standard UPI query
+    const upiParams = new URLSearchParams();
+    upiParams.set('pa', pa);
+    upiParams.set('pn', pn);
+    upiParams.set('cu', cu);
+    if (am) upiParams.set('am', am);
+    upiParams.set('tn', tn);
+    if (tr) upiParams.set('tr', tr);
+
+    const queryStr = upiParams.toString();
+    const genericUpiUri = `upi://pay?${queryStr}`;
+
+    // Target URI for specific app
+    const isAndroid = /android/i.test(navigator.userAgent);
+    const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+
+    let targetUri = genericUpiUri;
+    if (isAndroid) {
+      if (cfg.pkg) {
+        targetUri = `intent://pay?${queryStr}#Intent;scheme=upi;package=${cfg.pkg};end;`;
+      } else {
+        targetUri = `intent://pay?${queryStr}#Intent;scheme=upi;end;`;
+      }
+    } else if (isIOS) {
+      targetUri = cfg.iosScheme ? `${cfg.iosScheme}${queryStr}` : genericUpiUri;
+    }
+
+    // Configure direct buttons
+    if (mainBtn) {
+      mainBtn.href = targetUri;
+    }
+    const anyUpiBtn = document.getElementById('anyUpiBtn');
+    if (anyUpiBtn) {
+      anyUpiBtn.href = isAndroid ? `intent://pay?${queryStr}#Intent;scheme=upi;end;` : genericUpiUri;
+    }
+
+    // Instant auto-launch
+    function attemptAutoLaunch() {
+      try {
+        window.location.href = targetUri;
+      } catch (_) {}
+    }
+    // Fire immediately and after short delay if needed
+    attemptAutoLaunch();
+
+    // Copy UPI ID helper
+    function copyUpiId() {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(pa).then(showToast);
+      } else {
+        const input = document.createElement('input');
+        input.value = pa;
+        document.body.appendChild(input);
+        input.select();
+        document.execCommand('copy');
+        document.body.removeChild(input);
+        showToast();
+      }
+    }
+
+    function showToast() {
+      const toast = document.getElementById('toastMsg');
+      if (toast) {
+        toast.style.display = 'block';
+        setTimeout(() => { toast.style.display = 'none'; }, 2200);
+      }
+    }
+
+    // QR Code rendering
+    let qrRendered = false;
+    function toggleQr() {
+      const qrBox = document.getElementById('qrContainer');
+      const qrBtn = document.getElementById('qrToggle');
+      if (!qrBox) return;
+      if (qrBox.style.display === 'block') {
+        qrBox.style.display = 'none';
+        if (qrBtn) qrBtn.innerHTML = '<i class="fa-solid fa-qrcode"></i> Show Payment QR Code';
+      } else {
+        qrBox.style.display = 'block';
+        if (qrBtn) qrBtn.innerHTML = '<i class="fa-solid fa-xmark"></i> Hide QR Code';
+        if (!qrRendered && typeof window.QRCode === 'function') {
+          new QRCode(qrBox, {
+            text: genericUpiUri,
+            width: 190,
+            height: 190,
+            colorDark: '#000000',
+            colorLight: '#ffffff',
+            correctLevel: QRCode.CorrectLevel.M
+          });
+          qrRendered = true;
+        }
+      }
+    }
+
+    function returnToStore() {
+      if (window.history.length > 1) {
+        window.history.back();
+      } else {
+        window.location.href = 'payment.html' + (tr ? `?orderId=${encodeURIComponent(tr)}` : '');
+      }
+    }
+  </script>
+</body>
+</html>

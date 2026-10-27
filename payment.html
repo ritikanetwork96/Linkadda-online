@@ -1900,15 +1900,15 @@
           <div style="margin-bottom:14px;">
             <div style="font-size:11px;color:var(--muted);font-weight:700;letter-spacing:0.5px;text-transform:uppercase;text-align:center;margin-bottom:8px;">Tap App to Pay Instantly (Locked Amount):</div>
             <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:8px;">
-              <a href="#" class="upi-fast-app-btn" onclick="openUpiApp(event, 'gpay')" title="Pay with Google Pay" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:10px 4px;border-radius:12px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.14);text-decoration:none;color:#f8fafc;font-size:11.5px;font-weight:700;transition:all 0.2s;">
+              <a href="#" id="upiFastBtnGpay" class="upi-fast-app-btn" onclick="openUpiApp(event, 'gpay')" title="Pay with Google Pay" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:10px 4px;border-radius:12px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.14);text-decoration:none;color:#f8fafc;font-size:11.5px;font-weight:700;transition:all 0.2s;">
                 <span style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;background:#ffffff;box-shadow:0 2px 6px rgba(0,0,0,0.25);"><img src="images/gpay.svg" alt="GPay" style="width:20px;height:20px;object-fit:contain;" /></span>
                 <span>Google Pay</span>
               </a>
-              <a href="#" class="upi-fast-app-btn" onclick="openUpiApp(event, 'phonepe')" title="Pay with PhonePe" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:10px 4px;border-radius:12px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.14);text-decoration:none;color:#f8fafc;font-size:11.5px;font-weight:700;transition:all 0.2s;">
+              <a href="#" id="upiFastBtnPhonepe" class="upi-fast-app-btn" onclick="openUpiApp(event, 'phonepe')" title="Pay with PhonePe" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:10px 4px;border-radius:12px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.14);text-decoration:none;color:#f8fafc;font-size:11.5px;font-weight:700;transition:all 0.2s;">
                 <span style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;background:#5f259f;box-shadow:0 2px 6px rgba(95,37,159,0.45);"><img src="images/phonepe.svg" alt="PhonePe" style="width:20px;height:20px;object-fit:contain;" /></span>
                 <span>PhonePe</span>
               </a>
-              <a href="#" class="upi-fast-app-btn" onclick="openUpiApp(event, 'paytm')" title="Pay with Paytm" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:10px 4px;border-radius:12px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.14);text-decoration:none;color:#f8fafc;font-size:11.5px;font-weight:700;transition:all 0.2s;">
+              <a href="#" id="upiFastBtnPaytm" class="upi-fast-app-btn" onclick="openUpiApp(event, 'paytm')" title="Pay with Paytm" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:10px 4px;border-radius:12px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.14);text-decoration:none;color:#f8fafc;font-size:11.5px;font-weight:700;transition:all 0.2s;">
                 <span style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;background:#002970;box-shadow:0 2px 6px rgba(0,41,112,0.45);"><img src="images/paytm.svg" alt="Paytm" style="width:24px;height:16px;object-fit:contain;" /></span>
                 <span>Paytm</span>
               </a>
@@ -1922,7 +1922,7 @@
             <div id="upiQRError" class="qr-empty" style="display:none">Payment QR is not configured.</div>
           </div>
           <div class="qr-label">Scan with GPay · PhonePe · Paytm · Any UPI App</div>
-          <a href="#" id="upiDirectPayBtn" class="btn-upi-direct" style="display: none; align-items: center; justify-content: center; gap: 8px; width: 100%; margin-top: 10px; margin-bottom: 6px; padding: 12px 18px; border-radius: 12px; background: linear-gradient(135deg, #059669 0%, #10b981 100%); color: #ffffff; font-weight: 700; font-size: 0.92rem; text-decoration: none; box-shadow: 0 4px 15px rgba(16, 185, 129, 0.35); transition: all 0.2s ease;">
+          <a href="#" id="upiDirectPayBtn" class="btn-upi-direct" onclick="openUpiApp(event, 'any')" style="display: none; align-items: center; justify-content: center; gap: 8px; width: 100%; margin-top: 10px; margin-bottom: 6px; padding: 12px 18px; border-radius: 12px; background: linear-gradient(135deg, #059669 0%, #10b981 100%); color: #ffffff; font-weight: 700; font-size: 0.92rem; text-decoration: none; box-shadow: 0 4px 15px rgba(16, 185, 129, 0.35); transition: all 0.2s ease;">
             <i class="fa-solid fa-bolt"></i> Pay via UPI App (Auto-Fill Amount)
           </a>
           <button class="download-qr-btn" onclick="downloadCurrentQRCode('upi')"><i class="fa-solid fa-download"></i> Download QR Code</button>
@@ -2133,7 +2133,7 @@
       <p>
         Send message with your <strong style="color:var(--text)">payment screenshot attached</strong> on Telegram — your order will be delivered in <strong style="color:var(--green)">5–15 minutes</strong>.
       </p>
-      <a id="tgLink" href="https://t.me/VIP_KINK" target="_blank" class="tg-btn tg-slide-btn" role="button" aria-label="Slide to Send Screenshot on Telegram">
+      <a id="tgLink" href="https://t.me/TRUSTED_BROTHER1234" target="_blank" class="tg-btn tg-slide-btn" role="button" aria-label="Slide to Send Screenshot on Telegram">
         <div class="tg-slide-fill"></div>
         <div class="tg-slide-label">
           <span class="tg-slide-label-text">Slide to Send Screenshot</span>
@@ -2275,7 +2275,7 @@ const CONFIG = {
   upiId: 'Ritikane@ptyes',
   qrImage: '',
   upiLogo: 'images/upi.svg',
-  telegramUrl: 'https://t.me/VIP_KINK',
+  telegramUrl: 'https://t.me/TRUSTED_BROTHER1234',
   bep20Address: '0x7186b11f8fD49fe472Af49Cda490f168e09Fef0a',
   ethAddress: '0x7186b11f8fD49fe472Af49Cda490f168e09Fef0a',
   binanceId: '1197561104',
@@ -3240,7 +3240,7 @@ function getUpiPaymentAmount() {
   return Number.isFinite(amount) && amount > 0 ? amount : 0;
 }
 
-function buildUpiPaymentUri() {
+function getUpiDetails() {
   const amount = getUpiPaymentAmount();
   const upiId = CONFIG.upiId || 'Ritikane@ptyes';
   const params = new URLSearchParams();
@@ -3256,31 +3256,106 @@ function buildUpiPaymentUri() {
   if (orderRef) {
     params.set('tr', orderRef);
   }
-  return `upi://pay?${params.toString()}`;
+  const queryString = params.toString();
+  const upiUri = `upi://pay?${queryString}`;
+  return { amount, upiId, orderRef, queryString, upiUri };
+}
+
+function buildUpiPaymentUri() {
+  return getUpiDetails().upiUri;
+}
+
+function buildTargetUpiUri(appType) {
+  const { queryString, upiUri } = getUpiDetails();
+  const isAndroid = /android/i.test(navigator.userAgent);
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+
+  if (isAndroid) {
+    if (appType === 'phonepe') {
+      return `intent://pay?${queryString}#Intent;scheme=upi;package=com.phonepe.app;end;`;
+    }
+    if (appType === 'gpay') {
+      return `intent://pay?${queryString}#Intent;scheme=upi;package=com.google.android.apps.nbu.paisa.user;end;`;
+    }
+    if (appType === 'paytm') {
+      return `intent://pay?${queryString}#Intent;scheme=upi;package=net.one97.paytm;end;`;
+    }
+    return `intent://pay?${queryString}#Intent;scheme=upi;end;`;
+  }
+
+  if (isIOS) {
+    if (appType === 'phonepe') {
+      return `phonepe://upi/pay?${queryString}`;
+    }
+    if (appType === 'gpay') {
+      return `gpay://upi/pay?${queryString}`;
+    }
+    if (appType === 'paytm') {
+      return `paytmmp://pay?${queryString}`;
+    }
+    return upiUri;
+  }
+
+  return upiUri;
 }
 
 function openUpiApp(e, appType) {
   if (e) {
     try { e.preventDefault(); } catch (_) {}
   }
-  const upiUri = buildUpiPaymentUri();
-  let intentUri = upiUri;
-  if (appType === 'phonepe') {
-    intentUri = upiUri.replace(/^upi:\/\//i, 'phonepe://');
-  } else if (appType === 'paytm') {
-    intentUri = upiUri.replace(/^upi:\/\//i, 'paytmmp://');
-  } else if (appType === 'gpay') {
-    intentUri = upiUri.replace(/^upi:\/\//i, 'tez://upi/');
+  const { amount, upiId, orderRef, queryString, upiUri } = getUpiDetails();
+  const targetUri = buildTargetUpiUri(appType);
+
+  // Check if running inside Telegram Mini App / WebApp
+  const isTgWebApp = Boolean(
+    (window.Telegram && window.Telegram.WebApp && (window.Telegram.WebApp.initData || window.Telegram.WebApp.platform)) ||
+    window.TelegramWebviewProxy ||
+    /Telegram/i.test(navigator.userAgent)
+  );
+
+  // Construct HTTPS bridge redirect URL
+  const bridgeUrl = new URL('upi-pay.html', window.location.href);
+  bridgeUrl.searchParams.set('app', appType || 'phonepe');
+  bridgeUrl.searchParams.set('pa', upiId);
+  bridgeUrl.searchParams.set('pn', 'LinkAdda Digital Market');
+  bridgeUrl.searchParams.set('cu', 'INR');
+  if (amount > 0) bridgeUrl.searchParams.set('am', amount.toFixed(2));
+  bridgeUrl.searchParams.set('tn', 'LinkAdda Digital Market');
+  if (orderRef) bridgeUrl.searchParams.set('tr', orderRef);
+
+  if (isTgWebApp) {
+    // Inside Telegram WebApp, native WebView blocks custom schemes (upi://, intent://).
+    // Telegram.WebApp.openLink opens an HTTPS link in external browser (Chrome / Safari),
+    // where Android Intents and UPI deep links fire seamlessly.
+    if (window.Telegram && window.Telegram.WebApp && typeof window.Telegram.WebApp.openLink === 'function') {
+      try {
+        window.Telegram.WebApp.openLink(bridgeUrl.href, { try_instant_view: false });
+        if (typeof showToast === 'function') {
+          const appName = appType === 'phonepe' ? 'PhonePe' : appType === 'gpay' ? 'Google Pay' : appType === 'paytm' ? 'Paytm' : 'UPI App';
+          showToast(`Opening ${appName}...`, 'info');
+        }
+        return;
+      } catch (err) {
+        console.warn('Telegram openLink error:', err);
+      }
+    }
+    // Fallback: try window.open with the bridge URL
+    try {
+      window.open(bridgeUrl.href, '_blank', 'noopener,noreferrer');
+      return;
+    } catch (_) {}
   }
 
+  // Regular browser execution (Chrome, Safari, etc.)
   const fallbackTimer = setTimeout(() => {
     window.location.href = upiUri;
-  }, 450);
+  }, 600);
 
-  window.location.href = intentUri;
   window.addEventListener('blur', () => clearTimeout(fallbackTimer), { once: true });
+  window.location.href = targetUri;
 }
 window.openUpiApp = openUpiApp;
+window.buildTargetUpiUri = buildTargetUpiUri;
 
 let isDecodingQr = false;
 async function checkAndDecodeUpiFromQrImage(imgUrl) {
@@ -3341,11 +3416,24 @@ function renderUpiQr() {
 
   const upiUri = buildUpiPaymentUri();
 
-  // Update Direct Mobile UPI Pay Button
+  // Update Direct Mobile UPI Pay Button and Fast App launcher links
   const directBtn = document.getElementById('upiDirectPayBtn');
   if (directBtn) {
-    directBtn.href = upiUri;
+    directBtn.href = buildTargetUpiUri('any');
+    directBtn.setAttribute('onclick', "openUpiApp(event, 'any')");
     directBtn.style.display = 'inline-flex';
+  }
+  const btnPhonepe = document.getElementById('upiFastBtnPhonepe') || document.querySelector('a.upi-fast-app-btn[title*="PhonePe"]');
+  if (btnPhonepe) {
+    btnPhonepe.href = buildTargetUpiUri('phonepe');
+  }
+  const btnGpay = document.getElementById('upiFastBtnGpay') || document.querySelector('a.upi-fast-app-btn[title*="Google Pay"]');
+  if (btnGpay) {
+    btnGpay.href = buildTargetUpiUri('gpay');
+  }
+  const btnPaytm = document.getElementById('upiFastBtnPaytm') || document.querySelector('a.upi-fast-app-btn[title*="Paytm"]');
+  if (btnPaytm) {
+    btnPaytm.href = buildTargetUpiUri('paytm');
   }
 
   // Draw reliable dynamic QR (QRCode JS with high-res multi-CDN image fallback)
@@ -4623,7 +4711,7 @@ function initTelegramSlider(btnEl) {
       label.style.opacity = '1';
     }
 
-    const targetUrl = btnEl.getAttribute('href') || btnEl.href || 'https://t.me/VIP_KINK';
+    const targetUrl = btnEl.getAttribute('href') || btnEl.href || 'https://t.me/TRUSTED_BROTHER1234';
 
     setTimeout(() => {
       window.open(targetUrl, '_blank');
@@ -5237,7 +5325,7 @@ async function saveOrderToFirebase(amountText, methodName) {
 }
 
 function buildTelegramOrderUrl(orderId, amountText, methodName) {
-  const cleanUrl = String(CONFIG.telegramUrl || 'https://t.me/VIP_KINK').trim().replace(/\/$/, '');
+  const cleanUrl = String(CONFIG.telegramUrl || 'https://t.me/TRUSTED_BROTHER1234').trim().replace(/\/$/, '');
   const tgMessage = `🛒 New Order — Linkadda Online\n` +
     `📦 Category: ${orderData.name}\n` +
     `💰 Amount Paid: ${amountText}\n` +
@@ -5245,7 +5333,7 @@ function buildTelegramOrderUrl(orderId, amountText, methodName) {
     `─────────────────\n` +
     `✅ Payment done! Screenshot attached below.\n` +
     `Please confirm my order. 🙏`;
-  return safeUrl(CONFIG.telegramUrl, 'https://t.me/VIP_KINK') + '?text=' + encodeURIComponent(tgMessage);
+  return safeUrl(CONFIG.telegramUrl, 'https://t.me/TRUSTED_BROTHER1234') + '?text=' + encodeURIComponent(tgMessage);
 }
 
 // ━━ REAL-TIME ORDER STATUS WATCHER FOR SCREEN 4 ━━
@@ -5295,7 +5383,7 @@ function startLiveOrderStatusWatcher(orderId) {
           } catch (_) {}
         }
         if (!link) {
-          link = `https://t.me/VIP_KINK?text=${encodeURIComponent(`Hi Admin, my order #${orderId} is approved. Please provide my VIP access link.`)}`;
+          link = `https://t.me/TRUSTED_BROTHER1234?text=${encodeURIComponent(`Hi Admin, my order #${orderId} is approved. Please provide my VIP access link.`)}`;
         }
 
         // Update status pill with glowing emerald styling
@@ -5354,8 +5442,8 @@ function startLiveOrderStatusWatcher(orderId) {
             <div style="margin: 16px 0; padding: 18px; background: rgba(244,63,94,0.12); border: 1px solid rgba(244,63,94,0.35); border-radius: 14px; text-align: center;">
               <div style="font-size: 16px; font-weight: 800; color: #fb7185; margin-bottom: 6px;">Payment Verification Note</div>
               <p style="font-size: 12.5px; color: #cbd5e1; margin-bottom: 12px;">Admin was unable to match this payment proof. Tap below to chat with priority support:</p>
-              <a href="https://t.me/VIP_KINK?text=${encodeURIComponent(`Hi Admin, my order #${orderId} was marked rejected. Can you please review?`)}" target="_blank" class="btn-primary" style="display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 18px; border-radius: 10px; font-size: 13px; font-weight: 700; background: #f43f5e; color: #fff; text-decoration: none;">
-                <i class="fa-brands fa-telegram"></i> Message Admin (@VIP_KINK)
+              <a href="https://t.me/TRUSTED_BROTHER1234?text=${encodeURIComponent(`Hi Admin, my order #${orderId} was marked rejected. Can you please review?`)}" target="_blank" class="btn-primary" style="display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 18px; border-radius: 10px; font-size: 13px; font-weight: 700; background: #f43f5e; color: #fff; text-decoration: none;">
+                <i class="fa-brands fa-telegram"></i> Message Admin (@TRUSTED_BROTHER1234)
               </a>
             </div>
           `;

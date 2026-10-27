@@ -566,7 +566,7 @@ if (heroSection && pointerEffectsEnabled()) {
         <div class="new-price">₹4,399 <span style="font-size:1.1rem;opacity:0.8;">/ $109</span></div>
         <div class="save-tag">You save ₹6,501 — Cheapest in the market!</div>
       </div>
-      <a href="https://t.me/VIP_KINK" target="_blank" class="btn-primary">
+      <a href="https://t.me/TRUSTED_BROTHER1234" target="_blank" class="btn-primary">
         <i class="fa-brands fa-telegram"></i> Claim Deal on Telegram
       </a>
       <button class="exit-skip" id="exitSkip">No thanks, I'll pay full price later</button>

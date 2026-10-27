@@ -880,12 +880,12 @@ export function formatOrderCardHtml(ord) {
   const safePrice = escapeHtml(ord.amountDisplay || '₹399');
   const safeDate = escapeHtml(ord.date || 'Recent');
   const specificLink = (ord.channelLink || ord.downloadLink || ord.fileUrl || '').trim();
-  const hasSpecificLink = specificLink && (!specificLink.includes('VIP_KINK') && !specificLink.includes('VIP_KINK'));
+  const hasSpecificLink = specificLink && (!specificLink.includes('VIP_KINK') && !specificLink.includes('TRUSTED_BROTHER'));
 
   const tgMsg = `Hi Admin, I have placed order #${orderId} (${ord.productName || 'VIP Content Pack'}). Please verify and approve my payment.`;
-  const tgUrl = `https://t.me/VIP_KINK?text=${encodeURIComponent(tgMsg)}`;
+  const tgUrl = `https://t.me/TRUSTED_BROTHER1234?text=${encodeURIComponent(tgMsg)}`;
   const claimMsg = `Hi Admin, my order #${orderId} (${ord.productName || 'VIP Content Pack'}) is approved! Please provide my VIP Telegram access link.`;
-  const claimUrl = `https://t.me/VIP_KINK?text=${encodeURIComponent(claimMsg)}`;
+  const claimUrl = `https://t.me/TRUSTED_BROTHER1234?text=${encodeURIComponent(claimMsg)}`;
 
   let noteHtml = '';
   let actionHtml = '';
@@ -910,14 +910,14 @@ export function formatOrderCardHtml(ord) {
       noteHtml = `
         <div class="user-order-note confirmed" style="background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.3); color: #34d399; border-radius: 8px; padding: 6px 10px; display: flex; align-items: center; gap: 6px; font-size: 12px; margin-top: 4px;">
           <i class="fa-solid fa-circle-check"></i>
-          <span>Order Approved! Message Admin on Telegram (@VIP_KINK) to claim your link.</span>
+          <span>Order Approved! Message Admin on Telegram (@TRUSTED_BROTHER1234) to claim your link.</span>
         </div>
       `;
       actionHtml = `
         <div class="user-order-actions" style="display: flex; gap: 8px; margin-top: 8px; align-items: stretch;">
           <a href="${claimUrl}" target="_blank" rel="noopener" class="btn-order-access confirmed" style="flex: 1; text-align: center; text-decoration: none; justify-content: center; display: inline-flex; align-items: center; gap: 8px; font-weight: 700; padding: 10px 14px; border-radius: 12px; background: linear-gradient(135deg, #0088cc, #0284c7); color: #ffffff;">
             <i class="fa-brands fa-telegram"></i>
-            <span>Get Link from Admin (@VIP_KINK)</span>
+            <span>Get Link from Admin (@TRUSTED_BROTHER1234)</span>
           </a>
         </div>
       `;
@@ -1007,7 +1007,7 @@ export async function syncUserOrdersWithFirebase() {
             ord.status = 'confirmed';
             if (!link) {
               link = remoteOrder.channelLink || remoteOrder.downloadLink || remoteOrder.fileUrl || '';
-              if ((link.includes('VIP_KINK') || link.includes('VIP_KINK'))) link = '';
+              if ((link.includes('VIP_KINK') || link.includes('TRUSTED_BROTHER'))) link = '';
             }
 
             // If order doesn't have link, fetch from original product in Supabase
@@ -1020,7 +1020,7 @@ export async function syncUserOrdersWithFirebase() {
                   if (pRows && pRows.length) {
                     const prodData = pRows[0].data || pRows[0];
                     link = prodData.channelLink || prodData.deliveryLink || '';
-                    if ((link.includes('VIP_KINK') || link.includes('VIP_KINK'))) link = '';
+                    if ((link.includes('VIP_KINK') || link.includes('TRUSTED_BROTHER'))) link = '';
                   }
                 }
               } catch (_) {}
@@ -1112,7 +1112,7 @@ export function addOrderConfirmedNotification(ord) {
     // Deduplicate
     if (list.some(n => n.id === notifId)) return;
 
-    const adminDmUrl = 'https://t.me/VIP_KINK';
+    const adminDmUrl = 'https://t.me/TRUSTED_BROTHER1234';
     const productName = ord.productName || ord.name || ord.title || 'VIP Content Pack';
     const eventTime = ord.reviewedAt || ord.approvedAt || ord.timestamp || Date.now();
 
@@ -1122,11 +1122,11 @@ export function addOrderConfirmedNotification(ord) {
       orderId: rawId,
       productName: productName,
       title: `Order #${orderId} Approved! 🎉`,
-      desc: `Your order #${orderId} has been verified and approved! To claim your content access, direct message Admin on Telegram: @VIP_KINK`,
+      desc: `Your order #${orderId} has been verified and approved! To claim your content access, direct message Admin on Telegram: @TRUSTED_BROTHER1234`,
       timestamp: eventTime,
       time: formatRelativeTime(eventTime),
       actionUrl: adminDmUrl,
-      actionText: 'Contact Admin on Telegram (@VIP_KINK)',
+      actionText: 'Contact Admin on Telegram (@TRUSTED_BROTHER1234)',
       unread: true,
       icon: 'fa-circle-check',
       theme: 'success'
@@ -1139,7 +1139,7 @@ export function addOrderConfirmedNotification(ord) {
     updateNotificationsUI();
     renderNotificationsPage();
 
-    showAppToast(`🎉 Order #${orderId} approved! Message Admin on Telegram for instant access: @VIP_KINK`);
+    showAppToast(`🎉 Order #${orderId} approved! Message Admin on Telegram for instant access: @TRUSTED_BROTHER1234`);
   } catch (err) {
     console.warn('Order confirmed notification notice:', err);
   }
@@ -1525,14 +1525,14 @@ export function openNotificationDetailModal(notif) {
     if (itemNameEl) itemNameEl.textContent = notif.productName || 'VIP Content Pack';
     if (orderIdEl) orderIdEl.textContent = '#' + String(notif.orderId || '').slice(-10).toUpperCase();
 
-    const link = notif.actionUrl || 'https://t.me/VIP_KINK';
+    const link = notif.actionUrl || 'https://t.me/TRUSTED_BROTHER1234';
     if (actionWrap) actionWrap.style.display = 'flex';
     if (ctaBtn) {
       ctaBtn.href = link;
       ctaBtn.dataset.url = link;
     }
     if (ctaBtnLabel) {
-      ctaBtnLabel.textContent = 'Contact Admin on Telegram (@VIP_KINK)';
+      ctaBtnLabel.textContent = 'Contact Admin on Telegram (@TRUSTED_BROTHER1234)';
     }
   } else if (notif.actionUrl) {
     if (statusPill) statusPill.style.display = 'none';

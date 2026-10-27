@@ -32,6 +32,7 @@
     { "source": "/assets/(.*)", "destination": "/admin/assets/$1" },
     { "source": "/about", "destination": "/about.html" },
     { "source": "/payment", "destination": "/payment.html" },
+    { "source": "/upi-pay", "destination": "/upi-pay.html" },
     { "source": "/legal", "destination": "/legal.html" },
     { "source": "/admin/login", "destination": "/admin/login.html" },
     { "source": "/admin", "destination": "/admin/index.html" },

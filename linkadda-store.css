@@ -1221,6 +1221,17 @@ body.linkadda-store {
   bottom: auto !important;
 }
 
+/* Hide product share button everywhere (in web and Telegram bot) */
+#fkPvShareBtn,
+.fk-pv-action-btn#fkPvShareBtn,
+.fk-card-share-btn,
+.fk-pv-top-actions button[title*="Share"],
+.fk-pv-top-actions button[aria-label="Share"] {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
 /* Floating Frosted Glass Wishlist Button */
 .fk-card-wishlist-btn {
   position: absolute;

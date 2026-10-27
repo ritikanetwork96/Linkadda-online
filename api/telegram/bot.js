@@ -1693,7 +1693,7 @@ export async function notifyAdminsNewOrder(order) {
       `\n⏳ <b>Status: Payment Under Verification</b>\n` +
       `Our admin team has received your payment proof and is verifying the transaction.\n` +
       `<b>Your exclusive VIP content access link will be delivered right here in this chat as soon as verified!</b>\n\n` +
-      `💬 <i>24/7 Priority Support Desk: @VIP_KINK</i>`;
+      `💬 <i>24/7 Priority Support Desk: @TRUSTED_BROTHER1234</i>`;
 
     dispatchPromises.push(
       callTelegram('sendMessage', {
@@ -2120,7 +2120,7 @@ async function processOrderApproval(orderId, adminUser, triggerMessage = null) {
         `⏳ <b>Security Auto-Delete:</b>\n` +
         `• Message automatically deletes <b>2 minutes</b> after you open/read it.\n` +
         `• If unread, it automatically self-destructs after <b>3 hours</b>.\n\n` +
-        `💬 <b>24/7 Lifetime Support:</b> @VIP_KINK`;
+        `💬 <b>24/7 Lifetime Support:</b> @TRUSTED_BROTHER1234`;
 
       let sendRes = await callTelegram('sendMessage', {
         chat_id: String(customerTgId),
@@ -2130,7 +2130,7 @@ async function processOrderApproval(orderId, adminUser, triggerMessage = null) {
           inline_keyboard: [
             [{ text: '🚀 Open VIP Access Link', url: accessUrl }],
             [{ text: '🛍️ Open Store', web_app: { url: storeWebUrl } }],
-            [{ text: '💬 Support Desk (@VIP_KINK)', url: 'https://t.me/VIP_KINK' }]
+            [{ text: '💬 Support Desk (@TRUSTED_BROTHER1234)', url: 'https://t.me/TRUSTED_BROTHER1234' }]
           ]
         }
       }, deliveryToken);
@@ -2147,11 +2147,11 @@ async function processOrderApproval(orderId, adminUser, triggerMessage = null) {
         text: 
           `🎉 <b>Congratulations! Your Order #${orderId} has been Approved!</b>\n\n` +
           `📦 <b>Product:</b> <b>${escapeTelegramHtml(productTitle)}</b>\n\n` +
-          `To claim your VIP content access, please message <b>Admin @VIP_KINK</b> on Telegram below:`,
+          `To claim your VIP content access, please message <b>Admin @TRUSTED_BROTHER1234</b> on Telegram below:`,
         parse_mode: 'HTML',
         reply_markup: {
           inline_keyboard: [
-            [{ text: '💬 Get Link from Admin (@VIP_KINK)', url: `https://t.me/VIP_KINK?text=${encodeURIComponent(`Hi Admin, my order #${orderId} is approved. Please provide my Telegram access link.`)}` }],
+            [{ text: '💬 Get Link from Admin (@TRUSTED_BROTHER1234)', url: `https://t.me/TRUSTED_BROTHER1234?text=${encodeURIComponent(`Hi Admin, my order #${orderId} is approved. Please provide my Telegram access link.`)}` }],
             [{ text: '🛍️ Open Store', web_app: { url: storeWebUrl } }]
           ]
         }
@@ -2281,7 +2281,7 @@ async function processOrderRejection(orderId, adminUser, triggerMessage = null) 
       parse_mode: 'HTML',
       reply_markup: {
         inline_keyboard: [
-          [{ text: '💬 Contact Support (@VIP_KINK)', url: `https://t.me/VIP_KINK?text=${encodeURIComponent(`Hi Admin, my order #${orderId} was rejected. Here is my payment receipt.`)}` }]
+          [{ text: '💬 Contact Support (@TRUSTED_BROTHER1234)', url: `https://t.me/TRUSTED_BROTHER1234?text=${encodeURIComponent(`Hi Admin, my order #${orderId} was rejected. Here is my payment receipt.`)}` }]
         ]
       }
     }, deliveryToken).catch(() => {});
@@ -2405,7 +2405,7 @@ export async function broadcastNewProduct(rawProduct, targetBotIds = ['all']) {
       ],
       [
         { text: '🛍️ Open VIP Store', web_app: { url: tgAppUrl } },
-        { text: '💬 Support Desk (@VIP_KINK)', url: 'https://t.me/VIP_KINK' }
+        { text: '💬 Support Desk (@TRUSTED_BROTHER1234)', url: 'https://t.me/TRUSTED_BROTHER1234' }
       ]
     ]
   };
@@ -2445,7 +2445,7 @@ export async function broadcastNewProduct(rawProduct, targetBotIds = ['all']) {
         [{ text: '⚡ Buy Now & Unlock Access', web_app: { url: curCheckoutUrl } }],
         [
           { text: '🛍️ Open VIP Store', web_app: { url: curStoreWebUrl } },
-          { text: '💬 Support Desk (@VIP_KINK)', url: 'https://t.me/VIP_KINK' }
+          { text: '💬 Support Desk (@TRUSTED_BROTHER1234)', url: 'https://t.me/TRUSTED_BROTHER1234' }
         ]
       ]
     };
@@ -3650,7 +3650,7 @@ export default async function handler(req, res) {
                   [{ text: '👀 View Product (Photos & Demo)', web_app: { url: productViewUrl } }],
                   [{ text: '⚡ Buy Now & Unlock Access', web_app: { url: checkoutUrl } }],
                   [{ text: '🛍️ Open VIP Store', web_app: { url: storeWebUrl } }],
-                  [{ text: '💬 Support Desk (@VIP_KINK)', url: 'https://t.me/VIP_KINK' }]
+                  [{ text: '💬 Support Desk (@TRUSTED_BROTHER1234)', url: 'https://t.me/TRUSTED_BROTHER1234' }]
                 ]
               }
             }, currentToken);
@@ -3676,7 +3676,7 @@ export default async function handler(req, res) {
             reply_markup: {
               inline_keyboard: [
                 [{ text: '🛍️ Open Store (VIP Content)', web_app: { url: storeWebUrl } }],
-                [{ text: '💬 Support Desk (@VIP_KINK)', url: 'https://t.me/VIP_KINK' }]
+                [{ text: '💬 Support Desk (@TRUSTED_BROTHER1234)', url: 'https://t.me/TRUSTED_BROTHER1234' }]
               ]
             }
           }, currentToken);
@@ -3710,7 +3710,7 @@ export default async function handler(req, res) {
           if (!channelLink) {
             await callTelegram('answerCallbackQuery', {
               callback_query_id: cq.id,
-              text: '⚠️ Link expired or not found. Please contact support @VIP_KINK.',
+              text: '⚠️ Link expired or not found. Please contact support @TRUSTED_BROTHER1234.',
               show_alert: true
             }, currentToken);
             return res.status(200).json({ ok: true });
@@ -3730,7 +3730,7 @@ export default async function handler(req, res) {
             `👉 <b>${channelLink}</b>\n\n` +
             `⏳ <b>SELF-DESTRUCT ACTIVE:</b>\n` +
             `This message will be <b>permanently deleted in 2 minutes</b> from this chat!\n\n` +
-            `💬 24/7 Lifetime Replacement: @VIP_KINK`;
+            `💬 24/7 Lifetime Replacement: @TRUSTED_BROTHER1234`;
 
           if (cq.message) {
             await callTelegram('editMessageText', {
@@ -3741,7 +3741,7 @@ export default async function handler(req, res) {
               reply_markup: {
                 inline_keyboard: [
                   [{ text: '🚀 Join / Access VIP Link Now', url: channelLink }],
-                  [{ text: '💬 Support Desk (@VIP_KINK)', url: 'https://t.me/VIP_KINK' }]
+                  [{ text: '💬 Support Desk (@TRUSTED_BROTHER1234)', url: 'https://t.me/TRUSTED_BROTHER1234' }]
                 ]
               }
             }, currentToken);
