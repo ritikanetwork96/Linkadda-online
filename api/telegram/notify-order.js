@@ -93,55 +93,55 @@ export default async function handler(req, res) {
       }
     };
 
-    let supabaseSaved = false;
-    try {
-      const sbRes = await fetch(`${sbUrl}/rest/v1/orders`, {
-        method: 'POST',
-        headers: {
-          'apikey': sbKey,
-          'Authorization': `Bearer ${sbKey}`,
-          'Content-Type': 'application/json',
-          'Prefer': 'resolution=merge-duplicates'
-        },
-        body: JSON.stringify([orderRow]),
-        signal: AbortSignal.timeout(6000)
-      });
-      if (sbRes.ok) {
-        supabaseSaved = true;
-      } else {
-        const errTxt = await sbRes.text();
-        console.warn('Server-side order save warning:', errTxt);
+    // 1. Parallel execution: Run database persistence and Telegram dispatch concurrently
+    const dbSavePromise = (async () => {
+      try {
+        const sbRes = await fetch(`${sbUrl}/rest/v1/orders`, {
+          method: 'POST',
+          headers: {
+            'apikey': sbKey,
+            'Authorization': `Bearer ${sbKey}`,
+            'Content-Type': 'application/json',
+            'Prefer': 'resolution=merge-duplicates'
+          },
+          body: JSON.stringify([orderRow]),
+          signal: AbortSignal.timeout(6000)
+        });
+        return sbRes.ok;
+      } catch (sbErr) {
+        console.warn('Server-side order save error:', sbErr.message);
+        return false;
       }
-    } catch (sbErr) {
-      console.warn('Server-side order save error:', sbErr.message);
-    }
+    })();
 
-    // 2. Dispatch instant Telegram notification with photo & Approve/Reject buttons to all Admins + Customer confirmation
-    let telegramResult = null;
-    try {
-      telegramResult = await notifyAdminsNewOrder({
-        ...order,
-        ...orderRow,
-        order_id: orderId,
-        id: orderId,
-        product_title: prodTitle,
-        amount: order.amount || `₹${cleanAmt}`,
-        payment_proof: proof,
-        utr: utr,
-        telegramUserId: order.telegramUserId || order.data?.telegramUserId || order.telegram_user_id || '',
-        telegramUsername: order.telegramUsername || order.data?.telegramUsername || order.telegram || '',
-        sourceBotId,
-        sourceBotUsername
-      });
-    } catch (tgErr) {
-      console.warn('notifyAdminsNewOrder error in endpoint:', tgErr.message);
-      telegramResult = { ok: false, error: tgErr.message };
-    }
+    const tgNotifyPromise = (async () => {
+      try {
+        return await notifyAdminsNewOrder({
+          ...order,
+          ...orderRow,
+          order_id: orderId,
+          id: orderId,
+          product_title: prodTitle,
+          amount: order.amount || `₹${cleanAmt}`,
+          payment_proof: proof,
+          utr: utr,
+          telegramUserId: order.telegramUserId || order.data?.telegramUserId || order.telegram_user_id || '',
+          telegramUsername: order.telegramUsername || order.data?.telegramUsername || order.telegram || '',
+          sourceBotId,
+          sourceBotUsername
+        });
+      } catch (tgErr) {
+        console.warn('notifyAdminsNewOrder error in endpoint:', tgErr.message);
+        return { ok: false, error: tgErr.message };
+      }
+    })();
+
+    const [supabaseSaved, telegramResult] = await Promise.all([dbSavePromise, tgNotifyPromise]);
 
     return res.status(200).json({
       ok: true,
       orderId,
-      savedToDatabase: supabaseSaved,
+      savedToDatabase: Boolean(supabaseSaved),
       telegramNotification: telegramResult
     });
   } catch (err) {

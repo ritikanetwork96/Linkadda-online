@@ -4882,20 +4882,11 @@ async function saveOrderToFirebase(amountText, methodName) {
       orderData.orderId = orderId;
     }
 
-    // Process & compress screenshot (<70KB clean JPEG)
-    if (screenshotRaw && (screenshotRaw.startsWith('data:') || screenshotRaw.startsWith('https://'))) {
-      try {
-        finalProof = await uploadScreenshot(orderId, screenshotRaw);
-      } catch (err) {
-        finalProof = screenshotRaw;
-      }
-    } else {
-      finalProof = '';
-    }
-
     const resolvedNumericAmount = selectedMethod === 'upi'
       ? (Number.isFinite(inrAmount) && inrAmount > 0 ? inrAmount : 599)
       : (Number.isFinite(usdAmount) && usdAmount > 0 ? usdAmount : 34);
+
+    const compressedProof = window.__cachedCompressedScreenshot || screenshotRaw || '';
 
     // Save order record to DB with compatible fields (no duplicate base64 bloat)
     const payload = {
@@ -4920,8 +4911,8 @@ async function saveOrderToFirebase(amountText, methodName) {
       paymentMethod: methodName,
       method: methodName,
       gateway: methodName,
-      screenshotUrl: finalProof || screenshotRaw || '',
-      paymentProof: finalProof || screenshotRaw || '',
+      screenshotUrl: compressedProof,
+      paymentProof: compressedProof,
       paymentStatus: 'pending',
       orderStatus: 'pending',
       status: 'pending',
@@ -4974,21 +4965,11 @@ async function saveOrderToFirebase(amountText, methodName) {
       );
 
       if (isTgWebApp) {
-        if (urlBotId) {
-          sessionStorage.setItem('linkadda_source_bot_id', urlBotId);
-        }
-        if (urlBotUser) {
-          sessionStorage.setItem('linkadda_source_bot_user', urlBotUser);
-        }
-        if (urlTgUserId) {
-          sessionStorage.setItem('linkadda_tg_user_id', urlTgUserId);
-        }
-        if (urlTgUser) {
-          sessionStorage.setItem('linkadda_tg_username', urlTgUser);
-        }
-        if (urlTgName) {
-          sessionStorage.setItem('linkadda_tg_name', urlTgName);
-        }
+        if (urlBotId) sessionStorage.setItem('linkadda_source_bot_id', urlBotId);
+        if (urlBotUser) sessionStorage.setItem('linkadda_source_bot_user', urlBotUser);
+        if (urlTgUserId) sessionStorage.setItem('linkadda_tg_user_id', urlTgUserId);
+        if (urlTgUser) sessionStorage.setItem('linkadda_tg_username', urlTgUser);
+        if (urlTgName) sessionStorage.setItem('linkadda_tg_name', urlTgName);
 
         const resolvedBotId = urlBotId || sessionStorage.getItem('linkadda_source_bot_id') || '';
         const resolvedBotUser = urlBotUser || sessionStorage.getItem('linkadda_source_bot_user') || '';
@@ -5036,120 +5017,121 @@ async function saveOrderToFirebase(amountText, methodName) {
       }
     } catch (_) {}
 
-    // 1. Try Firebase SDK first
-    let saved = false;
-    if (window._fbSet && window._fbRef && window._fbDB) {
+    // ⚡ 1. 0ms INSTANT TELEGRAM NOTIFICATION DISPATCH (FIRE IMMEDIATELY CONCURRENTLY)
+    const tgNotifyPromise = (async () => {
       try {
-        await window._fbSet(window._fbRef(window._fbDB, `orders/${orderId}`), payload);
-        saved = true;
-      } catch (sdkErr) {
-        console.warn('Firebase SDK order write failed, falling back to direct REST:', sdkErr);
-      }
-    }
+        let apiBase = '';
+        if (typeof window !== 'undefined') {
+          const isRender = window.location.hostname.includes('onrender.com');
+          if (!isRender) apiBase = 'https://linkadda-online.onrender.com';
+        }
 
-    // 2. Direct REST fallback ensures order is 100% saved even if SDK connection was slow or offline
-    if (!saved) {
-      try {
-        const supaUrl = 'https://esxiwfswnbacmpjxqgsn.supabase.co';
-        const supaKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVzeGl3ZnN3bmJhY21wanhxZ3NuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI2MDcxODQsImV4cCI6MjEwODE4MzE4NH0.n6XzLxgH5947CK-224Tp57BJmbWZ_rTKi4PK-EW8bNI';
-        const supaHeaders = {
-          'apikey': supaKey,
-          'Authorization': `Bearer ${supaKey}`,
-          'Content-Type': 'application/json',
-          'Prefer': 'resolution=merge-duplicates,return=minimal'
-        };
-
-        const resolvedBotId = payload.sourceBotId || localStorage.getItem('linkadda_source_bot_id') || '';
-        const resolvedBotUser = payload.sourceBotUsername || localStorage.getItem('linkadda_source_bot_user') || '';
-
-        const orderRow = {
+        const notifyPayload = {
+          ...payload,
           id: orderId,
           order_id: orderId,
-          customer_name: payload.customerName || payload.name || (payload.telegramName || 'Customer'),
-          customer_email: payload.customerEmail || payload.email || '',
-          customer_phone: payload.customerPhone || payload.phone || '',
-          product_id: payload.productId || '',
-          product_title: payload.productTitle || payload.productName || payload.title || orderData.name || 'VIP Pack',
-          amount: Number(payload.amount || payload.priceINR || 0) || 0,
-          currency: payload.currency || 'INR',
-          payment_method: payload.paymentMethod || methodName || '',
-          payment_proof: payload.paymentProof || payload.screenshotUrl || '',
+          product_title: payload.productName || payload.title || orderData.name,
+          amount: amountText,
+          numericAmount: resolvedNumericAmount,
+          payment_method: methodName,
+          payment_proof: compressedProof,
           utr: payload.utr || payload.transactionId || '',
-          status: 'pending',
-          data: {
-            ...payload,
-            sourceBotId: resolvedBotId,
-            source_bot_id: resolvedBotId,
-            sourceBotUsername: resolvedBotUser,
-            source_bot_username: resolvedBotUser,
-            telegramUserId: payload.telegramUserId || '',
-            telegramUsername: payload.telegramUsername || ''
-          }
+          telegramUserId: payload.telegramUserId || '',
+          telegramUsername: payload.telegramUsername || '',
+          sourceBotId: payload.sourceBotId || '',
+          source_bot_id: payload.sourceBotId || '',
+          sourceBotUsername: payload.sourceBotUsername || '',
+          source_bot_username: payload.sourceBotUsername || ''
         };
 
-        const rtdbRes = await fetch(`${supaUrl}/rest/v1/orders`, {
+        let notifyRes = await fetch(`${apiBase}/api/telegram/notify-order`, {
           method: 'POST',
-          headers: supaHeaders,
-          body: JSON.stringify([orderRow])
-        });
-        if (rtdbRes.ok) {
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(notifyPayload)
+        }).catch(() => null);
+
+        if (!notifyRes || !notifyRes.ok) {
+          notifyRes = await fetch(`${apiBase}/api/telegram/bot?action=notify-order`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(notifyPayload)
+          }).catch(() => null);
+        }
+
+        if ((!notifyRes || !notifyRes.ok) && !apiBase) {
+          await fetch(`https://linkadda-online.onrender.com/api/telegram/notify-order`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(notifyPayload)
+          }).catch(() => null);
+        }
+      } catch (_) {}
+    })();
+
+    // ⚡ 2. PARALLEL PERMANENT STORAGE UPLOAD & DATABASE PERSISTENCE
+    const storageAndDbPromise = (async () => {
+      let finalProof = compressedProof;
+      if (screenshotRaw && (screenshotRaw.startsWith('data:') || screenshotRaw.startsWith('https://'))) {
+        try {
+          finalProof = await uploadScreenshot(orderId, screenshotRaw);
+          payload.screenshotUrl = finalProof;
+          payload.paymentProof = finalProof;
+        } catch (_) {}
+      }
+
+      // A. Firebase SDK
+      let saved = false;
+      if (window._fbSet && window._fbRef && window._fbDB) {
+        try {
+          await window._fbSet(window._fbRef(window._fbDB, `orders/${orderId}`), payload);
           saved = true;
-        }
-      } catch (restErr) {
-        console.warn('Direct Supabase order write failed:', restErr);
-      }
-    }
-
-    // Trigger instant Telegram Bot alert to both Admins & guarantee server-side order write
-    try {
-      let apiBase = '';
-      if (typeof window !== 'undefined') {
-        const isRender = window.location.hostname.includes('onrender.com');
-        if (!isRender) {
-          apiBase = 'https://linkadda-online.onrender.com';
-        }
+        } catch (_) {}
       }
 
-      const notifyPayload = {
-        ...payload,
-        id: orderId,
-        order_id: orderId,
-        product_title: payload.productName || payload.title || orderData.name,
-        amount: amountText,
-        numericAmount: resolvedNumericAmount,
-        payment_method: methodName,
-        payment_proof: payload.paymentProof || payload.screenshotUrl || '',
-        utr: payload.utr || payload.transactionId || '',
-        telegramUserId: payload.telegramUserId || '',
-        telegramUsername: payload.telegramUsername || '',
-        sourceBotId: payload.sourceBotId || '',
-        source_bot_id: payload.sourceBotId || '',
-        sourceBotUsername: payload.sourceBotUsername || '',
-        source_bot_username: payload.sourceBotUsername || ''
-      };
+      // B. Supabase REST
+      if (!saved) {
+        try {
+          const supaUrl = 'https://esxiwfswnbacmpjxqgsn.supabase.co';
+          const supaKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVzeGl3ZnN3bmJhY21wanhxZ3NuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI2MDcxODQsImV4cCI6MjEwODE4MzE4NH0.n6XzLxgH5947CK-224Tp57BJmbWZ_rTKi4PK-EW8bNI';
+          const supaHeaders = {
+            'apikey': supaKey,
+            'Authorization': `Bearer ${supaKey}`,
+            'Content-Type': 'application/json',
+            'Prefer': 'resolution=merge-duplicates,return=minimal'
+          };
 
-      let notifyRes = await fetch(`${apiBase}/api/telegram/notify-order`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(notifyPayload)
-      }).catch(() => null);
+          const orderRow = {
+            id: orderId,
+            order_id: orderId,
+            customer_name: payload.customerName || payload.name || (payload.telegramName || 'Customer'),
+            customer_email: payload.customerEmail || payload.email || '',
+            customer_phone: payload.customerPhone || payload.phone || '',
+            product_id: payload.productId || '',
+            product_title: payload.productTitle || payload.productName || payload.title || orderData.name || 'VIP Pack',
+            amount: Number(payload.amount || payload.priceINR || 0) || 0,
+            currency: payload.currency || 'INR',
+            payment_method: payload.paymentMethod || methodName || '',
+            payment_proof: finalProof,
+            utr: payload.utr || payload.transactionId || '',
+            status: 'pending',
+            data: {
+              ...payload,
+              paymentProof: finalProof,
+              screenshotUrl: finalProof
+            }
+          };
 
-      if (!notifyRes || !notifyRes.ok) {
-        notifyRes = await fetch(`${apiBase}/api/telegram/bot?action=notify-order`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(notifyPayload)
-        }).catch(() => null);
+          await fetch(`${supaUrl}/rest/v1/orders`, {
+            method: 'POST',
+            headers: supaHeaders,
+            body: JSON.stringify([orderRow])
+          }).catch(() => {});
+        } catch (_) {}
       }
+    })();
 
-      if ((!notifyRes || !notifyRes.ok) && !apiBase) {
-        await fetch(`https://linkadda-online.onrender.com/api/telegram/notify-order`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(notifyPayload)
-        }).catch(() => null);
-      }
-    } catch (_) {}
+    // Await both in parallel without delaying each other
+    await Promise.allSettled([tgNotifyPromise, storageAndDbPromise]);
 
 
     // Ensure visitor count is recorded in Supabase
