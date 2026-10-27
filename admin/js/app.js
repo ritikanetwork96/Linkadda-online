@@ -7071,7 +7071,8 @@ let _tgBotData = {
   webhook: { url: 'https://linkadda-online.onrender.com/api/telegram/bot', pending_update_count: 0 },
   users: _tgCachedUsers,
   usersCount: _tgCachedUsers.length,
-  admins: ['8802192472', '6966868142'],
+  admins: [],
+  adminProfiles: {},
   appUrl: '',
   isLoading: false,
   isSendingBroadcast: false,
@@ -7209,7 +7210,7 @@ async function loadTelegramBotAdminFullData(force = false) {
       if (cfgRes.webhook) _tgBotData.webhook = cfgRes.webhook;
       if (Array.isArray(cfgRes.admins)) _tgBotData.admins = cfgRes.admins;
       if (cfgRes.adminProfiles && typeof cfgRes.adminProfiles === 'object') {
-        _tgBotData.adminProfiles = { ...(_tgBotData.adminProfiles || {}), ...cfgRes.adminProfiles };
+        _tgBotData.adminProfiles = { ...cfgRes.adminProfiles };
       }
       if (cfgRes.appUrl) _tgBotData.appUrl = cfgRes.appUrl;
       if (typeof cfgRes.usersCount === 'number') _tgBotData.usersCount = cfgRes.usersCount;
@@ -7240,7 +7241,7 @@ async function loadTelegramBotAdminFullData(force = false) {
 
       const adminProfilesRow = sbSettingsRes.find(r => r.key === 'tg_admin_profiles');
       if (adminProfilesRow && adminProfilesRow.value && typeof adminProfilesRow.value === 'object') {
-        _tgBotData.adminProfiles = { ...(_tgBotData.adminProfiles || {}), ...adminProfilesRow.value };
+        _tgBotData.adminProfiles = { ...adminProfilesRow.value };
       }
 
       const usersRow = sbSettingsRes.find(r => r.key === 'tg_bot_users');
@@ -7512,7 +7513,7 @@ function updateTelegramBotLiveUI() {
 
   // Multi-Bot Fleet & Admins Badges and Live Container Refresh
   const fleetBots = (_tgBotData.bots && _tgBotData.bots.length) ? _tgBotData.bots : [bot].filter(Boolean);
-  const fleetAdmins = (_tgBotData.admins && _tgBotData.admins.length) ? _tgBotData.admins : ['8802192472', '6966868142'];
+  const fleetAdmins = (_tgBotData.admins && _tgBotData.admins.length) ? _tgBotData.admins : [];
 
   const botsTabBadge = document.getElementById('tgTabBotsCountBadge');
   if (botsTabBadge) botsTabBadge.textContent = String(fleetBots.length);
@@ -8151,7 +8152,7 @@ function renderTelegramBotControlSection(settings = {}) {
 
         <div style="background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px;">
           <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--muted);">Admin Chat IDs</div>
-          <div style="font-size: 14px; font-weight: 800; color: #f59e0b; margin-top: 4px;">${escapeHtml(admins.join(', ') || '8802192472, 6966868142')}</div>
+          <div style="font-size: 14px; font-weight: 800; color: #f59e0b; margin-top: 4px;">${escapeHtml(admins.join(', ') || 'None configured')}</div>
           <small style="color: var(--muted); font-size: 11px;">Alerts dispatch to both admins</small>
         </div>
       </div>
@@ -8268,54 +8269,31 @@ function renderTelegramBotsFleetCards(bots = []) {
 }
 
 function renderTelegramAdminsCards(admins = []) {
-  const adminList = (Array.isArray(admins) && admins.length) ? admins : ['8516979341', '8802192472', '6966868142'];
-  const customProfiles = _tgBotData.adminProfiles || {};
+  const adminList = (Array.isArray(admins) && admins.length) ? admins : (_tgBotData.admins || []);
+  const adminProfiles = _tgBotData.adminProfiles || {};
 
-  const baseProfiles = {
-    '8516979341': {
-      name: 'Owner (Main Admin)',
-      username: '',
-      email: '',
-      badge: '👑 OWNER',
-      badgeBg: 'rgba(234, 179, 8, 0.15)',
-      badgeColor: '#eab308',
-      badgeBorder: 'rgba(234, 179, 8, 0.35)',
-      role: 'Full Access · Order Proof Alerts & Instant Approve/Reject Buttons Across All Bots'
-    },
-    '8802192472': {
-      name: 'Owner (Backup)',
-      username: '',
-      email: '',
-      badge: '👑 OWNER',
-      badgeBg: 'rgba(234, 179, 8, 0.15)',
-      badgeColor: '#eab308',
-      badgeBorder: 'rgba(234, 179, 8, 0.35)',
-      role: 'Full Access · Order Proof Alerts & Instant Approve/Reject Buttons Across All Bots'
-    },
-    '6966868142': {
-      name: 'Ghost Layer',
-      username: 'GhostLayer73',
-      email: '',
-      badge: '🛡️ ADMIN',
-      badgeBg: 'rgba(168, 85, 247, 0.2)',
-      badgeColor: '#c084fc',
-      badgeBorder: 'rgba(168, 85, 247, 0.4)',
-      role: 'Authorized Admin · Order Proof Alerts & Approve Buttons'
-    }
-  };
-
-  const adminProfiles = { ...baseProfiles, ...customProfiles };
+  if (!adminList.length) {
+    return `
+      <div class="panel glass" style="padding: 28px; text-align: center; border-radius: 12px; border: 1px dashed rgba(255,255,255,0.15); color: var(--muted); margin-bottom: 16px;">
+        <div style="font-size: 28px; margin-bottom: 8px;">🛡️</div>
+        <div style="font-size: 15px; font-weight: 700; color: var(--text);">No Telegram Admins Configured</div>
+        <div style="font-size: 12.5px; margin-top: 6px; color: var(--muted); max-width: 460px; margin-left: auto; margin-right: auto;">
+          Use the <strong>Connect New Telegram Admin</strong> form below to authorize admins. Only admins added from this panel will receive order alerts.
+        </div>
+      </div>
+    `;
+  }
 
   return `
     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 14px;">
       ${adminList.map(aid => {
         const cleanId = String(aid).trim();
-        const dynamicProf = customProfiles[cleanId] || {};
         const profile = adminProfiles[cleanId] || {
-          name: dynamicProf.name || `Admin #${cleanId}`,
-          username: dynamicProf.username || '',
+          id: cleanId,
+          name: `Admin #${cleanId}`,
+          username: '',
           email: '',
-          badge: dynamicProf.badge || '🛡️ ADMIN',
+          badge: '🛡️ ADMIN',
           badgeBg: 'rgba(56, 189, 248, 0.15)',
           badgeColor: '#38bdf8',
           badgeBorder: 'rgba(56, 189, 248, 0.35)',
@@ -8414,7 +8392,7 @@ function renderTelegramBotPageView(data = {}) {
   const activeTab = _tgBotData.activeTab || 'tgTabUsers';
   const bot = _tgBotData.bot || { username: 'Myshop9876_bot', name: 'LinkAdda Store Bot', id: '8923608774', maskedToken: '892360...dVlE' };
   const bots = (_tgBotData.bots && _tgBotData.bots.length) ? _tgBotData.bots : [bot];
-  const admins = (_tgBotData.admins && _tgBotData.admins.length) ? _tgBotData.admins : ['8802192472', '6966868142'];
+  const admins = (_tgBotData.admins && _tgBotData.admins.length) ? _tgBotData.admins : [];
   const webhook = _tgBotData.webhook || {};
   const users = _tgBotData.users || [];
   const usersCount = _tgBotData.usersCount || users.length;

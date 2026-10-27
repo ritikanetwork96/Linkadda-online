@@ -32,6 +32,10 @@
         var urlSearchParams = new URLSearchParams(window.location.search);
         var qBotId = urlSearchParams.get('botId') || '';
         var qBotUser = urlSearchParams.get('botUser') || '';
+        var qTgUserId = urlSearchParams.get('tgUserId') || '';
+        var qTgUsername = urlSearchParams.get('tgUsername') || '';
+        var qTgName = urlSearchParams.get('tgName') || '';
+
         if (qBotId) {
           try {
             localStorage.setItem('linkadda_source_bot_id', qBotId);
@@ -39,6 +43,20 @@
             if (qBotUser) {
               localStorage.setItem('linkadda_source_bot_user', qBotUser);
               sessionStorage.setItem('linkadda_source_bot_user', qBotUser);
+            }
+          } catch (_) {}
+        }
+        if (qTgUserId) {
+          try {
+            localStorage.setItem('linkadda_tg_user_id', qTgUserId);
+            sessionStorage.setItem('linkadda_tg_user_id', qTgUserId);
+            if (qTgUsername) {
+              localStorage.setItem('linkadda_tg_username', qTgUsername);
+              sessionStorage.setItem('linkadda_tg_username', qTgUsername);
+            }
+            if (qTgName) {
+              localStorage.setItem('linkadda_tg_name', qTgName);
+              sessionStorage.setItem('linkadda_tg_name', qTgName);
             }
           } catch (_) {}
         }
@@ -1623,13 +1641,22 @@
 
     let activeBotId = '';
     let activeBotUser = '';
+    let activeTgUserId = '';
+    let activeTgUsername = '';
+    let activeTgName = '';
     try {
       const qp = new URLSearchParams(window.location.search);
       activeBotId = qp.get('botId') || localStorage.getItem('linkadda_source_bot_id') || sessionStorage.getItem('linkadda_source_bot_id') || '';
       activeBotUser = qp.get('botUser') || localStorage.getItem('linkadda_source_bot_user') || sessionStorage.getItem('linkadda_source_bot_user') || '';
+      activeTgUserId = qp.get('tgUserId') || localStorage.getItem('linkadda_tg_user_id') || sessionStorage.getItem('linkadda_tg_user_id') || '';
+      activeTgUsername = qp.get('tgUsername') || localStorage.getItem('linkadda_tg_username') || sessionStorage.getItem('linkadda_tg_username') || '';
+      activeTgName = qp.get('tgName') || localStorage.getItem('linkadda_tg_name') || sessionStorage.getItem('linkadda_tg_name') || '';
     } catch (_) {}
     if (activeBotId) params.set('botId', activeBotId);
     if (activeBotUser) params.set('botUser', activeBotUser);
+    if (activeTgUserId) params.set('tgUserId', activeTgUserId);
+    if (activeTgUsername) params.set('tgUsername', activeTgUsername);
+    if (activeTgName) params.set('tgName', activeTgName);
 
     const queryString = params.toString() ? `?${params.toString()}` : '';
     const fallback = `payment${ext}${queryString}`;
@@ -1649,6 +1676,9 @@
         if (item.tier) p.set('tier', item.tier);
         if (activeBotId && !p.has('botId')) p.set('botId', activeBotId);
         if (activeBotUser && !p.has('botUser')) p.set('botUser', activeBotUser);
+        if (activeTgUserId && !p.has('tgUserId')) p.set('tgUserId', activeTgUserId);
+        if (activeTgUsername && !p.has('tgUsername')) p.set('tgUsername', activeTgUsername);
+        if (activeTgName && !p.has('tgName')) p.set('tgName', activeTgName);
         return `payment${ext}?${p.toString()}`;
       }
     } catch (_) {}

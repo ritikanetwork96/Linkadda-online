@@ -6,17 +6,17 @@ import { handleCors, verifyAdminRequest } from '../_utils.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const DEFAULT_ADMIN_IDS = ['8516979341', '8802192472', '6966868142'];
+const DEFAULT_ADMIN_IDS = [];
 
 export function getAdminChatIds() {
   try {
     const store = readBotStore();
-    if (Array.isArray(store.admins) && store.admins.length > 0) {
+    if (Array.isArray(store.admins)) {
       return store.admins.map(s => String(s).trim()).filter(Boolean);
     }
   } catch (_) {}
   const envAdmins = (process.env.ADMIN_CHAT_IDS || '').split(',').map(s => s.trim()).filter(Boolean);
-  return envAdmins.length > 0 ? envAdmins : DEFAULT_ADMIN_IDS;
+  return envAdmins;
 }
 
 export function getAppUrl(req = null) {
@@ -120,7 +120,8 @@ function readBotStore() {
       source: 'database',
       lastActivatedAt: new Date().toISOString()
     },
-    admins: DEFAULT_ADMIN_IDS,
+    admins: [],
+    adminProfiles: {},
     users: {},
     pendingDeletions: {},
     orderLinks: {},
@@ -196,12 +197,12 @@ export async function syncBotsFromSupabase(force = false) {
             store.bots = { ...(store.bots || {}), ...row.value };
             changed = true;
           }
-          if (row.key === 'tg_admin_chat_ids' && Array.isArray(row.value) && row.value.length > 0) {
+          if (row.key === 'tg_admin_chat_ids' && Array.isArray(row.value)) {
             store.admins = row.value.map(s => String(s).trim()).filter(Boolean);
             changed = true;
           }
           if (row.key === 'tg_admin_profiles' && row.value && typeof row.value === 'object') {
-            store.adminProfiles = { ...(store.adminProfiles || {}), ...row.value };
+            store.adminProfiles = { ...row.value };
             changed = true;
           }
         }
@@ -439,7 +440,7 @@ export async function addAdminChatId(chatId, label = '', assignedBotId = 'all', 
     throw new Error('Invalid Telegram Chat ID. Chat IDs are 8-10 digit numbers.');
   }
   const store = readBotStore();
-  if (!Array.isArray(store.admins)) store.admins = [...DEFAULT_ADMIN_IDS];
+  if (!Array.isArray(store.admins)) store.admins = [];
   if (!store.admins.includes(cleanId)) {
     store.admins.push(cleanId);
   }
@@ -1537,9 +1538,10 @@ export async function notifyAdminsNewOrder(order) {
   }
 
   // 3. Update Supabase order row with permanent screenshot URL and resolved source bot
-  if (uploadedScreenshotUrl || (isRealBotOrder && originatingBot.botId)) {
+  if (uploadedScreenshotUrl || (isRealBotOrder && originatingBot.botId) || customerTgId) {
     try {
       const { url, key } = getSupabaseConfig();
+      const existingData = order.data || {};
       fetch(`${url}/rest/v1/orders?id=eq.${encodeURIComponent(orderId)}`, {
         method: 'PATCH',
         headers: { 'apikey': key, 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' },
@@ -1547,13 +1549,23 @@ export async function notifyAdminsNewOrder(order) {
           payment_proof: uploadedScreenshotUrl || undefined, 
           updated_at: new Date().toISOString(),
           data: {
-            ...(order.data || {}),
-            sourceBotId: isRealBotOrder ? originatingBot.botId : null,
-            sourceBotUsername: isRealBotOrder ? originatingBot.username : null
+            ...existingData,
+            sourceBotId: isRealBotOrder ? originatingBot.botId : (existingData.sourceBotId || null),
+            sourceBotUsername: isRealBotOrder ? originatingBot.username : (existingData.sourceBotUsername || null),
+            telegramUserId: customerTgId || existingData.telegramUserId || '',
+            telegramUsername: order.telegramUsername || existingData.telegramUsername || ''
           }
         })
       }).catch(() => {});
     } catch (_) {}
+  }
+
+  // ── 0. DIRECT WEBSITE ORDER CHECK ──
+  // If order was placed directly on the website (not from a Telegram bot / Open Store),
+  // DO NOT send Telegram messages to admins or bots! Only keep it saved in DB for Admin Panel.
+  if (!isRealBotOrder && !customerTgId) {
+    console.log(`[ORDER] Order #${orderId} is a direct website order. Saved for Admin Panel view, skipping Telegram alert.`);
+    return { ok: true, isWebOrder: true, orderId, message: 'Web order saved for Admin Panel' };
   }
 
   const caption = 
@@ -1603,14 +1615,6 @@ export async function notifyAdminsNewOrder(order) {
         text: custText,
         parse_mode: 'HTML'
       }, originatingToken).catch(() => null);
-
-      if (!custRes?.ok && originatingToken !== primaryBot.token) {
-        await callTelegram('sendMessage', {
-          chat_id: String(customerTgId),
-          text: custText,
-          parse_mode: 'HTML'
-        }, primaryBot.token).catch(() => {});
-      }
     } catch (custErr) {
       console.warn('Customer confirmation dispatch error:', custErr.message);
     }
@@ -1649,11 +1653,8 @@ export async function notifyAdminsNewOrder(order) {
       return fd;
     };
 
-    // Fleet candidate bots: Originating bot first, followed by all other active fleet bots
-    const candidateFleetBots = [
-      originatingBot,
-      ...allBots.filter(b => b.token && b.token !== originatingToken && b.status !== 'inactive')
-    ];
+    // Fleet candidate bots: Originating bot strictly for 100% channel isolation
+    const candidateFleetBots = [originatingBot];
 
     for (const targetBot of candidateFleetBots) {
       const candidateToken = targetBot.token;
@@ -1746,9 +1747,111 @@ export async function notifyAdminsNewOrder(order) {
 }
 
 /**
+ * Safely and reliably update an Admin Order Alert message in Telegram.
+ * Handles photo captions vs text messages, truncates to Telegram safe length (<1000),
+ * retries alternative methods (editMessageCaption <-> editMessageText),
+ * and falls back to plain text if HTML parsing encounters malformed entities.
+ */
+async function updateAdminOrderMessage(msg, newCaption, keyboard, fallbackToken) {
+  const token = msg.botToken || fallbackToken;
+  if (!token || !msg.chatId || !msg.messageId) return false;
+
+  let safeCaption = String(newCaption || '').trim();
+  if (safeCaption.length > 980) {
+    safeCaption = safeCaption.slice(0, 970) + '...';
+  }
+
+  // 1. Primary attempt: using msg.isPhoto hint
+  let editSuccess = false;
+  if (msg.isPhoto) {
+    try {
+      const res = await callTelegram('editMessageCaption', {
+        chat_id: msg.chatId,
+        message_id: msg.messageId,
+        caption: safeCaption,
+        parse_mode: 'HTML',
+        reply_markup: keyboard
+      }, token);
+      if (res && res.ok) editSuccess = true;
+    } catch (_) {}
+
+    // Fallback: Try editMessageText if it was actually a text message
+    if (!editSuccess) {
+      try {
+        const res = await callTelegram('editMessageText', {
+          chat_id: msg.chatId,
+          message_id: msg.messageId,
+          text: safeCaption,
+          parse_mode: 'HTML',
+          reply_markup: keyboard
+        }, token);
+        if (res && res.ok) editSuccess = true;
+      } catch (_) {}
+    }
+  } else {
+    try {
+      const res = await callTelegram('editMessageText', {
+        chat_id: msg.chatId,
+        message_id: msg.messageId,
+        text: safeCaption,
+        parse_mode: 'HTML',
+        reply_markup: keyboard
+      }, token);
+      if (res && res.ok) editSuccess = true;
+    } catch (_) {}
+
+    // Fallback: Try editMessageCaption if it was actually a photo
+    if (!editSuccess) {
+      try {
+        const res = await callTelegram('editMessageCaption', {
+          chat_id: msg.chatId,
+          message_id: msg.messageId,
+          caption: safeCaption,
+          parse_mode: 'HTML',
+          reply_markup: keyboard
+        }, token);
+        if (res && res.ok) editSuccess = true;
+      } catch (_) {}
+    }
+  }
+
+  // 2. Secondary attempt: Strip HTML entities if Telegram had a parse error
+  if (!editSuccess) {
+    const plainCaption = safeCaption.replace(/<[^>]+>/g, '');
+    try {
+      const method = msg.isPhoto ? 'editMessageCaption' : 'editMessageText';
+      const body = {
+        chat_id: msg.chatId,
+        message_id: msg.messageId,
+        [msg.isPhoto ? 'caption' : 'text']: plainCaption,
+        reply_markup: keyboard
+      };
+      const res = await callTelegram(method, body, token);
+      if (res && res.ok) editSuccess = true;
+    } catch (_) {}
+
+    if (!editSuccess) {
+      const altMethod = msg.isPhoto ? 'editMessageText' : 'editMessageCaption';
+      const altBody = {
+        chat_id: msg.chatId,
+        message_id: msg.messageId,
+        [msg.isPhoto ? 'text' : 'caption']: plainCaption,
+        reply_markup: keyboard
+      };
+      try {
+        await callTelegram(altMethod, altBody, token);
+      } catch (_) {}
+    }
+  }
+
+  return editSuccess;
+}
+
+/**
  * Handle Order Approval: Update DB, Update Telegram Admin Messages, and Notify Customer
  */
-async function processOrderApproval(orderId, adminUser) {
+async function processOrderApproval(orderId, adminUser, triggerMessage = null) {
+  const store = readBotStore();
   const { url, key } = getSupabaseConfig();
   const headers = { 'apikey': key, 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' };
 
@@ -1768,17 +1871,18 @@ async function processOrderApproval(orderId, adminUser) {
   }
 
   // Fetch matched product to check for specific channelLink
-  let channelLink = order?.channel_link || order?.data?.channelLink || '';
+  let channelLink = order?.channel_link || order?.data?.channelLink || order?.data?.deliveryLink || order?.data?.downloadLink || order?.data?.fileUrl || order?.data?.orderLink || '';
   const productId = order?.product_id || order?.data?.productId || order?.productId;
   if (!channelLink && productId) {
     try {
-      const pRes = await fetch(`${url}/rest/v1/products?id=eq.${encodeURIComponent(productId)}&select=*`, {
+      const pRes = await fetch(`${url}/rest/v1/products?or=(id.eq.${encodeURIComponent(productId)},product_id.eq.${encodeURIComponent(productId)})&select=*`, {
         headers,
         signal: AbortSignal.timeout(4000)
       });
       if (pRes.ok) {
         const pRows = await pRes.json();
-        channelLink = pRows?.[0]?.channel_link || pRows?.[0]?.data?.channelLink || '';
+        const p = pRows?.[0];
+        channelLink = p?.channel_link || p?.delivery_link || p?.download_link || p?.file_url || p?.data?.channelLink || p?.data?.deliveryLink || p?.data?.downloadLink || p?.data?.fileUrl || p?.data?.orderLink || '';
       }
     } catch (_) {}
   }
@@ -1836,11 +1940,10 @@ async function processOrderApproval(orderId, adminUser) {
 
   // Save order link in bot_store.json so view_link callback is 0ms instant
   try {
-    const store = readBotStore();
     if (!store.orderLinks) store.orderLinks = {};
     store.orderLinks[orderId] = {
       channelLink: channelLink || '',
-      productTitle: order?.product_title || order?.title || 'VIP Pack',
+      productTitle: order?.product_title || order?.title || order?.data?.product_title || 'VIP Pack',
       customerTgId: order?.telegram_user_id || order?.data?.telegramUserId || order?.telegramUserId || null,
       approvedAt: Date.now()
     };
@@ -1865,42 +1968,38 @@ async function processOrderApproval(orderId, adminUser) {
     }
   }
   if (!deliveryBot) deliveryBot = primaryBot;
-  const deliveryToken = deliveryBot.token;
+  const deliveryToken = deliveryBot?.token || primaryBot.token;
 
   try {
-    const adminMsgs = store.orderAdminMessages?.[orderId] || [];
+    const adminMsgs = [...(store.orderAdminMessages?.[orderId] || [])];
+    if (triggerMessage && triggerMessage.chatId && triggerMessage.messageId) {
+      const exists = adminMsgs.some(m => String(m.chatId) === String(triggerMessage.chatId) && String(m.messageId) === String(triggerMessage.messageId));
+      if (!exists) adminMsgs.push(triggerMessage);
+    }
+
+    const rawScreenshot = order?.payment_proof || order?.data?.paymentProof || order?.screenshotUrl || order?.data?.screenshotUrl || '';
+    const viewScreenshotUrl = String(rawScreenshot).startsWith('http') ? rawScreenshot : '';
     const approvedTag = `\n\n━━━━━━━━━━━━━━━━━━━━━━\n✅ <b>APPROVED by ${escapeTelegramHtml(adminName)}</b>\n⚡ Status: Verified & VIP Access Dispatched`;
     const approvedKeyboard = {
       inline_keyboard: [
+        ...(viewScreenshotUrl ? [[{ text: '🔍 View Full Screenshot', url: viewScreenshotUrl }]] : []),
         [{ text: `✅ Approved by ${adminName}`, callback_data: 'noop' }]
       ]
     };
 
     for (const msg of adminMsgs) {
-      const msgToken = msg.botToken || deliveryToken;
-      if (msg.isPhoto) {
-        await callTelegram('editMessageCaption', {
-          chat_id: msg.chatId,
-          message_id: msg.messageId,
-          caption: (msg.caption || `🚨 <b>Order #${orderId}</b>`) + approvedTag,
-          parse_mode: 'HTML',
-          reply_markup: approvedKeyboard
-        }, msgToken).catch(() => {});
-      } else {
-        await callTelegram('editMessageText', {
-          chat_id: msg.chatId,
-          message_id: msg.messageId,
-          text: (msg.caption || `🚨 <b>Order #${orderId}</b>`) + approvedTag,
-          parse_mode: 'HTML',
-          reply_markup: approvedKeyboard
-        }, msgToken).catch(() => {});
+      let baseCaption = msg.caption || `🚨 <b>Order #${orderId}</b>`;
+      baseCaption = baseCaption.replace(/\n\s*<i>Review payment screenshot and tap below to Approve or Reject:<\/i>/gi, '');
+      if (!baseCaption.includes('APPROVED by')) {
+        baseCaption += approvedTag;
       }
+      await updateAdminOrderMessage(msg, baseCaption, approvedKeyboard, deliveryToken);
     }
   } catch (adminEditErr) {
     console.warn('Could not update admin message in Telegram:', adminEditErr.message);
   }
 
-  // Notify customer on Telegram via the EXACT bot they ordered from
+  // Notify customer on Telegram via originating bot
   if (customerTgId) {
     const appUrl = getAppUrl();
     const productTitle = order?.product_title || order?.title || order?.data?.product_title || 'VIP Pack';
@@ -1920,7 +2019,7 @@ async function processOrderApproval(orderId, adminUser) {
         `💬 <b>24/7 Lifetime Support:</b> @VIP_KINK`;
 
       let sendRes = await callTelegram('sendMessage', {
-        chat_id: customerTgId,
+        chat_id: String(customerTgId),
         text: approvalText,
         parse_mode: 'HTML',
         reply_markup: {
@@ -1932,30 +2031,6 @@ async function processOrderApproval(orderId, adminUser) {
         }
       }, deliveryToken);
 
-      // Fallback: If target bot returned error (user blocked or didn't start), try other bots user is in
-      if (!sendRes?.ok && userRecord?.bots) {
-        for (const [altBotId, bInfo] of Object.entries(userRecord.bots)) {
-          if (altBotId === deliveryBot.botId) continue;
-          const altBot = allBots.find(b => b.botId === altBotId);
-          if (altBot && altBot.token) {
-            sendRes = await callTelegram('sendMessage', {
-              chat_id: customerTgId,
-              text: approvalText,
-              parse_mode: 'HTML',
-              reply_markup: {
-                inline_keyboard: [
-                  [{ text: '🚀 Open VIP Access Link', url: accessUrl }],
-                  [{ text: '🛍️ Open Store', web_app: { url: `${appUrl}?botId=${altBot.botId}&botUser=${altBot.username}` } }],
-                  [{ text: '💬 Support Desk (@VIP_KINK)', url: 'https://t.me/VIP_KINK' }]
-                ]
-              }
-            }, altBot.token).catch(() => null);
-            if (sendRes?.ok) break;
-          }
-        }
-      }
-
-      // Register in smart deletion engine (3-hour TTL if unread; switches to 2 mins upon activity/read)
       if (sendRes?.ok && sendRes?.result?.message_id) {
         queueMessageForDeletion(customerTgId, sendRes.result.message_id, {
           orderId,
@@ -1964,15 +2039,16 @@ async function processOrderApproval(orderId, adminUser) {
       }
     } else {
       await callTelegram('sendMessage', {
-        chat_id: customerTgId,
+        chat_id: String(customerTgId),
         text: 
           `🎉 <b>Congratulations! Your Order #${orderId} has been Approved!</b>\n\n` +
-          `📦 <b>Product:</b> ${escapeTelegramHtml(productTitle)}\n\n` +
+          `📦 <b>Product:</b> <b>${escapeTelegramHtml(productTitle)}</b>\n\n` +
           `To claim your VIP content access, please message <b>Admin @VIP_KINK</b> on Telegram below:`,
         parse_mode: 'HTML',
         reply_markup: {
           inline_keyboard: [
-            [{ text: '💬 Get Link from Admin (@VIP_KINK)', url: `https://t.me/VIP_KINK?text=${encodeURIComponent(`Hi Admin, my order #${orderId} is approved. Please provide my Telegram access link.`)}` }]
+            [{ text: '💬 Get Link from Admin (@VIP_KINK)', url: `https://t.me/VIP_KINK?text=${encodeURIComponent(`Hi Admin, my order #${orderId} is approved. Please provide my Telegram access link.`)}` }],
+            [{ text: '🛍️ Open Store', web_app: { url: storeWebUrl } }]
           ]
         }
       }, deliveryToken);
@@ -1985,7 +2061,8 @@ async function processOrderApproval(orderId, adminUser) {
 /**
  * Handle Order Rejection: Update DB, Update Telegram Admin Messages, and Notify Customer
  */
-async function processOrderRejection(orderId, adminUser) {
+async function processOrderRejection(orderId, adminUser, triggerMessage = null) {
+  const store = readBotStore();
   const { url, key } = getSupabaseConfig();
   const headers = { 'apikey': key, 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' };
 
@@ -2047,44 +2124,52 @@ async function processOrderRejection(orderId, adminUser) {
   }
 
   // ━━ LIVE SYNC: Update all Telegram Admin Messages for this Order ━━
+  await syncBotsFromSupabase().catch(() => {});
+  let allBots = getConnectedBots();
+  const primaryBot = allBots.find(b => b.isPrimary) || allBots[0] || { botId: 'bot_8923608774', username: 'Myshop9876_bot', token: store.activeToken };
+  const rawBotId = order?.source_bot_id || order?.sourceBotId || order?.data?.source_bot_id || order?.data?.sourceBotId || null;
+  let deliveryBot = null;
+  if (rawBotId) {
+    const cleanId = String(rawBotId).toLowerCase().replace('@', '');
+    deliveryBot = allBots.find(b => b.botId.toLowerCase() === cleanId || b.id === cleanId || (b.username && b.username.toLowerCase() === cleanId));
+  }
+  if (!deliveryBot) deliveryBot = primaryBot;
+  const deliveryToken = deliveryBot?.token || primaryBot.token;
+
   try {
-    const store = readBotStore();
-    const adminMsgs = store.orderAdminMessages?.[orderId] || [];
+    const adminMsgs = [...(store.orderAdminMessages?.[orderId] || [])];
+    if (triggerMessage && triggerMessage.chatId && triggerMessage.messageId) {
+      const exists = adminMsgs.some(m => String(m.chatId) === String(triggerMessage.chatId) && String(m.messageId) === String(triggerMessage.messageId));
+      if (!exists) adminMsgs.push(triggerMessage);
+    }
+
+    const rawScreenshot = order?.payment_proof || order?.data?.paymentProof || order?.screenshotUrl || order?.data?.screenshotUrl || '';
+    const viewScreenshotUrl = String(rawScreenshot).startsWith('http') ? rawScreenshot : '';
     const rejectedTag = `\n\n━━━━━━━━━━━━━━━━━━━━━━\n❌ <b>REJECTED by ${escapeTelegramHtml(adminName)}</b>\n⚡ Payment verification failed`;
     const rejectedKeyboard = {
       inline_keyboard: [
+        ...(viewScreenshotUrl ? [[{ text: '🔍 View Full Screenshot', url: viewScreenshotUrl }]] : []),
         [{ text: `❌ Rejected by ${adminName}`, callback_data: 'noop' }]
       ]
     };
 
     for (const msg of adminMsgs) {
-      if (msg.isPhoto) {
-        await callTelegram('editMessageCaption', {
-          chat_id: msg.chatId,
-          message_id: msg.messageId,
-          caption: (msg.caption || `🚨 <b>Order #${orderId}</b>`) + rejectedTag,
-          parse_mode: 'HTML',
-          reply_markup: rejectedKeyboard
-        });
-      } else {
-        await callTelegram('editMessageText', {
-          chat_id: msg.chatId,
-          message_id: msg.messageId,
-          text: (msg.caption || `🚨 <b>Order #${orderId}</b>`) + rejectedTag,
-          parse_mode: 'HTML',
-          reply_markup: rejectedKeyboard
-        });
+      let baseCaption = msg.caption || `🚨 <b>Order #${orderId}</b>`;
+      baseCaption = baseCaption.replace(/\n\s*<i>Review payment screenshot and tap below to Approve or Reject:<\/i>/gi, '');
+      if (!baseCaption.includes('REJECTED by')) {
+        baseCaption += rejectedTag;
       }
+      await updateAdminOrderMessage(msg, baseCaption, rejectedKeyboard, deliveryToken);
     }
   } catch (adminEditErr) {
     console.warn('Could not update admin message in Telegram:', adminEditErr.message);
   }
 
-  // Notify customer on Telegram
+  // Notify customer on Telegram via originating bot
   const customerTgId = order?.telegram_user_id || order?.data?.telegramUserId || order?.telegramUserId;
   if (customerTgId) {
     await callTelegram('sendMessage', {
-      chat_id: customerTgId,
+      chat_id: String(customerTgId),
       text: 
         `❌ <b>Order #${orderId} Verification Unsuccessful</b>\n\n` +
         `The payment screenshot or UTR transaction reference could not be validated.\n\n` +
@@ -2095,7 +2180,7 @@ async function processOrderRejection(orderId, adminUser) {
           [{ text: '💬 Contact Support (@VIP_KINK)', url: `https://t.me/VIP_KINK?text=${encodeURIComponent(`Hi Admin, my order #${orderId} was rejected. Here is my payment receipt.`)}` }]
         ]
       }
-    });
+    }, deliveryToken).catch(() => {});
   }
 
   return { ok: true, orderId };
@@ -2705,8 +2790,8 @@ export default async function handler(req, res) {
                     const realName = [realFirst, realLast].filter(Boolean).join(' ').trim();
                     store.adminProfiles[cleanAid] = {
                       id: cleanAid,
-                      name: realName || (cleanAid === '6966868142' ? 'Ghost Layer' : `Admin #${cleanAid}`),
-                      username: realUname || (cleanAid === '6966868142' ? 'GhostLayer73' : ''),
+                      name: realName || `Admin #${cleanAid}`,
+                      username: realUname || '',
                       badge: '🛡️ ADMIN',
                       role: 'Order Proof Alerts & Instant Approve/Reject Buttons Across All Bots',
                       updatedAt: Date.now()
@@ -3263,6 +3348,10 @@ export default async function handler(req, res) {
               paymentProof: proof,
               utr,
               status: order.status || 'pending',
+              sourceBotId: order.sourceBotId || order.source_bot_id || (order.data && (order.data.sourceBotId || order.data.source_bot_id)) || null,
+              sourceBotUsername: order.sourceBotUsername || order.source_bot_username || (order.data && (order.data.sourceBotUsername || order.data.source_bot_username)) || null,
+              telegramUserId: order.telegramUserId || order.telegram_user_id || (order.data && (order.data.telegramUserId || order.data.telegram_user_id)) || null,
+              telegramUsername: order.telegramUsername || order.telegram_username || (order.data && (order.data.telegramUsername || order.data.telegram_username)) || null,
               timestamp: Date.now()
             },
             updated_at: new Date().toISOString()
@@ -3400,36 +3489,18 @@ export default async function handler(req, res) {
           const isStartCmd = text === '/start' || text.startsWith('/start');
           await recordBotUser(fromUser, isStartCmd ? 'bot_start' : 'bot_chat', currentBotId).catch(() => {});
 
-          // Auto-sync real Telegram Admin profile if sender is an admin!
+          // If sender is an already authorized admin from Admin Panel, update active status without overwriting custom profiles
           const fromIdStr = String(fromUser.id);
           if (adminIds.includes(fromIdStr)) {
             const store = readBotStore();
-            if (!store.adminProfiles) store.adminProfiles = {};
-            const realFirst = fromUser.first_name || '';
-            const realLast = fromUser.last_name || '';
-            const realUname = (fromUser.username || '').replace('@', '');
-            const rawName = [realFirst, realLast].filter(Boolean).join(' ').trim();
-            const isOwner = (fromIdStr === '8802192472' || fromIdStr === '8516979341');
-            const realName = (!rawName || rawName.toLowerCase() === 'no name') ? (isOwner ? 'Owner (Main Admin)' : `Admin #${fromIdStr}`) : rawName;
-            store.adminProfiles[fromIdStr] = {
-              ...(store.adminProfiles[fromIdStr] || {}),
-              id: fromIdStr,
-              name: realName,
-              username: realUname,
-              badge: isOwner ? '👑 OWNER' : '🛡️ ADMIN',
-              role: 'Order Proof Alerts & Instant Approve/Reject Buttons Across All Bots',
-              updatedAt: Date.now()
-            };
-            writeBotStore(store);
-
-            try {
-              const { url, key } = getSupabaseConfig();
-              fetch(`${url}/rest/v1/site_settings`, {
-                method: 'POST',
-                headers: { 'apikey': key, 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates' },
-                body: JSON.stringify([{ key: 'tg_admin_profiles', value: store.adminProfiles, updated_at: new Date().toISOString() }])
-              }).catch(() => {});
-            } catch (_) {}
+            if (store.adminProfiles && store.adminProfiles[fromIdStr]) {
+              const realUname = (fromUser.username || '').replace('@', '');
+              if (realUname && !store.adminProfiles[fromIdStr].username) {
+                store.adminProfiles[fromIdStr].username = realUname;
+              }
+              store.adminProfiles[fromIdStr].lastActiveAt = Date.now();
+              writeBotStore(store);
+            }
           }
         }
 
@@ -3442,12 +3513,14 @@ export default async function handler(req, res) {
           const payload = text.replace(/^\/start(?:@[a-zA-Z0-9_]+)?\s*/i, '').trim();
           const appUrl = getAppUrl(req);
           const botParam = currentBotId ? `botId=${encodeURIComponent(currentBotId)}&botUser=${encodeURIComponent(receivingBot?.username || '')}` : '';
-          const storeWebUrl = botParam ? `${appUrl}?${botParam}` : appUrl;
+          const userParams = `tgUserId=${encodeURIComponent(msg.chat.id)}&tgUsername=${encodeURIComponent(fromUser?.username || '')}&tgName=${encodeURIComponent([fromUser?.first_name, fromUser?.last_name].filter(Boolean).join(' ') || '')}`;
+          const fullParams = [botParam, userParams].filter(Boolean).join('&');
+          const storeWebUrl = fullParams ? `${appUrl}?${fullParams}` : appUrl;
 
           if (payload) {
             // User opened bot via deep link for a specific product e.g. /start prod_123
-            const productViewUrl = `${appUrl}/index.html?productId=${encodeURIComponent(payload)}${botParam ? `&${botParam}` : ''}`;
-            const checkoutUrl = `${appUrl}/payment.html?productId=${encodeURIComponent(payload)}${botParam ? `&${botParam}` : ''}`;
+            const productViewUrl = `${appUrl}/index.html?productId=${encodeURIComponent(payload)}${fullParams ? `&${fullParams}` : ''}`;
+            const checkoutUrl = `${appUrl}/payment.html?productId=${encodeURIComponent(payload)}${fullParams ? `&${fullParams}` : ''}`;
             const safeName = escapeTelegramHtml(payload.replace(/[-_]+/g, ' '));
 
             await callTelegram('sendMessage', {
@@ -3595,19 +3668,23 @@ export default async function handler(req, res) {
             text: `✅ Order #${orderId} Approved!`
           }, currentToken);
 
-          // Ensure this specific admin message is tracked in store
-          if (cq.message && cq.message.chat) {
+          const triggerMessage = cq.message && cq.message.chat ? {
+            chatId: String(cq.message.chat.id),
+            messageId: cq.message.message_id,
+            isPhoto: Boolean(cq.message.photo),
+            caption: cq.message.caption || cq.message.text || `🚨 Order #${orderId}`,
+            botToken: currentToken
+          } : null;
+
+          if (triggerMessage) {
             try {
               const store = readBotStore();
               if (!store.orderAdminMessages) store.orderAdminMessages = {};
               if (!store.orderAdminMessages[orderId]) store.orderAdminMessages[orderId] = [];
-              const exists = store.orderAdminMessages[orderId].some(m => String(m.chatId) === String(cq.message.chat.id) && String(m.messageId) === String(cq.message.message_id));
+              const exists = store.orderAdminMessages[orderId].some(m => String(m.chatId) === triggerMessage.chatId && String(m.messageId) === String(triggerMessage.messageId));
               if (!exists) {
                 store.orderAdminMessages[orderId].push({
-                  chatId: String(cq.message.chat.id),
-                  messageId: cq.message.message_id,
-                  isPhoto: Boolean(cq.message.photo),
-                  caption: cq.message.caption || cq.message.text || `🚨 Order #${orderId}`,
+                  ...triggerMessage,
                   sentAt: Date.now()
                 });
                 writeBotStore(store);
@@ -3615,7 +3692,7 @@ export default async function handler(req, res) {
             } catch (_) {}
           }
 
-          await processOrderApproval(orderId, adminUser);
+          await processOrderApproval(orderId, adminUser, triggerMessage);
           return res.status(200).json({ ok: true });
         }
 
@@ -3626,19 +3703,23 @@ export default async function handler(req, res) {
             text: `❌ Order #${orderId} Rejected!`
           }, currentToken);
 
-          // Ensure this specific admin message is tracked in store
-          if (cq.message && cq.message.chat) {
+          const triggerMessage = cq.message && cq.message.chat ? {
+            chatId: String(cq.message.chat.id),
+            messageId: cq.message.message_id,
+            isPhoto: Boolean(cq.message.photo),
+            caption: cq.message.caption || cq.message.text || `🚨 Order #${orderId}`,
+            botToken: currentToken
+          } : null;
+
+          if (triggerMessage) {
             try {
               const store = readBotStore();
               if (!store.orderAdminMessages) store.orderAdminMessages = {};
               if (!store.orderAdminMessages[orderId]) store.orderAdminMessages[orderId] = [];
-              const exists = store.orderAdminMessages[orderId].some(m => String(m.chatId) === String(cq.message.chat.id) && String(m.messageId) === String(cq.message.message_id));
+              const exists = store.orderAdminMessages[orderId].some(m => String(m.chatId) === triggerMessage.chatId && String(m.messageId) === String(triggerMessage.messageId));
               if (!exists) {
                 store.orderAdminMessages[orderId].push({
-                  chatId: String(cq.message.chat.id),
-                  messageId: cq.message.message_id,
-                  isPhoto: Boolean(cq.message.photo),
-                  caption: cq.message.caption || cq.message.text || `🚨 Order #${orderId}`,
+                  ...triggerMessage,
                   sentAt: Date.now()
                 });
                 writeBotStore(store);
@@ -3646,7 +3727,7 @@ export default async function handler(req, res) {
             } catch (_) {}
           }
 
-          await processOrderRejection(orderId, adminUser);
+          await processOrderRejection(orderId, adminUser, triggerMessage);
           return res.status(200).json({ ok: true });
         }
       }

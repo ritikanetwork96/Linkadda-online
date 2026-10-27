@@ -57,7 +57,7 @@ export default async function handler(req, res) {
     const method = order.payment_method || order.method || 'UPI / QR';
     const proof = order.payment_proof || order.screenshotUrl || order.paymentProof || '';
     const utr = order.utr || order.transactionId || '';
-    const custName = order.customer_name || order.customerName || order.name || order.buyerName || (order.telegramUsername ? `@${order.telegramUsername}` : 'Customer');
+    const custName = order.customer_name || order.customerName || order.name || order.buyerName || order.telegramName || (order.telegramUsername ? `@${order.telegramUsername}` : 'Customer');
 
     const sourceBotId = order.sourceBotId || order.source_bot_id || order.data?.sourceBotId || null;
     const sourceBotUsername = order.sourceBotUsername || order.source_bot_username || order.data?.sourceBotUsername || null;

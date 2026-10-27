@@ -18,7 +18,7 @@
       "username": "Myshop9876_bot",
       "createdAt": 1792841000000,
       "lastActivatedAt": "2026-10-23T20:00:00.000Z",
-      "subscribersCount": 3
+      "subscribersCount": 2
     },
     "bot_8869143190": {
       "id": "8869143190",
@@ -29,48 +29,50 @@
       "username": "Testnot565_bot",
       "createdAt": 1792842000000,
       "lastActivatedAt": "2026-10-24T10:00:00.000Z",
-      "subscribersCount": 1
+      "subscribersCount": 0
     }
   },
   "admins": [
-    "8516979341",
-    "8802192472",
-    "6966868142"
+    "6966868142",
+    "8770964308"
   ],
   "adminProfiles": {
-    "8516979341": {
-      "id": "8516979341",
-      "name": "Owner (Main Admin)",
-      "role": "Full Access · Order Proof Alerts & Instant Approve/Reject Buttons Across All Bots",
-      "badge": "👑 OWNER",
-      "username": "noname8828211"
-    },
-    "8802192472": {
-      "id": "8802192472",
-      "name": "Owner (Backup)",
-      "role": "Full Access · Order Proof Alerts & Instant Approve/Reject Buttons Across All Bots",
-      "badge": "👑 OWNER",
-      "username": ""
-    },
     "6966868142": {
       "id": "6966868142",
       "name": "Ghost Layer",
       "role": "Order Proof Alerts & Instant Approve/Reject Buttons Across All Bots",
       "badge": "🛡️ ADMIN",
       "username": "GhostLayer73",
-      "updatedAt": 1793084456513
+      "updatedAt": 1793085063742
+    },
+    "8770964308": {
+      "id": "8770964308",
+      "name": "𓆩✶𓆪𝐓𝐑𝐔𝐒𝐓𝐄𝐃 𝐁𝐑𝐎𝐓𝐇𝐄𝐑𓆩✶𓆪",
+      "role": "Order Proof Alerts & Instant Approve/Reject Buttons Across All Bots",
+      "badge": "🛡️ ADMIN",
+      "username": "TRUSTED_BROTHER1234",
+      "updatedAt": 1793122396478,
+      "assignedBotId": "all",
+      "assignedBotUsername": "All Fleet Bots"
     }
   },
   "users": {
     "6966868142": {
       "id": "6966868142",
+      "username": "GhostLayer73",
+      "firstName": "Bot C Customer",
+      "lastName": "Layer",
+      "source": "admin_tester",
+      "sourceBotId": "bot_8869143190",
+      "sourceBotUsername": "Testnot565_bot",
+      "lastBotId": "bot_8869143190",
       "bots": {
         "bot_8869143190": {
           "botId": "bot_8869143190",
-          "source": "bot_start",
-          "joinedAt": 1793037576742,
           "botUsername": "Testnot565_bot",
-          "lastActiveAt": 1793084455841
+          "joinedAt": 1793037576742,
+          "lastActiveAt": 1793123204220,
+          "source": "order_checkout"
         },
         "bot_8923608774": {
           "botId": "bot_8923608774",
@@ -80,20 +82,13 @@
           "lastActiveAt": 1793084441916
         }
       },
-      "source": "admin_tester",
-      "isAdmin": true,
-      "lastName": "Layer",
-      "username": "GhostLayer73",
-      "createdAt": 1793037075801,
-      "firstName": "Ghost",
-      "lastBotId": "bot_8869143190",
-      "updatedAt": 1793084455841,
-      "sourceBotId": "bot_8869143190",
       "sourceBotIds": [
         "bot_8869143190",
         "bot_8923608774"
       ],
-      "sourceBotUsername": "Testnot565_bot"
+      "isAdmin": true,
+      "createdAt": 1793037075801,
+      "updatedAt": 1793123204220
     },
     "8243604085": {
       "id": "8243604085",
@@ -121,25 +116,25 @@
     "8516979341": {
       "id": "8516979341",
       "username": "noname8828211",
-      "firstName": "No name",
+      "firstName": "Tester (Bot C)",
       "lastName": "",
-      "source": "order_checkout",
-      "sourceBotId": "bot_8923608774",
-      "sourceBotUsername": "Myshop9876_bot",
-      "lastBotId": "bot_8923608774",
+      "source": "admin_tester",
+      "sourceBotId": "bot_8869143190",
+      "sourceBotUsername": "Testnot565_bot",
+      "lastBotId": "bot_8869143190",
       "bots": {
         "bot_8869143190": {
           "botId": "bot_8869143190",
-          "source": "bot_start",
-          "joinedAt": 1793041757107,
           "botUsername": "Testnot565_bot",
-          "lastActiveAt": 1793084634413
+          "joinedAt": 1793041757107,
+          "lastActiveAt": 1793120053593,
+          "source": "order_checkout"
         },
         "bot_8923608774": {
           "botId": "bot_8923608774",
           "botUsername": "Myshop9876_bot",
           "joinedAt": 1793018699748,
-          "lastActiveAt": 1793084635280,
+          "lastActiveAt": 1793108287431,
           "source": "order_checkout"
         }
       },
@@ -149,7 +144,7 @@
       ],
       "isAdmin": false,
       "createdAt": 1793018699748,
-      "updatedAt": 1793084635280
+      "updatedAt": 1793120053593
     },
     "8770964308": {
       "id": "8770964308",
@@ -212,6 +207,26 @@
         "isPhoto": true,
         "caption": "🚨 <b>NEW ORDER RECEIVED!</b>\n━━━━━━━━━━━━━━━━━━━━━━\n🆔 <b>Order ID:</b> <code>ORD-MVQC7MVX-FOIM</code>\n🤖 <b>Bot Channel:</b> <b>@Myshop9876_bot</b>\n📦 <b>Product:</b> <b>New Indian Spx / New Indian SPX #2</b>\n💰 <b>Amount:</b> <b>₹899</b>\n💳 <b>Payment Method:</b> UPI\n🔢 <b>UTR / Transaction Ref:</b> <code>Not provided</code>\n👤 <b>Customer:</b> @noname8828211\n━━━━━━━━━━━━━━━━━━━━━━\n<i>Review payment screenshot and tap below to Approve or Reject:</i>",
         "sentAt": 1793084671500
+      }
+    ],
+    "ORD-MVQQ5LK5-Q9DQ": [
+      {
+        "chatId": "8516979341",
+        "messageId": 187,
+        "botId": "bot_8923608774",
+        "botToken": "8923608774:AAFhvO4Yzly7toIf5qoI-TSW4EzVzWCdVlE",
+        "isPhoto": false,
+        "caption": "🚨 <b>NEW ORDER RECEIVED!</b>\n━━━━━━━━━━━━━━━━━━━━━━\n🆔 <b>Order ID:</b> <code>ORD-MVQQ5LK5-Q9DQ</code>\n🤖 <b>Bot Channel:</b> <b>@Myshop9876_bot</b>\n📦 <b>Product:</b> <b>New Indian Spx / New Indian SPX #2</b>\n💰 <b>Amount:</b> <b>$59</b>\n💳 <b>Payment Method:</b> Binance Pay\n🔢 <b>UTR / Transaction Ref:</b> <code>Not provided</code>\n👤 <b>Customer:</b> @noname8828211\n━━━━━━━━━━━━━━━━━━━━━━\n<i>Review payment screenshot and tap below to Approve or Reject:</i>",
+        "sentAt": 1793108329441
+      },
+      {
+        "chatId": "6966868142",
+        "messageId": 188,
+        "botId": "bot_8923608774",
+        "botToken": "8923608774:AAFhvO4Yzly7toIf5qoI-TSW4EzVzWCdVlE",
+        "isPhoto": true,
+        "caption": "🚨 <b>NEW ORDER RECEIVED!</b>\n━━━━━━━━━━━━━━━━━━━━━━\n🆔 <b>Order ID:</b> <code>ORD-MVQQ5LK5-Q9DQ</code>\n🤖 <b>Bot Channel:</b> <b>@Myshop9876_bot</b>\n📦 <b>Product:</b> <b>New Indian Spx / New Indian SPX #2</b>\n💰 <b>Amount:</b> <b>$59</b>\n💳 <b>Payment Method:</b> Binance Pay\n🔢 <b>UTR / Transaction Ref:</b> <code>Not provided</code>\n👤 <b>Customer:</b> @noname8828211\n━━━━━━━━━━━━━━━━━━━━━━\n<i>Review payment screenshot and tap below to Approve or Reject:</i>",
+        "sentAt": 1793108376640
       }
     ]
   }

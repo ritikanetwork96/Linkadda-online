@@ -32,6 +32,10 @@
         var urlSearchParams = new URLSearchParams(window.location.search);
         var qBotId = urlSearchParams.get('botId') || '';
         var qBotUser = urlSearchParams.get('botUser') || '';
+        var qTgUserId = urlSearchParams.get('tgUserId') || '';
+        var qTgUsername = urlSearchParams.get('tgUsername') || '';
+        var qTgName = urlSearchParams.get('tgName') || '';
+
         if (qBotId) {
           try {
             localStorage.setItem('linkadda_source_bot_id', qBotId);
@@ -39,6 +43,20 @@
             if (qBotUser) {
               localStorage.setItem('linkadda_source_bot_user', qBotUser);
               sessionStorage.setItem('linkadda_source_bot_user', qBotUser);
+            }
+          } catch (_) {}
+        }
+        if (qTgUserId) {
+          try {
+            localStorage.setItem('linkadda_tg_user_id', qTgUserId);
+            sessionStorage.setItem('linkadda_tg_user_id', qTgUserId);
+            if (qTgUsername) {
+              localStorage.setItem('linkadda_tg_username', qTgUsername);
+              sessionStorage.setItem('linkadda_tg_username', qTgUsername);
+            }
+            if (qTgName) {
+              localStorage.setItem('linkadda_tg_name', qTgName);
+              sessionStorage.setItem('linkadda_tg_name', qTgName);
             }
           } catch (_) {}
         }
@@ -4872,8 +4890,7 @@ async function saveOrderToFirebase(amountText, methodName) {
         finalProof = screenshotRaw;
       }
     } else {
-      console.warn('Payment screenshot is required.');
-      return { orderId: '' };
+      finalProof = '';
     }
 
     const resolvedNumericAmount = selectedMethod === 'upi'
@@ -4903,8 +4920,8 @@ async function saveOrderToFirebase(amountText, methodName) {
       paymentMethod: methodName,
       method: methodName,
       gateway: methodName,
-      screenshotUrl: finalProof || screenshotRaw,
-      paymentProof: finalProof || screenshotRaw,
+      screenshotUrl: finalProof || screenshotRaw || '',
+      paymentProof: finalProof || screenshotRaw || '',
       paymentStatus: 'pending',
       orderStatus: 'pending',
       status: 'pending',
@@ -4936,43 +4953,86 @@ async function saveOrderToFirebase(amountText, methodName) {
       }
     } catch (_) {}
 
-    // Check if running inside Telegram WebApp and resolve source bot
+    // Check if running inside Telegram WebApp and resolve source bot + user context
     try {
       const qp = new URLSearchParams(window.location.search);
       const urlBotId = qp.get('botId') || '';
       const urlBotUser = qp.get('botUser') || '';
-      if (urlBotId) {
-        localStorage.setItem('linkadda_source_bot_id', urlBotId);
-        sessionStorage.setItem('linkadda_source_bot_id', urlBotId);
-      }
-      if (urlBotUser) {
-        localStorage.setItem('linkadda_source_bot_user', urlBotUser);
-        sessionStorage.setItem('linkadda_source_bot_user', urlBotUser);
-      }
-      const resolvedBotId = urlBotId || localStorage.getItem('linkadda_source_bot_id') || sessionStorage.getItem('linkadda_source_bot_id') || '';
-      const resolvedBotUser = urlBotUser || localStorage.getItem('linkadda_source_bot_user') || sessionStorage.getItem('linkadda_source_bot_user') || '';
-      if (resolvedBotId) {
-        payload.sourceBotId = resolvedBotId;
-        payload.source_bot_id = resolvedBotId;
-      }
-      if (resolvedBotUser) {
-        payload.sourceBotUsername = resolvedBotUser;
-        payload.source_bot_username = resolvedBotUser;
-      }
+      const urlTgUserId = qp.get('tgUserId') || '';
+      const urlTgUser = qp.get('tgUsername') || qp.get('tgUser') || '';
+      const urlTgName = qp.get('tgName') || '';
 
-      let tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
-      if (!tgUser || !tgUser.id) {
-        try {
-          const cached = localStorage.getItem('linkadda_tg_user') || sessionStorage.getItem('linkadda_tg_user');
-          if (cached) tgUser = JSON.parse(cached);
-        } catch (_) {}
-      }
-      if (tgUser && tgUser.id) {
-        payload.telegramUserId = String(tgUser.id);
-        payload.telegramUsername = (tgUser.username || '').replace('@', '');
-        payload.telegramName = [tgUser.first_name, tgUser.last_name].filter(Boolean).join(' ') || (payload.telegramUsername ? `@${payload.telegramUsername}` : 'Telegram Member');
-        payload.customerName = payload.telegramName;
-        payload.customerUid = `tg_${tgUser.id}`;
+      const tgUserRaw = window.Telegram?.WebApp?.initDataUnsafe?.user;
+      const isTgWebApp = Boolean(
+        urlBotId ||
+        urlTgUserId ||
+        (window.Telegram && window.Telegram.WebApp && (window.Telegram.WebApp.initData || (tgUserRaw && tgUserRaw.id))) ||
+        window.TelegramWebviewProxy ||
+        (navigator.userAgent && /Telegram|TgWeb/i.test(navigator.userAgent)) ||
+        sessionStorage.getItem('linkadda_source_bot_id') ||
+        sessionStorage.getItem('linkadda_tg_user_id')
+      );
+
+      if (isTgWebApp) {
+        if (urlBotId) {
+          sessionStorage.setItem('linkadda_source_bot_id', urlBotId);
+        }
+        if (urlBotUser) {
+          sessionStorage.setItem('linkadda_source_bot_user', urlBotUser);
+        }
+        if (urlTgUserId) {
+          sessionStorage.setItem('linkadda_tg_user_id', urlTgUserId);
+        }
+        if (urlTgUser) {
+          sessionStorage.setItem('linkadda_tg_username', urlTgUser);
+        }
+        if (urlTgName) {
+          sessionStorage.setItem('linkadda_tg_name', urlTgName);
+        }
+
+        const resolvedBotId = urlBotId || sessionStorage.getItem('linkadda_source_bot_id') || '';
+        const resolvedBotUser = urlBotUser || sessionStorage.getItem('linkadda_source_bot_user') || '';
+        if (resolvedBotId) {
+          payload.sourceBotId = resolvedBotId;
+          payload.source_bot_id = resolvedBotId;
+        }
+        if (resolvedBotUser) {
+          payload.sourceBotUsername = resolvedBotUser;
+          payload.source_bot_username = resolvedBotUser;
+        }
+
+        let tgUser = tgUserRaw;
+        if (!tgUser || !tgUser.id) {
+          try {
+            const cached = sessionStorage.getItem('linkadda_tg_user');
+            if (cached) tgUser = JSON.parse(cached);
+          } catch (_) {}
+        }
+
+        const resolvedTgId = urlTgUserId || (tgUser && tgUser.id ? String(tgUser.id) : '') || sessionStorage.getItem('linkadda_tg_user_id') || '';
+        const resolvedTgUser = (urlTgUser || (tgUser && tgUser.username ? String(tgUser.username) : '') || sessionStorage.getItem('linkadda_tg_username') || '').replace('@', '');
+        const resolvedTgName = urlTgName || (tgUser ? [tgUser.first_name, tgUser.last_name].filter(Boolean).join(' ') : '') || sessionStorage.getItem('linkadda_tg_name') || (resolvedTgUser ? `@${resolvedTgUser}` : (resolvedTgId ? `User #${resolvedTgId}` : 'Telegram Member'));
+
+        if (resolvedTgId) {
+          payload.telegramUserId = String(resolvedTgId);
+          payload.telegram_user_id = String(resolvedTgId);
+          payload.telegramUsername = resolvedTgUser;
+          payload.telegram_username = resolvedTgUser;
+          payload.telegramName = resolvedTgName;
+          payload.customerName = resolvedTgName;
+          payload.customerUid = `tg_${resolvedTgId}`;
+        }
+        payload.source = 'telegram_bot';
+      } else {
+        // Direct website checkout - NO telegram bot channel
+        payload.source = 'website';
+        payload.sourceBotId = null;
+        payload.source_bot_id = null;
+        payload.sourceBotUsername = null;
+        payload.source_bot_username = null;
+        payload.telegramUserId = null;
+        payload.telegram_user_id = null;
+        payload.telegramUsername = null;
       }
     } catch (_) {}
 
@@ -4990,13 +5050,6 @@ async function saveOrderToFirebase(amountText, methodName) {
     // 2. Direct REST fallback ensures order is 100% saved even if SDK connection was slow or offline
     if (!saved) {
       try {
-        let authToken = '';
-        try {
-          if (window.__linkaddaAuth && window.__linkaddaAuth.currentUser) {
-            authToken = await window.__linkaddaAuth.currentUser.getIdToken();
-          }
-        } catch (_) {}
-        const authParam = authToken ? `?auth=${encodeURIComponent(authToken)}` : '';
         const supaUrl = 'https://esxiwfswnbacmpjxqgsn.supabase.co';
         const supaKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVzeGl3ZnN3bmJhY21wanhxZ3NuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI2MDcxODQsImV4cCI6MjEwODE4MzE4NH0.n6XzLxgH5947CK-224Tp57BJmbWZ_rTKi4PK-EW8bNI';
         const supaHeaders = {
@@ -5005,6 +5058,9 @@ async function saveOrderToFirebase(amountText, methodName) {
           'Content-Type': 'application/json',
           'Prefer': 'resolution=merge-duplicates,return=minimal'
         };
+
+        const resolvedBotId = payload.sourceBotId || localStorage.getItem('linkadda_source_bot_id') || '';
+        const resolvedBotUser = payload.sourceBotUsername || localStorage.getItem('linkadda_source_bot_user') || '';
 
         const orderRow = {
           id: orderId,
@@ -5020,7 +5076,15 @@ async function saveOrderToFirebase(amountText, methodName) {
           payment_proof: payload.paymentProof || payload.screenshotUrl || '',
           utr: payload.utr || payload.transactionId || '',
           status: 'pending',
-          data: payload
+          data: {
+            ...payload,
+            sourceBotId: resolvedBotId,
+            source_bot_id: resolvedBotId,
+            sourceBotUsername: resolvedBotUser,
+            source_bot_username: resolvedBotUser,
+            telegramUserId: payload.telegramUserId || '',
+            telegramUsername: payload.telegramUsername || ''
+          }
         };
 
         const rtdbRes = await fetch(`${supaUrl}/rest/v1/orders`, {
@@ -5040,11 +5104,10 @@ async function saveOrderToFirebase(amountText, methodName) {
     try {
       let apiBase = '';
       if (typeof window !== 'undefined') {
-        const isLocal = window.location.hostname === 'localhost' ||
-                        window.location.hostname === '127.0.0.1' ||
-                        window.location.protocol === 'file:' ||
-                        (window.location.port && window.location.port !== '80' && window.location.port !== '443');
-        if (isLocal) apiBase = 'https://linkadda-online.onrender.com';
+        const isRender = window.location.hostname.includes('onrender.com');
+        if (!isRender) {
+          apiBase = 'https://linkadda-online.onrender.com';
+        }
       }
 
       const notifyPayload = {
@@ -5065,14 +5128,22 @@ async function saveOrderToFirebase(amountText, methodName) {
         source_bot_username: payload.sourceBotUsername || ''
       };
 
-      const notifyRes = await fetch(`${apiBase}/api/telegram/notify-order`, {
+      let notifyRes = await fetch(`${apiBase}/api/telegram/notify-order`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(notifyPayload)
       }).catch(() => null);
 
       if (!notifyRes || !notifyRes.ok) {
-        await fetch(`${apiBase}/api/telegram/bot?action=notify-order`, {
+        notifyRes = await fetch(`${apiBase}/api/telegram/bot?action=notify-order`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(notifyPayload)
+        }).catch(() => null);
+      }
+
+      if ((!notifyRes || !notifyRes.ok) && !apiBase) {
+        await fetch(`https://linkadda-online.onrender.com/api/telegram/notify-order`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(notifyPayload)
