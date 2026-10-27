@@ -934,7 +934,24 @@
     // 5. Update Direct Buy Now Links (Both Desktop & Mobile Sticky)
     const buyBtn = document.getElementById('fkPvBuyBtn');
     const buyBtnDesktop = document.getElementById('fkPvBuyBtnDesktop');
-    const checkoutHref = `payment.html?productId=${encodeURIComponent(prod.id)}&name=${encodeURIComponent(currentTitle)}&inr=${encodeURIComponent(currentINR)}&usd=${encodeURIComponent(currentUSD)}${currentTierLabel ? `&tier=${encodeURIComponent(currentTierLabel)}` : ''}`;
+    let checkoutHref = `payment.html?productId=${encodeURIComponent(prod.id)}&name=${encodeURIComponent(currentTitle)}&inr=${encodeURIComponent(currentINR)}&usd=${encodeURIComponent(currentUSD)}${currentTierLabel ? `&tier=${encodeURIComponent(currentTierLabel)}` : ''}`;
+    try {
+      if (typeof window.normalizeCheckoutUrl === 'function') {
+        checkoutHref = window.normalizeCheckoutUrl(checkoutHref, { id: prod.id, title: currentTitle, inr: currentINR, usd: currentUSD, tier: currentTierLabel });
+      } else {
+        const qp = new URLSearchParams(window.location.search);
+        const bId = qp.get('botId') || localStorage.getItem('linkadda_source_bot_id') || sessionStorage.getItem('linkadda_source_bot_id') || '';
+        const bUser = qp.get('botUser') || localStorage.getItem('linkadda_source_bot_user') || sessionStorage.getItem('linkadda_source_bot_user') || '';
+        const uId = qp.get('tgUserId') || localStorage.getItem('linkadda_tg_user_id') || sessionStorage.getItem('linkadda_tg_user_id') || '';
+        const uName = qp.get('tgUsername') || localStorage.getItem('linkadda_tg_username') || sessionStorage.getItem('linkadda_tg_username') || '';
+        const uFirst = qp.get('tgName') || localStorage.getItem('linkadda_tg_name') || sessionStorage.getItem('linkadda_tg_name') || '';
+        if (bId) checkoutHref += `&botId=${encodeURIComponent(bId)}`;
+        if (bUser) checkoutHref += `&botUser=${encodeURIComponent(bUser)}`;
+        if (uId) checkoutHref += `&tgUserId=${encodeURIComponent(uId)}`;
+        if (uName) checkoutHref += `&tgUsername=${encodeURIComponent(uName)}`;
+        if (uFirst) checkoutHref += `&tgName=${encodeURIComponent(uFirst)}`;
+      }
+    } catch (_) {}
 
     [buyBtn, buyBtnDesktop].filter(Boolean).forEach(btn => {
       btn.setAttribute('data-name', currentTitle);

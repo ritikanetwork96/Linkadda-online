@@ -1493,24 +1493,43 @@ export async function notifyAdminsNewOrder(order) {
     uploadedScreenshotUrl = rawScreenshot;
   }
 
-  // 2. Instant Bot Resolution from locally cached bot store (0ms latency)
+  // 2. Instant Bot Resolution from locally cached bot store + remote Supabase sync
   const store = readBotStore();
   let allBots = getConnectedBots();
-  if (!allBots || allBots.length === 0) {
-    await syncBotsFromSupabase(true).catch(() => {});
-    allBots = getConnectedBots();
-  }
-  const primaryBot = allBots.find(b => b.isPrimary) || allBots[0] || { botId: 'bot_8923608774', username: 'Myshop9876_bot', token: store.activeToken };
 
   const customerTgId = order.telegramUserId || order.data?.telegramUserId || order.telegram_user_id;
   const userRecord = customerTgId ? store.users?.[String(customerTgId)] : null;
-  const rawBotId = order.source_bot_id || order.sourceBotId || order.data?.source_bot_id || order.data?.sourceBotId || userRecord?.lastBotId || userRecord?.sourceBotId || null;
+  const rawBotId = order.source_bot_id || order.sourceBotId || order.data?.source_bot_id || order.data?.sourceBotId ||
+                   order.sourceBotUsername || order.source_bot_username || order.data?.sourceBotUsername || order.data?.source_bot_username ||
+                   userRecord?.lastBotId || userRecord?.sourceBotId || userRecord?.sourceBotUsername || null;
+
   let originatingBot = null;
   if (rawBotId) {
     const cleanId = String(rawBotId).toLowerCase().replace('@', '');
     originatingBot = allBots.find(b => b.botId.toLowerCase() === cleanId || b.id === cleanId || (b.username && b.username.toLowerCase() === cleanId));
+    // If not found in local memory, immediately force sync from Supabase to pick up freshly connected fleet bots!
+    if (!originatingBot) {
+      await syncBotsFromSupabase(true).catch(() => {});
+      allBots = getConnectedBots();
+      originatingBot = allBots.find(b => b.botId.toLowerCase() === cleanId || b.id === cleanId || (b.username && b.username.toLowerCase() === cleanId));
+    }
   }
-  const isRealBotOrder = Boolean(rawBotId && originatingBot);
+
+  // If still not resolved, check if userRecord has known fleet bots
+  if (!originatingBot && userRecord && userRecord.bots) {
+    for (const [ubId, ubVal] of Object.entries(userRecord.bots)) {
+      const ubUname = String(ubVal?.botUsername || ubVal?.username || ubId.replace(/^bot_/, '')).replace('@', '').toLowerCase();
+      const ubCanon = (ubId.startsWith('bot_') ? ubId : `bot_${ubId}`).toLowerCase();
+      const match = allBots.find(b => b.botId.toLowerCase() === ubCanon || b.id === ubCanon.replace(/^bot_/, '') || (b.username && b.username.toLowerCase() === ubUname));
+      if (match && match.token) {
+        originatingBot = match;
+        break;
+      }
+    }
+  }
+
+  const primaryBot = allBots.find(b => b.isPrimary) || allBots[0] || { botId: 'bot_8923608774', username: 'Myshop9876_bot', token: store.activeToken };
+  const isRealBotOrder = Boolean(rawBotId || customerTgId);
   if (!originatingBot) originatingBot = primaryBot;
   const originatingToken = originatingBot?.token || primaryBot.token;
 
@@ -1645,7 +1664,7 @@ export async function notifyAdminsNewOrder(order) {
     const adminSendPromise = (async () => {
       let sentRes = null;
       let isPhoto = false;
-      const targetToken = originatingToken;
+      let effectiveToken = targetToken;
 
       // Priority 1: Direct CDN URL sendPhoto (instant ~150ms without buffering)
       if (viewScreenshotUrl && viewScreenshotUrl.startsWith('http')) {
@@ -1682,12 +1701,46 @@ export async function notifyAdminsNewOrder(order) {
         } catch (_) {}
       }
 
+      // ⚡ FALLBACK TO PRIMARY BOT IF FLEET BOT COULD NOT REACH ADMIN (e.g. admin hasn't started this fleet bot yet)
+      if (!sentRes?.ok && primaryBot?.token && primaryBot.token !== targetToken) {
+        effectiveToken = primaryBot.token;
+        if (viewScreenshotUrl && viewScreenshotUrl.startsWith('http')) {
+          try {
+            sentRes = await callTelegram('sendPhoto', {
+              chat_id: String(adminId),
+              photo: viewScreenshotUrl,
+              caption: caption,
+              parse_mode: 'HTML',
+              reply_markup: inlineKeyboard
+            }, effectiveToken);
+            if (sentRes && sentRes.ok) isPhoto = true;
+          } catch (_) {}
+        }
+        if (!sentRes?.ok && photoBuffer && photoBuffer.length > 200) {
+          try {
+            sentRes = await callTelegram('sendPhoto', buildPhotoFormData(adminId), effectiveToken);
+            if (sentRes && sentRes.ok) isPhoto = true;
+          } catch (_) {}
+        }
+        if (!sentRes?.ok) {
+          try {
+            sentRes = await callTelegram('sendMessage', {
+              chat_id: String(adminId),
+              text: caption + (viewScreenshotUrl ? `\n\n📸 <b>Payment Proof:</b> <a href="${viewScreenshotUrl}">Tap to View Screenshot</a>` : ''),
+              parse_mode: 'HTML',
+              reply_markup: inlineKeyboard
+            }, effectiveToken);
+            if (sentRes && sentRes.ok) isPhoto = false;
+          } catch (_) {}
+        }
+      }
+
       if (sentRes?.ok && sentRes?.result?.message_id) {
         sentAdminMessages.push({
           chatId: String(adminId),
           messageId: sentRes.result.message_id,
           botId: originatingBot.botId,
-          botToken: targetToken,
+          botToken: effectiveToken,
           isPhoto,
           caption,
           sentAt: Date.now()

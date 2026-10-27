@@ -4954,25 +4954,52 @@ async function saveOrderToFirebase(amountText, methodName) {
       const urlTgName = qp.get('tgName') || '';
 
       const tgUserRaw = window.Telegram?.WebApp?.initDataUnsafe?.user;
+      let storedTgUserObj = null;
+      try {
+        const rawSaved = localStorage.getItem('linkadda_tg_user') || sessionStorage.getItem('linkadda_tg_user');
+        if (rawSaved) storedTgUserObj = JSON.parse(rawSaved);
+      } catch (_) {}
+
+      const storedBotId = localStorage.getItem('linkadda_source_bot_id') || sessionStorage.getItem('linkadda_source_bot_id') || '';
+      const storedBotUser = localStorage.getItem('linkadda_source_bot_user') || sessionStorage.getItem('linkadda_source_bot_user') || '';
+      const storedTgUserId = localStorage.getItem('linkadda_tg_user_id') || sessionStorage.getItem('linkadda_tg_user_id') || (storedTgUserObj?.id ? String(storedTgUserObj.id) : '');
+      const storedTgUsername = localStorage.getItem('linkadda_tg_username') || sessionStorage.getItem('linkadda_tg_username') || (storedTgUserObj?.username || '');
+      const storedTgName = localStorage.getItem('linkadda_tg_name') || sessionStorage.getItem('linkadda_tg_name') || ([storedTgUserObj?.first_name, storedTgUserObj?.last_name].filter(Boolean).join(' ') || '');
+
       const isTgWebApp = Boolean(
         urlBotId ||
+        storedBotId ||
         urlTgUserId ||
+        storedTgUserId ||
         (window.Telegram && window.Telegram.WebApp && (window.Telegram.WebApp.initData || (tgUserRaw && tgUserRaw.id))) ||
         window.TelegramWebviewProxy ||
-        (navigator.userAgent && /Telegram|TgWeb/i.test(navigator.userAgent)) ||
-        sessionStorage.getItem('linkadda_source_bot_id') ||
-        sessionStorage.getItem('linkadda_tg_user_id')
+        (navigator.userAgent && /Telegram|TgWeb/i.test(navigator.userAgent))
       );
 
       if (isTgWebApp) {
-        if (urlBotId) sessionStorage.setItem('linkadda_source_bot_id', urlBotId);
-        if (urlBotUser) sessionStorage.setItem('linkadda_source_bot_user', urlBotUser);
-        if (urlTgUserId) sessionStorage.setItem('linkadda_tg_user_id', urlTgUserId);
-        if (urlTgUser) sessionStorage.setItem('linkadda_tg_username', urlTgUser);
-        if (urlTgName) sessionStorage.setItem('linkadda_tg_name', urlTgName);
+        if (urlBotId) {
+          localStorage.setItem('linkadda_source_bot_id', urlBotId);
+          sessionStorage.setItem('linkadda_source_bot_id', urlBotId);
+        }
+        if (urlBotUser) {
+          localStorage.setItem('linkadda_source_bot_user', urlBotUser);
+          sessionStorage.setItem('linkadda_source_bot_user', urlBotUser);
+        }
+        if (urlTgUserId) {
+          localStorage.setItem('linkadda_tg_user_id', urlTgUserId);
+          sessionStorage.setItem('linkadda_tg_user_id', urlTgUserId);
+        }
+        if (urlTgUser) {
+          localStorage.setItem('linkadda_tg_username', urlTgUser);
+          sessionStorage.setItem('linkadda_tg_username', urlTgUser);
+        }
+        if (urlTgName) {
+          localStorage.setItem('linkadda_tg_name', urlTgName);
+          sessionStorage.setItem('linkadda_tg_name', urlTgName);
+        }
 
-        const resolvedBotId = urlBotId || sessionStorage.getItem('linkadda_source_bot_id') || '';
-        const resolvedBotUser = urlBotUser || sessionStorage.getItem('linkadda_source_bot_user') || '';
+        const resolvedBotId = urlBotId || storedBotId || '';
+        const resolvedBotUser = urlBotUser || storedBotUser || '';
         if (resolvedBotId) {
           payload.sourceBotId = resolvedBotId;
           payload.source_bot_id = resolvedBotId;
@@ -4982,17 +5009,11 @@ async function saveOrderToFirebase(amountText, methodName) {
           payload.source_bot_username = resolvedBotUser;
         }
 
-        let tgUser = tgUserRaw;
-        if (!tgUser || !tgUser.id) {
-          try {
-            const cached = sessionStorage.getItem('linkadda_tg_user');
-            if (cached) tgUser = JSON.parse(cached);
-          } catch (_) {}
-        }
+        let tgUser = tgUserRaw || storedTgUserObj;
 
-        const resolvedTgId = urlTgUserId || (tgUser && tgUser.id ? String(tgUser.id) : '') || sessionStorage.getItem('linkadda_tg_user_id') || '';
-        const resolvedTgUser = (urlTgUser || (tgUser && tgUser.username ? String(tgUser.username) : '') || sessionStorage.getItem('linkadda_tg_username') || '').replace('@', '');
-        const resolvedTgName = urlTgName || (tgUser ? [tgUser.first_name, tgUser.last_name].filter(Boolean).join(' ') : '') || sessionStorage.getItem('linkadda_tg_name') || (resolvedTgUser ? `@${resolvedTgUser}` : (resolvedTgId ? `User #${resolvedTgId}` : 'Telegram Member'));
+        const resolvedTgId = urlTgUserId || (tgUser && tgUser.id ? String(tgUser.id) : '') || storedTgUserId || '';
+        const resolvedTgUser = (urlTgUser || (tgUser && tgUser.username ? String(tgUser.username) : '') || storedTgUsername || '').replace('@', '');
+        const resolvedTgName = urlTgName || (tgUser ? [tgUser.first_name, tgUser.last_name].filter(Boolean).join(' ') : '') || storedTgName || (resolvedTgUser ? `@${resolvedTgUser}` : (resolvedTgId ? `User #${resolvedTgId}` : 'Telegram Member'));
 
         if (resolvedTgId) {
           payload.telegramUserId = String(resolvedTgId);
