@@ -3148,39 +3148,6 @@ export default async function handler(req, res) {
     }
   }
 
-  // Clear Bot Bio & Description on Telegram Servers (Admin only)
-  if (action === 'clear-bot-bio' || action === 'clear-bot-profile' || (req.body && (req.body.action === 'clear-bot-bio' || req.body.action === 'clear-bot-profile'))) {
-    if (!await verifyAdminRequest(req)) {
-      return res.status(401).json({ ok: false, error: 'Unauthorized: Admin authentication required.' });
-    }
-    try {
-      const targetBotId = url.searchParams.get('botId') || req.body?.botId || '';
-      const allBots = getConnectedBots();
-      const targets = targetBotId ? allBots.filter(b => b.botId === targetBotId || b.id === targetBotId) : allBots;
-      if (!targets.length) {
-        return res.status(404).json({ ok: false, error: 'No matching bot found to clear bio' });
-      }
-
-      const results = [];
-      for (const b of targets) {
-        if (!b.token) continue;
-        // 1. Wipe short_description (Bio displayed on Telegram profile)
-        const shortDescRes = await callTelegram('setMyShortDescription', { short_description: '' }, b.token).catch(err => ({ ok: false, error: err.message }));
-        // 2. Wipe description ("What can this bot do?" intro screen)
-        const descRes = await callTelegram('setMyDescription', { description: '' }, b.token).catch(err => ({ ok: false, error: err.message }));
-
-        results.push({
-          botId: b.botId,
-          username: b.username,
-          shortDescriptionCleared: shortDescRes?.ok || false,
-          descriptionCleared: descRes?.ok || false
-        });
-      }
-      return res.status(200).json({ ok: true, results });
-    } catch (e) {
-      return res.status(500).json({ ok: false, error: e.message });
-    }
-  }
 
   // Real Telegram Admin: Add New Admin Chat ID (Admin only)
   if (req.method === 'POST' && (action === 'add-admin' || (req.body && req.body.action === 'add-admin'))) {
@@ -3524,9 +3491,12 @@ export default async function handler(req, res) {
         receivingBot = getBotByIdOrToken();
       }
 
-      const currentToken = receivingBot?.token || null;
-      const currentBotId = receivingBot?.botId || null;
-      const currentBotUsername = receivingBot?.username || '';
+      const store = readBotStore();
+      const allFleetBots = getConnectedBots();
+      const primaryBot = allFleetBots.find(b => b.isPrimary) || allFleetBots[0] || { botId: 'bot_8923608774', username: 'Myshop9876_bot', token: store.activeToken };
+      const currentToken = receivingBot?.token || primaryBot?.token || store.activeToken || process.env.TELEGRAM_BOT_TOKEN;
+      const currentBotId = receivingBot?.botId || primaryBot?.botId || 'bot_8923608774';
+      const currentBotUsername = receivingBot?.username || primaryBot?.username || 'Myshop9876_bot';
 
       // Maintenance notice if bot is marked inactive
       if (receivingBot && receivingBot.status === 'inactive') {
@@ -3547,8 +3517,12 @@ export default async function handler(req, res) {
         const fromUser = msg.from;
         const adminIds = getAdminChatIds();
 
+        const isStartCmd = /^\/(?:start|satrt|strat|stert|help|menu|store|open)(?:@[a-zA-Z0-9_]+)?(?:\s+.*)?$/i.test(text) ||
+                           /^(?:start|satrt|strat|help|menu|store|open|hi|hello|hey|namaste)$/i.test(text) ||
+                           text.startsWith('/start') ||
+                           (msg.chat?.type === 'private' && Boolean(text));
+
         if (fromUser) {
-          const isStartCmd = text === '/start' || text.startsWith('/start');
           await recordBotUser(fromUser, isStartCmd ? 'bot_start' : 'bot_chat', currentBotId).catch(() => {});
 
           // If sender is an already authorized admin from Admin Panel, update active status without overwriting custom profiles
@@ -3571,10 +3545,11 @@ export default async function handler(req, res) {
           markUserMessagesAsRead(msg.chat.id);
         }
 
-        if (text === '/start' || text.startsWith('/start')) {
-          const payload = text.replace(/^\/start(?:@[a-zA-Z0-9_]+)?\s*/i, '').trim();
+        if (isStartCmd) {
+          const payloadMatch = text.match(/^\/(?:start|satrt|strat|stert)(?:@[a-zA-Z0-9_]+)?\s+(.+)$/i);
+          const payload = payloadMatch ? payloadMatch[1].trim() : '';
           const appUrl = getAppUrl(req);
-          const botParam = currentBotId ? `botId=${encodeURIComponent(currentBotId)}&botUser=${encodeURIComponent(receivingBot?.username || '')}` : '';
+          const botParam = currentBotId ? `botId=${encodeURIComponent(currentBotId)}&botUser=${encodeURIComponent(currentBotUsername)}` : '';
           const userParams = `tgUserId=${encodeURIComponent(msg.chat.id)}&tgUsername=${encodeURIComponent(fromUser?.username || '')}&tgName=${encodeURIComponent([fromUser?.first_name, fromUser?.last_name].filter(Boolean).join(' ') || '')}`;
           const fullParams = [botParam, userParams].filter(Boolean).join('&');
           const storeWebUrl = fullParams ? `${appUrl}?${fullParams}` : appUrl;
