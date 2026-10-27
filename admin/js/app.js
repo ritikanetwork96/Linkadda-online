@@ -8090,6 +8090,7 @@ function renderTelegramBotControlSection(settings = {}) {
   const webhook = _tgBotData.webhook || {};
   const usersCount = _tgBotData.usersCount || (_tgBotData.users || []).length;
   const isHookConnected = Boolean(webhook.url);
+  const admins = (_tgBotData.admins && _tgBotData.admins.length) ? _tgBotData.admins : [];
 
   return `
     <section class="panel glass" style="padding: 24px 28px; border-radius: 16px; border: 1px solid rgba(99, 102, 241, 0.35); background: linear-gradient(135deg, rgba(99, 102, 241, 0.05) 0%, rgba(15, 23, 42, 0.6) 100%); margin-bottom: 24px;">
