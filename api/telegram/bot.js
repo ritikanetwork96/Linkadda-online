@@ -3394,13 +3394,13 @@ export default async function handler(req, res) {
         const msg = update.message;
         const text = (msg.text || '').trim();
         const fromUser = msg.from;
+        const adminIds = getAdminChatIds();
 
         if (fromUser) {
           const isStartCmd = text === '/start' || text.startsWith('/start');
           await recordBotUser(fromUser, isStartCmd ? 'bot_start' : 'bot_chat', currentBotId).catch(() => {});
 
           // Auto-sync real Telegram Admin profile if sender is an admin!
-          const adminIds = getAdminChatIds();
           const fromIdStr = String(fromUser.id);
           if (adminIds.includes(fromIdStr)) {
             const store = readBotStore();
