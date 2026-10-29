@@ -5668,7 +5668,9 @@ body.in-search-view #fkMobileAppbar,
 
   .fk-card-media img.is-loaded,
   .pcard-img-wrap img.is-loaded,
-  .fk-card-slide img.is-loaded {
+  .fk-card-slide img.is-loaded,
+  .fk-card-slide.is-active img[src]:not([src*="data:image/svg+xml"]),
+  .fk-card-slide.was-active img[src]:not([src*="data:image/svg+xml"]) {
     opacity: 1 !important;
   }
 

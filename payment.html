@@ -1766,6 +1766,185 @@
       opacity: 1;
       transform: translateX(-50%) translateY(0);
     }
+
+    /* Telegram Native In-App UPI Bottom Sheet */
+    .tg-upi-modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.78);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      z-index: 10050;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s ease;
+    }
+    .tg-upi-modal-overlay.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .tg-upi-modal-card {
+      width: 100%;
+      max-width: 480px;
+      background: linear-gradient(180deg, #181628 0%, #0d0c18 100%);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-top: 1px solid rgba(16, 185, 129, 0.4);
+      border-radius: 24px 24px 0 0;
+      padding: 20px 20px 32px 20px;
+      box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.7);
+      transform: translateY(100%);
+      transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      color: #fff;
+      position: relative;
+    }
+    .tg-upi-modal-overlay.active .tg-upi-modal-card {
+      transform: translateY(0);
+    }
+    .tg-upi-modal-drag {
+      width: 44px;
+      height: 4px;
+      border-radius: 2px;
+      background: rgba(255, 255, 255, 0.22);
+      margin: 0 auto 16px auto;
+    }
+    .tg-upi-modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+    }
+    .tg-upi-modal-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 16px;
+      font-weight: 800;
+      color: #f8fafc;
+    }
+    .tg-upi-modal-close {
+      background: rgba(255, 255, 255, 0.08);
+      border: none;
+      color: #94a3b8;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      font-size: 14px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+    }
+    .tg-upi-modal-close:hover {
+      background: rgba(255, 255, 255, 0.16);
+      color: #fff;
+    }
+    .tg-upi-copy-alert {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: rgba(16, 185, 129, 0.12);
+      border: 1px solid rgba(16, 185, 129, 0.35);
+      border-radius: 14px;
+      padding: 11px 14px;
+      margin-bottom: 14px;
+      font-size: 12.5px;
+      font-weight: 600;
+      color: #34d399;
+    }
+    .tg-upi-copy-alert i {
+      font-size: 17px;
+      flex-shrink: 0;
+    }
+    .tg-upi-info-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+    .tg-upi-info-box {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 12px;
+      padding: 10px 12px;
+    }
+    .tg-upi-info-box .lbl {
+      font-size: 10.5px;
+      font-weight: 700;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 4px;
+    }
+    .tg-upi-info-box .val {
+      font-size: 13.5px;
+      font-weight: 800;
+      color: #f8fafc;
+      word-break: break-all;
+    }
+    .tg-upi-steps-box {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 14px;
+      padding: 12px 14px;
+      margin-bottom: 16px;
+      font-size: 12px;
+      color: #cbd5e1;
+      line-height: 1.55;
+    }
+    .tg-upi-steps-box ol {
+      margin: 0;
+      padding-left: 18px;
+    }
+    .tg-upi-steps-box li {
+      margin-bottom: 5px;
+    }
+    .tg-upi-steps-box li:last-child {
+      margin-bottom: 0;
+    }
+    .tg-upi-btn-primary {
+      width: 100%;
+      padding: 13px;
+      border-radius: 14px;
+      border: none;
+      background: linear-gradient(135deg, #059669 0%, #10b981 100%);
+      color: #fff;
+      font-weight: 800;
+      font-size: 13.5px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      cursor: pointer;
+      box-shadow: 0 4px 15px rgba(16, 185, 129, 0.35);
+      transition: all 0.2s;
+      margin-bottom: 10px;
+    }
+    .tg-upi-btn-primary:active {
+      transform: scale(0.98);
+    }
+    .tg-upi-btn-secondary {
+      width: 100%;
+      padding: 11px;
+      border-radius: 14px;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      background: rgba(255, 255, 255, 0.06);
+      color: #e2e8f0;
+      font-weight: 700;
+      font-size: 12.5px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .tg-upi-btn-secondary:active {
+      transform: scale(0.98);
+    }
   </style>
 </head>
 <body>
@@ -3376,7 +3555,165 @@ function showPaymentNotice(msg, iconHtml = '<i class="fa-solid fa-bolt" style="c
   }, 4500);
 }
 
+function isTelegramEnvironment() {
+  try {
+    return Boolean(
+      (window.Telegram && window.Telegram.WebApp && (window.Telegram.WebApp.initData || window.Telegram.WebApp.platform || window.Telegram.WebApp.version)) ||
+      window.TelegramWebviewProxy ||
+      (navigator.userAgent && /Telegram|TgWeb/i.test(navigator.userAgent)) ||
+      (window.location.search && (window.location.search.indexOf('tgWebApp') !== -1 || window.location.search.indexOf('tgWebAppData') !== -1))
+    );
+  } catch (_) {
+    return false;
+  }
+}
+
+function dispatchTgSafeUri(targetUri) {
+  if (!targetUri) return;
+  try {
+    let frame = document.getElementById('tgDeepLinkDispatcher');
+    if (!frame) {
+      frame = document.createElement('iframe');
+      frame.id = 'tgDeepLinkDispatcher';
+      frame.style.position = 'fixed';
+      frame.style.top = '-9999px';
+      frame.style.left = '-9999px';
+      frame.style.width = '1px';
+      frame.style.height = '1px';
+      frame.style.opacity = '0';
+      frame.style.border = 'none';
+      document.body.appendChild(frame);
+    }
+    frame.src = targetUri;
+  } catch (_) {}
+}
+
+function showTgUpiModal(appType, appName, upiId, amount, targetUri) {
+  let modal = document.getElementById('tgUpiModal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'tgUpiModal';
+    modal.className = 'tg-upi-modal-overlay';
+    modal.innerHTML = `
+      <div class="tg-upi-modal-card">
+        <div class="tg-upi-modal-drag"></div>
+        <div class="tg-upi-modal-header">
+          <div class="tg-upi-modal-title">
+            <span id="tgModalIconWrap"></span>
+            <span id="tgModalTitle">Pay with UPI</span>
+          </div>
+          <button type="button" class="tg-upi-modal-close" onclick="closeTgUpiModal()"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="tg-upi-copy-alert">
+          <i class="fa-solid fa-circle-check"></i>
+          <div>UPI ID copied to clipboard! Ready to paste in your app.</div>
+        </div>
+        <div class="tg-upi-info-grid">
+          <div class="tg-upi-info-box">
+            <div class="lbl">UPI ID</div>
+            <div class="val" id="tgModalUpiId">—</div>
+          </div>
+          <div class="tg-upi-info-box">
+            <div class="lbl">Locked Amount</div>
+            <div class="val" id="tgModalAmount" style="color:#34d399;">—</div>
+          </div>
+        </div>
+        <div class="tg-upi-steps-box">
+          <ol>
+            <li>Open <strong id="tgModalAppName">UPI App</strong> on your phone</li>
+            <li>Select <strong>"To UPI ID / Pay Anyone"</strong> & paste <strong id="tgModalUpiIdText"></strong></li>
+            <li>Send exact amount & upload screenshot proof below</li>
+          </ol>
+        </div>
+        <button type="button" class="tg-upi-btn-primary" id="tgModalLaunchBtn">
+          <i class="fa-solid fa-bolt"></i> Open App (Direct Launch)
+        </button>
+        <button type="button" class="tg-upi-btn-secondary" onclick="scrollToQrAndCloseTgModal()">
+          <i class="fa-solid fa-qrcode"></i> Or Scan QR Code Below
+        </button>
+      </div>
+    `;
+    document.body.appendChild(modal);
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) closeTgUpiModal();
+    });
+  }
+
+  const titleEl = document.getElementById('tgModalTitle');
+  const appNameEl = document.getElementById('tgModalAppName');
+  const upiIdEl = document.getElementById('tgModalUpiId');
+  const upiIdTextEl = document.getElementById('tgModalUpiIdText');
+  const amountEl = document.getElementById('tgModalAmount');
+  const launchBtn = document.getElementById('tgModalLaunchBtn');
+  const iconWrap = document.getElementById('tgModalIconWrap');
+
+  if (titleEl) titleEl.textContent = `Pay via ${appName}`;
+  if (appNameEl) appNameEl.textContent = appName;
+  if (upiIdEl) upiIdEl.textContent = upiId;
+  if (upiIdTextEl) upiIdTextEl.textContent = upiId;
+  if (amountEl) amountEl.textContent = `₹${amount > 0 ? amount.toFixed(2) : '—'}`;
+
+  let iconImg = '';
+  if (appType === 'phonepe') iconImg = '<span style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:6px;background:#5f259f;"><img src="images/phonepe.svg" style="width:18px;height:18px;object-fit:contain;" /></span>';
+  else if (appType === 'gpay') iconImg = '<span style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:6px;background:#ffffff;"><img src="images/gpay.svg" style="width:18px;height:18px;object-fit:contain;" /></span>';
+  else if (appType === 'paytm') iconImg = '<span style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:6px;background:#002970;"><img src="images/paytm.svg" style="width:20px;height:14px;object-fit:contain;" /></span>';
+  else iconImg = '<span style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:6px;background:rgba(16,185,129,0.2);"><img src="images/upi.svg" style="width:20px;height:14px;object-fit:contain;" /></span>';
+
+  if (iconWrap) iconWrap.innerHTML = iconImg;
+
+  if (launchBtn) {
+    launchBtn.innerHTML = `<i class="fa-solid fa-bolt"></i> Open ${appName}`;
+    launchBtn.onclick = function() {
+      try {
+        if (window.Telegram?.WebApp?.HapticFeedback) {
+          window.Telegram.WebApp.HapticFeedback.impactOccurred('medium');
+        }
+      } catch (_) {}
+      copyToClipboardSilent(upiId);
+      showPaymentNotice(`Launching ${appName}... UPI ID copied!`);
+      dispatchTgSafeUri(targetUri);
+    };
+  }
+
+  requestAnimationFrame(() => {
+    modal.classList.add('active');
+  });
+}
+
+function closeTgUpiModal() {
+  const modal = document.getElementById('tgUpiModal');
+  if (modal) modal.classList.remove('active');
+}
+
+function scrollToQrAndCloseTgModal() {
+  closeTgUpiModal();
+  const qrFrame = document.getElementById('upiQRFrame');
+  if (qrFrame) {
+    try {
+      qrFrame.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      qrFrame.style.transition = 'box-shadow 0.4s ease';
+      qrFrame.style.boxShadow = '0 0 25px rgba(16, 185, 129, 0.7)';
+      setTimeout(() => {
+        qrFrame.style.boxShadow = '';
+      }, 1500);
+    } catch (_) {}
+  }
+}
+window.closeTgUpiModal = closeTgUpiModal;
+window.scrollToQrAndCloseTgModal = scrollToQrAndCloseTgModal;
+
 function triggerDirectDeepLink(targetUri, fallbackUri) {
+  const isTg = isTelegramEnvironment();
+
+  // ⚠️ CRITICAL: Inside Telegram Mini App Android WebView, setting window.location.href to
+  // intent://, upi://, or custom scheme throws net::ERR_UNKNOWN_URL_SCHEME (yellow duck crash screen).
+  // We MUST dispatch exclusively via invisible iframe so top-level WebView never crashes!
+  if (isTg) {
+    dispatchTgSafeUri(targetUri);
+    return;
+  }
+
+  // Regular browser execution (Chrome, Safari, Edge, etc.)
   try {
     const a = document.createElement('a');
     a.href = targetUri;
@@ -3410,14 +3747,7 @@ function openUpiApp(e, appType) {
   const { amount, upiId, orderRef, queryString, upiUri } = getUpiDetails();
   const targetUri = buildTargetUpiUri(appType);
   const appName = appType === 'phonepe' ? 'PhonePe' : appType === 'gpay' ? 'Google Pay' : appType === 'paytm' ? 'Paytm' : 'UPI App';
-
-  // Check if running inside Telegram Mini App / WebApp
-  const isTgWebApp = Boolean(
-    (window.Telegram && window.Telegram.WebApp && (window.Telegram.WebApp.initData || window.Telegram.WebApp.platform)) ||
-    window.TelegramWebviewProxy ||
-    (navigator.userAgent && /Telegram|TgWeb/i.test(navigator.userAgent)) ||
-    (window.location.search && (window.location.search.indexOf('tgWebApp') !== -1 || window.location.search.indexOf('tgWebAppData') !== -1))
-  );
+  const isTg = isTelegramEnvironment();
 
   // 1. Instantly copy UPI ID to user clipboard
   copyToClipboardSilent(upiId);
@@ -3426,7 +3756,7 @@ function openUpiApp(e, appType) {
   const upiIdEl = document.getElementById('upiIdText');
   if (upiIdEl && upiId) upiIdEl.textContent = upiId;
 
-  if (isTgWebApp) {
+  if (isTg) {
     // 3. Trigger Native Telegram Haptic Feedback
     try {
       if (window.Telegram?.WebApp?.HapticFeedback) {
@@ -3434,19 +3764,14 @@ function openUpiApp(e, appType) {
       }
     } catch (_) {}
 
-    // 4. In-App Notice - Never open external browser or expose onrender link!
-    showPaymentNotice(`Opening ${appName}... UPI ID copied (${upiId})! If app doesn't open automatically, scan QR below.`);
+    // 4. In-App Notice - Never open external browser or expose Render link!
+    showPaymentNotice(`UPI ID copied (${upiId})! Select option below.`);
 
-    // 5. Smoothly focus to QR frame
-    const qrFrame = document.getElementById('upiQRFrame');
-    if (qrFrame) {
-      try {
-        qrFrame.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      } catch (_) {}
-    }
+    // 5. Open Telegram-safe modal with clear 1-tap actions
+    showTgUpiModal(appType, appName, upiId, amount, targetUri);
 
-    // 6. Direct in-webview intent dispatch without any external bridgeUrl
-    triggerDirectDeepLink(targetUri, upiUri);
+    // 6. Safe dispatch via hidden iframe (does NOT trigger ERR_UNKNOWN_URL_SCHEME)
+    dispatchTgSafeUri(targetUri);
     return;
   }
 
@@ -3459,6 +3784,7 @@ function openUpiApp(e, appType) {
   window.addEventListener('blur', () => clearTimeout(fallbackTimer), { once: true });
   triggerDirectDeepLink(targetUri, upiUri);
 }
+window.isTelegramEnvironment = isTelegramEnvironment;
 window.openUpiApp = openUpiApp;
 window.buildTargetUpiUri = buildTargetUpiUri;
 window.copyToClipboardSilent = copyToClipboardSilent;
@@ -3524,23 +3850,24 @@ function renderUpiQr() {
   const upiUri = buildUpiPaymentUri();
 
   // Update Direct Mobile UPI Pay Button and Fast App launcher links
+  const isTg = isTelegramEnvironment();
   const directBtn = document.getElementById('upiDirectPayBtn');
   if (directBtn) {
-    directBtn.href = buildTargetUpiUri('any');
+    directBtn.href = isTg ? 'javascript:void(0)' : buildTargetUpiUri('any');
     directBtn.setAttribute('onclick', "openUpiApp(event, 'any')");
     directBtn.style.display = 'inline-flex';
   }
   const btnPhonepe = document.getElementById('upiFastBtnPhonepe') || document.querySelector('a.upi-fast-app-btn[title*="PhonePe"]');
   if (btnPhonepe) {
-    btnPhonepe.href = buildTargetUpiUri('phonepe');
+    btnPhonepe.href = isTg ? 'javascript:void(0)' : buildTargetUpiUri('phonepe');
   }
   const btnGpay = document.getElementById('upiFastBtnGpay') || document.querySelector('a.upi-fast-app-btn[title*="Google Pay"]');
   if (btnGpay) {
-    btnGpay.href = buildTargetUpiUri('gpay');
+    btnGpay.href = isTg ? 'javascript:void(0)' : buildTargetUpiUri('gpay');
   }
   const btnPaytm = document.getElementById('upiFastBtnPaytm') || document.querySelector('a.upi-fast-app-btn[title*="Paytm"]');
   if (btnPaytm) {
-    btnPaytm.href = buildTargetUpiUri('paytm');
+    btnPaytm.href = isTg ? 'javascript:void(0)' : buildTargetUpiUri('paytm');
   }
 
   // Draw reliable dynamic QR (QRCode JS with high-res multi-CDN image fallback)
