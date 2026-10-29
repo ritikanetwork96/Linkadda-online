@@ -62,6 +62,80 @@ export default async function handler(req, res) {
     const sourceBotId = order.sourceBotId || order.source_bot_id || order.data?.sourceBotId || null;
     const sourceBotUsername = order.sourceBotUsername || order.source_bot_username || order.data?.sourceBotUsername || null;
 
+    // 🔒 2. SERVER-SIDE SECURITY AUDIT: Verify price against Supabase catalog & check duplicate UTR
+    let isPriceTampered = false;
+    let priceTamperNote = '';
+    let expectedPriceINR = null;
+    let expectedPriceUSD = null;
+
+    let isDuplicateUtr = false;
+    let duplicateUtrNote = '';
+    let duplicateOrderId = '';
+
+    const targetProdId = String(order.product_id || order.productId || '').trim();
+    if (targetProdId) {
+      try {
+        const pRes = await fetch(`${sbUrl}/rest/v1/products?or=(id.eq.${encodeURIComponent(targetProdId)},product_id.eq.${encodeURIComponent(targetProdId)})&select=*`, {
+          headers: { 'apikey': sbKey, 'Authorization': `Bearer ${sbKey}` },
+          signal: AbortSignal.timeout(3500)
+        });
+        if (pRes.ok) {
+          const pRows = await pRes.json();
+          const p = pRows?.[0];
+          if (p) {
+            const reqTier = String(order.tier || order.data?.tier || '').trim().toLowerCase();
+            const rawTiers = p.tiers || p.data?.tiers;
+            if (reqTier && Array.isArray(rawTiers)) {
+              const matchedTier = rawTiers.find(t => t && String(t.label || t.name || '').trim().toLowerCase() === reqTier);
+              if (matchedTier) {
+                expectedPriceINR = Number(String(matchedTier.inr || matchedTier.priceINR || '').replace(/[^0-9.]/g, '')) || null;
+                expectedPriceUSD = Number(String(matchedTier.usd || matchedTier.priceUSD || '').replace(/[^0-9.]/g, '')) || null;
+              }
+            }
+            if (!expectedPriceINR) {
+              expectedPriceINR = Number(String(p.amount || p.inr || p.price_inr || p.priceINR || p.data?.amountINRValue || p.data?.inr || '').replace(/[^0-9.]/g, '')) || null;
+            }
+            if (!expectedPriceUSD) {
+              expectedPriceUSD = Number(String(p.usd || p.price_usd || p.priceUSD || p.data?.amountUSDValue || p.data?.usd || '').replace(/[^0-9.]/g, '')) || null;
+            }
+
+            const isCurrencyUSD = String(order.currency || '').toUpperCase() === 'USD' || String(order.amount || '').startsWith('$');
+            const expectedAmt = isCurrencyUSD ? expectedPriceUSD : expectedPriceINR;
+            if (expectedAmt && expectedAmt > 0 && cleanAmt > 0) {
+              if (cleanAmt < expectedAmt * 0.95) {
+                isPriceTampered = true;
+                const sym = isCurrencyUSD ? '$' : '₹';
+                priceTamperNote = `Expected ${sym}${expectedAmt}, but submitted ${sym}${cleanAmt}`;
+              }
+            }
+          }
+        }
+      } catch (pErr) {
+        console.warn('[Security] Price check error:', pErr.message);
+      }
+    }
+
+    const cleanUtr = String(utr || '').trim();
+    if (cleanUtr && cleanUtr.length >= 6 && !/^(not|none|na|nil|null|test|0000)/i.test(cleanUtr)) {
+      try {
+        const utrRes = await fetch(`${sbUrl}/rest/v1/orders?utr=eq.${encodeURIComponent(cleanUtr)}&id=neq.${encodeURIComponent(orderId)}&select=id,status,created_at,product_title,amount&limit=1`, {
+          headers: { 'apikey': sbKey, 'Authorization': `Bearer ${sbKey}` },
+          signal: AbortSignal.timeout(3500)
+        });
+        if (utrRes.ok) {
+          const uRows = await utrRes.json();
+          if (uRows && uRows.length > 0) {
+            const existing = uRows[0];
+            isDuplicateUtr = true;
+            duplicateOrderId = existing.id;
+            duplicateUtrNote = `UTR already used in Order #${existing.id} (${existing.status || 'pending'}) for "${existing.product_title || 'Item'}"`;
+          }
+        }
+      } catch (uErr) {
+        console.warn('[Security] Duplicate UTR check error:', uErr.message);
+      }
+    }
+
     const orderRow = {
       id: orderId,
       order_id: orderId,
@@ -82,6 +156,14 @@ export default async function handler(req, res) {
         orderId,
         productTitle: prodTitle,
         amount: order.amount || cleanAmt,
+        numericAmount: cleanAmt,
+        expectedPriceINR,
+        expectedPriceUSD,
+        isPriceTampered,
+        priceTamperNote,
+        isDuplicateUtr,
+        duplicateUtrNote,
+        duplicateOrderId,
         paymentMethod: method,
         paymentProof: proof,
         utr,
@@ -93,7 +175,7 @@ export default async function handler(req, res) {
       }
     };
 
-    // 1. Parallel execution: Run database persistence and Telegram dispatch concurrently
+    // 3. Parallel execution: Run database persistence and Telegram dispatch concurrently
     const dbSavePromise = (async () => {
       try {
         const sbRes = await fetch(`${sbUrl}/rest/v1/orders`, {
@@ -125,6 +207,11 @@ export default async function handler(req, res) {
           amount: order.amount || `₹${cleanAmt}`,
           payment_proof: proof,
           utr: utr,
+          isPriceTampered,
+          priceTamperNote,
+          isDuplicateUtr,
+          duplicateUtrNote,
+          duplicateOrderId,
           telegramUserId: order.telegramUserId || order.data?.telegramUserId || order.telegram_user_id || '',
           telegramUsername: order.telegramUsername || order.data?.telegramUsername || order.telegram || '',
           sourceBotId,

@@ -1621,8 +1621,69 @@ export async function notifyAdminsNewOrder(order) {
     }
   }
 
+  // ── 🔒 SECURITY AUDIT: SERVER-SIDE PRICE TAMPERING & DUPLICATE UTR GUARDS ──
+  let isPriceTampered = Boolean(order.isPriceTampered || order.data?.isPriceTampered);
+  let priceTamperNote = order.priceTamperNote || order.data?.priceTamperNote || '';
+  let isDuplicateUtr = Boolean(order.isDuplicateUtr || order.data?.isDuplicateUtr);
+  let duplicateUtrNote = order.duplicateUtrNote || order.data?.duplicateUtrNote || '';
+
+  const cleanUtr = String(utr || '').trim();
+  const rawNumericAmt = Number(String(order.numericAmount || rawAmt).replace(/[^0-9.]/g, '')) || 0;
+  const prodId = String(order.product_id || order.productId || order.data?.productId || '').trim();
+
+  // If not flagged yet, perform on-the-fly catalog price check
+  if (!isPriceTampered && prodId) {
+    try {
+      const { url: sUrl, key: sKey } = getSupabaseConfig();
+      const pRes = await fetch(`${sUrl}/rest/v1/products?or=(id.eq.${encodeURIComponent(prodId)},product_id.eq.${encodeURIComponent(prodId)})&select=*`, {
+        headers: { 'apikey': sKey, 'Authorization': `Bearer ${sKey}` },
+        signal: AbortSignal.timeout(3000)
+      });
+      if (pRes.ok) {
+        const pRows = await pRes.json();
+        const p = pRows?.[0];
+        if (p) {
+          const reqTier = String(order.tier || order.data?.tier || '').trim().toLowerCase();
+          const rawTiers = p.tiers || p.data?.tiers;
+          let expectedPrice = null;
+          if (reqTier && Array.isArray(rawTiers)) {
+            const matchedTier = rawTiers.find(t => t && String(t.label || t.name || '').trim().toLowerCase() === reqTier);
+            if (matchedTier) {
+              expectedPrice = Number(String(matchedTier.inr || matchedTier.priceINR || matchedTier.usd || matchedTier.priceUSD || '').replace(/[^0-9.]/g, '')) || null;
+            }
+          }
+          if (!expectedPrice) {
+            expectedPrice = Number(String(p.amount || p.inr || p.price_inr || p.priceINR || p.usd || p.price_usd || p.data?.amountINRValue || p.data?.inr || '').replace(/[^0-9.]/g, '')) || null;
+          }
+          if (expectedPrice && expectedPrice > 0 && rawNumericAmt > 0 && rawNumericAmt < expectedPrice * 0.95) {
+            isPriceTampered = true;
+            priceTamperNote = `Catalog: ${expectedPrice}, Submitted: ${rawNumericAmt}`;
+          }
+        }
+      }
+    } catch (_) {}
+  }
+
+  // If not flagged yet, check duplicate UTR in orders table
+  if (!isDuplicateUtr && cleanUtr && cleanUtr.length >= 6 && !/^(not|none|na|nil|null|test|0000)/i.test(cleanUtr)) {
+    try {
+      const { url: sUrl, key: sKey } = getSupabaseConfig();
+      const utrRes = await fetch(`${sUrl}/rest/v1/orders?utr=eq.${encodeURIComponent(cleanUtr)}&id=neq.${encodeURIComponent(orderId)}&select=id,status,product_title&limit=1`, {
+        headers: { 'apikey': sKey, 'Authorization': `Bearer ${sKey}` },
+        signal: AbortSignal.timeout(3000)
+      });
+      if (utrRes.ok) {
+        const uRows = await utrRes.json();
+        if (uRows && uRows.length > 0) {
+          isDuplicateUtr = true;
+          duplicateUtrNote = `Reused from Order #${uRows[0].id} (${uRows[0].status || 'pending'})`;
+        }
+      }
+    } catch (_) {}
+  }
+
   // Background update Supabase order row (non-blocking)
-  if (uploadedScreenshotUrl || (isRealBotOrder && originatingBot.botId) || customerTgId) {
+  if (uploadedScreenshotUrl || (isRealBotOrder && originatingBot.botId) || customerTgId || isPriceTampered || isDuplicateUtr) {
     try {
       const { url: sUrl, key: sKey } = getSupabaseConfig();
       const existingData = order.data || {};
@@ -1634,6 +1695,10 @@ export async function notifyAdminsNewOrder(order) {
           updated_at: new Date().toISOString(),
           data: {
             ...existingData,
+            isPriceTampered: Boolean(isPriceTampered),
+            priceTamperNote: priceTamperNote || undefined,
+            isDuplicateUtr: Boolean(isDuplicateUtr),
+            duplicateUtrNote: duplicateUtrNote || undefined,
             sourceBotId: isRealBotOrder ? originatingBot.botId : (existingData.sourceBotId || null),
             sourceBotUsername: isRealBotOrder ? originatingBot.username : (existingData.sourceBotUsername || null),
             telegramUserId: customerTgId || existingData.telegramUserId || '',
@@ -1652,6 +1717,17 @@ export async function notifyAdminsNewOrder(order) {
     return { ok: true, isWebOrder: true, orderId, message: 'Web order saved for Admin Panel' };
   }
 
+  let securityAlertText = '';
+  if (isPriceTampered) {
+    securityAlertText += `\n🚨 <b>PRICE TAMPER WARNING:</b> <code>${escapeTelegramHtml(priceTamperNote || 'Price submitted differs from catalog price!')}</code>`;
+  }
+  if (isDuplicateUtr) {
+    securityAlertText += `\n⛔ <b>DUPLICATE UTR ALERT:</b> <code>${escapeTelegramHtml(duplicateUtrNote || 'This UTR was already used in a previous order!')}</code>`;
+  }
+  if (securityAlertText) {
+    securityAlertText = `\n━━━━━━━━━━━━━━━━━━━━━━\n⚠️ <b>SECURITY ALERTS (VERIFY BEFORE APPROVING):</b>${securityAlertText}`;
+  }
+
   const caption = 
     `🚨 <b>NEW ORDER RECEIVED!</b>\n` +
     `━━━━━━━━━━━━━━━━━━━━━━\n` +
@@ -1662,12 +1738,16 @@ export async function notifyAdminsNewOrder(order) {
     `💳 <b>Payment Method:</b> ${method}\n` +
     `🔢 <b>UTR / Transaction Ref:</b> <code>${utr}</code>\n` +
     `👤 <b>Customer:</b> ${tgUser}\n` +
+    (securityAlertText ? `${securityAlertText}\n` : '') +
     `━━━━━━━━━━━━━━━━━━━━━━\n` +
-    `<i>Review payment screenshot and tap below to Approve or Reject:</i>`;
+    (securityAlertText ? `⚠️ <i>CAUTION: Potential fraud/tampering detected. Verify bank account before approving!</i>` : `<i>Review payment screenshot and tap below to Approve or Reject:</i>`);
 
   const viewScreenshotUrl = uploadedScreenshotUrl || (rawScreenshot.startsWith('http') ? rawScreenshot : '');
   const inlineKeyboard = {
     inline_keyboard: [
+      ...(securityAlertText
+        ? [[{ text: '⚠️ Suspicious Order: Check Statement First!', callback_data: 'noop' }]]
+        : []),
       ...(viewScreenshotUrl
         ? [[{ text: '🔍 View Full Screenshot', url: viewScreenshotUrl }]]
         : []),

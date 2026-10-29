@@ -1736,6 +1736,36 @@
     .protect-toast i {
       color: #f0247a;
     }
+    .upi-inapp-toast {
+      position: fixed;
+      top: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(-20px);
+      background: rgba(15, 23, 42, 0.96);
+      border: 1px solid rgba(16, 185, 129, 0.45);
+      padding: 12px 20px;
+      border-radius: 14px;
+      color: #f8fafc;
+      font-size: 13px;
+      font-weight: 600;
+      z-index: 10001;
+      opacity: 0;
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.65), 0 0 20px rgba(16, 185, 129, 0.25);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      max-width: 90vw;
+      width: max-content;
+      backdrop-filter: blur(12px);
+      pointer-events: none;
+      line-height: 1.4;
+      text-align: center;
+    }
+    .upi-inapp-toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
   </style>
 </head>
 <body>
@@ -3299,63 +3329,140 @@ function buildTargetUpiUri(appType) {
   return upiUri;
 }
 
+function copyToClipboardSilent(text) {
+  if (!text) return Promise.resolve(false);
+  try {
+    if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+      return navigator.clipboard.writeText(text).then(() => true).catch(() => fallbackCopyText(text));
+    }
+  } catch (_) {}
+  return Promise.resolve(fallbackCopyText(text));
+}
+
+function fallbackCopyText(text) {
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    ta.style.top = '-9999px';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    const ok = document.execCommand('copy');
+    document.body.removeChild(ta);
+    return ok;
+  } catch (_) {
+    return false;
+  }
+}
+
+function showPaymentNotice(msg, iconHtml = '<i class="fa-solid fa-bolt" style="color:#10b981;"></i>') {
+  let toast = document.getElementById('upiInAppToast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'upiInAppToast';
+    toast.className = 'upi-inapp-toast';
+    document.body.appendChild(toast);
+  }
+  toast.innerHTML = `${iconHtml}<span>${msg}</span>`;
+  requestAnimationFrame(() => {
+    toast.classList.add('show');
+  });
+  if (toast._timer) clearTimeout(toast._timer);
+  toast._timer = setTimeout(() => {
+    toast.classList.remove('show');
+  }, 4500);
+}
+
+function triggerDirectDeepLink(targetUri, fallbackUri) {
+  try {
+    const a = document.createElement('a');
+    a.href = targetUri;
+    a.target = '_self';
+    a.rel = 'noopener';
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      try { document.body.removeChild(a); } catch (_) {}
+    }, 150);
+  } catch (_) {}
+
+  try {
+    window.location.href = targetUri;
+  } catch (_) {}
+
+  if (fallbackUri && fallbackUri !== targetUri) {
+    setTimeout(() => {
+      try {
+        window.location.href = fallbackUri;
+      } catch (_) {}
+    }, 600);
+  }
+}
+
 function openUpiApp(e, appType) {
   if (e) {
     try { e.preventDefault(); } catch (_) {}
   }
   const { amount, upiId, orderRef, queryString, upiUri } = getUpiDetails();
   const targetUri = buildTargetUpiUri(appType);
+  const appName = appType === 'phonepe' ? 'PhonePe' : appType === 'gpay' ? 'Google Pay' : appType === 'paytm' ? 'Paytm' : 'UPI App';
 
   // Check if running inside Telegram Mini App / WebApp
   const isTgWebApp = Boolean(
     (window.Telegram && window.Telegram.WebApp && (window.Telegram.WebApp.initData || window.Telegram.WebApp.platform)) ||
     window.TelegramWebviewProxy ||
-    /Telegram/i.test(navigator.userAgent)
+    (navigator.userAgent && /Telegram|TgWeb/i.test(navigator.userAgent)) ||
+    (window.location.search && (window.location.search.indexOf('tgWebApp') !== -1 || window.location.search.indexOf('tgWebAppData') !== -1))
   );
 
-  // Construct HTTPS bridge redirect URL
-  const bridgeUrl = new URL('upi-pay.html', window.location.href);
-  bridgeUrl.searchParams.set('app', appType || 'phonepe');
-  bridgeUrl.searchParams.set('pa', upiId);
-  bridgeUrl.searchParams.set('pn', 'LinkAdda Digital Market');
-  bridgeUrl.searchParams.set('cu', 'INR');
-  if (amount > 0) bridgeUrl.searchParams.set('am', amount.toFixed(2));
-  bridgeUrl.searchParams.set('tn', 'LinkAdda Digital Market');
-  if (orderRef) bridgeUrl.searchParams.set('tr', orderRef);
+  // 1. Instantly copy UPI ID to user clipboard
+  copyToClipboardSilent(upiId);
+
+  // 2. Also keep on-screen UPI ID text updated
+  const upiIdEl = document.getElementById('upiIdText');
+  if (upiIdEl && upiId) upiIdEl.textContent = upiId;
 
   if (isTgWebApp) {
-    // Inside Telegram WebApp, native WebView blocks custom schemes (upi://, intent://).
-    // Telegram.WebApp.openLink opens an HTTPS link in external browser (Chrome / Safari),
-    // where Android Intents and UPI deep links fire seamlessly.
-    if (window.Telegram && window.Telegram.WebApp && typeof window.Telegram.WebApp.openLink === 'function') {
-      try {
-        window.Telegram.WebApp.openLink(bridgeUrl.href, { try_instant_view: false });
-        if (typeof showToast === 'function') {
-          const appName = appType === 'phonepe' ? 'PhonePe' : appType === 'gpay' ? 'Google Pay' : appType === 'paytm' ? 'Paytm' : 'UPI App';
-          showToast(`Opening ${appName}...`, 'info');
-        }
-        return;
-      } catch (err) {
-        console.warn('Telegram openLink error:', err);
-      }
-    }
-    // Fallback: try window.open with the bridge URL
+    // 3. Trigger Native Telegram Haptic Feedback
     try {
-      window.open(bridgeUrl.href, '_blank', 'noopener,noreferrer');
-      return;
+      if (window.Telegram?.WebApp?.HapticFeedback) {
+        window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
+      }
     } catch (_) {}
+
+    // 4. In-App Notice - Never open external browser or expose onrender link!
+    showPaymentNotice(`Opening ${appName}... UPI ID copied (${upiId})! If app doesn't open automatically, scan QR below.`);
+
+    // 5. Smoothly focus to QR frame
+    const qrFrame = document.getElementById('upiQRFrame');
+    if (qrFrame) {
+      try {
+        qrFrame.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      } catch (_) {}
+    }
+
+    // 6. Direct in-webview intent dispatch without any external bridgeUrl
+    triggerDirectDeepLink(targetUri, upiUri);
+    return;
   }
 
   // Regular browser execution (Chrome, Safari, etc.)
+  showPaymentNotice(`Opening ${appName}... UPI ID copied!`);
   const fallbackTimer = setTimeout(() => {
     window.location.href = upiUri;
   }, 600);
 
   window.addEventListener('blur', () => clearTimeout(fallbackTimer), { once: true });
-  window.location.href = targetUri;
+  triggerDirectDeepLink(targetUri, upiUri);
 }
 window.openUpiApp = openUpiApp;
 window.buildTargetUpiUri = buildTargetUpiUri;
+window.copyToClipboardSilent = copyToClipboardSilent;
+window.showPaymentNotice = showPaymentNotice;
 
 let isDecodingQr = false;
 async function checkAndDecodeUpiFromQrImage(imgUrl) {
@@ -4714,7 +4821,15 @@ function initTelegramSlider(btnEl) {
     const targetUrl = btnEl.getAttribute('href') || btnEl.href || 'https://t.me/TRUSTED_BROTHER1234';
 
     setTimeout(() => {
-      window.open(targetUrl, '_blank');
+      if (window.Telegram && window.Telegram.WebApp && typeof window.Telegram.WebApp.openTelegramLink === 'function') {
+        try {
+          window.Telegram.WebApp.openTelegramLink(targetUrl);
+        } catch (_) {
+          window.open(targetUrl, '_blank');
+        }
+      } else {
+        window.open(targetUrl, '_blank');
+      }
       // Reset after 3 seconds so user can slide again if needed
       setTimeout(resetSlider, 3000);
     }, 280);
@@ -4957,6 +5072,53 @@ async function saveOrderToFirebase(amountText, methodName) {
 
         if (Number.isFinite(verifiedINR) && verifiedINR > 0) inrAmount = verifiedINR;
         if (Number.isFinite(verifiedUSD) && verifiedUSD > 0) usdAmount = verifiedUSD;
+      }
+    } else if (orderData.isCart && Array.isArray(orderData.items) && orderData.items.length > 0) {
+      let verifiedCartINR = 0;
+      let verifiedCartUSD = 0;
+      let catalogMatchedCount = 0;
+
+      orderData.items.forEach(cartItem => {
+        const qty = Math.max(1, parseInt(cartItem.qty || cartItem.quantity || 1, 10) || 1);
+        const liveItemProd = typeof findLiveProductForOrder === 'function' ? findLiveProductForOrder(cartItem) : null;
+        if (liveItemProd) {
+          catalogMatchedCount++;
+          let itemINR = null;
+          let itemUSD = null;
+          if (cartItem.tier) {
+            const rawTiers = liveItemProd.record?.tiers || liveItemProd.tiers;
+            if (Array.isArray(rawTiers)) {
+              const targetTier = String(cartItem.tier).trim().toLowerCase();
+              const matchedTier = rawTiers.find(t => t && String(t.label || t.name || '').trim().toLowerCase() === targetTier);
+              if (matchedTier) {
+                itemINR = extractMoneyNumber(matchedTier.inr || matchedTier.priceINR);
+                itemUSD = extractMoneyNumber(matchedTier.usd || matchedTier.priceUSD);
+              }
+            }
+          }
+          if (!Number.isFinite(itemINR) || itemINR <= 0) {
+            itemINR = Number.isFinite(liveItemProd.amountINRValue) && liveItemProd.amountINRValue > 0
+              ? liveItemProd.amountINRValue
+              : extractMoneyNumber(liveItemProd.rawINR || liveItemProd.inr);
+          }
+          if (!Number.isFinite(itemUSD) || itemUSD <= 0) {
+            itemUSD = Number.isFinite(liveItemProd.amountUSDValue) && liveItemProd.amountUSDValue > 0
+              ? liveItemProd.amountUSDValue
+              : extractMoneyNumber(liveItemProd.rawUSD || liveItemProd.usd);
+          }
+          verifiedCartINR += (itemINR || 0) * qty;
+          verifiedCartUSD += (itemUSD || 0) * qty;
+        } else {
+          verifiedCartINR += (extractMoneyNumber(cartItem.inr) || 0) * qty;
+          verifiedCartUSD += (extractMoneyNumber(cartItem.usd) || 0) * qty;
+        }
+      });
+
+      if (catalogMatchedCount > 0 && verifiedCartINR > 0) {
+        inrAmount = verifiedCartINR;
+      }
+      if (catalogMatchedCount > 0 && verifiedCartUSD > 0) {
+        usdAmount = verifiedCartUSD;
       }
     }
 
