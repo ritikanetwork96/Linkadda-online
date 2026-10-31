@@ -42,12 +42,36 @@
     "8770964308"
   ],
   "adminProfiles": {
+    "8516979341": {
+      "id": "8516979341",
+      "name": "Tester (Bot C)",
+      "role": "Order Proof Alerts & Instant Approve/Reject Buttons Across All Bots",
+      "badge": "🛡️ ADMIN",
+      "username": "noname8828211",
+      "assignedBotId": "all",
+      "assignedBotUsername": "All Fleet Bots",
+      "updatedAt": 1793425000000,
+      "lastActiveAt": 1793425000000
+    },
+    "8802192472": {
+      "id": "8802192472",
+      "name": "Owner",
+      "role": "Order Proof Alerts & Instant Approve/Reject Buttons Across All Bots",
+      "badge": "🛡️ ADMIN",
+      "username": "owner",
+      "assignedBotId": "all",
+      "assignedBotUsername": "All Fleet Bots",
+      "updatedAt": 1793425000000,
+      "lastActiveAt": 1793425000000
+    },
     "6966868142": {
       "id": "6966868142",
       "name": "Ghost Layer",
       "role": "Order Proof Alerts & Instant Approve/Reject Buttons Across All Bots",
       "badge": "🛡️ ADMIN",
       "username": "GhostLayer73",
+      "assignedBotId": "all",
+      "assignedBotUsername": "All Fleet Bots",
       "updatedAt": 1793085063742,
       "lastActiveAt": 1793424554763
     },

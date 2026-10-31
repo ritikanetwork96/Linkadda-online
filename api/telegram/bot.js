@@ -1103,6 +1103,8 @@ export async function getAllBotUsers() {
     const store = readBotStore();
     const adminIds = new Set(getAdminChatIds());
     let usersMap = { ...(store.users || {}) };
+    const allBots = getConnectedBots();
+    const primaryBot = allBots.find(b => b.isPrimary) || allBots[0] || null;
 
     // Fetch live users from Supabase (site_settings + orders) to ensure 100% persistence across Render restarts
     try {
@@ -1200,9 +1202,6 @@ export async function getAllBotUsers() {
     } catch (sbErr) {
       console.warn('getAllBotUsers Supabase live fetch note:', sbErr.message);
     }
-
-    const allBots = getConnectedBots();
-    const primaryBot = allBots.find(b => b.isPrimary) || allBots[0] || null;
 
     const users = Object.values(usersMap).filter(u => {
       if (!u || !u.id) return false;
@@ -2969,6 +2968,25 @@ export default async function handler(req, res) {
             const cleanAid = String(aid).trim();
             if (!cleanAid) continue;
             if (!store.adminProfiles[cleanAid] || !store.adminProfiles[cleanAid].username) {
+              const u = store.users?.[cleanAid];
+              if (u) {
+                const uFirst = u.firstName || '';
+                const uLast = u.lastName || '';
+                const uUname = (u.username || '').replace('@', '');
+                const uName = [uFirst, uLast].filter(Boolean).join(' ').trim() || u.name;
+                store.adminProfiles[cleanAid] = {
+                  id: cleanAid,
+                  name: uName || `Admin #${cleanAid}`,
+                  username: uUname || '',
+                  badge: '🛡️ ADMIN',
+                  role: 'Order Proof Alerts & Instant Approve/Reject Buttons Across All Bots',
+                  assignedBotId: store.adminProfiles[cleanAid]?.assignedBotId || 'all',
+                  assignedBotUsername: store.adminProfiles[cleanAid]?.assignedBotUsername || 'All Fleet Bots',
+                  updatedAt: Date.now()
+                };
+                adminProfilesModified = true;
+              }
+
               for (const b of connectedBotsList) {
                 if (!b.token) continue;
                 try {
@@ -2981,10 +2999,12 @@ export default async function handler(req, res) {
                     const realName = [realFirst, realLast].filter(Boolean).join(' ').trim();
                     store.adminProfiles[cleanAid] = {
                       id: cleanAid,
-                      name: realName || `Admin #${cleanAid}`,
-                      username: realUname || '',
+                      name: realName || store.adminProfiles[cleanAid]?.name || `Admin #${cleanAid}`,
+                      username: realUname || store.adminProfiles[cleanAid]?.username || '',
                       badge: '🛡️ ADMIN',
                       role: 'Order Proof Alerts & Instant Approve/Reject Buttons Across All Bots',
+                      assignedBotId: store.adminProfiles[cleanAid]?.assignedBotId || 'all',
+                      assignedBotUsername: store.adminProfiles[cleanAid]?.assignedBotUsername || 'All Fleet Bots',
                       updatedAt: Date.now()
                     };
                     adminProfilesModified = true;
@@ -2996,6 +3016,14 @@ export default async function handler(req, res) {
           }
           if (adminProfilesModified) {
             writeBotStore(store);
+            try {
+              const { url: sUrl, key: sKey } = getSupabaseConfig();
+              fetch(`${sUrl}/rest/v1/site_settings`, {
+                method: 'POST',
+                headers: { 'apikey': sKey, 'Authorization': `Bearer ${sKey}`, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates' },
+                body: JSON.stringify([{ key: 'tg_admin_profiles', value: store.adminProfiles, updated_at: new Date().toISOString() }])
+              }).catch(() => {});
+            } catch (_) {}
           }
         } catch (_) {}
       }, 0);
@@ -3688,18 +3716,45 @@ export default async function handler(req, res) {
         if (fromUser) {
           await recordBotUser(fromUser, isStartCmd ? 'bot_start' : 'bot_chat', currentBotId).catch(() => {});
 
-          // If sender is an already authorized admin from Admin Panel, update active status without overwriting custom profiles
+          // If sender is an already authorized admin from Admin Panel, update active status and ensure real name/username profile
           const fromIdStr = String(fromUser.id);
           if (adminIds.includes(fromIdStr)) {
             const store = readBotStore();
-            if (store.adminProfiles && store.adminProfiles[fromIdStr]) {
-              const realUname = (fromUser.username || '').replace('@', '');
+            if (!store.adminProfiles) store.adminProfiles = {};
+            const realUname = (fromUser.username || '').replace('@', '');
+            const realFirst = fromUser.first_name || '';
+            const realLast = fromUser.last_name || '';
+            const realName = [realFirst, realLast].filter(Boolean).join(' ').trim();
+            if (store.adminProfiles[fromIdStr]) {
               if (realUname && !store.adminProfiles[fromIdStr].username) {
                 store.adminProfiles[fromIdStr].username = realUname;
               }
+              if (realName && (store.adminProfiles[fromIdStr].name.startsWith('Admin #') || !store.adminProfiles[fromIdStr].name)) {
+                store.adminProfiles[fromIdStr].name = realName;
+              }
               store.adminProfiles[fromIdStr].lastActiveAt = Date.now();
-              writeBotStore(store);
+            } else {
+              store.adminProfiles[fromIdStr] = {
+                id: fromIdStr,
+                name: realName || (realUname ? `@${realUname}` : `Admin #${fromIdStr}`),
+                username: realUname || '',
+                badge: '🛡️ ADMIN',
+                role: 'Order Proof Alerts & Instant Approve/Reject Buttons Across All Bots',
+                assignedBotId: 'all',
+                assignedBotUsername: 'All Fleet Bots',
+                updatedAt: Date.now(),
+                lastActiveAt: Date.now()
+              };
             }
+            writeBotStore(store);
+            try {
+              const { url: sUrl, key: sKey } = getSupabaseConfig();
+              fetch(`${sUrl}/rest/v1/site_settings`, {
+                method: 'POST',
+                headers: { 'apikey': sKey, 'Authorization': `Bearer ${sKey}`, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates' },
+                body: JSON.stringify([{ key: 'tg_admin_profiles', value: store.adminProfiles, updated_at: new Date().toISOString() }])
+              }).catch(() => {});
+            } catch (_) {}
           }
         }
 

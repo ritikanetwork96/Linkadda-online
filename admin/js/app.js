@@ -11,12 +11,14 @@ import {
   getDeviceDetails,
 } from './auth.js';
 
-// ⚡ Auto-route local Live Server requests (any port on localhost/127.0.0.1, file: protocol) to live Render backend
+// ⚡ Auto-route local Live Server requests (any port on localhost/127.0.0.1 EXCEPT dev-server port 3000, file: protocol) to live Render backend
 if (typeof window !== 'undefined') {
-  const isLocalDev = window.location.hostname === 'localhost' ||
+  const isDevServer = window.location.port === '3000';
+  const isLocalDev = !isDevServer && (
+                     window.location.hostname === 'localhost' ||
                      window.location.hostname === '127.0.0.1' ||
                      window.location.protocol === 'file:' ||
-                     (window.location.port && window.location.port !== '80' && window.location.port !== '443');
+                     (window.location.port && window.location.port !== '80' && window.location.port !== '443'));
   if (isLocalDev) {
     const _realFetch = window.fetch;
     window.fetch = function(url, options) {
@@ -7056,6 +7058,7 @@ let _tgBotData = {
 
 function getBackendApiBase() {
   if (typeof window !== 'undefined') {
+    if (window.location.port === '3000') return '';
     const isLocal = window.location.hostname === 'localhost' ||
                     window.location.hostname === '127.0.0.1' ||
                     window.location.protocol === 'file:' ||
@@ -7071,7 +7074,11 @@ function telegramApiFetch(endpoint, options = {}) {
   const base = getBackendApiBase();
   const clean = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
   const fullUrl = `${base}${clean}`;
-  return fetch(fullUrl, options);
+  let opts = { ...options };
+  if (!opts.signal) {
+    try { opts.signal = AbortSignal.timeout(7000); } catch (_) {}
+  }
+  return fetch(fullUrl, opts);
 }
 
 // Universal helper to retrieve user's specific record for an active bot
@@ -7289,11 +7296,28 @@ async function loadTelegramBotAdminFullData(force = false) {
       } catch (_) {}
     }
 
-    // ⚡ Purge admin accounts from userUnion so they NEVER appear in subscriber directory
+    // ⚡ Auto-enrich any admin profiles with real Telegram details from users before purging from subscribers
+    if (!_tgBotData.adminProfiles) _tgBotData.adminProfiles = {};
     const adminIdSet = new Set((_tgBotData.admins || []).map(a => String(a).trim()));
-
-    // Strictly purge admin accounts from userUnion so they NEVER appear in subscriber directory
     adminIdSet.forEach(aId => {
+      const u = userUnion[aId];
+      if (u) {
+        const uName = [u.firstName, u.lastName].filter(Boolean).join(' ').trim() || u.name;
+        const uUname = (u.username || '').replace('@', '');
+        const existing = _tgBotData.adminProfiles[aId] || {};
+        _tgBotData.adminProfiles[aId] = {
+          id: aId,
+          name: (existing.name && !existing.name.startsWith('Admin #')) ? existing.name : (uName || `Admin #${aId}`),
+          username: existing.username || uUname || '',
+          badge: existing.badge || '🛡️ ADMIN',
+          badgeBg: existing.badgeBg || 'rgba(56, 189, 248, 0.15)',
+          badgeColor: existing.badgeColor || '#38bdf8',
+          badgeBorder: existing.badgeBorder || 'rgba(56, 189, 248, 0.35)',
+          role: existing.role || 'Receives Order Alerts & Instant Approve/Reject Buttons Across All Bots',
+          assignedBotId: existing.assignedBotId || 'all',
+          assignedBotUsername: existing.assignedBotUsername || 'All Fleet Bots'
+        };
+      }
       delete userUnion[aId];
     });
 
@@ -7361,12 +7385,15 @@ async function loadTelegramBotAdminFullData(force = false) {
       localStorage.setItem('tg_cached_bot_users', JSON.stringify(unifiedList));
     } catch (_) {}
 
+    _tgBotData.isLoading = false;
+    _tgBotData.lastLoadedAt = Date.now();
     updateTelegramBotLiveUI();
   } catch (err) {
     console.warn('Telegram bot full data fetch note:', err);
   } finally {
     _tgBotData.isLoading = false;
     _tgBotData.lastLoadedAt = Date.now();
+    updateTelegramBotLiveUI();
   }
 }
 
@@ -8160,18 +8187,41 @@ function renderTelegramAdminsCards(admins = []) {
     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 14px;">
       ${adminList.map(aid => {
         const cleanId = String(aid).trim();
-        const profile = adminProfiles[cleanId] || {
-          id: cleanId,
-          name: `Admin #${cleanId}`,
-          username: '',
-          email: '',
-          badge: '🛡️ ADMIN',
-          badgeBg: 'rgba(56, 189, 248, 0.15)',
-          badgeColor: '#38bdf8',
-          badgeBorder: 'rgba(56, 189, 248, 0.35)',
-          role: 'Receives Order Alerts & Instant Approve/Reject Buttons Across All Bots'
-        };
+        let profile = adminProfiles[cleanId];
+        if (!profile || !profile.name || profile.name.startsWith('Admin #') || !profile.username) {
+          const matchedU = (_tgBotData.users || []).find(u => String(u.id) === cleanId) ||
+                           _tgCachedUsers.find(u => String(u.id) === cleanId);
+          if (matchedU) {
+            const mName = [matchedU.firstName, matchedU.lastName].filter(Boolean).join(' ').trim() || matchedU.name;
+            const mUname = (matchedU.username || '').replace('@', '');
+            profile = {
+              ...(profile || {}),
+              id: cleanId,
+              name: (profile?.name && !profile.name.startsWith('Admin #')) ? profile.name : (mName || `Admin #${cleanId}`),
+              username: profile?.username || mUname || '',
+              badge: profile?.badge || '🛡️ ADMIN',
+              badgeBg: profile?.badgeBg || 'rgba(56, 189, 248, 0.15)',
+              badgeColor: profile?.badgeColor || '#38bdf8',
+              badgeBorder: profile?.badgeBorder || 'rgba(56, 189, 248, 0.35)',
+              role: profile?.role || 'Receives Order Alerts & Instant Approve/Reject Buttons Across All Bots'
+            };
+          }
+        }
+        if (!profile) {
+          profile = {
+            id: cleanId,
+            name: `Admin #${cleanId}`,
+            username: '',
+            email: '',
+            badge: '🛡️ ADMIN',
+            badgeBg: 'rgba(56, 189, 248, 0.15)',
+            badgeColor: '#38bdf8',
+            badgeBorder: 'rgba(56, 189, 248, 0.35)',
+            role: 'Receives Order Alerts & Instant Approve/Reject Buttons Across All Bots'
+          };
+        }
 
+        const activeBotUname = (_tgBotData.bot?.username || 'Testnot565_bot').replace(/^@/, '');
         const rawName = profile.name || cleanId;
         const nameParts = rawName.split(/\s+/).filter(Boolean);
         const initials = nameParts.length >= 2 
@@ -8193,8 +8243,8 @@ function renderTelegramAdminsCards(admins = []) {
                         @${escapeHtml(profile.username)} <i data-lucide="external-link" style="width: 10px; height: 10px;"></i>
                       </a>
                     ` : `
-                      <span style="color: #f59e0b; font-size: 11px; display: inline-flex; align-items: center; gap: 3px;" title="User must start the bot so Telegram provides their username">
-                        <i data-lucide="info" style="width: 11px; height: 11px;"></i> Tap /start in @Myshop9876_bot
+                      <span style="color: #f59e0b; font-size: 11px; display: inline-flex; align-items: center; gap: 3px;" title="User must start the active bot so Telegram provides their username">
+                        <i data-lucide="info" style="width: 11px; height: 11px;"></i> Tap /start in @${escapeHtml(activeBotUname)}
                       </span>
                     `}
                   </div>
@@ -8393,8 +8443,8 @@ function renderTelegramBotPageView(data = {}) {
             <button class="btn btn-ghost" type="button" data-action="test-tg-bot" title="Send a test ping alert to all Admins" style="font-size: 12.5px; padding: 9px 16px; border-radius: 10px; background: rgba(99,102,241,0.12); border: 1px solid rgba(99,102,241,0.3); color: #a5b4fc; backdrop-filter: blur(10px); display: inline-flex; align-items: center; gap: 6px; transition: all 0.2s ease;">
               <i data-lucide="send" style="width: 14px; height: 14px; color: #818cf8;"></i> Test Ping Admins
             </button>
-            <a class="btn btn-primary" id="tgOpenLiveBotBtn" href="https://t.me/${escapeHtml(bot.username || 'Myshop9876_bot')}" target="_blank" style="font-size: 12.5px; padding: 9px 18px; border-radius: 10px; background: linear-gradient(135deg, #0284c7, #38bdf8) !important; border: 1px solid rgba(56,189,248,0.4) !important; color: white !important; display: inline-flex; align-items: center; gap: 7px; box-shadow: 0 4px 16px rgba(2, 132, 199, 0.4); font-weight: 700; transition: all 0.2s ease;">
-              <i data-lucide="external-link" style="width: 14px; height: 14px;"></i> Open Bot (@${escapeHtml(bot.username || 'Myshop9876_bot')})
+            <a class="btn btn-primary" id="tgOpenLiveBotBtn" href="https://t.me/${escapeHtml(bot.username || 'Testnot565_bot')}" target="_blank" style="font-size: 12.5px; padding: 9px 18px; border-radius: 10px; background: linear-gradient(135deg, #0284c7, #38bdf8) !important; border: 1px solid rgba(56,189,248,0.4) !important; color: white !important; display: inline-flex; align-items: center; gap: 7px; box-shadow: 0 4px 16px rgba(2, 132, 199, 0.4); font-weight: 700; transition: all 0.2s ease;">
+              <i data-lucide="external-link" style="width: 14px; height: 14px;"></i> Open Bot (@${escapeHtml(bot.username || 'Testnot565_bot')})
             </a>
           </div>
         </div>
@@ -8413,7 +8463,7 @@ function renderTelegramBotPageView(data = {}) {
             <div id="tgActiveBotUsername" style="font-size: 18px; font-weight: 800; color: #38bdf8; display: flex; align-items: center; gap: 6px;">
               <span>${bots.length} Connected Bots</span>
             </div>
-            <small id="tgActiveBotId" style="display: block; color: var(--muted); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Active: @${escapeHtml(bot.username || 'Myshop9876_bot')} · Multi-Bot Live</small>
+            <small id="tgActiveBotId" style="display: block; color: var(--muted); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Active: @${escapeHtml(bot.username || 'Testnot565_bot')} · Multi-Bot Live</small>
           </div>
 
           <!-- Metric 2: Webhook Delivery -->
@@ -14385,7 +14435,8 @@ function attachGlobalHandlers() {
             const unameStr = d.user.username ? ` (@${d.user.username})` : '';
             badge.innerHTML = `<span style="color: #10b981; font-weight: 700;"><i data-lucide="check-circle" style="width:13px;height:13px;vertical-align:-2px;margin-right:3px;"></i> Verified Telegram User: <strong>${escapeHtml(d.user.name)}</strong>${escapeHtml(unameStr)}</span>`;
           } else {
-            badge.innerHTML = `<span style="color: #fbbf24;"><i data-lucide="alert-circle" style="width:13px;height:13px;vertical-align:-2px;margin-right:3px;"></i> Telegram bot ko yeh ID abhi nahi mili. User ko bole ki bot (@Myshop9876_bot) me <strong>START</strong> dabayein, taaki Telegram se unka real name & username auto-fetch ho sake.</span>`;
+            const activeBot = (_tgBotData.bot?.username || 'Testnot565_bot').replace(/^@/, '');
+            badge.innerHTML = `<span style="color: #fbbf24;"><i data-lucide="alert-circle" style="width:13px;height:13px;vertical-align:-2px;margin-right:3px;"></i> Telegram bot ko yeh ID abhi nahi mili. User ko bole ki bot (@${escapeHtml(activeBot)}) me <strong>START</strong> dabayein, taaki Telegram se unka real name & username auto-fetch ho sake.</span>`;
           }
           if (typeof lucide !== 'undefined') lucide.createIcons();
         } catch (_) {

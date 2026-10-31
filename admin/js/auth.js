@@ -18,12 +18,14 @@ if (typeof window !== 'undefined' && window.location.pathname.endsWith('.js')) {
   window.location.replace('/admin');
 }
 
-// ⚡ Auto-route local Live Server requests (any port on localhost/127.0.0.1, file: protocol) to live Render backend
+// ⚡ Auto-route local Live Server requests (any port on localhost/127.0.0.1 EXCEPT dev-server port 3000, file: protocol) to live Render backend
 if (typeof window !== 'undefined') {
-  const isLocalDev = window.location.hostname === 'localhost' ||
+  const isDevServer = window.location.port === '3000';
+  const isLocalDev = !isDevServer && (
+                     window.location.hostname === 'localhost' ||
                      window.location.hostname === '127.0.0.1' ||
                      window.location.protocol === 'file:' ||
-                     (window.location.port && window.location.port !== '80' && window.location.port !== '443');
+                     (window.location.port && window.location.port !== '80' && window.location.port !== '443'));
   if (isLocalDev) {
     const _realFetch = window.fetch;
     window.fetch = function(url, options) {
