@@ -14,18 +14,18 @@ export const APP_CONFIG = {
 // Legacy config retained for type safety
 export const FIREBASE_CONFIG = {};
 
-// RustFS S3-compatible public config (No secrets on frontend!)
-export const RUSTFS_CONFIG = {
-  endpoint: 'https://rustfs-mi5c.srv1942099.hstgr.cloud',
-  bucket: 'linkadda-media',
-  region: 'us-east-1',
+// Cloudflare R2 public config (Fast global CDN, $0 Egress)
+export const R2_CONFIG = {
+  endpoint: 'https://e251083d3d3878442daf244a17d304e5.r2.cloudflarestorage.com',
+  bucket: 'linkadda-shop',
+  publicUrl: 'https://pub-81f10c1135f54a719e5d96e8d7896960.r2.dev',
 };
 
 // Supabase public config (Anon Key only — Zero secrets on frontend!)
 export const SUPABASE_CONFIG = {
-  url: 'https://esxiwfswnbacmpjxqgsn.supabase.co',
-  anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVzeGl3ZnN3bmJhY21wanhxZ3NuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI2MDcxODQsImV4cCI6MjEwODE4MzE4NH0.n6XzLxgH5947CK-224Tp57BJmbWZ_rTKi4PK-EW8bNI',
-  bucket: 'linkadda-media',
+  url: 'https://mkttxqwpbostzmfygpzq.supabase.co',
+  anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1rdHR4cXdwYm9zdHptZnlncHpxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMzODc1NzAsImV4cCI6MjEwODk2MzU3MH0.OP6jOD49M16r4uCUZ8pFOZkCaor0mk-0XZh94pjbSaE',
+  bucket: 'linkadda-shop',
 };
 
 export const RTDB_NODES = {

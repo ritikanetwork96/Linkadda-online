@@ -15,7 +15,7 @@ export default async function handler(req, res) {
   }
 
   // 2. Load private Service Role credentials on the server
-  const supaUrl = (process.env.SUPABASE_URL || 'https://esxiwfswnbacmpjxqgsn.supabase.co').replace(/\/+$/, '');
+  const supaUrl = (process.env.SUPABASE_URL || 'https://mkttxqwpbostzmfygpzq.supabase.co').replace(/\/+$/, '');
   const serviceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
 
   if (!serviceKey) {

@@ -1,4 +1,4 @@
-const STORAGE_BASE = "https://esxiwfswnbacmpjxqgsn.supabase.co/storage/v1/object/public/linkadda-media";
+const STORAGE_BASE = "https://pub-81f10c1135f54a719e5d96e8d7896960.r2.dev";
 const mediaMap = new Map();
 const fallbackMap = new Map();
 let observer = null;

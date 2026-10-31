@@ -32,7 +32,7 @@ export function getAppUrl(req = null) {
 }
 
 function getSupabaseConfig() {
-  const url = (process.env.SUPABASE_URL || 'https://esxiwfswnbacmpjxqgsn.supabase.co').replace(/\/+$/, '');
+  const url = (process.env.SUPABASE_URL || 'https://mkttxqwpbostzmfygpzq.supabase.co').replace(/\/+$/, '');
   let key = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
 
   // If in local dev and process.env is empty, check .env file safely without hardcoding
@@ -2434,23 +2434,26 @@ export async function broadcastNewProduct(rawProduct, targetBotIds = ['all']) {
   const cleanDesc = cleanTextDesc ? escapeTelegramHtml(cleanTextDesc.slice(0, 140)) + (cleanTextDesc.length > 140 ? '...' : '') : '';
 
   // 4. Image URL normalization
+  const r2Public = (process.env.R2_PUBLIC_URL || 'https://pub-81f10c1135f54a719e5d96e8d7896960.r2.dev').replace(/\/+$/, '');
   let rawImg = product.image || product.thumbnail || product.photo || (Array.isArray(product.images) && product.images.length ? product.images[0] : '') || '';
   let image = String(rawImg || '').trim();
   if (image && !image.startsWith('http://') && !image.startsWith('https://')) {
-    if (image.startsWith('images/')) {
-      image = `https://esxiwfswnbacmpjxqgsn.supabase.co/storage/v1/object/public/linkadda-media/${image}`;
-    } else if (image.startsWith('/images/')) {
-      image = `https://esxiwfswnbacmpjxqgsn.supabase.co/storage/v1/object/public/linkadda-media${image}`;
-    } else if (image.startsWith('/media/')) {
-      image = `https://esxiwfswnbacmpjxqgsn.supabase.co/storage/v1/object/public/linkadda-media/${image.replace(/^\/media\//, '')}`;
-    } else if (image.startsWith('linkadda-media/')) {
-      image = `https://esxiwfswnbacmpjxqgsn.supabase.co/storage/v1/object/public/${image}`;
-    } else if (image.startsWith('products/') || image.startsWith('categories/')) {
-      image = `https://esxiwfswnbacmpjxqgsn.supabase.co/storage/v1/object/public/linkadda-media/${image}`;
+    const cleanImg = image.replace(/^\/+/, '');
+    if (cleanImg.startsWith('media/')) {
+      image = `${r2Public}/${cleanImg.replace(/^media\//, '')}`;
+    } else if (cleanImg.startsWith('linkadda-media/')) {
+      image = `${r2Public}/${cleanImg.replace(/^linkadda-media\//, '')}`;
+    } else if (cleanImg.startsWith('images/') || cleanImg.startsWith('products/') || cleanImg.startsWith('categories/')) {
+      image = `${r2Public}/${cleanImg}`;
     } else if (image.startsWith('/')) {
       image = `${getAppUrl()}${image}`;
     } else {
-      image = `${getAppUrl()}/${image}`;
+      image = `${r2Public}/${cleanImg}`;
+    }
+  } else if (image && (image.includes('supabase.co') || image.includes('rustfs'))) {
+    const parts = image.split('/linkadda-media/');
+    if (parts[1]) {
+      image = `${r2Public}/${parts[1]}`;
     }
   }
 

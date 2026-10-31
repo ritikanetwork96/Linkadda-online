@@ -842,11 +842,11 @@ function renderMediaFallback(label = 'No image selected') {
 
 function resolveAdminMediaUrl(url) {
   let clean = String(url || '').trim();
-  const SUPABASE_CDN_ROOT = 'https://esxiwfswnbacmpjxqgsn.supabase.co/storage/v1/object/public/linkadda-media';
+  const R2_CDN_ROOT = 'https://pub-81f10c1135f54a719e5d96e8d7896960.r2.dev';
   if (!clean) return '';
   if (clean.includes('rustfs-mi5c.srv1942099.hstgr.cloud') || clean.includes('supabase.co/storage/v1/object/public/')) {
     const pathPart = clean.split('/linkadda-media/').pop() || clean.split('/media/').pop() || clean.split('/').pop();
-    return `${SUPABASE_CDN_ROOT}/${pathPart.replace(/^\/+/, '')}`;
+    return `${R2_CDN_ROOT}/${pathPart.replace(/^\/+/, '')}`;
   }
   if (clean.startsWith('http://') || clean.startsWith('https://') || clean.startsWith('data:') || clean.startsWith('blob:')) {
     return clean;
@@ -936,7 +936,7 @@ function renderMediaStudioCard(item, index) {
         ${isVideo
           ? `<video src="${escapeHtml(resolvedUrl)}" preload="metadata" muted playsinline></video>
              <div class="media-vid-overlay-play"><i data-lucide="play" style="width:18px;height:18px;"></i></div>`
-          : `<img src="${escapeHtml(resolvedUrl)}" data-raw-src="${escapeHtml(rawUrl)}" alt="Media ${index + 1}" loading="lazy" onerror="if(!this._failed){this._failed=true; if(this.getAttribute('data-raw-src').startsWith('images/')){this.src='/' + this.getAttribute('data-raw-src');}else{this.src='https://esxiwfswnbacmpjxqgsn.supabase.co/storage/v1/object/public/linkadda-media/products/' + this.getAttribute('data-raw-src');}}" />`
+          : `<img src="${escapeHtml(resolvedUrl)}" data-raw-src="${escapeHtml(rawUrl)}" alt="Media ${index + 1}" loading="lazy" onerror="if(!this._failed){this._failed=true; if(this.getAttribute('data-raw-src').startsWith('images/')){this.src='/' + this.getAttribute('data-raw-src');}else{this.src='https://pub-81f10c1135f54a719e5d96e8d7896960.r2.dev/products/' + this.getAttribute('data-raw-src');}}" />`
         }
       </div>
 
@@ -2917,11 +2917,7 @@ window.openProductBroadcastModal = function(recordOrId, node = 'products') {
   const desc = item.shortDescription || item.description || item.badge || 'VIP Exclusive Collection';
   let image = item.image || item.thumbnail || (Array.isArray(item.images) && item.images.length ? item.images[0] : '');
   if (image && !image.startsWith('http')) {
-    if (image.startsWith('images/') || image.startsWith('/images/')) {
-      image = `https://esxiwfswnbacmpjxqgsn.supabase.co/storage/v1/object/public/linkadda-media/${image.replace(/^\/?images\//, '')}`;
-    } else {
-      image = `https://esxiwfswnbacmpjxqgsn.supabase.co/storage/v1/object/public/linkadda-media/${image.replace(/^\//, '')}`;
-    }
+    image = `https://pub-81f10c1135f54a719e5d96e8d7896960.r2.dev/${image.replace(/^\/?(images\/)?/, '')}`;
   }
 
   const bots = (_tgBotData.bots && _tgBotData.bots.length) ? _tgBotData.bots : [_tgBotData.bot].filter(Boolean);
@@ -4252,10 +4248,10 @@ function resolveMediaSource(value) {
   let raw = String(value || '').trim();
   if (!raw) return '';
   
-  const SUPABASE_CDN_ROOT = 'https://esxiwfswnbacmpjxqgsn.supabase.co/storage/v1/object/public/linkadda-media';
-  if (raw.includes('rustfs-mi5c.srv1942099.hstgr.cloud') || raw.includes('s3.linkadda.shop/linkadda-media') || (raw.includes('supabase.co') && !raw.includes('dsleaglxbedljdxrikdn'))) {
+  const R2_CDN_ROOT = 'https://pub-81f10c1135f54a719e5d96e8d7896960.r2.dev';
+  if (raw.includes('rustfs-mi5c.srv1942099.hstgr.cloud') || raw.includes('s3.linkadda.shop/linkadda-media') || raw.includes('supabase.co')) {
     const pathPart = raw.split('/linkadda-media/').pop() || raw.split('/media/').pop() || raw.split('/').pop();
-    return `${SUPABASE_CDN_ROOT}/${pathPart.replace(/^\/+/, '')}`;
+    return `${R2_CDN_ROOT}/${pathPart.replace(/^\/+/, '')}`;
   }
 
   if (/^(https?:)?\/\//i.test(raw) || raw.startsWith('data:') || raw.startsWith('blob:')) return raw;
@@ -7173,11 +7169,11 @@ async function loadTelegramBotAdminFullData(force = false) {
     }
 
     // ⚡ Direct Supabase sync (100% immune to Render client blocks)
-    const supaAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVzeGl3ZnN3bmJhY21wanhxZ3NuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI2MDcxODQsImV4cCI6MjEwODE4MzE4NH0.n6XzLxgH5947CK-224Tp57BJmbWZ_rTKi4PK-EW8bNI';
+    const supaAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1rdHR4cXdwYm9zdHptZnlncHpxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMzODc1NzAsImV4cCI6MjEwODk2MzU3MH0.OP6jOD49M16r4uCUZ8pFOZkCaor0mk-0XZh94pjbSaE';
     const [cfgRes, usersRes, sbSettingsRes] = await Promise.all([
       telegramApiFetch('/api/telegram/bot?action=get-bot-config', { headers: authHeaders }).then(r => r.json()).catch(() => null),
       telegramApiFetch('/api/telegram/bot?action=get-users', { headers: authHeaders }).then(r => r.json()).catch(() => null),
-      fetch('https://esxiwfswnbacmpjxqgsn.supabase.co/rest/v1/site_settings?key=in.(tg_bot_users,tg_connected_bots,tg_admin_chat_ids,tg_admin_profiles)&select=key,value', {
+      fetch('https://mkttxqwpbostzmfygpzq.supabase.co/rest/v1/site_settings?key=in.(tg_bot_users,tg_connected_bots,tg_admin_chat_ids,tg_admin_profiles)&select=key,value', {
         headers: { 'apikey': supaAnonKey, 'Authorization': `Bearer ${supaAnonKey}` }
       }).then(r => r.json()).catch(() => null)
     ]);
@@ -12694,8 +12690,8 @@ function attachGlobalHandlers() {
 
         // Direct Supabase sync so addition persists immediately
         try {
-          const supaUrl = 'https://esxiwfswnbacmpjxqgsn.supabase.co';
-          const supaKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVzeGl3ZnN3bmJhY21wanhxZ3NuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI2MDcxODQsImV4cCI6MjEwODE4MzE4NH0.n6XzLxgH5947CK-224Tp57BJmbWZ_rTKi4PK-EW8bNI';
+          const supaUrl = 'https://mkttxqwpbostzmfygpzq.supabase.co';
+          const supaKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1rdHR4cXdwYm9zdHptZnlncHpxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMzODc1NzAsImV4cCI6MjEwODk2MzU3MH0.OP6jOD49M16r4uCUZ8pFOZkCaor0mk-0XZh94pjbSaE';
           await fetch(`${supaUrl}/rest/v1/site_settings`, {
             method: 'POST',
             headers: { 'apikey': supaKey, 'Authorization': `Bearer ${supaKey}`, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates' },
@@ -12753,8 +12749,8 @@ function attachGlobalHandlers() {
 
         // ⚡ Direct Supabase sync so deletion persists instantly & independently
         try {
-          const supaUrl = 'https://esxiwfswnbacmpjxqgsn.supabase.co';
-          const supaKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVzeGl3ZnN3bmJhY21wanhxZ3NuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI2MDcxODQsImV4cCI6MjEwODE4MzE4NH0.n6XzLxgH5947CK-224Tp57BJmbWZ_rTKi4PK-EW8bNI';
+          const supaUrl = 'https://mkttxqwpbostzmfygpzq.supabase.co';
+          const supaKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1rdHR4cXdwYm9zdHptZnlncHpxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMzODc1NzAsImV4cCI6MjEwODk2MzU3MH0.OP6jOD49M16r4uCUZ8pFOZkCaor0mk-0XZh94pjbSaE';
           await fetch(`${supaUrl}/rest/v1/site_settings`, {
             method: 'POST',
             headers: { 'apikey': supaKey, 'Authorization': `Bearer ${supaKey}`, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates' },
@@ -12817,8 +12813,8 @@ function attachGlobalHandlers() {
 
         // Direct Supabase sync
         try {
-          const supaUrl = 'https://esxiwfswnbacmpjxqgsn.supabase.co';
-          const supaKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVzeGl3ZnN3bmJhY21wanhxZ3NuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI2MDcxODQsImV4cCI6MjEwODE4MzE4NH0.n6XzLxgH5947CK-224Tp57BJmbWZ_rTKi4PK-EW8bNI';
+          const supaUrl = 'https://mkttxqwpbostzmfygpzq.supabase.co';
+          const supaKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1rdHR4cXdwYm9zdHptZnlncHpxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMzODc1NzAsImV4cCI6MjEwODk2MzU3MH0.OP6jOD49M16r4uCUZ8pFOZkCaor0mk-0XZh94pjbSaE';
           await fetch(`${supaUrl}/rest/v1/site_settings`, {
             method: 'POST',
             headers: { 'apikey': supaKey, 'Authorization': `Bearer ${supaKey}`, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates' },

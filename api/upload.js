@@ -8,35 +8,67 @@ const customHttpsAgent = new https.Agent({
 });
 
 function getEnvConfig() {
-  const supabaseUrl = process.env.SUPABASE_URL || 'https://esxiwfswnbacmpjxqgsn.supabase.co';
-  if (supabaseUrl) {
+  const r2Endpoint = String(process.env.R2_ENDPOINT || '').replace(/\/+$/, '');
+  const r2Bucket = String(process.env.R2_BUCKET || 'linkadda-shop').trim();
+  const r2AccessKey = String(process.env.R2_ACCESS_KEY_ID || '').trim();
+  const r2SecretKey = String(process.env.R2_SECRET_ACCESS_KEY || '').trim();
+  const r2PublicUrl = String(process.env.R2_PUBLIC_URL || 'https://pub-81f10c1135f54a719e5d96e8d7896960.r2.dev').replace(/\/+$/, '');
+
+  if (r2Endpoint && r2AccessKey && r2SecretKey) {
     return {
-      type: 'supabase',
-      url: supabaseUrl,
-      bucket: process.env.SUPABASE_BUCKET || 'linkadda-media',
+      type: 's3',
+      endpoint: r2Endpoint,
+      bucket: r2Bucket,
+      region: 'auto',
+      accessKeyId: r2AccessKey,
+      secretAccessKey: r2SecretKey,
+      publicUrl: r2PublicUrl,
     };
   }
-  const endpoint = String(process.env.FILEBASE_ENDPOINT || process.env.S3_ENDPOINT || process.env.RUSTFS_ENDPOINT || 'https://s3.filebase.com').replace(/\/+$/, '');
-  const bucket = String(process.env.FILEBASE_BUCKET || process.env.S3_BUCKET || process.env.RUSTFS_BUCKET || 'linkadda-media').trim();
+
+  const endpoint = String(process.env.FILEBASE_ENDPOINT || process.env.S3_ENDPOINT || process.env.RUSTFS_ENDPOINT || '').replace(/\/+$/, '');
+  const bucket = String(process.env.FILEBASE_BUCKET || process.env.S3_BUCKET || process.env.RUSTFS_BUCKET || 'linkadda-shop').trim();
   const region = String(process.env.FILEBASE_REGION || process.env.S3_REGION || process.env.RUSTFS_REGION || 'us-east-1').trim();
   const accessKeyId = String(process.env.FILEBASE_ACCESS_KEY || process.env.S3_ACCESS_KEY || process.env.RUSTFS_ACCESS_KEY || '').trim();
   const secretAccessKey = String(process.env.FILEBASE_SECRET_KEY || process.env.S3_SECRET_KEY || process.env.RUSTFS_SECRET_KEY || '').trim();
 
-  if (!endpoint || !accessKeyId || !secretAccessKey) {
-    throw new Error('Storage credentials are not properly configured on server.');
+  if (endpoint && accessKeyId && secretAccessKey) {
+    return { type: 's3', endpoint, bucket, region, accessKeyId, secretAccessKey, publicUrl: '' };
   }
 
-  return { endpoint, bucket, region, accessKeyId, secretAccessKey };
+  const supabaseUrl = process.env.SUPABASE_URL || 'https://mkttxqwpbostzmfygpzq.supabase.co';
+  return {
+    type: 'supabase',
+    url: supabaseUrl,
+    bucket: process.env.SUPABASE_BUCKET || 'linkadda-media',
+  };
 }
 
 async function uploadToStorageBackend(key, buffer, contentType, s3Client, config) {
-  const supabaseUrl = process.env.SUPABASE_URL || 'https://esxiwfswnbacmpjxqgsn.supabase.co';
+  // 1. Primary: Cloudflare R2 / S3
+  if (config.type === 's3' && s3Client) {
+    await s3Client.send(new PutObjectCommand({
+      Bucket: config.bucket,
+      Key: key,
+      Body: buffer,
+      ContentType: contentType,
+      CacheControl: 'public, max-age=31536000, immutable',
+    }));
+    return {
+      key,
+      bucket: config.bucket,
+      publicUrl: getPublicUrl(config, key),
+    };
+  }
+
+  // 2. Fallback: Supabase Storage
+  const supabaseUrl = (process.env.SUPABASE_URL || 'https://mkttxqwpbostzmfygpzq.supabase.co').replace(/\/+$/, '');
   const serviceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
   const supabaseBucket = process.env.SUPABASE_BUCKET || 'linkadda-media';
 
   if (supabaseUrl && serviceKey) {
     const cleanKey = String(key || '').replace(/^\/+/, '');
-    const endpoint = `${supabaseUrl.replace(/\/+$/, '')}/storage/v1/object/${encodeURIComponent(supabaseBucket)}/${encodeURI(cleanKey)}`;
+    const endpoint = `${supabaseUrl}/storage/v1/object/${encodeURIComponent(supabaseBucket)}/${encodeURI(cleanKey)}`;
     const res = await fetch(endpoint, {
       method: 'POST',
       headers: {
@@ -51,7 +83,7 @@ async function uploadToStorageBackend(key, buffer, contentType, s3Client, config
       const errText = await res.text();
       throw new Error(`Supabase upload failed (${res.status}): ${errText}`);
     }
-    const publicUrl = `${supabaseUrl.replace(/\/+$/, '')}/storage/v1/object/public/${encodeURIComponent(supabaseBucket)}/${encodeURI(cleanKey)}`;
+    const publicUrl = `${supabaseUrl}/storage/v1/object/public/${encodeURIComponent(supabaseBucket)}/${encodeURI(cleanKey)}`;
     return {
       key: cleanKey,
       bucket: supabaseBucket,
@@ -59,29 +91,18 @@ async function uploadToStorageBackend(key, buffer, contentType, s3Client, config
     };
   }
 
-  // Fallback to S3 / Filebase
-  if (s3Client && config) {
-    await s3Client.send(new PutObjectCommand({
-      Bucket: config.bucket,
-      Key: key,
-      Body: buffer,
-      ContentType: contentType,
-    }));
-    return {
-      key,
-      bucket: config.bucket,
-      publicUrl: getPublicUrl(config, key),
-    };
-  }
-
   throw new Error('No storage backend configured.');
 }
 
 function getPublicUrl(config, key) {
-  if (config.endpoint.includes('filebase.com')) {
-    return `https://${encodeURIComponent(config.bucket)}.s3.filebase.com/${encodeURI(key)}`;
+  const cleanKey = String(key || '').replace(/^\/+/, '');
+  if (config.publicUrl) {
+    return `${config.publicUrl.replace(/\/+$/, '')}/${encodeURI(cleanKey)}`;
   }
-  return `${config.endpoint}/${encodeURIComponent(config.bucket)}/${encodeURI(key)}`;
+  if (config.endpoint && config.endpoint.includes('filebase.com')) {
+    return `https://${encodeURIComponent(config.bucket)}.s3.filebase.com/${encodeURI(cleanKey)}`;
+  }
+  return `${config.endpoint}/${encodeURIComponent(config.bucket)}/${encodeURI(cleanKey)}`;
 }
 
 const uploadRateLimitMap = new Map();
@@ -250,7 +271,7 @@ export default async function handler(req, res) {
       }
 
       const partBuffers = [];
-      const supabaseUrl = process.env.SUPABASE_URL || 'https://esxiwfswnbacmpjxqgsn.supabase.co';
+      const supabaseUrl = process.env.SUPABASE_URL || 'https://mkttxqwpbostzmfygpzq.supabase.co';
       const serviceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
       const supabaseBucket = process.env.SUPABASE_BUCKET || 'linkadda-media';
 

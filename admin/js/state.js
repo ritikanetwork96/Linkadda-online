@@ -467,8 +467,8 @@ export async function syncAllFromFirebase(force = false) {
         token = await auth.currentUser.getIdToken();
       } catch (_) {}
     }
-    const supaUrl = 'https://esxiwfswnbacmpjxqgsn.supabase.co';
-    const supaKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVzeGl3ZnN3bmJhY21wanhxZ3NuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI2MDcxODQsImV4cCI6MjEwODE4MzE4NH0.n6XzLxgH5947CK-224Tp57BJmbWZ_rTKi4PK-EW8bNI';
+    const supaUrl = 'https://mkttxqwpbostzmfygpzq.supabase.co';
+    const supaKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1rdHR4cXdwYm9zdHptZnlncHpxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMzODc1NzAsImV4cCI6MjEwODk2MzU3MH0.OP6jOD49M16r4uCUZ8pFOZkCaor0mk-0XZh94pjbSaE';
     const headers = { 'apikey': supaKey, 'Authorization': `Bearer ${supaKey}` };
 
     const results = await Promise.allSettled(
@@ -668,8 +668,8 @@ export async function updateRecord(node, id, data) {
   // Direct REST update to Supabase for orders ensures 100% instant sync with bot and client
   if (node === 'orders') {
     try {
-      const supaUrl = 'https://esxiwfswnbacmpjxqgsn.supabase.co';
-      const supaKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVzeGl3ZnN3bmJhY21wanhxZ3NuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI2MDcxODQsImV4cCI6MjEwODE4MzE4NH0.n6XzLxgH5947CK-224Tp57BJmbWZ_rTKi4PK-EW8bNI';
+      const supaUrl = 'https://mkttxqwpbostzmfygpzq.supabase.co';
+      const supaKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1rdHR4cXdwYm9zdHptZnlncHpxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMzODc1NzAsImV4cCI6MjEwODk2MzU3MH0.OP6jOD49M16r4uCUZ8pFOZkCaor0mk-0XZh94pjbSaE';
       const hdrs = { 'apikey': supaKey, 'Authorization': `Bearer ${supaKey}`, 'Content-Type': 'application/json' };
       const patchBody = {
         status: data.status || next.status || 'approved',
@@ -796,8 +796,8 @@ export async function deleteRecord(node, id) {
     // Direct REST delete fallback ensures 100% removal from Supabase
     if (node === 'orders') {
       try {
-        const supaUrl = 'https://esxiwfswnbacmpjxqgsn.supabase.co';
-        const supaKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVzeGl3ZnN3bmJhY21wanhxZ3NuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI2MDcxODQsImV4cCI6MjEwODE4MzE4NH0.n6XzLxgH5947CK-224Tp57BJmbWZ_rTKi4PK-EW8bNI';
+        const supaUrl = 'https://mkttxqwpbostzmfygpzq.supabase.co';
+        const supaKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1rdHR4cXdwYm9zdHptZnlncHpxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMzODc1NzAsImV4cCI6MjEwODk2MzU3MH0.OP6jOD49M16r4uCUZ8pFOZkCaor0mk-0XZh94pjbSaE';
         const hdrs = { 'apikey': supaKey, 'Authorization': `Bearer ${supaKey}` };
         fetch(`${supaUrl}/rest/v1/orders?id=eq.${encodeURIComponent(targetKey)}`, { method: 'DELETE', headers: hdrs }).catch(() => {});
         if (alternateId && alternateId !== targetKey) {
@@ -988,8 +988,8 @@ if (typeof window !== 'undefined') {
   // 2. High-speed 4s lightweight orders sync (zero lag, only re-renders on real changes)
   setInterval(async () => {
     try {
-      const supaUrl = 'https://esxiwfswnbacmpjxqgsn.supabase.co';
-      const supaKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVzeGl3ZnN3bmJhY21wanhxZ3NuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI2MDcxODQsImV4cCI6MjEwODE4MzE4NH0.n6XzLxgH5947CK-224Tp57BJmbWZ_rTKi4PK-EW8bNI';
+      const supaUrl = 'https://mkttxqwpbostzmfygpzq.supabase.co';
+      const supaKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1rdHR4cXdwYm9zdHptZnlncHpxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMzODc1NzAsImV4cCI6MjEwODk2MzU3MH0.OP6jOD49M16r4uCUZ8pFOZkCaor0mk-0XZh94pjbSaE';
       const res = await fetch(`${supaUrl}/rest/v1/orders?select=*&order=created_at.desc&limit=50`, {
         headers: { 'apikey': supaKey, 'Authorization': `Bearer ${supaKey}` },
         cache: 'no-store',

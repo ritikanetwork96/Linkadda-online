@@ -194,8 +194,8 @@ async function syncCustomerToDatabase(user) {
 
   // 2. Direct Supabase sync to events table
   try {
-    const supaUrl = 'https://esxiwfswnbacmpjxqgsn.supabase.co';
-    const supaKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVzeGl3ZnN3bmJhY21wanhxZ3NuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI2MDcxODQsImV4cCI6MjEwODE4MzE4NH0.n6XzLxgH5947CK-224Tp57BJmbWZ_rTKi4PK-EW8bNI';
+    const supaUrl = 'https://mkttxqwpbostzmfygpzq.supabase.co';
+    const supaKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1rdHR4cXdwYm9zdHptZnlncHpxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMzODc1NzAsImV4cCI6MjEwODk2MzU3MH0.OP6jOD49M16r4uCUZ8pFOZkCaor0mk-0XZh94pjbSaE';
     fetch(`${supaUrl}/rest/v1/events`, {
       method: 'POST',
       headers: {
@@ -977,8 +977,8 @@ export async function syncUserOrdersWithFirebase() {
         let isApproved = false;
         let link = '';
 
-        const supaUrl = 'https://esxiwfswnbacmpjxqgsn.supabase.co';
-        const supaKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVzeGl3ZnN3bmJhY21wanhxZ3NuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI2MDcxODQsImV4cCI6MjEwODE4MzE4NH0.n6XzLxgH5947CK-224Tp57BJmbWZ_rTKi4PK-EW8bNI';
+        const supaUrl = 'https://mkttxqwpbostzmfygpzq.supabase.co';
+        const supaKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1rdHR4cXdwYm9zdHptZnlncHpxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMzODc1NzAsImV4cCI6MjEwODk2MzU3MH0.OP6jOD49M16r4uCUZ8pFOZkCaor0mk-0XZh94pjbSaE';
         const supaHdrs = { 'apikey': supaKey, 'Authorization': `Bearer ${supaKey}` };
 
         const res = await fetch(`${supaUrl}/rest/v1/orders?id=eq.${encodeURIComponent(ord.orderId)}&select=*`, { headers: supaHdrs });

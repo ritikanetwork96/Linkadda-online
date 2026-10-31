@@ -2667,15 +2667,15 @@
       }
     }
 
-    const SUPABASE_CDN_ROOT = 'https://esxiwfswnbacmpjxqgsn.supabase.co/storage/v1/object/public/linkadda-media';
+    const R2_CDN_ROOT = 'https://pub-81f10c1135f54a719e5d96e8d7896960.r2.dev';
     const images = rawList.map(u => {
       let clean = String(u || '').trim();
       if (!clean) return '';
-      if (clean.includes('rustfs-mi5c.srv1942099.hstgr.cloud') || clean.includes('dsleaglxbedljdxrikdn') || (clean.includes('supabase.co') && !clean.includes('esxiwfswnbacmpjxqgsn'))) {
+      if (clean.includes('rustfs-mi5c.srv1942099.hstgr.cloud') || clean.includes('dsleaglxbedljdxrikdn') || clean.includes('supabase.co')) {
         const pathPart = clean.split('/linkadda-media/').pop() || clean.split('/public/').pop() || clean.split('/').pop();
-        return `${SUPABASE_CDN_ROOT}/${pathPart.replace(/^\/+/, '')}`;
+        return `${R2_CDN_ROOT}/${pathPart.replace(/^\/+/, '')}`;
       }
-      if (clean.startsWith('https://esxiwfswnbacmpjxqgsn.supabase.co/')) {
+      if (clean.startsWith('https://pub-81f10c1135f54a719e5d96e8d7896960.r2.dev/')) {
         return clean;
       }
       if (/^(https?:)?\/\//i.test(clean) || clean.startsWith('data:') || clean.startsWith('blob:')) {
@@ -2688,9 +2688,9 @@
         return `images/${clean}`;
       }
       if (clean.startsWith('products/') || clean.startsWith('categories/')) {
-        return `${SUPABASE_CDN_ROOT}/${clean}`;
+        return `${R2_CDN_ROOT}/${clean}`;
       }
-      return `${SUPABASE_CDN_ROOT}/products/${clean}`;
+      return `${R2_CDN_ROOT}/${clean.replace(/^\/+/, '')}`;
     }).filter(Boolean);
 
     let rawVideos = [];
@@ -2703,12 +2703,12 @@
     const videos = rawVideos.map(v => {
       let str = String(v || '').trim();
       if (!str) return '';
-      if (str.includes('rustfs-mi5c.srv1942099.hstgr.cloud') || str.includes('dsleaglxbedljdxrikdn') || (str.includes('supabase.co') && !str.includes('esxiwfswnbacmpjxqgsn'))) {
+      if (str.includes('rustfs-mi5c.srv1942099.hstgr.cloud') || str.includes('dsleaglxbedljdxrikdn') || str.includes('supabase.co')) {
         const pathPart = str.split('/linkadda-media/').pop() || str.split('/public/').pop() || str.split('/').pop();
-        return `${SUPABASE_CDN_ROOT}/${pathPart.replace(/^\/+/, '')}`;
+        return `${R2_CDN_ROOT}/${pathPart.replace(/^\/+/, '')}`;
       }
       if (str.startsWith('products/') || str.startsWith('categories/') || str.startsWith('videos/')) {
-        return `${SUPABASE_CDN_ROOT}/${str}`;
+        return `${R2_CDN_ROOT}/${str}`;
       }
       return str;
     }).filter(Boolean);
@@ -4795,8 +4795,8 @@
   // Fast resilient REST sync: Instantly updates live products, categories, and banner from Supabase
   async function initRestSync() {
     try {
-      const supaUrl = 'https://esxiwfswnbacmpjxqgsn.supabase.co';
-      const supaKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVzeGl3ZnN3bmJhY21wanhxZ3NuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI2MDcxODQsImV4cCI6MjEwODE4MzE4NH0.n6XzLxgH5947CK-224Tp57BJmbWZ_rTKi4PK-EW8bNI';
+      const supaUrl = 'https://mkttxqwpbostzmfygpzq.supabase.co';
+      const supaKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1rdHR4cXdwYm9zdHptZnlncHpxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMzODc1NzAsImV4cCI6MjEwODk2MzU3MH0.OP6jOD49M16r4uCUZ8pFOZkCaor0mk-0XZh94pjbSaE';
       const headers = { 'apikey': supaKey, 'Authorization': `Bearer ${supaKey}` };
 
       // 1. Sync live products

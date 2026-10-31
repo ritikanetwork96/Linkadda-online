@@ -11,7 +11,7 @@ function getSupabaseHeaders() {
 }
 
 function getSupabaseUrl() {
-  return (process.env.SUPABASE_URL || 'https://esxiwfswnbacmpjxqgsn.supabase.co').replace(/\/+$/, '');
+  return (process.env.SUPABASE_URL || 'https://mkttxqwpbostzmfygpzq.supabase.co').replace(/\/+$/, '');
 }
 
 export const computeCustomerId = deriveCustomerId;

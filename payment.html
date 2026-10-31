@@ -2514,9 +2514,9 @@ try {
 } catch (_) {}
 
 const SUPABASE_CONFIG = {
-  url: 'https://esxiwfswnbacmpjxqgsn.supabase.co',
-  anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVzeGl3ZnN3bmJhY21wanhxZ3NuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI2MDcxODQsImV4cCI6MjEwODE4MzE4NH0.n6XzLxgH5947CK-224Tp57BJmbWZ_rTKi4PK-EW8bNI',
-  bucket: 'linkadda-media',
+  url: 'https://mkttxqwpbostzmfygpzq.supabase.co',
+  anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1rdHR4cXdwYm9zdHptZnlncHpxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMzODc1NzAsImV4cCI6MjEwODk2MzU3MH0.OP6jOD49M16r4uCUZ8pFOZkCaor0mk-0XZh94pjbSaE',
+  bucket: 'linkadda-shop',
 };
 
 let paymentConfigPromise = null;
@@ -5315,9 +5315,9 @@ async function uploadScreenshot(orderId, base64Data) {
 
     // 2. Direct Supabase Storage Upload to 'screenshots' folder
     try {
-      const supaUrl = 'https://esxiwfswnbacmpjxqgsn.supabase.co';
-      const supaKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVzeGl3ZnN3bmJhY21wanhxZ3NuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI2MDcxODQsImV4cCI6MjEwODE4MzE4NH0.n6XzLxgH5947CK-224Tp57BJmbWZ_rTKi4PK-EW8bNI';
-      const endpoint = `${supaUrl}/storage/v1/object/linkadda-media/screenshots/${encodeURI(fileName)}`;
+      const supaUrl = 'https://mkttxqwpbostzmfygpzq.supabase.co';
+      const supaKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1rdHR4cXdwYm9zdHptZnlncHpxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMzODc1NzAsImV4cCI6MjEwODk2MzU3MH0.OP6jOD49M16r4uCUZ8pFOZkCaor0mk-0XZh94pjbSaE';
+      const endpoint = `${supaUrl}/storage/v1/object/linkadda-shop/screenshots/${encodeURI(fileName)}`;
 
       // Convert base64 data to binary Blob
       const parts = compressed.split(',');
@@ -5689,8 +5689,8 @@ async function saveOrderToFirebase(amountText, methodName) {
       // B. Supabase REST
       if (!saved) {
         try {
-          const supaUrl = 'https://esxiwfswnbacmpjxqgsn.supabase.co';
-          const supaKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVzeGl3ZnN3bmJhY21wanhxZ3NuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI2MDcxODQsImV4cCI6MjEwODE4MzE4NH0.n6XzLxgH5947CK-224Tp57BJmbWZ_rTKi4PK-EW8bNI';
+          const supaUrl = 'https://mkttxqwpbostzmfygpzq.supabase.co';
+          const supaKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1rdHR4cXdwYm9zdHptZnlncHpxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMzODc1NzAsImV4cCI6MjEwODk2MzU3MH0.OP6jOD49M16r4uCUZ8pFOZkCaor0mk-0XZh94pjbSaE';
           const supaHeaders = {
             'apikey': supaKey,
             'Authorization': `Bearer ${supaKey}`,
@@ -5735,8 +5735,8 @@ async function saveOrderToFirebase(amountText, methodName) {
     // Ensure visitor count is recorded in Supabase
     try {
       const todayDateStr = new Date().toISOString().slice(0, 10);
-      const supaUrl = 'https://esxiwfswnbacmpjxqgsn.supabase.co';
-      const supaKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVzeGl3ZnN3bmJhY21wanhxZ3NuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI2MDcxODQsImV4cCI6MjEwODE4MzE4NH0.n6XzLxgH5947CK-224Tp57BJmbWZ_rTKi4PK-EW8bNI';
+      const supaUrl = 'https://mkttxqwpbostzmfygpzq.supabase.co';
+      const supaKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1rdHR4cXdwYm9zdHptZnlncHpxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMzODc1NzAsImV4cCI6MjEwODk2MzU3MH0.OP6jOD49M16r4uCUZ8pFOZkCaor0mk-0XZh94pjbSaE';
       fetch(`${supaUrl}/rest/v1/visitors`, {
         method: 'POST',
         headers: {
@@ -5834,8 +5834,8 @@ function startLiveOrderStatusWatcher(orderId) {
     orderStatusWatcherTimer = null;
   }
 
-  const supaUrl = 'https://esxiwfswnbacmpjxqgsn.supabase.co';
-  const supaKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVzeGl3ZnN3bmJhY21wanhxZ3NuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI2MDcxODQsImV4cCI6MjEwODE4MzE4NH0.n6XzLxgH5947CK-224Tp57BJmbWZ_rTKi4PK-EW8bNI';
+  const supaUrl = 'https://mkttxqwpbostzmfygpzq.supabase.co';
+  const supaKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1rdHR4cXdwYm9zdHptZnlncHpxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMzODc1NzAsImV4cCI6MjEwODk2MzU3MH0.OP6jOD49M16r4uCUZ8pFOZkCaor0mk-0XZh94pjbSaE';
   const headers = { 'apikey': supaKey, 'Authorization': `Bearer ${supaKey}` };
 
   async function checkStatus() {
