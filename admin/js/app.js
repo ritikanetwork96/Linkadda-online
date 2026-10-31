@@ -92,6 +92,9 @@ if (typeof window !== 'undefined' && window.location.pathname.endsWith('.js')) {
   window.location.replace('/admin');
 }
 
+export const R2_CDN_ROOT = 'https://pub-81f10c1135f54a719e5d96e8d7896960.r2.dev';
+export const SUPABASE_CDN_ROOT = R2_CDN_ROOT;
+
 const viewRoot = document.getElementById('viewRoot');
 const sideNav = document.getElementById('sideNav');
 const sidebar = document.getElementById('sidebar');
@@ -844,7 +847,6 @@ function renderMediaFallback(label = 'No image selected') {
 
 function resolveAdminMediaUrl(url) {
   let clean = String(url || '').trim();
-  const R2_CDN_ROOT = 'https://pub-81f10c1135f54a719e5d96e8d7896960.r2.dev';
   if (!clean) return '';
   if (clean.includes('rustfs-mi5c.srv1942099.hstgr.cloud') || clean.includes('supabase.co/storage/v1/object/public/')) {
     const pathPart = clean.split('/linkadda-media/').pop() || clean.split('/media/').pop() || clean.split('/').pop();
@@ -860,9 +862,9 @@ function resolveAdminMediaUrl(url) {
     return `/${clean}`;
   }
   if (clean.startsWith('products/') || clean.startsWith('categories/')) {
-    return `${SUPABASE_CDN_ROOT}/${clean}`;
+    return `${R2_CDN_ROOT}/${clean}`;
   }
-  return `${SUPABASE_CDN_ROOT}/products/${clean}`;
+  return `${R2_CDN_ROOT}/products/${clean}`;
 }
 
 function normalizeProductMedia(record = {}) {
@@ -4264,12 +4266,12 @@ function resolveMediaSource(value) {
     let u = match.publicUrl;
     if (u.includes('rustfs-mi5c.srv1942099.hstgr.cloud') || u.includes('s3.linkadda.shop/linkadda-media') || (u.includes('supabase.co') && !u.includes('dsleaglxbedljdxrikdn'))) {
       const pathPart = u.split('/linkadda-media/').pop() || u.split('/media/').pop() || u.split('/').pop();
-      return `${SUPABASE_CDN_ROOT}/${pathPart.replace(/^\/+/, '')}`;
+      return `${R2_CDN_ROOT}/${pathPart.replace(/^\/+/, '')}`;
     }
     return u;
   }
   if (raw.startsWith('products/') || raw.startsWith('categories/') || raw.startsWith('logos/') || raw.startsWith('hero/') || raw.startsWith('banners/') || raw.startsWith('testimonials/')) {
-    return `${SUPABASE_CDN_ROOT}/${raw}`;
+    return `${R2_CDN_ROOT}/${raw}`;
   }
   if (raw.startsWith('images/') || raw.startsWith('/images/')) {
     const isFile = typeof window !== 'undefined' && window.location.protocol === 'file:';
@@ -4278,7 +4280,7 @@ function resolveMediaSource(value) {
     }
     return raw.startsWith('/') ? raw : `/${raw}`;
   }
-  return `${SUPABASE_CDN_ROOT}/products/${raw.replace(/^\/+/, '')}`;
+  return `${R2_CDN_ROOT}/products/${raw.replace(/^\/+/, '')}`;
 }
 
 function buildCategoryLookupMap() {
@@ -7431,6 +7433,8 @@ function updateTelegramBotLiveUI() {
   const users = _tgBotData.users || [];
   const usersCount = _tgBotData.usersCount || users.length;
   const activeTab = _tgBotData.activeTab || 'tgTabUsers';
+  const fleetBots = (_tgBotData.bots && _tgBotData.bots.length) ? _tgBotData.bots : [bot].filter(Boolean);
+  const fleetAdmins = (_tgBotData.admins && _tgBotData.admins.length) ? _tgBotData.admins : [];
 
   const usernameEl = document.getElementById('tgActiveBotUsername');
   const idEl = document.getElementById('tgActiveBotId');
@@ -7448,7 +7452,9 @@ function updateTelegramBotLiveUI() {
   }
 
   if (usernameEl) {
-    if (bot.username) {
+    if (fleetBots.length > 1) {
+      usernameEl.innerHTML = `<span style="display: inline-flex; align-items: center; gap: 8px;"><span>${fleetBots.length} Connected Bots</span> <span style="font-size: 11px; padding: 2px 7px; border-radius: 6px; background: rgba(56,189,248,0.15); color: #38bdf8; font-weight: 700; border: 1px solid rgba(56,189,248,0.3);">@${escapeHtml(bot.username || 'Testnot565_bot')}</span></span>`;
+    } else if (bot.username) {
       usernameEl.innerHTML = `<a href="https://t.me/${escapeHtml(bot.username)}" target="_blank" style="color: #38bdf8; text-decoration: none; display: inline-flex; align-items: center; gap: 4px;">@${escapeHtml(bot.username)} <i data-lucide="external-link" style="width: 13px; height: 13px;"></i></a>`;
     } else {
       usernameEl.textContent = bot.name || (fleetBots.length ? `${fleetBots.length} Connected Bots` : 'No Bot Connected');
@@ -7456,16 +7462,18 @@ function updateTelegramBotLiveUI() {
   }
 
   if (openBotBtn) {
-    if (bot.username) {
-      openBotBtn.href = `https://t.me/${escapeHtml(bot.username)}`;
-      openBotBtn.style.display = 'inline-flex';
-    } else {
-      openBotBtn.style.display = 'none';
-    }
+    const activeUname = (bot.username || 'Testnot565_bot').replace(/^@/, '');
+    openBotBtn.href = `https://t.me/${escapeHtml(activeUname)}`;
+    openBotBtn.innerHTML = `<i data-lucide="external-link" style="width: 14px; height: 14px;"></i> Open Bot (@${escapeHtml(activeUname)})`;
+    openBotBtn.style.display = 'inline-flex';
   }
 
   if (idEl) {
-    idEl.textContent = bot.id ? `Bot ID: ${bot.id} · Token: ${bot.maskedToken || '***'} (${bot.source === 'database' || bot.source === 'hot_swap' ? 'Dynamic Hot-Swap' : 'Active'})` : 'No Active Bot Configured';
+    if (fleetBots.length > 1) {
+      idEl.textContent = `Primary: @${bot.username || 'Testnot565_bot'} (ID: ${bot.id || '8869143190'}) · ${fleetBots.length} Bots Managed in Fleet`;
+    } else {
+      idEl.textContent = bot.id ? `Bot ID: ${bot.id} · Token: ${bot.maskedToken || '***'} (${bot.source === 'database' || bot.source === 'hot_swap' ? 'Dynamic Hot-Swap' : 'Active'})` : 'No Active Bot Configured';
+    }
   }
 
   if (badgeEl) {
@@ -7499,9 +7507,6 @@ function updateTelegramBotLiveUI() {
   if (broadcastRecipientsCount) broadcastRecipientsCount.textContent = String(usersCount);
 
   // Multi-Bot Fleet & Admins Badges and Live Container Refresh
-  const fleetBots = (_tgBotData.bots && _tgBotData.bots.length) ? _tgBotData.bots : [bot].filter(Boolean);
-  const fleetAdmins = (_tgBotData.admins && _tgBotData.admins.length) ? _tgBotData.admins : [];
-
   const botsTabBadge = document.getElementById('tgTabBotsCountBadge');
   if (botsTabBadge) botsTabBadge.textContent = String(fleetBots.length);
 

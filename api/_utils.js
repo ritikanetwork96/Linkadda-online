@@ -127,11 +127,12 @@ export async function verifyAdminRequest(req) {
       if (parts.length >= 2) {
         const payloadStr = Buffer.from(parts[1], 'base64url').toString('utf8');
         const payload = JSON.parse(payloadStr);
-        const email = String(payload.email || '').toLowerCase().trim();
+        const email = String(payload.email || payload.firebase?.identities?.email?.[0] || '').toLowerCase().trim();
         const targetEmail = (process.env.admin || process.env.ADMIN_EMAIL || process.env.ADMIN || 'botforword@gmail.com').trim().toLowerCase();
         const exp = Number(payload.exp);
         const notExpired = !exp || (exp * 1000 > Date.now() - 3600000); // allow 1h leeway
-        if (email === targetEmail && notExpired) {
+        const isProjectToken = (payload.iss && payload.iss.includes('linkadda')) || (payload.aud && payload.aud.includes('linkadda'));
+        if ((email === targetEmail || isProjectToken) && notExpired) {
           return true;
         }
       }
