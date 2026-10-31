@@ -9,14 +9,19 @@ const __dirname = path.dirname(__filename);
 const DEFAULT_ADMIN_IDS = [];
 
 export function getAdminChatIds() {
+  const adminSet = new Set();
   try {
     const store = readBotStore();
     if (Array.isArray(store.admins)) {
-      return store.admins.map(s => String(s).trim()).filter(Boolean);
+      store.admins.forEach(s => {
+        const id = String(s).trim();
+        if (id) adminSet.add(id);
+      });
     }
   } catch (_) {}
   const envAdmins = (process.env.ADMIN_CHAT_IDS || '').split(',').map(s => s.trim()).filter(Boolean);
-  return envAdmins;
+  envAdmins.forEach(id => adminSet.add(id));
+  return Array.from(adminSet);
 }
 
 export function getAppUrl(req = null) {
@@ -2956,10 +2961,10 @@ export default async function handler(req, res) {
         botCounts[b.botId] = allUsers.filter(u => doesUserBelongToFleetBot(u, b, connectedBotsList)).length;
       });
 
+      const currentAdmins = getAdminChatIds();
       // Background asynchronous profile enrichment (never delays HTTP response)
       setTimeout(async () => {
         try {
-          const currentAdmins = getAdminChatIds();
           const store = readBotStore();
           if (!store.adminProfiles) store.adminProfiles = {};
           let adminProfilesModified = false;

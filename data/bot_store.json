@@ -1,27 +1,15 @@
 {
-  "activeToken": "8923608774:AAFhvO4Yzly7toIf5qoI-TSW4EzVzWCdVlE",
+  "activeToken": "8869143190:AAHpI6Uls3sGl-JwEH9EZMhRChIPg-4lnEg",
   "bot": {
-    "username": "Myshop9876_bot",
-    "name": "LinkAdda Store Bot",
-    "id": "8923608774",
+    "username": "Testnot565_bot",
+    "name": "Testnot Bot",
+    "id": "8869143190",
     "status": "active",
     "isPrimary": true,
     "source": "database",
-    "lastActivatedAt": "2026-10-23T20:00:00.000Z"
+    "lastActivatedAt": "2026-10-31T10:48:00.000Z"
   },
   "bots": {
-    "bot_8923608774": {
-      "id": "8923608774",
-      "name": "LinkAdda Store Bot",
-      "botId": "bot_8923608774",
-      "token": "8923608774:AAFhvO4Yzly7toIf5qoI-TSW4EzVzWCdVlE",
-      "status": "active",
-      "isPrimary": true,
-      "username": "Myshop9876_bot",
-      "createdAt": 1792841000000,
-      "lastActivatedAt": "2026-10-23T20:00:00.000Z",
-      "subscribersCount": 2
-    },
     "bot_8869143190": {
       "id": "8869143190",
       "name": "Testnot Bot",
@@ -30,11 +18,26 @@
       "status": "active",
       "username": "Testnot565_bot",
       "createdAt": 1792842000000,
-      "lastActivatedAt": "2026-10-24T10:00:00.000Z",
+      "isPrimary": true,
+      "lastActivatedAt": "2026-10-31T10:48:00.000Z",
       "subscribersCount": 0
+    },
+    "bot_8923608774": {
+      "id": "8923608774",
+      "name": "LinkAdda Store Bot",
+      "botId": "bot_8923608774",
+      "token": "8923608774:AAFhvO4Yzly7toIf5qoI-TSW4EzVzWCdVlE",
+      "status": "inactive",
+      "username": "Myshop9876_bot",
+      "createdAt": 1792841000000,
+      "isPrimary": false,
+      "lastActivatedAt": "2026-10-23T20:00:00.000Z",
+      "subscribersCount": 1
     }
   },
   "admins": [
+    "8516979341",
+    "8802192472",
     "6966868142",
     "8770964308"
   ],
@@ -45,7 +48,8 @@
       "role": "Order Proof Alerts & Instant Approve/Reject Buttons Across All Bots",
       "badge": "🛡️ ADMIN",
       "username": "GhostLayer73",
-      "updatedAt": 1793085063742
+      "updatedAt": 1793085063742,
+      "lastActiveAt": 1793424554763
     },
     "8770964308": {
       "id": "8770964308",
@@ -62,7 +66,7 @@
     "6966868142": {
       "id": "6966868142",
       "username": "GhostLayer73",
-      "firstName": "Bot C Customer",
+      "firstName": "Ghost",
       "lastName": "Layer",
       "source": "admin_tester",
       "sourceBotId": "bot_8869143190",
@@ -73,8 +77,8 @@
           "botId": "bot_8869143190",
           "botUsername": "Testnot565_bot",
           "joinedAt": 1793037576742,
-          "lastActiveAt": 1793123204220,
-          "source": "order_checkout"
+          "lastActiveAt": 1793424553414,
+          "source": "bot_start"
         },
         "bot_8923608774": {
           "botId": "bot_8923608774",
@@ -90,7 +94,7 @@
       ],
       "isAdmin": true,
       "createdAt": 1793037075801,
-      "updatedAt": 1793123204220
+      "updatedAt": 1793424553414
     },
     "8243604085": {
       "id": "8243604085",
@@ -229,6 +233,26 @@
         "isPhoto": true,
         "caption": "🚨 <b>NEW ORDER RECEIVED!</b>\n━━━━━━━━━━━━━━━━━━━━━━\n🆔 <b>Order ID:</b> <code>ORD-MVQQ5LK5-Q9DQ</code>\n🤖 <b>Bot Channel:</b> <b>@Myshop9876_bot</b>\n📦 <b>Product:</b> <b>New Indian Spx / New Indian SPX #2</b>\n💰 <b>Amount:</b> <b>$59</b>\n💳 <b>Payment Method:</b> Binance Pay\n🔢 <b>UTR / Transaction Ref:</b> <code>Not provided</code>\n👤 <b>Customer:</b> @noname8828211\n━━━━━━━━━━━━━━━━━━━━━━\n<i>Review payment screenshot and tap below to Approve or Reject:</i>",
         "sentAt": 1793108376640
+      }
+    ],
+    "test_order_1793423958279": [
+      {
+        "chatId": "6966868142",
+        "messageId": 126,
+        "botId": "bot_8869143190",
+        "botToken": "8869143190:AAHpI6Uls3sGl-JwEH9EZMhRChIPg-4lnEg",
+        "isPhoto": false,
+        "caption": "🚨 <b>NEW ORDER RECEIVED!</b>\n━━━━━━━━━━━━━━━━━━━━━━\n🆔 <b>Order ID:</b> <code>test_order_1793423958279</code>\n🤖 <b>Bot Channel:</b> <b>@Testnot565_bot</b>\n📦 <b>Product:</b> <b>MOM SON 1k Videos</b>\n💰 <b>Amount:</b> <b>₹399</b>\n💳 <b>Payment Method:</b> UPI / QR\n🔢 <b>UTR / Transaction Ref:</b> <code>TEST12345678</code>\n👤 <b>Customer:</b> Website Checkout\n━━━━━━━━━━━━━━━━━━━━━━\n<i>Review payment screenshot and tap below to Approve or Reject:</i>",
+        "sentAt": 1793423961181
+      },
+      {
+        "chatId": "8516979341",
+        "messageId": 127,
+        "botId": "bot_8869143190",
+        "botToken": "8869143190:AAHpI6Uls3sGl-JwEH9EZMhRChIPg-4lnEg",
+        "isPhoto": false,
+        "caption": "🚨 <b>NEW ORDER RECEIVED!</b>\n━━━━━━━━━━━━━━━━━━━━━━\n🆔 <b>Order ID:</b> <code>test_order_1793423958279</code>\n🤖 <b>Bot Channel:</b> <b>@Testnot565_bot</b>\n📦 <b>Product:</b> <b>MOM SON 1k Videos</b>\n💰 <b>Amount:</b> <b>₹399</b>\n💳 <b>Payment Method:</b> UPI / QR\n🔢 <b>UTR / Transaction Ref:</b> <code>TEST12345678</code>\n👤 <b>Customer:</b> Website Checkout\n━━━━━━━━━━━━━━━━━━━━━━\n<i>Review payment screenshot and tap below to Approve or Reject:</i>",
+        "sentAt": 1793423965027
       }
     ]
   }

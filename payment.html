@@ -164,6 +164,7 @@
       } catch (_) {}
     })();
   </script>
+  <script src="preload.js"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Secure Payment — Linkadda</title>  <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -3013,8 +3014,88 @@ function applyOrderToUI(nextOrder = {}) {
 }
 
 function findDefaultCatalogProduct(targetId) {
+  if (!targetId) return null;
   const target = normalizeLookupValue(targetId);
   if (!target) return null;
+
+  // 1. Instant check in preloaded catalog (Synchronous 0ms from preload.js)
+  if (typeof window !== 'undefined' && window.__preloadedCatalog && window.__preloadedCatalog.products) {
+    const pre = window.__preloadedCatalog.products;
+    if (pre[targetId]) {
+      const p = pre[targetId];
+      const inrVal = extractMoneyNumber(p.priceINR || p.inr);
+      const usdVal = extractMoneyNumber(p.priceUSD || p.usd);
+      return {
+        id: p.id || targetId,
+        slug: p.slug || targetId,
+        name: p.title || p.name || 'Premium Pack',
+        title: p.title || p.name || 'Premium Pack',
+        inr: formatCurrencyValue(inrVal, 'INR'),
+        usd: formatCurrencyValue(usdVal, 'USD'),
+        rawINR: inrVal,
+        rawUSD: usdVal,
+        amountINRValue: inrVal,
+        amountUSDValue: usdVal,
+        image: p.image || p.thumbnail || '',
+        tiers: Array.isArray(p.tiers) ? p.tiers : []
+      };
+    }
+    for (const key in pre) {
+      const p = pre[key];
+      const haystacks = [p.id, p.slug, p.name, p.title].map(normalizeLookupValue);
+      if (haystacks.some((h) => h === target || (h && target && (h.includes(target) || target.includes(h))))) {
+        const inrVal = extractMoneyNumber(p.priceINR || p.inr);
+        const usdVal = extractMoneyNumber(p.priceUSD || p.usd);
+        return {
+          id: p.id || key,
+          slug: p.slug || key,
+          name: p.title || p.name || 'Premium Pack',
+          title: p.title || p.name || 'Premium Pack',
+          inr: formatCurrencyValue(inrVal, 'INR'),
+          usd: formatCurrencyValue(usdVal, 'USD'),
+          rawINR: inrVal,
+          rawUSD: usdVal,
+          amountINRValue: inrVal,
+          amountUSDValue: usdVal,
+          image: p.image || p.thumbnail || '',
+          tiers: Array.isArray(p.tiers) ? p.tiers : []
+        };
+      }
+    }
+  }
+
+  // 2. Check cached live data from localStorage
+  try {
+    const rawLive = localStorage.getItem('linkadda_cached_live_data_v5') || localStorage.getItem('linkadda_cached_live_data');
+    if (rawLive) {
+      const parsed = JSON.parse(rawLive);
+      const prods = parsed?.products || {};
+      for (const key in prods) {
+        const p = prods[key];
+        const haystacks = [p.id, p.slug, p.name, p.title].map(normalizeLookupValue);
+        if (haystacks.some((h) => h === target || (h && target && (h.includes(target) || target.includes(h))))) {
+          const inrVal = extractMoneyNumber(p.priceINR || p.inr || p.price);
+          const usdVal = extractMoneyNumber(p.priceUSD || p.usd);
+          return {
+            id: p.id || key,
+            slug: p.slug || key,
+            name: p.title || p.name || 'Premium Pack',
+            title: p.title || p.name || 'Premium Pack',
+            inr: formatCurrencyValue(inrVal, 'INR'),
+            usd: formatCurrencyValue(usdVal, 'USD'),
+            rawINR: inrVal,
+            rawUSD: usdVal,
+            amountINRValue: inrVal,
+            amountUSDValue: usdVal,
+            image: p.image || p.thumbnail || '',
+            tiers: Array.isArray(p.tiers) ? p.tiers : []
+          };
+        }
+      }
+    }
+  } catch (_) {}
+
+  // 3. Fallback to built-in default catalog
   return DEFAULT_PRODUCTS_CATALOG.find((p) => {
     const haystacks = [p.id, p.slug, p.name, p.title].map(normalizeLookupValue);
     return haystacks.some((h) => h === target || h.includes(target) || target.includes(h));
@@ -3120,16 +3201,33 @@ function findDefaultCatalogProduct(targetId) {
   const targetLookup = pId || pName;
   const matched = targetLookup ? findDefaultCatalogProduct(targetLookup) : findDefaultCatalogProduct('pinned-deal');
   if (matched) {
+    const pTier = params.get('tier') || '';
+    let finalInr = matched.amountINRValue;
+    let finalUsd = matched.amountUSDValue;
+    let finalName = matched.name;
+    if (pTier && Array.isArray(matched.tiers) && matched.tiers.length > 0) {
+      const targetT = String(pTier).trim().toLowerCase();
+      const t = matched.tiers.find(x => x && String(x.label || x.name || '').trim().toLowerCase() === targetT);
+      if (t) {
+        const tInr = extractMoneyNumber(t.inr || t.priceINR);
+        const tUsd = extractMoneyNumber(t.usd || t.priceUSD);
+        if (Number.isFinite(tInr) && tInr > 0) finalInr = tInr;
+        if (Number.isFinite(tUsd) && tUsd > 0) finalUsd = tUsd;
+        if (!finalName.includes(pTier)) finalName = `${finalName} (${pTier})`;
+      }
+    }
     applyOrderToUI({
       id: matched.id,
       slug: matched.slug,
-      name: matched.name,
-      inr: matched.inr,
-      usd: matched.usd,
-      amountINRValue: matched.amountINRValue,
-      amountUSDValue: matched.amountUSDValue,
-      rawINR: matched.rawINR,
-      rawUSD: matched.rawUSD,
+      name: finalName,
+      tier: pTier,
+      inr: formatCurrencyValue(finalInr, 'INR'),
+      usd: formatCurrencyValue(finalUsd, 'USD'),
+      amountINRValue: finalInr,
+      amountUSDValue: finalUsd,
+      rawINR: finalInr,
+      rawUSD: finalUsd,
+      image: matched.image || ''
     });
     return;
   }
@@ -5677,18 +5775,15 @@ async function saveOrderToFirebase(amountText, methodName) {
         } catch (_) {}
       }
 
-      // A. Firebase SDK
-      let saved = false;
+      // A. Legacy Firebase (best effort)
       if (window._fbSet && window._fbRef && window._fbDB) {
         try {
           await window._fbSet(window._fbRef(window._fbDB, `orders/${orderId}`), payload);
-          saved = true;
         } catch (_) {}
       }
 
-      // B. Supabase REST
-      if (!saved) {
-        try {
+      // B. Guaranteed Supabase REST persistence
+      try {
           const supaUrl = 'https://mkttxqwpbostzmfygpzq.supabase.co';
           const supaKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1rdHR4cXdwYm9zdHptZnlncHpxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMzODc1NzAsImV4cCI6MjEwODk2MzU3MH0.OP6jOD49M16r4uCUZ8pFOZkCaor0mk-0XZh94pjbSaE';
           const supaHeaders = {
@@ -5725,7 +5820,6 @@ async function saveOrderToFirebase(amountText, methodName) {
             body: JSON.stringify([orderRow])
           }).catch(() => {});
         } catch (_) {}
-      }
     })();
 
     // Await both in parallel without delaying each other
