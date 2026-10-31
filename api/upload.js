@@ -1,6 +1,35 @@
 import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import https from 'node:https';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { getClientIp, handleCors, verifyAdminRequest, getAuthSecret } from './_utils.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+function loadEnvFallback() {
+  try {
+    const p1 = path.resolve(__dirname, '../.env');
+    const p2 = path.join(process.cwd(), '.env');
+    const envPath = fs.existsSync(p1) ? p1 : (fs.existsSync(p2) ? p2 : null);
+    if (envPath) {
+      const raw = fs.readFileSync(envPath, 'utf8');
+      const lines = raw.split(/\r?\n/);
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith('#')) continue;
+        const idx = trimmed.indexOf('=');
+        if (idx > 0) {
+          const key = trimmed.slice(0, idx).trim();
+          const val = trimmed.slice(idx + 1).trim();
+          if (!process.env[key]) process.env[key] = val;
+        }
+      }
+    }
+  } catch (_) {}
+}
+loadEnvFallback();
 
 const customHttpsAgent = new https.Agent({
   rejectUnauthorized: true,
@@ -182,8 +211,9 @@ export default async function handler(req, res) {
 
   try {
     const body = req.body || {};
-    const folder = String(body.folder || 'products').replace(/[^a-zA-Z0-9_-]/g, '') || 'products';
-    const isCustomerOrderProof = folder === 'orders' || folder === 'screenshots' || folder === 'screenshot';
+    const rawFolder = String(body.folder || 'products').trim();
+    const isCustomerOrderProof = /payment[-_\s]?screenshot|screenshots?|orders?/i.test(rawFolder);
+    const folder = isCustomerOrderProof ? 'payment screenshot' : (rawFolder.replace(/[^a-zA-Z0-9_\-\s]/g, '').trim() || 'products');
 
     // ━━ SECURITY CHECK: Caller must be verified Admin (except customer order screenshot proofs) ━━
     if (!isCustomerOrderProof) {
@@ -262,7 +292,7 @@ export default async function handler(req, res) {
     if (action === 'assemble') {
       const uploadId = String(body.uploadId || '').replace(/[^a-zA-Z0-9_-]/g, '');
       const totalParts = Number(body.totalParts);
-      const folder = String(body.folder || 'products').replace(/[^a-zA-Z0-9_-]/g, '') || 'products';
+      const folder = isCustomerOrderProof ? 'payment screenshot' : (String(body.folder || 'products').trim().replace(/[^a-zA-Z0-9_\-\s]/g, '') || 'products');
       const filename = String(body.filename || `${Date.now()}_asset.png`).replace(/[^a-zA-Z0-9_.-]/g, '_');
       const contentType = String(body.contentType || 'application/octet-stream');
 

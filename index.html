@@ -4821,6 +4821,8 @@
                 price_inr: inr,
                 price_usd: usd,
                 image: item.image || p.image || '',
+                images: item.images || p.images || [],
+                galleryImages: item.gallery_images || item.galleryImages || p.galleryImages || p.gallery_images || [],
                 status: item.status || p.status || 'active',
                 category: item.category || p.category || '',
                 displayOrder: item.display_order ?? p.displayOrder ?? 0,
@@ -4831,7 +4833,15 @@
             const hasDiff = curKeys.length !== newKeys.length || newKeys.some(k => {
               const cur = liveCollections.products[k];
               const nxt = data[k];
-              return !cur || cur.updatedAt !== nxt.updatedAt || cur.image !== nxt.image || (cur.priceINR || cur.price_inr) !== (nxt.priceINR || nxt.price_inr) || (cur.title || cur.name) !== (nxt.title || nxt.name);
+              if (!cur) return true;
+              if (cur.updatedAt !== nxt.updatedAt || cur.updated_at !== nxt.updated_at) return true;
+              if (cur.image !== nxt.image) return true;
+              if (JSON.stringify(cur.images || []) !== JSON.stringify(nxt.images || [])) return true;
+              if (JSON.stringify(cur.galleryImages || []) !== JSON.stringify(nxt.galleryImages || [])) return true;
+              if ((cur.priceINR || cur.price_inr) !== (nxt.priceINR || nxt.price_inr)) return true;
+              if ((cur.priceUSD || cur.price_usd) !== (nxt.priceUSD || nxt.price_usd)) return true;
+              if ((cur.title || cur.name) !== (nxt.title || nxt.name)) return true;
+              return false;
             });
             if (hasDiff) {
               liveCollections.products = data;

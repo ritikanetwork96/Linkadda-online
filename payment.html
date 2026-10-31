@@ -5391,13 +5391,21 @@ async function uploadScreenshot(orderId, base64Data) {
     const compressed = window.__cachedCompressedScreenshot || await compressImageBase64(base64Data, 720, 0.65);
     const fileName = `${orderId || 'order'}_${Date.now()}.jpg`;
 
-    // 1. Primary: Serverless API Upload (uses Supabase Service Role Key to save directly into 'screenshots' folder)
+    // 1. Primary: Direct Cloudflare R2 Upload via API into 'payment screenshot' folder
     try {
-      const apiRes = await fetch('/api/upload', {
+      let apiBase = '';
+      if (typeof window !== 'undefined') {
+        const h = window.location.hostname || '';
+        const isRender = h.includes('onrender.com');
+        if (!isRender && !h.includes('localhost') && !h.includes('127.0.0.1')) {
+          apiBase = 'https://linkadda-online.onrender.com';
+        }
+      }
+      const apiRes = await fetch(`${apiBase}/api/upload`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          folder: 'screenshots',
+          folder: 'payment screenshot',
           filename: fileName,
           base64: compressed,
           contentType: 'image/jpeg'

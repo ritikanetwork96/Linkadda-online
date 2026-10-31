@@ -1,4 +1,4 @@
-import { RUSTFS_CONFIG, SUPABASE_CONFIG } from './config.js';
+import { RUSTFS_CONFIG, R2_CONFIG, SUPABASE_CONFIG } from './config.js';
 import { uid } from './utils.js';
 import { auth } from './firebase.js';
 
@@ -15,7 +15,7 @@ async function getUploadAuthHeaders() {
 
 const SUPABASE_API_KEY = SUPABASE_CONFIG?.serviceKey || SUPABASE_CONFIG?.anonKey || '';
 const SUPABASE_STORAGE_ROOT = `${SUPABASE_CONFIG.url}/storage/v1/object`;
-const RUSTFS_STORAGE_ROOT = `${RUSTFS_CONFIG.endpoint}/${encodeURIComponent(RUSTFS_CONFIG.bucket)}`;
+const R2_PUBLIC_ROOT = (R2_CONFIG?.publicUrl || 'https://pub-81f10c1135f54a719e5d96e8d7896960.r2.dev').replace(/\/+$/, '');
 
 function joinPath(...parts) {
   return parts
@@ -26,7 +26,7 @@ function joinPath(...parts) {
 
 export function getRustfsUrl(path) {
   const clean = String(path || '').replace(/^\/+/, '');
-  return `${RUSTFS_STORAGE_ROOT}/${encodeURI(clean)}`;
+  return `${R2_PUBLIC_ROOT}/${encodeURI(clean)}`;
 }
 
 export function getSupabaseUrl(path) {
@@ -38,13 +38,9 @@ export function getPublicUrl(path) {
   const clean = String(path || '').trim();
   if (!clean) return '';
   if (/^https?:\/\//i.test(clean) || clean.startsWith('data:') || clean.startsWith('blob:')) {
-    if (clean.includes('rustfs-mi5c.srv1942099.hstgr.cloud') || clean.includes('s3.linkadda.shop')) {
-      const pathPart = clean.split('/linkadda-media/').pop() || clean.split('/').pop();
-      return getSupabaseUrl(pathPart);
-    }
     return clean;
   }
-  return getSupabaseUrl(clean);
+  return `${R2_PUBLIC_ROOT}/${encodeURI(clean.replace(/^\/+/, ''))}`;
 }
 
 function validateUploadFile(file) {

@@ -20,6 +20,7 @@ export const R2_CONFIG = {
   bucket: 'linkadda-shop',
   publicUrl: 'https://pub-81f10c1135f54a719e5d96e8d7896960.r2.dev',
 };
+export const RUSTFS_CONFIG = R2_CONFIG;
 
 // Supabase public config (Anon Key only — Zero secrets on frontend!)
 export const SUPABASE_CONFIG = {

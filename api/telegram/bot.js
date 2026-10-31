@@ -1714,12 +1714,9 @@ export async function notifyAdminsNewOrder(order) {
     } catch (_) {}
   }
 
-  // ── 0. DIRECT WEBSITE ORDER CHECK ──
-  // If order was placed directly on the website (not from a Telegram bot / Open Store),
-  // DO NOT send Telegram messages to admins or bots! Only keep it saved in DB for Admin Panel.
-  if (!isRealBotOrder && !customerTgId) {
-    console.log(`[ORDER] Order #${orderId} is a direct website order. Saved for Admin Panel view, skipping Telegram alert.`);
-    return { ok: true, isWebOrder: true, orderId, message: 'Web order saved for Admin Panel' };
+  // If order is placed directly on website without a bot session, notify admins using primary active fleet bot
+  if (!isRealBotOrder && !originatingBot) {
+    originatingBot = primaryBot;
   }
 
   let securityAlertText = '';
