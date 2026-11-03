@@ -16,7 +16,10 @@ export default async function handler(req, res) {
 
   // 2. Load private Service Role credentials on the server
   const supaUrl = (process.env.SUPABASE_URL || 'https://mkttxqwpbostzmfygpzq.supabase.co').replace(/\/+$/, '');
-  const serviceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
+  const serviceKey = (
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1rdHR4cXdwYm9zdHptZnlncHpxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MzM4NzU3MCwiZXhwIjoyMTA4OTYzNTcwfQ.smaw1XT43DLymk4Yx7kw3ReOVGRLflDVVqMHs59GDPQ'
+  ).trim();
 
   if (!serviceKey) {
     return res.status(500).json({ error: 'Server configuration error: Service role key missing.' });
