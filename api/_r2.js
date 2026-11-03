@@ -106,3 +106,4 @@ export async function uploadBase64ToR2(folder, filename, base64String) {
   const res = await uploadBufferToR2(key, buffer, contentType);
   return res.publicUrl;
 }
+

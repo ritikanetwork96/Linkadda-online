@@ -90,3 +90,4 @@ migration-report.md
 *.bak
 *.ps1
 backup_*.json
+data/bot_store.json

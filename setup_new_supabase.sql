@@ -116,22 +116,23 @@ CREATE POLICY "Public can view categories" ON public.categories
   FOR SELECT TO anon, authenticated
   USING (true);
 
--- Settings: Anyone can view public settings
+-- Settings: ONLY public storefront settings (Whitelisted) are readable by anon
 DROP POLICY IF EXISTS "Public can view settings" ON public.site_settings;
 CREATE POLICY "Public can view settings" ON public.site_settings
   FOR SELECT TO anon, authenticated
-  USING (key NOT IN ('telegram_bot', 'tg_bot_users', 'customers'));
+  USING (key IN ('banner', 'hero', 'settings', 'payment', 'faq', 'testimonials'));
 
--- Orders: Checkout creates order with pending status
+-- Orders: Checkout creates order with pending status; anon CANNOT dump or bulk-view orders
 DROP POLICY IF EXISTS "Public can insert orders" ON public.orders;
 CREATE POLICY "Public can insert orders" ON public.orders
   FOR INSERT TO anon, authenticated
   WITH CHECK (status = 'pending');
 
 DROP POLICY IF EXISTS "Public can view own order by id" ON public.orders;
-CREATE POLICY "Public can view own order by id" ON public.orders
-  FOR SELECT TO anon, authenticated
-  USING (true);
+DROP POLICY IF EXISTS "Public can view orders" ON public.orders;
+CREATE POLICY "Deny anon bulk order view" ON public.orders
+  FOR SELECT TO anon
+  USING (false);
 
 -- Analytics: Public can insert tracking
 DROP POLICY IF EXISTS "Public can insert visitors" ON public.visitors;

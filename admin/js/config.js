@@ -16,7 +16,6 @@ export const FIREBASE_CONFIG = {};
 
 // Cloudflare R2 public config (Fast global CDN, $0 Egress)
 export const R2_CONFIG = {
-  endpoint: 'https://e251083d3d3878442daf244a17d304e5.r2.cloudflarestorage.com',
   bucket: 'linkadda-shop',
   publicUrl: 'https://pub-81f10c1135f54a719e5d96e8d7896960.r2.dev',
 };

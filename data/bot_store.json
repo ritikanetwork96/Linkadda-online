@@ -1,5 +1,5 @@
 {
-  "activeToken": "8869143190:AAHpI6Uls3sGl-JwEH9EZMhRChIPg-4lnEg",
+  "activeToken": "",
   "bot": {
     "username": "Testnot565_bot",
     "name": "Testnot Bot",
@@ -14,7 +14,7 @@
       "id": "8869143190",
       "name": "Testnot Bot",
       "botId": "bot_8869143190",
-      "token": "8869143190:AAHpI6Uls3sGl-JwEH9EZMhRChIPg-4lnEg",
+      "token": "",
       "status": "active",
       "username": "Testnot565_bot",
       "createdAt": 1792842000000,
@@ -26,7 +26,7 @@
       "id": "8923608774",
       "name": "LinkAdda Store Bot",
       "botId": "bot_8923608774",
-      "token": "8923608774:AAFhvO4Yzly7toIf5qoI-TSW4EzVzWCdVlE",
+      "token": "",
       "status": "inactive",
       "username": "Myshop9876_bot",
       "createdAt": 1792841000000,
@@ -35,57 +35,8 @@
       "subscribersCount": 1
     }
   },
-  "admins": [
-    "8516979341",
-    "8802192472",
-    "6966868142",
-    "8770964308"
-  ],
-  "adminProfiles": {
-    "8516979341": {
-      "id": "8516979341",
-      "name": "Tester (Bot C)",
-      "role": "Order Proof Alerts & Instant Approve/Reject Buttons Across All Bots",
-      "badge": "🛡️ ADMIN",
-      "username": "noname8828211",
-      "assignedBotId": "all",
-      "assignedBotUsername": "All Fleet Bots",
-      "updatedAt": 1793425000000,
-      "lastActiveAt": 1793425000000
-    },
-    "8802192472": {
-      "id": "8802192472",
-      "name": "Owner",
-      "role": "Order Proof Alerts & Instant Approve/Reject Buttons Across All Bots",
-      "badge": "🛡️ ADMIN",
-      "username": "owner",
-      "assignedBotId": "all",
-      "assignedBotUsername": "All Fleet Bots",
-      "updatedAt": 1793425000000,
-      "lastActiveAt": 1793425000000
-    },
-    "6966868142": {
-      "id": "6966868142",
-      "name": "Ghost Layer",
-      "role": "Order Proof Alerts & Instant Approve/Reject Buttons Across All Bots",
-      "badge": "🛡️ ADMIN",
-      "username": "GhostLayer73",
-      "assignedBotId": "all",
-      "assignedBotUsername": "All Fleet Bots",
-      "updatedAt": 1793085063742,
-      "lastActiveAt": 1793424554763
-    },
-    "8770964308": {
-      "id": "8770964308",
-      "name": "𓆩✶𓆪𝐓𝐑𝐔𝐒𝐓𝐄𝐃 𝐁𝐑𝐎𝐓𝐇𝐄𝐑𓆩✶𓆪",
-      "role": "Order Proof Alerts & Instant Approve/Reject Buttons Across All Bots",
-      "badge": "🛡️ ADMIN",
-      "username": "TRUSTED_BROTHER1234",
-      "updatedAt": 1793122396478,
-      "assignedBotId": "all",
-      "assignedBotUsername": "All Fleet Bots"
-    }
-  },
+  "admins": [],
+  "adminProfiles": {},
   "users": {
     "6966868142": {
       "id": "6966868142",

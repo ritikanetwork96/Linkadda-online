@@ -31,8 +31,6 @@ Disallow: /admin
 Disallow: /api/
 Disallow: /payment
 Disallow: /payment.html
-Disallow: /.env
-Disallow: /database.rules.json
 
 User-agent: Amazonbot
 Disallow: /
