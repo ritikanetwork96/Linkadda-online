@@ -791,18 +791,11 @@ export async function deleteRecord(node, id) {
     try {
       await remove(nodeRef(node, targetKey));
     } catch (err) {
-      console.warn(`Failed to delete ${node}/${targetKey} from RTDB:`, err?.message || err);
+      console.warn(`Failed to delete ${node}/${targetKey}:`, err?.message || err);
     }
-    // Direct REST delete fallback ensures 100% removal from Supabase
-    if (node === 'orders') {
+    if (alternateId && alternateId !== targetKey) {
       try {
-        const supaUrl = 'https://mkttxqwpbostzmfygpzq.supabase.co';
-        const supaKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1rdHR4cXdwYm9zdHptZnlncHpxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMzODc1NzAsImV4cCI6MjEwODk2MzU3MH0.OP6jOD49M16r4uCUZ8pFOZkCaor0mk-0XZh94pjbSaE';
-        const hdrs = { 'apikey': supaKey, 'Authorization': `Bearer ${supaKey}` };
-        fetch(`${supaUrl}/rest/v1/orders?id=eq.${encodeURIComponent(targetKey)}`, { method: 'DELETE', headers: hdrs }).catch(() => {});
-        if (alternateId && alternateId !== targetKey) {
-          fetch(`${supaUrl}/rest/v1/orders?id=eq.${encodeURIComponent(alternateId)}`, { method: 'DELETE', headers: hdrs }).catch(() => {});
-        }
+        await remove(nodeRef(node, alternateId));
       } catch (_) {}
     }
   }

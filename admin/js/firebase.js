@@ -14,11 +14,18 @@ const headers = {
 
 function getAdminToken() {
   try {
-    const raw = localStorage.getItem(APP_CONFIG.sessionKey || 'linkadda_admin_session');
+    const key = APP_CONFIG?.sessionKey || 'linkadda_admin_session';
+    const raw = localStorage.getItem(key) || sessionStorage.getItem(key);
     if (raw) {
-      const parsed = JSON.parse(raw);
-      return parsed.token || '';
+      try {
+        const parsed = JSON.parse(raw);
+        if (parsed?.token) return parsed.token;
+      } catch (_) {
+        if (typeof raw === 'string' && raw.length > 5) return raw;
+      }
     }
+    const directToken = localStorage.getItem('linkadda_admin_token') || sessionStorage.getItem('linkadda_admin_token');
+    if (directToken) return directToken;
   } catch (_) {}
   return '';
 }
@@ -406,6 +413,7 @@ export async function signInWithEmailAndPassword(authObj, email, password) {
 
   auth.currentUser = user;
   localStorage.setItem(APP_CONFIG.sessionKey || 'linkadda_admin_session', JSON.stringify({ email: cleanEmail, token: session.token }));
+  localStorage.setItem('linkadda_admin_token', session.token);
   authListeners.forEach(cb => {
     try { cb(user); } catch (_) {}
   });
@@ -416,6 +424,7 @@ export async function signInWithEmailAndPassword(authObj, email, password) {
 export async function signOut(authObj) {
   auth.currentUser = null;
   localStorage.removeItem(APP_CONFIG.sessionKey || 'linkadda_admin_session');
+  localStorage.removeItem('linkadda_admin_token');
   authListeners.forEach(cb => {
     try { cb(null); } catch (_) {}
   });

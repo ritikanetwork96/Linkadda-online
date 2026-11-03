@@ -1,5 +1,33 @@
 import crypto from 'node:crypto';
 import dns from 'node:dns';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+function loadEnvFallback() {
+  try {
+    const p1 = path.resolve(__dirname, '../.env');
+    const p2 = path.join(process.cwd(), '.env');
+    const envPath = fs.existsSync(p1) ? p1 : (fs.existsSync(p2) ? p2 : null);
+    if (envPath) {
+      const raw = fs.readFileSync(envPath, 'utf8');
+      for (const line of raw.split(/\r?\n/)) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith('#')) continue;
+        const idx = trimmed.indexOf('=');
+        if (idx > 0) {
+          const key = trimmed.slice(0, idx).trim();
+          const val = trimmed.slice(idx + 1).trim();
+          if (!process.env[key]) process.env[key] = val;
+        }
+      }
+    }
+  } catch (_) {}
+}
+loadEnvFallback();
 
 if (dns.setDefaultResultOrder) {
   try { dns.setDefaultResultOrder('ipv4first'); } catch (_) {}

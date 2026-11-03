@@ -1,5 +1,6 @@
 import { handleCors } from '../_utils.js';
 import { notifyAdminsNewOrder } from './bot.js';
+import { uploadBase64ToR2 } from '../_r2.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -55,7 +56,21 @@ export default async function handler(req, res) {
     const cleanAmt = Number(rawAmt) || 0;
     const prodTitle = order.product_title || order.productTitle || order.productName || order.title || order.name || 'VIP Pack';
     const method = order.payment_method || order.method || 'UPI / QR';
-    const proof = order.payment_proof || order.screenshotUrl || order.paymentProof || '';
+    let proof = order.payment_proof || order.screenshotUrl || order.paymentProof || '';
+
+    // Convert raw base64 screenshot into permanent Cloudflare R2 CDN URL before saving
+    if (proof && (proof.startsWith('data:') || proof.includes('base64,'))) {
+      try {
+        const cleanOrdId = String(orderId).replace(/[^a-zA-Z0-9_-]/g, '_');
+        const r2Url = await uploadBase64ToR2('payment screenshot', `proof_${cleanOrdId}_${Date.now()}.jpg`, proof);
+        if (r2Url) {
+          proof = r2Url;
+        }
+      } catch (r2Err) {
+        console.warn('[R2 Upload Warning in notify-order]:', r2Err.message);
+      }
+    }
+
     const utr = order.utr || order.transactionId || '';
     const custName = order.customer_name || order.customerName || order.name || order.buyerName || order.telegramName || (order.telegramUsername ? `@${order.telegramUsername}` : 'Customer');
 

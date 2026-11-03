@@ -5419,46 +5419,7 @@ async function uploadScreenshot(orderId, base64Data) {
       }
     } catch (_) {}
 
-    // 2. Direct Supabase Storage Upload to 'screenshots' folder
-    try {
-      const supaUrl = 'https://mkttxqwpbostzmfygpzq.supabase.co';
-      const supaKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1rdHR4cXdwYm9zdHptZnlncHpxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMzODc1NzAsImV4cCI6MjEwODk2MzU3MH0.OP6jOD49M16r4uCUZ8pFOZkCaor0mk-0XZh94pjbSaE';
-      const endpoint = `${supaUrl}/storage/v1/object/linkadda-shop/screenshots/${encodeURI(fileName)}`;
-
-      // Convert base64 data to binary Blob
-      const parts = compressed.split(',');
-      const byteString = atob(parts[1] || parts[0]);
-      const mimeMatch = parts[0].match(/:(.*?);/);
-      const mimeType = mimeMatch ? mimeMatch[1] : 'image/jpeg';
-      const ab = new ArrayBuffer(byteString.length);
-      const ia = new Uint8Array(ab);
-      for (let i = 0; i < byteString.length; i++) {
-        ia[i] = byteString.charCodeAt(i);
-      }
-      const blob = new Blob([ab], { type: mimeType });
-
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 3500);
-
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'apikey': supaKey,
-          'Authorization': `Bearer ${supaKey}`,
-          'x-upsert': 'true',
-          'Content-Type': 'image/jpeg',
-        },
-        body: blob,
-        signal: controller.signal,
-      });
-      clearTimeout(timer);
-
-      if (res.ok) {
-        return `${supaUrl}/storage/v1/object/public/linkadda-media/screenshots/${encodeURI(fileName)}`;
-      }
-    } catch (_) {}
-
-    // 3. Fallback: Ultra-compact thumbnail (<35KB) to prevent RTDB database bloat
+    // Fallback: Ultra-compact thumbnail (<35KB) for server-side Cloudflare R2 upload
     const tinyThumbnail = await compressImageBase64(base64Data, 480, 0.55).catch(() => compressed);
     return tinyThumbnail || compressed;
   } catch (err) {
@@ -5649,14 +5610,13 @@ async function saveOrderToFirebase(amountText, methodName) {
       const storedTgUsername = localStorage.getItem('linkadda_tg_username') || sessionStorage.getItem('linkadda_tg_username') || (storedTgUserObj?.username || '');
       const storedTgName = localStorage.getItem('linkadda_tg_name') || sessionStorage.getItem('linkadda_tg_name') || ([storedTgUserObj?.first_name, storedTgUserObj?.last_name].filter(Boolean).join(' ') || '');
 
+      const isActualTelegramClient = Boolean(
+        (window.Telegram && window.Telegram.WebApp && (window.Telegram.WebApp.initData || (tgUserRaw && tgUserRaw.id))) ||
+        window.TelegramWebviewProxy
+      );
       const isTgWebApp = Boolean(
         urlBotId ||
-        storedBotId ||
-        urlTgUserId ||
-        storedTgUserId ||
-        (window.Telegram && window.Telegram.WebApp && (window.Telegram.WebApp.initData || (tgUserRaw && tgUserRaw.id))) ||
-        window.TelegramWebviewProxy ||
-        (navigator.userAgent && /Telegram|TgWeb/i.test(navigator.userAgent))
+        (isActualTelegramClient && (storedBotId || urlTgUserId || storedTgUserId))
       );
 
       if (isTgWebApp) {
@@ -5709,7 +5669,13 @@ async function saveOrderToFirebase(amountText, methodName) {
         }
         payload.source = 'telegram_bot';
       } else {
-        // Direct website checkout - NO telegram bot channel
+        // Direct website checkout - clear any stale telegram session
+        try {
+          localStorage.removeItem('linkadda_source_bot_id');
+          localStorage.removeItem('linkadda_source_bot_user');
+          sessionStorage.removeItem('linkadda_source_bot_id');
+          sessionStorage.removeItem('linkadda_source_bot_user');
+        } catch (_) {}
         payload.source = 'website';
         payload.sourceBotId = null;
         payload.source_bot_id = null;

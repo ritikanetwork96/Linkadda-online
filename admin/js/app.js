@@ -7592,51 +7592,8 @@ function renderTelegramUsersTableList(users = [], filter = '') {
   const currentSourceFilter = _tgBotData.sourceFilter || 'all';
   const currentViewMode = _tgBotData.userViewMode || (typeof window !== 'undefined' && window.innerWidth < 768 ? 'cards' : 'table');
   
-  // Assemble full fleet bots list including any bots discovered from active subscribers
+  // Strictly mirror real connected fleet bots (no ghost bot resurrection from past order logs)
   const fleetBots = [ ...((_tgBotData.bots && _tgBotData.bots.length) ? _tgBotData.bots : [_tgBotData.bot].filter(Boolean)) ];
-  const knownBotKeys = new Set(fleetBots.map(b => String(b.botId || `bot_${b.id}` || b.id || b.username).toLowerCase()));
-  users.forEach(u => {
-    if (u && u.bots && typeof u.bots === 'object') {
-      Object.entries(u.bots).forEach(([k, v]) => {
-        const uName = String(v?.botUsername || v?.username || k.replace(/^bot_/, '')).replace('@', '').trim();
-        const bId = String(v?.botId || k).trim();
-        const canonId = bId.startsWith('bot_') ? bId : `bot_${bId}`;
-        const key = canonId.toLowerCase();
-        if (uName && !knownBotKeys.has(key) && !knownBotKeys.has(uName.toLowerCase())) {
-          knownBotKeys.add(key);
-          knownBotKeys.add(uName.toLowerCase());
-          fleetBots.push({
-            id: canonId.replace(/^bot_/, ''),
-            botId: canonId,
-            username: uName,
-            name: `@${uName}`,
-            status: 'active',
-            isPrimary: false,
-            subscribersCount: 0
-          });
-        }
-      });
-    }
-    if (u && u.sourceBotUsername) {
-      const uName = String(u.sourceBotUsername).replace('@', '').trim();
-      const sId = String(u.sourceBotId || `bot_${uName}`).trim();
-      const canonId = sId.startsWith('bot_') ? sId : `bot_${sId}`;
-      const key = canonId.toLowerCase();
-      if (uName && !knownBotKeys.has(key) && !knownBotKeys.has(uName.toLowerCase())) {
-        knownBotKeys.add(key);
-        knownBotKeys.add(uName.toLowerCase());
-        fleetBots.push({
-          id: canonId.replace(/^bot_/, ''),
-          botId: canonId,
-          username: uName,
-          name: `@${uName}`,
-          status: 'active',
-          isPrimary: false,
-          subscribersCount: 0
-        });
-      }
-    }
-  });
 
   // ⚡ Filter out any admin accounts: Admins are strictly managed under the "Telegram Admins" tab!
   const adminIds = new Set((_tgBotData.admins || []).map(String));

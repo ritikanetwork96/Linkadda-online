@@ -227,42 +227,11 @@ export async function uploadAsset(file, folder = 'products', onProgress) {
     }
   }
 
-  if (typeof onProgress === 'function') onProgress(15);
-
-  // ━━ 1. PRIMARY: DIRECT SUPABASE STORAGE UPLOAD (Instant, handles images & videos up to 50MB, no Vercel limit) ━━
-  try {
-    if (typeof onProgress === 'function') onProgress(30);
-    const endpoint = `${SUPABASE_CONFIG.url}/storage/v1/object/${encodeURIComponent(SUPABASE_CONFIG.bucket)}/${encodeURI(path)}`;
-    const supaRes = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        apikey: SUPABASE_API_KEY,
-        Authorization: `Bearer ${SUPABASE_API_KEY}`,
-        'x-upsert': 'true',
-        'Content-Type': fileToUpload.type || file.type || 'application/octet-stream',
-      },
-      body: fileToUpload,
-    });
-
-    if (supaRes.ok) {
-      const publicUrl = `${SUPABASE_CONFIG.url}/storage/v1/object/public/${encodeURIComponent(SUPABASE_CONFIG.bucket)}/${encodeURI(path)}`;
-      if (typeof onProgress === 'function') onProgress(100);
-      return {
-        path,
-        publicUrl,
-        rustfsUrl: publicUrl,
-        dataUrl: '',
-      };
-    } else {
-      console.warn(`Direct Supabase upload returned status ${supaRes.status}: ${supaRes.statusText}`);
-    }
-  } catch (supaErr) {
-    console.warn('Direct Supabase upload network error, trying /api/upload fallback:', supaErr);
-  }
+  if (typeof onProgress === 'function') onProgress(20);
 
   const CHUNK_THRESHOLD = 2.5 * 1024 * 1024; // 2.5 MB
 
-  // ━━ 2. FALLBACK A: DIRECT UPLOAD VIA /api/upload (<= 2.5 MB) & QR/LOGOS ━━
+  // ━━ 1. PRIMARY: DIRECT UPLOAD VIA /api/upload (Cloudflare R2, <= 2.5 MB & QR/LOGOS) ━━
   if (fileToUpload.size <= CHUNK_THRESHOLD || folder === 'qrcodes' || folder === 'logos') {
     const dataUrl = await readFileAsDataUrl(fileToUpload);
     if (typeof onProgress === 'function') onProgress(60);
@@ -371,30 +340,6 @@ export async function uploadAsset(file, folder = 'products', onProgress) {
   });
 
   if (!assembleRes.ok) {
-    try {
-      const endpoint = `${SUPABASE_CONFIG.url}/storage/v1/object/${encodeURIComponent(SUPABASE_CONFIG.bucket)}/${encodeURI(path)}`;
-      const supaRes = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          apikey: SUPABASE_API_KEY,
-          Authorization: `Bearer ${SUPABASE_API_KEY}`,
-          'x-upsert': 'true',
-          'Content-Type': fileToUpload.type || file.type || 'application/octet-stream',
-        },
-        body: fileToUpload,
-      });
-      if (supaRes.ok) {
-        const publicUrl = `${SUPABASE_CONFIG.url}/storage/v1/object/public/${encodeURIComponent(SUPABASE_CONFIG.bucket)}/${encodeURI(path)}`;
-        if (typeof onProgress === 'function') onProgress(100);
-        return {
-          path,
-          publicUrl,
-          rustfsUrl: publicUrl,
-          dataUrl: '',
-        };
-      }
-    } catch (_) {}
-
     if (fileToUpload.type?.startsWith('image/')) {
       try {
         const fallbackDataUrl = await readFileAsDataUrl(fileToUpload);

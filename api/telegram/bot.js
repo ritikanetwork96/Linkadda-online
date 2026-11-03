@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { handleCors, verifyAdminRequest } from '../_utils.js';
+import { uploadBase64ToR2 } from '../_r2.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1453,7 +1454,7 @@ export function scheduleMessageDeletion(chatId, messageId, delaySeconds = 120) {
 }
 
 /**
- * Upload base64 screenshot to Supabase Storage inside the 'screenshots' folder
+ * Upload base64 screenshot directly to Cloudflare R2 inside the 'payment screenshot' folder
  */
 async function ensureScreenshotUploaded(orderId, rawScreenshot) {
   if (!rawScreenshot || typeof rawScreenshot !== 'string') return '';
@@ -1463,37 +1464,9 @@ async function ensureScreenshotUploaded(orderId, rawScreenshot) {
   }
   if (trimmed.startsWith('data:') || trimmed.length > 100) {
     try {
-      const { url, key } = getSupabaseConfig();
-      const bucket = process.env.SUPABASE_BUCKET || 'linkadda-media';
       const fileName = `screenshot_${String(orderId || 'ord').replace(/[^a-zA-Z0-9_-]/g, '_')}_${Date.now()}.jpg`;
-      const cleanKey = `screenshots/${fileName}`;
-
-      let base64Data = trimmed;
-      let contentType = 'image/jpeg';
-      if (trimmed.includes('base64,')) {
-        const parts = trimmed.split('base64,');
-        base64Data = parts[1];
-        const mimeMatch = parts[0].match(/data:([^;]+);/);
-        if (mimeMatch) contentType = mimeMatch[1];
-      }
-
-      const buffer = Buffer.from(base64Data, 'base64');
-      const endpoint = `${url.replace(/\/+$/, '')}/storage/v1/object/${encodeURIComponent(bucket)}/${encodeURI(cleanKey)}`;
-
-      const upRes = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'apikey': key,
-          'Authorization': `Bearer ${key}`,
-          'x-upsert': 'true',
-          'Content-Type': contentType,
-        },
-        body: buffer
-      });
-
-      if (upRes.ok) {
-        return `${url.replace(/\/+$/, '')}/storage/v1/object/public/${encodeURIComponent(bucket)}/${encodeURI(cleanKey)}`;
-      }
+      const r2Url = await uploadBase64ToR2('payment screenshot', fileName, trimmed);
+      if (r2Url) return r2Url;
     } catch (err) {
       console.warn('Screenshot upload notice in bot handler:', err.message);
     }
@@ -2931,6 +2904,7 @@ export default async function handler(req, res) {
       return res.status(401).json({ ok: false, error: 'Unauthorized: Admin authentication required.' });
     }
     try {
+      const store = readBotStore();
       const cfg = await getActiveBotConfig();
       const appUrl = getAppUrl(req);
       const expectedWebhook = cfg.botId ? `${appUrl}/api/telegram/bot?botId=${cfg.botId}` : `${appUrl}/api/telegram/bot`;
