@@ -7034,7 +7034,13 @@ try {
   if (_raw) {
     const _parsed = JSON.parse(_raw);
     if (Array.isArray(_parsed) && _parsed.length) {
-      _tgCachedUsers = _parsed.filter(u => u && u.id && !String(u.id).startsWith('cust_'));
+      _tgCachedUsers = _parsed.filter(u => {
+        if (!u || !u.id || String(u.id).startsWith('cust_')) return false;
+        if (_tgCachedBots && _tgCachedBots.length > 0) {
+          return _tgCachedBots.some(b => userBelongsToBot(u, b));
+        }
+        return true;
+      });
     }
   }
 } catch (_) {}
@@ -7362,10 +7368,25 @@ async function loadTelegramBotAdminFullData(force = false) {
 
       const usersRow = sbSettingsRes.find(r => r.key === 'tg_bot_users');
       if (usersRow && usersRow.value && typeof usersRow.value === 'object') {
+        const activeBotIds = new Set((_tgBotData.bots || []).map(b => String(b.botId || `bot_${b.id}` || b.id)));
+        const activeBotRawIds = new Set((_tgBotData.bots || []).map(b => String(b.id || '')));
+        const activeBotUnames = new Set((_tgBotData.bots || []).map(b => String(b.username || '').toLowerCase().replace('@', '')));
+
         Object.entries(usersRow.value).forEach(([uid, u]) => {
-          if (u && u.id && !String(u.id).startsWith('cust_')) {
-            userUnion[String(u.id)] = { ...u, bots: { ...(u.bots || {}) }, sourceBotIds: Object.keys(u.bots || {}) };
+          if (!u || !u.id || String(u.id).startsWith('cust_')) return;
+          if (u.bots && typeof u.bots === 'object') {
+            const sanitizedBots = {};
+            for (const [k, v] of Object.entries(u.bots)) {
+              const kClean = k.replace(/^bot_/, '');
+              const uName = v?.botUsername ? String(v.botUsername).toLowerCase().replace('@', '') : '';
+              if (activeBotIds.has(k) || activeBotRawIds.has(kClean) || (uName && activeBotUnames.has(uName))) {
+                sanitizedBots[k] = v;
+              }
+            }
+            u.bots = sanitizedBots;
+            u.sourceBotIds = Object.keys(sanitizedBots);
           }
+          userUnion[String(u.id)] = u;
         });
       }
     }
@@ -7457,11 +7478,13 @@ async function loadTelegramBotAdminFullData(force = false) {
       delete userUnion[aId];
     });
 
+    const activeFleet = [ ...((_tgBotData.bots && _tgBotData.bots.length) ? _tgBotData.bots : [_tgBotData.bot].filter(Boolean)) ];
     const unifiedList = Object.values(userUnion).filter(u => {
       if (!u || !u.id) return false;
       const uidStr = String(u.id).trim();
       if (adminIdSet.has(uidStr) || adminIdSet.has(uidStr.replace(/^@/, ''))) return false;
       if (u.isAdmin || u.source === 'admin_tester' || u.source === 'admin_account') return false;
+      if (activeFleet.length > 0 && !activeFleet.some(b => userBelongsToBot(u, b))) return false;
       return true;
     });
     unifiedList.sort((a, b) => (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0));
@@ -7745,6 +7768,7 @@ function renderTelegramUsersTableList(users = [], filter = '') {
     const uidStr = String(u.id).trim();
     if (adminIds.has(uidStr) || adminIds.has(uidStr.replace(/^@/, ''))) return false;
     if (u.isAdmin || u.source === 'admin_tester' || u.source === 'admin_account') return false;
+    if (fleetBots.length > 0 && !fleetBots.some(b => userBelongsToBot(u, b))) return false;
     return true;
   });
 
@@ -7954,9 +7978,8 @@ function renderTelegramUsersTableList(users = [], filter = '') {
               userBotBadges.push({ username: b.username || 'Bot', id: b.botId });
             }
           });
-          if (!userBotBadges.length) {
-            const fbName = u.sourceBotUsername || 'Telegram Bot';
-            userBotBadges.push({ username: fbName, id: u.sourceBotId });
+          if (!userBotBadges.length && fleetBots.length) {
+            userBotBadges.push({ username: fleetBots[0]?.username || 'Fleet Bot', id: fleetBots[0]?.botId });
           }
 
           let timeFull = 'Recent';
@@ -8080,9 +8103,8 @@ function renderTelegramUsersTableList(users = [], filter = '') {
                   userBotBadges.push({ username: b.username || 'Bot', id: b.botId });
                 }
               });
-              if (!userBotBadges.length) {
-                const fbName = u.sourceBotUsername || 'Telegram Bot';
-                userBotBadges.push({ username: fbName, id: u.sourceBotId });
+              if (!userBotBadges.length && fleetBots.length) {
+                userBotBadges.push({ username: fleetBots[0]?.username || 'Fleet Bot', id: fleetBots[0]?.botId });
               }
 
               let timeStr = 'Recent';
