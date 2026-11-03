@@ -111,21 +111,22 @@ html, body {
   font-family: var(--font);
 }
 
-body {
-  overflow-x: hidden;
-}
-
 html {
   scrollbar-gutter: stable;
+  overflow-x: clip;
 }
 
 body {
-  overscroll-behavior-x: none;
-  touch-action: pan-y;
+  overflow-x: clip;
+  overflow-y: auto;
+  overscroll-behavior-y: auto;
+  touch-action: manipulation;
+  -webkit-overflow-scrolling: touch;
 }
 
-body.sidebar-lock {
-  overflow: hidden;
+body.sidebar-lock,
+body.modal-open {
+  overflow: hidden !important;
 }
 
 a {
@@ -2923,7 +2924,11 @@ button {
 }
 
 .table-wrap {
-  overflow: auto;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x pan-y;
   border-radius: 20px;
   border: 1px solid var(--border);
   background: var(--panel-solid);
@@ -4035,7 +4040,8 @@ button {
 .management-page-shell {
   width: 100%;
   min-width: 0;
-  overflow-x: hidden;
+  overflow-x: clip;
+  overflow-y: visible;
 }
 
 .management-page {
@@ -10183,10 +10189,10 @@ button {
    ========================================================================== */
 
 /* ━━ 1. GLOBAL LAYOUT & ZERO-OVERFLOW FOUNDATION ━━ */
-html, body {
+html {
   width: 100% !important;
   max-width: 100vw !important;
-  overflow-x: hidden !important;
+  overflow-x: clip !important;
   margin: 0 !important;
   padding: 0 !important;
   background-color: var(--bg) !important;
@@ -10194,6 +10200,22 @@ html, body {
   font-family: var(--font) !important;
   -webkit-font-smoothing: antialiased !important;
   -moz-osx-font-smoothing: grayscale !important;
+}
+
+body {
+  width: 100% !important;
+  max-width: 100vw !important;
+  overflow-x: clip !important;
+  overflow-y: auto !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  background-color: var(--bg) !important;
+  color: var(--text) !important;
+  font-family: var(--font) !important;
+  -webkit-font-smoothing: antialiased !important;
+  -moz-osx-font-smoothing: grayscale !important;
+  touch-action: manipulation !important;
+  -webkit-overflow-scrolling: touch !important;
 }
 
 *, *::before, *::after {
@@ -10217,6 +10239,8 @@ img, video, canvas, svg {
   position: relative !important;
   box-sizing: border-box !important;
   background-color: var(--bg) !important;
+  overflow-x: clip !important;
+  overflow-y: visible !important;
 }
 
 .main {
@@ -10225,7 +10249,8 @@ img, video, canvas, svg {
   max-width: 100% !important;
   display: flex !important;
   flex-direction: column !important;
-  overflow-x: hidden !important;
+  overflow-x: clip !important;
+  overflow-y: visible !important;
   background: var(--bg) !important;
 }
 
@@ -10236,7 +10261,8 @@ img, video, canvas, svg {
   max-width: 100% !important;
   padding: 24px 28px !important;
   box-sizing: border-box !important;
-  overflow-x: hidden !important;
+  overflow-x: clip !important;
+  overflow-y: visible !important;
 }
 
 .page,
@@ -10248,6 +10274,8 @@ img, video, canvas, svg {
   width: 100% !important;
   max-width: 100% !important;
   box-sizing: border-box !important;
+  overflow-x: clip !important;
+  overflow-y: visible !important;
 }
 
 /* ━━ 2. SAAS CARD & PANEL SURFACES ━━ */
@@ -10550,6 +10578,7 @@ button.is-loading::after {
   z-index: 45 !important;
   box-sizing: border-box !important;
   user-select: none !important;
+  overflow: hidden !important;
 }
 
 .sidebar .brand {
@@ -10626,6 +10655,7 @@ button.is-loading::after {
   overflow-y: auto !important;
   overflow-x: hidden !important;
   -webkit-overflow-scrolling: touch !important;
+  overscroll-behavior: contain !important;
   padding-right: 3px !important;
   margin: 0 !important;
 }
@@ -11145,6 +11175,8 @@ button.is-loading::after {
   .admin-shell {
     grid-template-columns: 100% !important;
     padding-left: 0 !important;
+    overflow-x: clip !important;
+    overflow-y: visible !important;
   }
 
   .sidebar {
@@ -11257,11 +11289,21 @@ button.is-loading::after {
    ═════════════════════════════════════════════════════════════════════ */
 @media (max-width: 768px) {
   /* ━━ NATIVE APP ROOT & SHELL ━━ */
-  html, body {
-    overflow-x: hidden !important;
+  html {
+    overflow-x: clip !important;
     width: 100% !important;
     max-width: 100vw !important;
     -webkit-tap-highlight-color: transparent !important;
+  }
+
+  body {
+    overflow-x: clip !important;
+    overflow-y: auto !important;
+    width: 100% !important;
+    max-width: 100vw !important;
+    -webkit-tap-highlight-color: transparent !important;
+    touch-action: manipulation !important;
+    -webkit-overflow-scrolling: touch !important;
   }
 
   .admin-shell {
@@ -11270,7 +11312,8 @@ button.is-loading::after {
     min-height: 100vh !important;
     width: 100vw !important;
     max-width: 100vw !important;
-    overflow-x: hidden !important;
+    overflow-x: clip !important;
+    overflow-y: visible !important;
     background: var(--bg) !important;
   }
 
@@ -11481,7 +11524,8 @@ button.is-loading::after {
     margin-left: 0 !important;
     width: 100vw !important;
     max-width: 100vw !important;
-    overflow-x: hidden !important;
+    overflow-x: clip !important;
+    overflow-y: visible !important;
     min-height: 100vh !important;
     display: flex !important;
     flex-direction: column !important;
@@ -11492,7 +11536,8 @@ button.is-loading::after {
     width: 100% !important;
     max-width: 100vw !important;
     box-sizing: border-box !important;
-    overflow-x: hidden !important;
+    overflow-x: clip !important;
+    overflow-y: visible !important;
     flex: 1 !important;
   }
 
@@ -12328,6 +12373,9 @@ button.is-loading::after {
   .management-table-wrap,
   .table-responsive {
     overflow-x: auto !important;
+    overflow-y: hidden !important;
+    overscroll-behavior-x: contain !important;
+    touch-action: pan-x pan-y !important;
     -webkit-overflow-scrolling: touch !important;
     width: 100% !important;
     max-width: 100% !important;
@@ -12643,8 +12691,16 @@ button.is-loading::after {
   html, body, #adminShell, .main, .view-root {
     max-width: 100vw !important;
     width: 100% !important;
-    overflow-x: hidden !important;
+    overflow-x: clip !important;
     box-sizing: border-box !important;
+  }
+  #adminShell, .main, .view-root {
+    overflow-y: visible !important;
+  }
+  body {
+    overflow-y: auto !important;
+    touch-action: manipulation !important;
+    -webkit-overflow-scrolling: touch !important;
   }
 
   .view-root {
@@ -12659,6 +12715,9 @@ button.is-loading::after {
     width: 100% !important;
     max-width: 100% !important;
     overflow-x: auto !important;
+    overflow-y: hidden !important;
+    overscroll-behavior-x: contain !important;
+    touch-action: pan-x pan-y !important;
     -webkit-overflow-scrolling: touch !important;
     border-radius: 14px !important;
     border: 1px solid rgba(255, 255, 255, 0.08) !important;
@@ -12739,12 +12798,23 @@ button.is-loading::after {
   box-sizing: border-box;
 }
 
-html, body {
+html {
   max-width: 100vw;
-  overflow-x: hidden;
+  overflow-x: clip;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  max-width: 100vw;
+  overflow-x: clip;
+  overflow-y: auto;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  touch-action: manipulation;
+  -webkit-overflow-scrolling: touch;
 }
 
 /* Custom Sleek Scrollbar */
@@ -12879,6 +12949,9 @@ html, body {
     display: flex !important;
     gap: 8px !important;
     overflow-x: auto !important;
+    overflow-y: hidden !important;
+    overscroll-behavior-x: contain !important;
+    touch-action: pan-x pan-y !important;
     -webkit-overflow-scrolling: touch !important;
     scrollbar-width: none !important;
     padding-bottom: 10px !important;
@@ -12927,6 +13000,9 @@ html, body {
   .tg-users-table-wrap {
     width: 100% !important;
     overflow-x: auto !important;
+    overflow-y: hidden !important;
+    overscroll-behavior-x: contain !important;
+    touch-action: pan-x pan-y !important;
     -webkit-overflow-scrolling: touch !important;
     border-radius: 12px !important;
     border: 1px solid rgba(255, 255, 255, 0.08) !important;

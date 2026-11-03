@@ -434,11 +434,13 @@ function toggleTheme() {
 function openModal(html) {
   modalRoot.innerHTML = html;
   modalBackdrop.classList.add('open');
+  document.body.classList.add('modal-open');
   if (window.lucide) lucide.createIcons();
 }
 
 function closeModal() {
   modalBackdrop.classList.remove('open');
+  document.body.classList.remove('modal-open');
   modalRoot.innerHTML = '';
 }
 
@@ -7963,12 +7965,18 @@ function updateTelegramBotLiveUI() {
 
   const botsFleetContainer = document.getElementById('tgBotsFleetCardsContainer');
   if (botsFleetContainer && typeof renderTelegramBotsFleetCards === 'function') {
-    botsFleetContainer.innerHTML = renderTelegramBotsFleetCards(fleetBots);
+    const nextBotsHtml = renderTelegramBotsFleetCards(fleetBots);
+    if (botsFleetContainer.innerHTML !== nextBotsHtml) {
+      botsFleetContainer.innerHTML = nextBotsHtml;
+    }
   }
 
   const adminsCardsContainer = document.getElementById('tgAdminsCardsContainer');
   if (adminsCardsContainer && typeof renderTelegramAdminsCards === 'function') {
-    adminsCardsContainer.innerHTML = renderTelegramAdminsCards(fleetAdmins);
+    const nextAdminsHtml = renderTelegramAdminsCards(fleetAdmins);
+    if (adminsCardsContainer.innerHTML !== nextAdminsHtml) {
+      adminsCardsContainer.innerHTML = nextAdminsHtml;
+    }
   }
 
   const broadcastBotsContainer = document.getElementById('tgBroadcastBotCheckboxes');
@@ -8014,7 +8022,12 @@ function updateTelegramBotLiveUI() {
   // Update subscriber table if container exists
   const tableContainer = document.getElementById('tgUsersTableContainer');
   if (tableContainer) {
-    tableContainer.innerHTML = renderTelegramUsersTableList(users, _tgBotData.searchFilter);
+    if (!_isUserActivelyScrolling) {
+      const nextTableHtml = renderTelegramUsersTableList(users, _tgBotData.searchFilter);
+      if (tableContainer.innerHTML !== nextTableHtml) {
+        tableContainer.innerHTML = nextTableHtml;
+      }
+    }
   }
 
   if (window.lucide) {
@@ -11993,6 +12006,9 @@ function renderView(data) {
     updateSideNavActive(ui.route);
     const current = ui.route;
 
+    // Capture current scroll position before DOM swap so background updates don't jump
+    const savedScrollY = (typeof window !== 'undefined') ? (window.scrollY || document.documentElement.scrollTop || 0) : 0;
+
     // Preserve active input/textarea focus & cursor if user is actively typing
     const activeEl = document.activeElement;
     const isInputActive = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA');
@@ -12028,6 +12044,9 @@ function renderView(data) {
     else if (current === 'banner') html = renderSingleEditorPage('banner', singleEditors.banner, data.banner || {});
     else html = renderDashboard(data);
     viewRoot.innerHTML = html;
+    if (savedScrollY > 0) {
+      window.scrollTo({ top: savedScrollY, behavior: 'instant' });
+    }
     if (window.lucide && typeof lucide.createIcons === 'function') {
       requestAnimationFrame(() => {
         try { lucide.createIcons({ root: viewRoot }); } catch (_) {}
@@ -15467,7 +15486,32 @@ initRouteHandling();
 ui.data = getSnapshot();
 renderView(ui.data || {});
 
+let _isUserActivelyScrolling = false;
+let _scrollSettleTimeout = null;
+let _deferredRenderPending = null;
+
+function notifyUserScrollActivity() {
+  _isUserActivelyScrolling = true;
+  if (_scrollSettleTimeout) clearTimeout(_scrollSettleTimeout);
+  _scrollSettleTimeout = setTimeout(() => {
+    _isUserActivelyScrolling = false;
+    if (_deferredRenderPending) {
+      const pending = _deferredRenderPending;
+      _deferredRenderPending = null;
+      debouncedRenderView(pending.data, pending.force);
+    }
+  }, 400);
+}
+
+window.addEventListener('scroll', notifyUserScrollActivity, { passive: true });
+window.addEventListener('touchmove', notifyUserScrollActivity, { passive: true });
+window.addEventListener('wheel', notifyUserScrollActivity, { passive: true });
+
 function debouncedRenderView(data, force = false) {
+  if (_isUserActivelyScrolling && !force) {
+    _deferredRenderPending = { data, force };
+    return;
+  }
   if (renderDebounceTimer) cancelAnimationFrame(renderDebounceTimer);
   renderDebounceTimer = requestAnimationFrame(() => {
     renderDebounceTimer = null;
