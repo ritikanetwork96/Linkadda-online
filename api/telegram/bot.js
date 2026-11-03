@@ -1590,9 +1590,14 @@ export async function notifyAdminsNewOrder(order) {
     }
   }
 
-  // If still not resolved, check if userRecord has known fleet bots
+  // If still not resolved, check if userRecord has known fleet bots (sorted by most recent interaction descending)
   if (!originatingBot && userRecord && userRecord.bots) {
-    for (const [ubId, ubVal] of Object.entries(userRecord.bots)) {
+    const sortedBotEntries = Object.entries(userRecord.bots).sort((a, b) => {
+      const timeA = a[1]?.lastActiveAt || a[1]?.joinedAt || 0;
+      const timeB = b[1]?.lastActiveAt || b[1]?.joinedAt || 0;
+      return timeB - timeA;
+    });
+    for (const [ubId, ubVal] of sortedBotEntries) {
       const ubUname = String(ubVal?.botUsername || ubVal?.username || ubId.replace(/^bot_/, '')).replace('@', '').toLowerCase();
       const ubCanon = (ubId.startsWith('bot_') ? ubId : `bot_${ubId}`).toLowerCase();
       const match = allBots.find(b => b.botId.toLowerCase() === ubCanon || b.id === ubCanon.replace(/^bot_/, '') || (b.username && b.username.toLowerCase() === ubUname));
@@ -1609,7 +1614,7 @@ export async function notifyAdminsNewOrder(order) {
   const originatingToken = originatingBot?.token || primaryBot?.token || store.activeToken || process.env.TELEGRAM_BOT_TOKEN || '';
 
   // Persist resolved bot onto order data ONLY if it originated from a real bot
-  if (isRealBotOrder) {
+  if (isRealBotOrder && originatingBot) {
     order.sourceBotId = originatingBot.botId;
     order.sourceBotUsername = originatingBot.username;
 
@@ -1688,7 +1693,7 @@ export async function notifyAdminsNewOrder(order) {
   }
 
   // Background update Supabase order row (non-blocking)
-  if (uploadedScreenshotUrl || (isRealBotOrder && originatingBot.botId) || customerTgId || isPriceTampered || isDuplicateUtr) {
+  if (uploadedScreenshotUrl || (isRealBotOrder && originatingBot?.botId) || customerTgId || isPriceTampered || isDuplicateUtr) {
     try {
       const { url: sUrl, key: sKey } = getSupabaseConfig();
       const existingData = order.data || {};
@@ -1704,8 +1709,8 @@ export async function notifyAdminsNewOrder(order) {
             priceTamperNote: priceTamperNote || undefined,
             isDuplicateUtr: Boolean(isDuplicateUtr),
             duplicateUtrNote: duplicateUtrNote || undefined,
-            sourceBotId: isRealBotOrder ? originatingBot.botId : (existingData.sourceBotId || null),
-            sourceBotUsername: isRealBotOrder ? originatingBot.username : (existingData.sourceBotUsername || null),
+            sourceBotId: (isRealBotOrder && originatingBot) ? originatingBot.botId : (existingData.sourceBotId || null),
+            sourceBotUsername: (isRealBotOrder && originatingBot) ? originatingBot.username : (existingData.sourceBotUsername || null),
             telegramUserId: customerTgId || existingData.telegramUserId || '',
             telegramUsername: order.telegramUsername || existingData.telegramUsername || ''
           }
@@ -1734,7 +1739,7 @@ export async function notifyAdminsNewOrder(order) {
     `🚨 <b>NEW ORDER RECEIVED!</b>\n` +
     `━━━━━━━━━━━━━━━━━━━━━━\n` +
     `🆔 <b>Order ID:</b> <code>${orderId}</code>\n` +
-    `🤖 <b>Bot Channel:</b> <b>${isRealBotOrder ? `@${escapeTelegramHtml(originatingBot.username || 'Bot')}` : '🌐 Direct Web (No Bot)'}</b>\n` +
+    `🤖 <b>Bot Channel:</b> <b>${(isRealBotOrder && originatingBot) ? `@${escapeTelegramHtml(originatingBot.username || 'Bot')}` : '🌐 Direct Web (No Bot)'}</b>\n` +
     `📦 <b>Product:</b> <b>${escapeTelegramHtml(productTitle)}</b>\n` +
     `💰 <b>Amount:</b> <b>${amount}</b>\n` +
     `💳 <b>Payment Method:</b> ${method}\n` +
@@ -1807,8 +1812,8 @@ export async function notifyAdminsNewOrder(order) {
     const assigned = String(adminProf.assignedBotId || 'all').toLowerCase().replace('@', '');
     if (assigned === 'all' || !assigned) return true;
     if (!originatingBot) return false;
-    const ordTarget = String(originatingBot.botId || originatingBot.id || '').toLowerCase().replace('@', '');
-    const ordUsername = String(originatingBot.username || '').toLowerCase().replace('@', '');
+    const ordTarget = String(originatingBot?.botId || originatingBot?.id || '').toLowerCase().replace('@', '');
+    const ordUsername = String(originatingBot?.username || '').toLowerCase().replace('@', '');
     return assigned === ordTarget || assigned === ordUsername;
   });
   if (targetAdmins.length === 0) {
@@ -2157,6 +2162,22 @@ async function processOrderApproval(orderId, adminUser, triggerMessage = null) {
       deliveryBot = allBots.find(b => b.botId.toLowerCase() === cleanId || b.id === cleanId || (b.username && b.username.toLowerCase() === cleanId));
     }
   }
+  if (!deliveryBot && userRecord && userRecord.bots) {
+    const sortedBotEntries = Object.entries(userRecord.bots).sort((a, b) => {
+      const timeA = a[1]?.lastActiveAt || a[1]?.joinedAt || 0;
+      const timeB = b[1]?.lastActiveAt || b[1]?.joinedAt || 0;
+      return timeB - timeA;
+    });
+    for (const [ubId, ubVal] of sortedBotEntries) {
+      const ubUname = String(ubVal?.botUsername || ubVal?.username || ubId.replace(/^bot_/, '')).replace('@', '').toLowerCase();
+      const ubCanon = (ubId.startsWith('bot_') ? ubId : `bot_${ubId}`).toLowerCase();
+      const match = allBots.find(b => b.botId.toLowerCase() === ubCanon || b.id === ubCanon.replace(/^bot_/, '') || (b.username && b.username.toLowerCase() === ubUname));
+      if (match && match.token) {
+        deliveryBot = match;
+        break;
+      }
+    }
+  }
   if (!deliveryBot) deliveryBot = primaryBot;
   const deliveryToken = deliveryBot?.token || primaryBot?.token || store.activeToken || process.env.TELEGRAM_BOT_TOKEN || '';
 
@@ -2193,7 +2214,7 @@ async function processOrderApproval(orderId, adminUser, triggerMessage = null) {
   if (customerTgId) {
     const appUrl = getAppUrl();
     const productTitle = order?.product_title || order?.title || order?.data?.product_title || 'VIP Pack';
-    const storeWebUrl = `${appUrl}?botId=${deliveryBot.botId}&botUser=${deliveryBot.username}`;
+    const storeWebUrl = deliveryBot ? `${appUrl}?botId=${deliveryBot.botId}&botUser=${encodeURIComponent(deliveryBot.username || '')}` : appUrl;
 
     if (channelLink) {
       const accessUrl = `${appUrl}/api/telegram/bot?action=access&orderId=${encodeURIComponent(orderId)}`;
