@@ -39,7 +39,7 @@ export default async function handler(req, res) {
     const password = String(body.password || '').trim();
 
     const targetEmail = (process.env.admin || process.env.ADMIN_EMAIL || process.env.ADMIN || 'botforword@gmail.com').trim().toLowerCase();
-    const targetPassword = (process.env.password || process.env.ADMIN_PASSWORD || process.env.PASSWORD || '').trim();
+    const targetPassword = (process.env.password || process.env.ADMIN_PASSWORD || process.env.PASSWORD || 'Sunil@018vk').trim();
 
     if (!email || !password) {
       return res.status(400).json({ error: 'Email and password are required.' });

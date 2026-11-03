@@ -7140,24 +7140,61 @@ function userBelongsToBot(u, targetBot) {
 
 function getAdminAuthHeaders() {
   try {
-    const raw = localStorage.getItem('linkadda_admin_session') || localStorage.getItem('linkadda_admin_token') || sessionStorage.getItem('linkadda_admin_session');
-    if (raw) {
-      try {
-        const parsed = JSON.parse(raw);
-        if (parsed && parsed.token) return { 'Authorization': `Bearer ${parsed.token}` };
-      } catch (_) {
-        if (typeof raw === 'string' && raw.length > 10) return { 'Authorization': `Bearer ${raw}` };
+    // 1. Direct token storage keys
+    const directKeys = ['linkadda_admin_token', 'admin_token', 'linkadda_auth_token'];
+    for (const k of directKeys) {
+      const val = localStorage.getItem(k) || sessionStorage.getItem(k);
+      if (typeof val === 'string' && val.trim().length > 10 && !val.trim().startsWith('{')) {
+        return { 'Authorization': `Bearer ${val.trim()}` };
       }
     }
-    const token = localStorage.getItem('linkadda_admin_token');
-    if (token) return { 'Authorization': `Bearer ${token}` };
-    if (auth && auth.currentUser) {
+
+    // 2. Structured session objects
+    const sessionKeys = ['linkadda_admin_session', 'linkadda_session', 'admin_session'];
+    for (const k of sessionKeys) {
+      const raw = localStorage.getItem(k) || sessionStorage.getItem(k);
+      if (!raw) continue;
+      try {
+        const parsed = JSON.parse(raw);
+        const t = parsed?.token || parsed?.accessToken || parsed?.idToken;
+        if (typeof t === 'string' && t.trim().length > 10) {
+          return { 'Authorization': `Bearer ${t.trim()}` };
+        }
+      } catch (_) {
+        if (typeof raw === 'string' && raw.trim().length > 10 && !raw.trim().startsWith('{')) {
+          return { 'Authorization': `Bearer ${raw.trim()}` };
+        }
+      }
+    }
+
+    // 3. In-memory auth user object
+    if (typeof auth !== 'undefined' && auth?.currentUser) {
       const u = auth.currentUser;
-      if (u.accessToken) return { 'Authorization': `Bearer ${u.accessToken}` };
-      if (u.token) return { 'Authorization': `Bearer ${u.token}` };
+      const t = u.token || u.accessToken || u.authToken;
+      if (typeof t === 'string' && t.trim().length > 10) {
+        return { 'Authorization': `Bearer ${t.trim()}` };
+      }
     }
   } catch (_) {}
   return {};
+}
+
+async function ensureAdminAuthHeaders() {
+  let headers = getAdminAuthHeaders();
+  if (headers && headers.Authorization) return headers;
+
+  // Try retrieving via auth.currentUser.getIdToken() if available
+  try {
+    if (typeof auth !== 'undefined' && auth?.currentUser && typeof auth.currentUser.getIdToken === 'function') {
+      const idToken = await auth.currentUser.getIdToken().catch(() => '');
+      if (idToken) {
+        localStorage.setItem('linkadda_admin_token', idToken);
+        return { 'Authorization': `Bearer ${idToken}` };
+      }
+    }
+  } catch (_) {}
+
+  return headers || {};
 }
 
 async function loadTelegramBotAdminFullData(force = false) {
@@ -8042,12 +8079,14 @@ function renderTelegramUsersTableList(users = [], filter = '') {
 
 
 function renderTelegramBotsFleetCards(bots = []) {
-  const fleet = (Array.isArray(bots) && bots.length) ? bots : ([_tgBotData.bot].filter(b => b && (b.id || b.username)));
+  // Only genuine fleet bots with valid botId/id and a valid username or name
+  const fleet = (Array.isArray(bots) ? bots : []).filter(b => b && (b.botId || b.id) && (b.username || b.name));
   if (!fleet.length) {
     return `
-      <div style="padding: 30px; text-align: center; color: var(--muted);">
-        <i data-lucide="bot" style="width: 32px; height: 32px; margin-bottom: 8px;"></i>
-        <div>No Telegram Bots Connected Yet.</div>
+      <div style="padding: 36px 20px; text-align: center; color: var(--muted); background: rgba(255,255,255,0.02); border: 1px dashed rgba(255,255,255,0.08); border-radius: 14px;">
+        <i data-lucide="bot" style="width: 34px; height: 34px; margin-bottom: 8px; opacity: 0.6;"></i>
+        <div style="font-size: 14px; font-weight: 600; color: var(--text);">No Telegram Bots Connected Yet</div>
+        <div style="font-size: 12px; margin-top: 4px; color: var(--muted);">Paste any bot token below from @BotFather to link your first bot to LinkAdda.</div>
       </div>
     `;
   }
@@ -12462,9 +12501,10 @@ function attachGlobalHandlers() {
       }
 
       try {
+        const authHeaders = await ensureAdminAuthHeaders();
         const res = await telegramApiFetch('/api/telegram/bot?action=add-bot', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...getAdminAuthHeaders() },
+          headers: { 'Content-Type': 'application/json', ...authHeaders },
           body: JSON.stringify({ token })
         });
         const result = await res.json();
@@ -12555,9 +12595,10 @@ function attachGlobalHandlers() {
 
       actionBtn.disabled = true;
       try {
+        const authHeaders = await ensureAdminAuthHeaders();
         const res = await telegramApiFetch('/api/telegram/bot?action=delete-bot', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...getAdminAuthHeaders() },
+          headers: { 'Content-Type': 'application/json', ...authHeaders },
           body: JSON.stringify({ botId })
         });
         const result = await res.json();
@@ -12588,9 +12629,10 @@ function attachGlobalHandlers() {
       }
       actionBtn.disabled = true;
       try {
+        const authHeaders = await ensureAdminAuthHeaders();
         const res = await telegramApiFetch('/api/telegram/bot?action=set-primary-bot', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...getAdminAuthHeaders() },
+          headers: { 'Content-Type': 'application/json', ...authHeaders },
           body: JSON.stringify({ botId })
         });
         const result = await res.json();

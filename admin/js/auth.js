@@ -471,7 +471,33 @@ export function protectRoute(onReady) {
       // If admin session exists in storage, preserve login on page refresh!
       const raw = localStorage.getItem('linkadda_admin_session') || localStorage.getItem('linkadda_admin_token') || sessionStorage.getItem('linkadda_admin_session');
       if (raw) {
-        unlockAdminUI(auth.currentUser || { uid: 'admin_user', email: 'botforword@gmail.com' });
+        let savedToken = localStorage.getItem('linkadda_admin_token') || sessionStorage.getItem('linkadda_admin_token') || '';
+        let savedEmail = 'botforword@gmail.com';
+        try {
+          const parsed = JSON.parse(raw);
+          if (parsed && typeof parsed === 'object') {
+            if (parsed.token) savedToken = parsed.token;
+            if (parsed.email) savedEmail = parsed.email;
+          }
+        } catch (_) {
+          if (typeof raw === 'string' && raw.length > 10) savedToken = raw;
+        }
+
+        if (!auth.currentUser) {
+          auth.currentUser = {
+            uid: 'admin_user',
+            email: savedEmail,
+            token: savedToken,
+            getIdToken: async () => savedToken || localStorage.getItem('linkadda_admin_token') || ''
+          };
+        } else {
+          if (!auth.currentUser.token && savedToken) auth.currentUser.token = savedToken;
+          if (!auth.currentUser.getIdToken) auth.currentUser.getIdToken = async () => savedToken;
+        }
+        if (savedToken) {
+          localStorage.setItem('linkadda_admin_token', savedToken);
+        }
+        unlockAdminUI(auth.currentUser);
         return;
       }
       const isDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
@@ -501,7 +527,26 @@ export function protectRoute(onReady) {
     if (!hasHandledAuth) {
       const raw = localStorage.getItem('linkadda_admin_session') || localStorage.getItem('linkadda_admin_token') || sessionStorage.getItem('linkadda_admin_session');
       if (raw) {
-        unlockAdminUI(auth.currentUser || { uid: 'admin_user', email: 'botforword@gmail.com' });
+        let savedToken = localStorage.getItem('linkadda_admin_token') || sessionStorage.getItem('linkadda_admin_token') || '';
+        let savedEmail = 'botforword@gmail.com';
+        try {
+          const parsed = JSON.parse(raw);
+          if (parsed && typeof parsed === 'object') {
+            if (parsed.token) savedToken = parsed.token;
+            if (parsed.email) savedEmail = parsed.email;
+          }
+        } catch (_) {
+          if (typeof raw === 'string' && raw.length > 10) savedToken = raw;
+        }
+        if (!auth.currentUser) {
+          auth.currentUser = {
+            uid: 'admin_user',
+            email: savedEmail,
+            token: savedToken,
+            getIdToken: async () => savedToken || localStorage.getItem('linkadda_admin_token') || ''
+          };
+        }
+        unlockAdminUI(auth.currentUser);
       } else {
         const isDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
         const loginUrl = isDev ? '/admin/login.html' : '/admin/login';
