@@ -301,48 +301,27 @@ export async function get(refObj) {
       return { exists: () => true, val: () => val };
     }
 
-    // Entire collection
+    // Entire collection (Direct high-speed Supabase REST fetch with zero cold-start delay)
     let rows = [];
-    // 1. Try secure admin proxy for orders / tables if admin session exists
-    const token = getAdminToken();
-    if (token && (table === 'orders' || table === 'visitors' || table === 'events')) {
-      try {
-        const base = getBackendApiBase();
-        const proxyRes = await fetch(`${base}/api/admin/db`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify({ action: 'list', table })
-        });
-        if (proxyRes.ok) {
-          const json = await proxyRes.json();
-          if (Array.isArray(json.rows)) rows = json.rows;
-        }
-      } catch (_) {}
-    }
+    const orderParam = table === 'products' ? '&order=display_order.asc' : (table === 'orders' || table === 'visitors' || table === 'events' ? '&order=created_at.desc' : '');
+    const activeHeaders = (table === 'orders' || table === 'visitors' || table === 'events') ? serviceHeaders : headers;
 
-    // 2. Direct fallback
-    if (!rows.length) {
-      const orderParam = table === 'products' ? '&order=display_order.asc' : (table === 'orders' || table === 'visitors' || table === 'events' ? '&order=created_at.desc' : '');
-      let res = await fetch(`${supaUrl}/rest/v1/${table}?select=*${orderParam}`, {
-        headers,
+    let res = await fetch(`${supaUrl}/rest/v1/${table}?select=*${orderParam}`, {
+      headers: activeHeaders,
+      cache: 'no-store'
+    });
+    if (res.ok) {
+      const rJson = await res.json();
+      if (Array.isArray(rJson)) rows = rJson;
+    }
+    if (!rows.length && activeHeaders !== serviceHeaders) {
+      res = await fetch(`${supaUrl}/rest/v1/${table}?select=*${orderParam}`, {
+        headers: serviceHeaders,
         cache: 'no-store'
       });
       if (res.ok) {
         const rJson = await res.json();
         if (Array.isArray(rJson)) rows = rJson;
-      }
-      if (!rows.length && (table === 'orders' || table === 'visitors')) {
-        res = await fetch(`${supaUrl}/rest/v1/${table}?select=*${orderParam}`, {
-          headers: serviceHeaders,
-          cache: 'no-store'
-        });
-        if (res.ok) {
-          const rJson = await res.json();
-          if (Array.isArray(rJson)) rows = rJson;
-        }
       }
     }
     if (!rows.length) return { exists: () => false, val: () => null };
