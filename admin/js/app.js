@@ -7124,6 +7124,24 @@ async function telegramApiFetch(endpoint, options = {}) {
   return res;
 }
 
+// Universal safe avatar initials generator (immune to Unicode surrogate pairs and special symbols)
+function getAvatarInitials(name, fallback = 'TG') {
+  if (!name || typeof name !== 'string') return fallback;
+  // Strip emojis, surrogate pairs, and non-letter/digit symbols
+  const clean = name.replace(/[^\p{L}\p{N}\s]/gu, '').trim();
+  if (clean) {
+    const parts = clean.split(/\s+/).filter(Boolean);
+    if (parts.length >= 2) {
+      return (parts[0].charAt(0) + parts[1].charAt(0)).toUpperCase();
+    }
+    return clean.slice(0, 2).toUpperCase();
+  }
+  const chars = Array.from(name.trim());
+  if (chars.length >= 2) return (chars[0] + chars[1]).toUpperCase();
+  if (chars.length === 1) return chars[0].toUpperCase();
+  return fallback;
+}
+
 // Universal helper to retrieve user's specific record for an active bot
 function getUserBotRecord(u, targetBotOrFilter) {
   if (!u || !targetBotOrFilter || targetBotOrFilter === 'all') return null;
@@ -7898,17 +7916,8 @@ function renderTelegramUsersTableList(users = [], filter = '') {
         ${filtered.map((u) => {
           const fName = String(u.firstName || u.name || '').replace(/^undefined$/i, '').trim();
           const lName = String(u.lastName || '').replace(/^undefined$/i, '').trim();
-          let initials = 'TG';
-          if (fName && lName) {
-            initials = (fName.charAt(0) + lName.charAt(0)).toUpperCase();
-          } else if (fName.length >= 2) {
-            initials = fName.slice(0, 2).toUpperCase();
-          } else if (fName.length === 1) {
-            initials = fName.toUpperCase();
-          } else if (u.username) {
-            initials = String(u.username).slice(0, 2).toUpperCase();
-          }
           const displayName = [fName, lName].filter(Boolean).join(' ') || (u.username ? `@${u.username}` : 'Telegram User');
+          const initials = getAvatarInitials(displayName, 'TG');
           const hasUsername = Boolean(u.username);
           // Bot-specific join date & acquisition
           const activeBotRecord = currentBotFilter !== 'all' ? getUserBotRecord(u, currentBotFilter) : null;
@@ -8033,17 +8042,8 @@ function renderTelegramUsersTableList(users = [], filter = '') {
             ${filtered.map((u) => {
               const fName = String(u.firstName || u.name || '').replace(/^undefined$/i, '').trim();
               const lName = String(u.lastName || '').replace(/^undefined$/i, '').trim();
-              let initials = 'TG';
-              if (fName && lName) {
-                initials = (fName.charAt(0) + lName.charAt(0)).toUpperCase();
-              } else if (fName.length >= 2) {
-                initials = fName.slice(0, 2).toUpperCase();
-              } else if (fName.length === 1) {
-                initials = fName.toUpperCase();
-              } else if (u.username) {
-                initials = String(u.username).slice(0, 2).toUpperCase();
-              }
               const displayName = [fName, lName].filter(Boolean).join(' ') || (u.username ? `@${u.username}` : 'Telegram User');
+              const initials = getAvatarInitials(displayName, 'TG');
               const hasUsername = Boolean(u.username);
               // Bot-specific join date & acquisition
               const activeBotRecord = currentBotFilter !== 'all' ? getUserBotRecord(u, currentBotFilter) : null;
@@ -8293,10 +8293,7 @@ function renderTelegramAdminsCards(admins = []) {
 
         const activeBotUname = (_tgBotData.bot?.username || '').replace(/^@/, '');
         const rawName = profile.name || cleanId;
-        const nameParts = rawName.split(/\s+/).filter(Boolean);
-        const initials = nameParts.length >= 2 
-          ? (nameParts[0][0] + nameParts[1][0]).toUpperCase() 
-          : rawName.substring(0, 2).toUpperCase();
+        const initials = getAvatarInitials(rawName, 'AD');
 
         return `
           <div class="panel glass" style="padding: 16px 18px; border-radius: 14px; border: 1px solid rgba(245, 158, 11, 0.35); background: linear-gradient(135deg, rgba(245, 158, 11, 0.04) 0%, rgba(15, 23, 42, 0.75) 100%); display: flex; flex-direction: column; justify-content: space-between; gap: 12px; box-shadow: 0 4px 16px rgba(0,0,0,0.25);">
@@ -14510,7 +14507,7 @@ function attachGlobalHandlers() {
           } else {
             const activeBot = (_tgBotData.bot?.username || '').replace(/^@/, '');
             const botLabel = activeBot ? `@${escapeHtml(activeBot)}` : 'connected bot';
-            badge.innerHTML = `<span style="color: #fbbf24;"><i data-lucide="alert-circle" style="width:13px;height:13px;vertical-align:-2px;margin-right:3px;"></i> Telegram bot ko yeh ID abhi nahi mili. User ko bole ki ${botLabel} me <strong>START</strong> dabayein, taaki Telegram se unka real name & username auto-fetch ho sake.</span>`;
+            badge.innerHTML = `<span style="color: #fbbf24;"><i data-lucide="alert-circle" style="width:13px;height:13px;vertical-align:-2px;margin-right:3px;"></i> Telegram ID not registered yet. Ask user to send <strong>/start</strong> to ${botLabel} to sync their profile name and username automatically.</span>`;
           }
           if (typeof lucide !== 'undefined') lucide.createIcons();
         } catch (_) {
