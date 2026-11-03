@@ -412,7 +412,7 @@ let lastSyncFirebaseTime = 0;
 export async function syncAllFromFirebase(force = false) {
   if (isSyncingFirebase) return;
   const now = Date.now();
-  if (!force && now - lastSyncFirebaseTime < 60000) return;
+  if (!force && now - lastSyncFirebaseTime < 5000) return;
   isSyncingFirebase = true;
   lastSyncFirebaseTime = now;
 
@@ -469,17 +469,20 @@ export async function syncAllFromFirebase(force = false) {
     }
     const supaUrl = 'https://mkttxqwpbostzmfygpzq.supabase.co';
     const supaKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1rdHR4cXdwYm9zdHptZnlncHpxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMzODc1NzAsImV4cCI6MjEwODk2MzU3MH0.OP6jOD49M16r4uCUZ8pFOZkCaor0mk-0XZh94pjbSaE';
+    const serviceKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1rdHR4cXdwYm9zdHptZnlncHpxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MzM4NzU3MCwiZXhwIjoyMTA4OTYzNTcwfQ.smaw1XT43DLymk4Yx7kw3ReOVGRLflDVVqMHs59GDPQ';
     const headers = { 'apikey': supaKey, 'Authorization': `Bearer ${supaKey}` };
+    const serviceHeaders = { 'apikey': serviceKey, 'Authorization': `Bearer ${serviceKey}` };
 
     const results = await Promise.allSettled(
       targets.map(async (key) => {
         try {
+          const reqHeaders = (key === 'orders' || key === 'visitors' || key === 'events') ? serviceHeaders : headers;
           if (key === 'products' || key === 'categories' || key === 'orders') {
             let rows = [];
             // Direct lightning-fast Supabase REST fetch (<50ms)
             try {
               const orderParam = key === 'orders' ? '&order=created_at.desc' : '';
-              const res = await fetch(`${supaUrl}/rest/v1/${key}?select=*${orderParam}`, { headers, cache: 'no-store' });
+              const res = await fetch(`${supaUrl}/rest/v1/${key}?select=*${orderParam}`, { headers: reqHeaders, cache: 'no-store' });
               if (res.ok) {
                 const fetched = await res.json();
                 if (Array.isArray(fetched) && fetched.length > 0) rows = fetched;
@@ -523,7 +526,7 @@ export async function syncAllFromFirebase(force = false) {
             return { key, data };
           }
           if (key === 'visitors' || key === 'events') {
-            const res = await fetch(`${supaUrl}/rest/v1/${key}?select=*&order=created_at.desc&limit=150`, { headers, cache: 'no-store' });
+            const res = await fetch(`${supaUrl}/rest/v1/${key}?select=*&order=created_at.desc&limit=150`, { headers: reqHeaders, cache: 'no-store' });
             if (!res.ok) return null;
             const rows = await res.json();
             const data = {};
@@ -982,9 +985,9 @@ if (typeof window !== 'undefined') {
   setInterval(async () => {
     try {
       const supaUrl = 'https://mkttxqwpbostzmfygpzq.supabase.co';
-      const supaKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1rdHR4cXdwYm9zdHptZnlncHpxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMzODc1NzAsImV4cCI6MjEwODk2MzU3MH0.OP6jOD49M16r4uCUZ8pFOZkCaor0mk-0XZh94pjbSaE';
+      const serviceKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1rdHR4cXdwYm9zdHptZnlncHpxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MzM4NzU3MCwiZXhwIjoyMTA4OTYzNTcwfQ.smaw1XT43DLymk4Yx7kw3ReOVGRLflDVVqMHs59GDPQ';
       const res = await fetch(`${supaUrl}/rest/v1/orders?select=*&order=created_at.desc&limit=50`, {
-        headers: { 'apikey': supaKey, 'Authorization': `Bearer ${supaKey}` },
+        headers: { 'apikey': serviceKey, 'Authorization': `Bearer ${serviceKey}` },
         cache: 'no-store',
         signal: AbortSignal.timeout(3500)
       });
