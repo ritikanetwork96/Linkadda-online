@@ -7453,24 +7453,29 @@ function updateTelegramBotLiveUI() {
 
   if (usernameEl) {
     if (fleetBots.length > 1) {
-      usernameEl.innerHTML = `<span style="display: inline-flex; align-items: center; gap: 8px;"><span>${fleetBots.length} Connected Bots</span> <span style="font-size: 11px; padding: 2px 7px; border-radius: 6px; background: rgba(56,189,248,0.15); color: #38bdf8; font-weight: 700; border: 1px solid rgba(56,189,248,0.3);">@${escapeHtml(bot.username || 'Testnot565_bot')}</span></span>`;
+      const uTag = bot.username ? ` <span style="font-size: 11px; padding: 2px 7px; border-radius: 6px; background: rgba(56,189,248,0.15); color: #38bdf8; font-weight: 700; border: 1px solid rgba(56,189,248,0.3);">@${escapeHtml(bot.username.replace(/^@/, ''))}</span>` : '';
+      usernameEl.innerHTML = `<span style="display: inline-flex; align-items: center; gap: 8px;"><span>${fleetBots.length} Connected Bots</span>${uTag}</span>`;
     } else if (bot.username) {
-      usernameEl.innerHTML = `<a href="https://t.me/${escapeHtml(bot.username)}" target="_blank" style="color: #38bdf8; text-decoration: none; display: inline-flex; align-items: center; gap: 4px;">@${escapeHtml(bot.username)} <i data-lucide="external-link" style="width: 13px; height: 13px;"></i></a>`;
+      usernameEl.innerHTML = `<a href="https://t.me/${escapeHtml(bot.username.replace(/^@/, ''))}" target="_blank" style="color: #38bdf8; text-decoration: none; display: inline-flex; align-items: center; gap: 4px;">@${escapeHtml(bot.username.replace(/^@/, ''))} <i data-lucide="external-link" style="width: 13px; height: 13px;"></i></a>`;
     } else {
-      usernameEl.textContent = bot.name || (fleetBots.length ? `${fleetBots.length} Connected Bots` : 'No Bot Connected');
+      usernameEl.textContent = fleetBots.length ? `${fleetBots.length} Connected Bots` : 'No Bot Connected';
     }
   }
 
   if (openBotBtn) {
-    const activeUname = (bot.username || 'Testnot565_bot').replace(/^@/, '');
-    openBotBtn.href = `https://t.me/${escapeHtml(activeUname)}`;
-    openBotBtn.innerHTML = `<i data-lucide="external-link" style="width: 14px; height: 14px;"></i> Open Bot (@${escapeHtml(activeUname)})`;
-    openBotBtn.style.display = 'inline-flex';
+    const activeUname = (bot.username || '').replace(/^@/, '');
+    if (activeUname) {
+      openBotBtn.href = `https://t.me/${escapeHtml(activeUname)}`;
+      openBotBtn.innerHTML = `<i data-lucide="external-link" style="width: 14px; height: 14px;"></i> Open Bot (@${escapeHtml(activeUname)})`;
+      openBotBtn.style.display = 'inline-flex';
+    } else {
+      openBotBtn.style.display = 'none';
+    }
   }
 
   if (idEl) {
     if (fleetBots.length > 1) {
-      idEl.textContent = `Primary: @${bot.username || 'Testnot565_bot'} (ID: ${bot.id || '8869143190'}) · ${fleetBots.length} Bots Managed in Fleet`;
+      idEl.textContent = `Primary: @${bot.username || 'None'} (ID: ${bot.id || 'N/A'}) · ${fleetBots.length} Bots Managed in Fleet`;
     } else {
       idEl.textContent = bot.id ? `Bot ID: ${bot.id} · Token: ${bot.maskedToken || '***'} (${bot.source === 'database' || bot.source === 'hot_swap' ? 'Dynamic Hot-Swap' : 'Active'})` : 'No Active Bot Configured';
     }
@@ -8037,7 +8042,7 @@ function renderTelegramUsersTableList(users = [], filter = '') {
 
 
 function renderTelegramBotsFleetCards(bots = []) {
-  const fleet = (Array.isArray(bots) && bots.length) ? bots : [_tgBotData.bot].filter(Boolean);
+  const fleet = (Array.isArray(bots) && bots.length) ? bots : ([_tgBotData.bot].filter(b => b && (b.id || b.username)));
   if (!fleet.length) {
     return `
       <div style="padding: 30px; text-align: center; color: var(--muted);">
@@ -8183,7 +8188,7 @@ function renderTelegramAdminsCards(admins = []) {
           };
         }
 
-        const activeBotUname = (_tgBotData.bot?.username || 'Testnot565_bot').replace(/^@/, '');
+        const activeBotUname = (_tgBotData.bot?.username || '').replace(/^@/, '');
         const rawName = profile.name || cleanId;
         const nameParts = rawName.split(/\s+/).filter(Boolean);
         const initials = nameParts.length >= 2 
@@ -8405,9 +8410,9 @@ function renderTelegramBotPageView(data = {}) {
             <button class="btn btn-ghost" type="button" data-action="test-tg-bot" title="Send a test ping alert to all Admins" style="font-size: 12.5px; padding: 9px 16px; border-radius: 10px; background: rgba(99,102,241,0.12); border: 1px solid rgba(99,102,241,0.3); color: #a5b4fc; backdrop-filter: blur(10px); display: inline-flex; align-items: center; gap: 6px; transition: all 0.2s ease;">
               <i data-lucide="send" style="width: 14px; height: 14px; color: #818cf8;"></i> Test Ping Admins
             </button>
-            <a class="btn btn-primary" id="tgOpenLiveBotBtn" href="https://t.me/${escapeHtml(bot.username || 'Testnot565_bot')}" target="_blank" style="font-size: 12.5px; padding: 9px 18px; border-radius: 10px; background: linear-gradient(135deg, #0284c7, #38bdf8) !important; border: 1px solid rgba(56,189,248,0.4) !important; color: white !important; display: inline-flex; align-items: center; gap: 7px; box-shadow: 0 4px 16px rgba(2, 132, 199, 0.4); font-weight: 700; transition: all 0.2s ease;">
-              <i data-lucide="external-link" style="width: 14px; height: 14px;"></i> Open Bot (@${escapeHtml(bot.username || 'Testnot565_bot')})
-            </a>
+            ${bot.username ? `<a class="btn btn-primary" id="tgOpenLiveBotBtn" href="https://t.me/${escapeHtml(bot.username.replace(/^@/, ''))}" target="_blank" style="font-size: 12.5px; padding: 9px 18px; border-radius: 10px; background: linear-gradient(135deg, #0284c7, #38bdf8) !important; border: 1px solid rgba(56,189,248,0.4) !important; color: white !important; display: inline-flex; align-items: center; gap: 7px; box-shadow: 0 4px 16px rgba(2, 132, 199, 0.4); font-weight: 700; transition: all 0.2s ease;">
+              <i data-lucide="external-link" style="width: 14px; height: 14px;"></i> Open Bot (@${escapeHtml(bot.username.replace(/^@/, ''))})
+            </a>` : ''}
           </div>
         </div>
 
@@ -8425,7 +8430,7 @@ function renderTelegramBotPageView(data = {}) {
             <div id="tgActiveBotUsername" style="font-size: 18px; font-weight: 800; color: #38bdf8; display: flex; align-items: center; gap: 6px;">
               <span>${bots.length} Connected Bots</span>
             </div>
-            <small id="tgActiveBotId" style="display: block; color: var(--muted); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Active: @${escapeHtml(bot.username || 'Testnot565_bot')} · Multi-Bot Live</small>
+            <small id="tgActiveBotId" style="display: block; color: var(--muted); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${bot.username ? `Active: @${escapeHtml(bot.username.replace(/^@/, ''))} · Multi-Bot Live` : 'No Bot Active · Connect Bot Below'}</small>
           </div>
 
           <!-- Metric 2: Webhook Delivery -->
@@ -14397,8 +14402,9 @@ function attachGlobalHandlers() {
             const unameStr = d.user.username ? ` (@${d.user.username})` : '';
             badge.innerHTML = `<span style="color: #10b981; font-weight: 700;"><i data-lucide="check-circle" style="width:13px;height:13px;vertical-align:-2px;margin-right:3px;"></i> Verified Telegram User: <strong>${escapeHtml(d.user.name)}</strong>${escapeHtml(unameStr)}</span>`;
           } else {
-            const activeBot = (_tgBotData.bot?.username || 'Testnot565_bot').replace(/^@/, '');
-            badge.innerHTML = `<span style="color: #fbbf24;"><i data-lucide="alert-circle" style="width:13px;height:13px;vertical-align:-2px;margin-right:3px;"></i> Telegram bot ko yeh ID abhi nahi mili. User ko bole ki bot (@${escapeHtml(activeBot)}) me <strong>START</strong> dabayein, taaki Telegram se unka real name & username auto-fetch ho sake.</span>`;
+            const activeBot = (_tgBotData.bot?.username || '').replace(/^@/, '');
+            const botLabel = activeBot ? `@${escapeHtml(activeBot)}` : 'connected bot';
+            badge.innerHTML = `<span style="color: #fbbf24;"><i data-lucide="alert-circle" style="width:13px;height:13px;vertical-align:-2px;margin-right:3px;"></i> Telegram bot ko yeh ID abhi nahi mili. User ko bole ki ${botLabel} me <strong>START</strong> dabayein, taaki Telegram se unka real name & username auto-fetch ho sake.</span>`;
           }
           if (typeof lucide !== 'undefined') lucide.createIcons();
         } catch (_) {

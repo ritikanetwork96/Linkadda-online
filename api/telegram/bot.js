@@ -37,6 +37,38 @@ export function getAppUrl(req = null) {
   return base.replace(/\/+$/, '');
 }
 
+
+export function getSupportContact(targetBot = null) {
+  try {
+    const store = readBotStore();
+    if (store.adminProfiles && typeof store.adminProfiles === 'object') {
+      for (const p of Object.values(store.adminProfiles)) {
+        if (p && p.username && !p.username.toLowerCase().endsWith('_bot')) {
+          const u = p.username.replace('@', '');
+          return {
+            username: u,
+            url: `https://t.me/${u}`,
+            label: `Support Desk (@${u})`
+          };
+        }
+      }
+    }
+    if (targetBot && targetBot.username) {
+      const u = targetBot.username.replace('@', '');
+      return {
+        username: u,
+        url: `https://t.me/${u}`,
+        label: `Support Desk (@${u})`
+      };
+    }
+  } catch (_) {}
+  return {
+    username: 'Support Desk',
+    url: 'https://linkadda-online.onrender.com',
+    label: 'Support Desk'
+  };
+}
+
 function getSupabaseConfig() {
   const url = (process.env.SUPABASE_URL || 'https://mkttxqwpbostzmfygpzq.supabase.co').replace(/\/+$/, '');
   let key = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
@@ -293,8 +325,8 @@ export async function saveConnectedBot(botData) {
   const formatted = formatBotRecord(botData);
   if (!formatted || !formatted.token) throw new Error('Invalid bot data or token missing');
   
-  const existingKeys = Object.keys(store.bots);
-  const isFirstBot = existingKeys.length === 0;
+  const existingBots = Object.values(store.bots || {}).filter(b => b && (b.botId || b.id));
+  const isFirstBot = existingBots.length === 0 || !existingBots.some(b => b.isPrimary);
   if (isFirstBot) {
     formatted.isPrimary = true;
   }
@@ -582,19 +614,17 @@ export async function addAdminChatId(chatId, label = '', assignedBotId = 'all', 
     welcomeSent = Boolean(res?.ok);
   } catch (_) {}
 
-  (async () => {
-    try {
-      const { url, key } = getSupabaseConfig();
-      await fetch(`${url}/rest/v1/site_settings`, {
-        method: 'POST',
-        headers: { 'apikey': key, 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates' },
-        body: JSON.stringify([
-          { key: 'tg_admin_chat_ids', value: store.admins, updated_at: new Date().toISOString() },
-          { key: 'tg_admin_profiles', value: store.adminProfiles, updated_at: new Date().toISOString() }
-        ])
-      });
-    } catch (_) {}
-  })();
+  try {
+    const { url, key } = getSupabaseConfig();
+    await fetch(`${url}/rest/v1/site_settings`, {
+      method: 'POST',
+      headers: { 'apikey': key, 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates' },
+      body: JSON.stringify([
+        { key: 'tg_admin_chat_ids', value: store.admins, updated_at: new Date().toISOString() },
+        { key: 'tg_admin_profiles', value: store.adminProfiles || {}, updated_at: new Date().toISOString() }
+      ])
+    });
+  } catch (_) {}
 
   return { ok: true, admins: getAdminChatIds(), adminProfiles: store.adminProfiles, admin: store.adminProfiles[cleanId], welcomeSent };
 }
@@ -610,19 +640,17 @@ export async function removeAdminChatId(chatId) {
     writeBotStore(store);
   }
 
-  (async () => {
-    try {
-      const { url, key } = getSupabaseConfig();
-      await fetch(`${url}/rest/v1/site_settings`, {
-        method: 'POST',
-        headers: { 'apikey': key, 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates' },
-        body: JSON.stringify([
-          { key: 'tg_admin_chat_ids', value: store.admins, updated_at: new Date().toISOString() },
-          { key: 'tg_admin_profiles', value: store.adminProfiles || {}, updated_at: new Date().toISOString() }
-        ])
-      });
-    } catch (_) {}
-  })();
+  try {
+    const { url, key } = getSupabaseConfig();
+    await fetch(`${url}/rest/v1/site_settings`, {
+      method: 'POST',
+      headers: { 'apikey': key, 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates' },
+      body: JSON.stringify([
+        { key: 'tg_admin_chat_ids', value: store.admins, updated_at: new Date().toISOString() },
+        { key: 'tg_admin_profiles', value: store.adminProfiles || {}, updated_at: new Date().toISOString() }
+      ])
+    });
+  } catch (_) {}
 
   return { ok: true, admins: getAdminChatIds(), adminProfiles: store.adminProfiles || {} };
 }
@@ -1747,7 +1775,7 @@ export async function notifyAdminsNewOrder(order) {
       `\n⏳ <b>Status: Payment Under Verification</b>\n` +
       `Our admin team has received your payment proof and is verifying the transaction.\n` +
       `<b>Your exclusive VIP content access link will be delivered right here in this chat as soon as verified!</b>\n\n` +
-      `💬 <i>24/7 Priority Support Desk: @TRUSTED_BROTHER1234</i>`;
+      `💬 <i>24/7 Priority Support Desk: ${getSupportContact(originatingBot).text}</i>`;
 
     dispatchPromises.push(
       callTelegram('sendMessage', {
@@ -1776,29 +1804,19 @@ export async function notifyAdminsNewOrder(order) {
 
   let targetAdmins = adminIds.filter(adminId => {
     const adminProf = store.adminProfiles?.[String(adminId)] || {};
-    if (adminProf.assignedBotId && adminProf.assignedBotId !== 'all') {
-      const assignedTarget = String(adminProf.assignedBotId).toLowerCase().replace('@', '');
-      const ordTarget = String(originatingBot.botId || originatingBot.id || '').toLowerCase().replace('@', '');
-      const ordUsername = String(originatingBot.username || '').toLowerCase().replace('@', '');
-      return assignedTarget === ordTarget || assignedTarget === ordUsername;
-    }
-    return true;
+    const assigned = String(adminProf.assignedBotId || 'all').toLowerCase().replace('@', '');
+    if (assigned === 'all' || !assigned) return true;
+    if (!originatingBot) return false;
+    const ordTarget = String(originatingBot.botId || originatingBot.id || '').toLowerCase().replace('@', '');
+    const ordUsername = String(originatingBot.username || '').toLowerCase().replace('@', '');
+    return assigned === ordTarget || assigned === ordUsername;
   });
-  if (targetAdmins.length === 0) targetAdmins = adminIds;
-
-  // Build ordered list of candidate fleet bots to reach each admin:
-  // 1) originatingBot (maintains context if admin started this bot)
-  // 2) primaryBot (high probability admin has active chat with primary bot)
-  // 3) any remaining active fleet bots
-  const candidateBots = [];
-  if (originatingBot && originatingBot.token) candidateBots.push(originatingBot);
-  if (primaryBot && primaryBot.token && (!originatingBot || primaryBot.token !== originatingBot.token)) {
-    candidateBots.push(primaryBot);
-  }
-  for (const b of allBots) {
-    if (b && b.token && b.status === 'active' && !candidateBots.some(cb => cb.token === b.token)) {
-      candidateBots.push(b);
-    }
+  if (targetAdmins.length === 0) {
+    targetAdmins = adminIds.filter(adminId => {
+      const adminProf = store.adminProfiles?.[String(adminId)] || {};
+      const assigned = String(adminProf.assignedBotId || 'all').toLowerCase();
+      return assigned === 'all' || !assigned;
+    });
   }
 
   for (const adminId of targetAdmins) {
@@ -1807,6 +1825,20 @@ export async function notifyAdminsNewOrder(order) {
       let isPhoto = false;
       let effectiveToken = null;
       let effectiveBot = null;
+
+      const adminProf = store.adminProfiles?.[String(adminId)] || {};
+      const assigned = String(adminProf.assignedBotId || 'all').toLowerCase().replace('@', '');
+
+      // Strict targeted bot routing:
+      // If admin is assigned to a specific bot, use ONLY that bot.
+      // If admin is assigned to 'all': try originatingBot first; if delivery fails, try primaryBot.
+      const candidateBots = [];
+      if (originatingBot && originatingBot.token) {
+        candidateBots.push(originatingBot);
+      }
+      if (assigned === 'all' && primaryBot && primaryBot.token && (!originatingBot || primaryBot.token !== originatingBot.token)) {
+        candidateBots.push(primaryBot);
+      }
 
       for (const botCandidate of candidateBots) {
         const curToken = botCandidate.token;
@@ -2174,8 +2206,9 @@ async function processOrderApproval(orderId, adminUser, triggerMessage = null) {
         `⏳ <b>Security Auto-Delete:</b>\n` +
         `• Message automatically deletes <b>2 minutes</b> after you open/read it.\n` +
         `• If unread, it automatically self-destructs after <b>3 hours</b>.\n\n` +
-        `💬 <b>24/7 Lifetime Support:</b> @TRUSTED_BROTHER1234`;
+        `💬 <b>24/7 Lifetime Support:</b> ${getSupportContact(deliveryBot).text}`;
 
+      const sup = getSupportContact(deliveryBot);
       let sendRes = await callTelegram('sendMessage', {
         chat_id: String(customerTgId),
         text: approvalText,
@@ -2184,7 +2217,7 @@ async function processOrderApproval(orderId, adminUser, triggerMessage = null) {
           inline_keyboard: [
             [{ text: '🚀 Open VIP Access Link', url: accessUrl }],
             [{ text: '🛍️ Open Store', web_app: { url: storeWebUrl } }],
-            [{ text: '💬 Support Desk (@TRUSTED_BROTHER1234)', url: 'https://t.me/TRUSTED_BROTHER1234' }]
+            [{ text: `💬 ${sup.label}`, url: sup.url }]
           ]
         }
       }, deliveryToken);
@@ -2196,16 +2229,24 @@ async function processOrderApproval(orderId, adminUser, triggerMessage = null) {
         });
       }
     } else {
+      const sup = getSupportContact(deliveryBot);
+      const claimText = sup.username !== 'Support Desk' 
+        ? `To claim your VIP content access, please message <b>Admin @${sup.username}</b> on Telegram below:`
+        : `To claim your VIP content access, please message our support team below:`;
+      const claimUrl = sup.url.startsWith('https://t.me/')
+        ? `${sup.url}?text=${encodeURIComponent(`Hi Admin, my order #${orderId} is approved. Please provide my Telegram access link.`)}`
+        : sup.url;
+
       await callTelegram('sendMessage', {
         chat_id: String(customerTgId),
         text: 
           `🎉 <b>Congratulations! Your Order #${orderId} has been Approved!</b>\n\n` +
           `📦 <b>Product:</b> <b>${escapeTelegramHtml(productTitle)}</b>\n\n` +
-          `To claim your VIP content access, please message <b>Admin @TRUSTED_BROTHER1234</b> on Telegram below:`,
+          claimText,
         parse_mode: 'HTML',
         reply_markup: {
           inline_keyboard: [
-            [{ text: '💬 Get Link from Admin (@TRUSTED_BROTHER1234)', url: `https://t.me/TRUSTED_BROTHER1234?text=${encodeURIComponent(`Hi Admin, my order #${orderId} is approved. Please provide my Telegram access link.`)}` }],
+            [{ text: `💬 Get Link from Admin (${sup.text})`, url: claimUrl }],
             [{ text: '🛍️ Open Store', web_app: { url: storeWebUrl } }]
           ]
         }
@@ -2326,6 +2367,10 @@ async function processOrderRejection(orderId, adminUser, triggerMessage = null) 
   // Notify customer on Telegram via originating bot
   const customerTgId = order?.telegram_user_id || order?.data?.telegramUserId || order?.telegramUserId;
   if (customerTgId) {
+    const sup = getSupportContact(deliveryBot);
+    const rejSupportUrl = sup.url.startsWith('https://t.me/')
+      ? `${sup.url}?text=${encodeURIComponent(`Hi Admin, my order #${orderId} was rejected. Here is my payment receipt.`)}`
+      : sup.url;
     await callTelegram('sendMessage', {
       chat_id: String(customerTgId),
       text: 
@@ -2335,7 +2380,7 @@ async function processOrderRejection(orderId, adminUser, triggerMessage = null) 
       parse_mode: 'HTML',
       reply_markup: {
         inline_keyboard: [
-          [{ text: '💬 Contact Support (@TRUSTED_BROTHER1234)', url: `https://t.me/TRUSTED_BROTHER1234?text=${encodeURIComponent(`Hi Admin, my order #${orderId} was rejected. Here is my payment receipt.`)}` }]
+          [{ text: `💬 Contact Support (${sup.text})`, url: rejSupportUrl }]
         ]
       }
     }, deliveryToken).catch(() => {});
@@ -2462,7 +2507,7 @@ export async function broadcastNewProduct(rawProduct, targetBotIds = ['all']) {
       ],
       [
         { text: '🛍️ Open VIP Store', web_app: { url: tgAppUrl } },
-        { text: '💬 Support Desk (@TRUSTED_BROTHER1234)', url: 'https://t.me/TRUSTED_BROTHER1234' }
+        { text: '💬 Support Desk (@support)', url: 'https://t.me' }
       ]
     ]
   };
@@ -2502,7 +2547,7 @@ export async function broadcastNewProduct(rawProduct, targetBotIds = ['all']) {
         [{ text: '⚡ Buy Now & Unlock Access', web_app: { url: curCheckoutUrl } }],
         [
           { text: '🛍️ Open VIP Store', web_app: { url: curStoreWebUrl } },
-          { text: '💬 Support Desk (@TRUSTED_BROTHER1234)', url: 'https://t.me/TRUSTED_BROTHER1234' }
+          { text: '💬 Support Desk (@support)', url: 'https://t.me' }
         ]
       ]
     };
@@ -3688,7 +3733,9 @@ export default async function handler(req, res) {
                            (msg.chat?.type === 'private' && Boolean(text));
 
         if (fromUser) {
-          await recordBotUser(fromUser, isStartCmd ? 'bot_start' : 'bot_chat', currentBotId).catch(() => {});
+          recordBotUser(fromUser, isStartCmd ? 'bot_start' : 'bot_chat', currentBotId).catch(e => {
+            console.warn('[recordBotUser background note]:', e.message);
+          });
 
           // If sender is an already authorized admin from Admin Panel, update active status and ensure real name/username profile
           const fromIdStr = String(fromUser.id);
@@ -3764,7 +3811,7 @@ export default async function handler(req, res) {
                   [{ text: '👀 View Product (Photos & Demo)', web_app: { url: productViewUrl } }],
                   [{ text: '⚡ Buy Now & Unlock Access', web_app: { url: checkoutUrl } }],
                   [{ text: '🛍️ Open VIP Store', web_app: { url: storeWebUrl } }],
-                  [{ text: '💬 Support Desk (@TRUSTED_BROTHER1234)', url: 'https://t.me/TRUSTED_BROTHER1234' }]
+                  [{ text: `💬 ${getSupportContact(receivingBot).label}`, url: getSupportContact(receivingBot).url }]
                 ]
               }
             }, currentToken);
@@ -3790,7 +3837,7 @@ export default async function handler(req, res) {
             reply_markup: {
               inline_keyboard: [
                 [{ text: '🛍️ Open Store (VIP Content)', web_app: { url: storeWebUrl } }],
-                [{ text: '💬 Support Desk (@TRUSTED_BROTHER1234)', url: 'https://t.me/TRUSTED_BROTHER1234' }]
+                [{ text: `💬 ${getSupportContact(receivingBot).label}`, url: getSupportContact(receivingBot).url }]
               ]
             }
           }, currentToken);
@@ -3824,7 +3871,7 @@ export default async function handler(req, res) {
           if (!channelLink) {
             await callTelegram('answerCallbackQuery', {
               callback_query_id: cq.id,
-              text: '⚠️ Link expired or not found. Please contact support @TRUSTED_BROTHER1234.',
+              text: '⚠️ Link expired or not found. Please contact support @support.',
               show_alert: true
             }, currentToken);
             return res.status(200).json({ ok: true });
@@ -3844,7 +3891,7 @@ export default async function handler(req, res) {
             `👉 <b>${channelLink}</b>\n\n` +
             `⏳ <b>SELF-DESTRUCT ACTIVE:</b>\n` +
             `This message will be <b>permanently deleted in 2 minutes</b> from this chat!\n\n` +
-            `💬 24/7 Lifetime Replacement: @TRUSTED_BROTHER1234`;
+            `💬 24/7 Lifetime Replacement: @support`;
 
           if (cq.message) {
             await callTelegram('editMessageText', {
@@ -3855,7 +3902,7 @@ export default async function handler(req, res) {
               reply_markup: {
                 inline_keyboard: [
                   [{ text: '🚀 Join / Access VIP Link Now', url: channelLink }],
-                  [{ text: '💬 Support Desk (@TRUSTED_BROTHER1234)', url: 'https://t.me/TRUSTED_BROTHER1234' }]
+                  [{ text: `💬 ${getSupportContact(receivingBot).label}`, url: getSupportContact(receivingBot).url }]
                 ]
               }
             }, currentToken);
