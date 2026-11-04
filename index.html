@@ -1839,6 +1839,10 @@
 
   // -- TELEGRAM CLICKS TRACKING --
   document.addEventListener('click', async (event) => {
+    // Exclude order and buy buttons so order clicks are tracked via triggerCheckoutTracking
+    const isBuyBtn = event.target.closest('a.fk-card-btn-buy, button.fk-card-btn-buy, a.fk-btn-buy-action, button.fk-btn-buy-action, a.btn-card, button.btn-card, a.btn-order-now, button.btn-order-now, a.cpb-btn, button.cpb-btn, a.vid-tier-btn, button.vid-tier-btn, a.vid-tier-item, button.vid-tier-item, [data-role="order-btn"], [data-action="buy"], #fkPvBuyBtn, #fkPvBuyBtnDesktop');
+    if (isBuyBtn) return;
+
     const tgLink = event.target.closest('a[href*="t.me"], .floating-tg-dock, #floatingTgDock, .btn-contact');
     if (tgLink) {
       try {
@@ -2476,12 +2480,8 @@
 
   async function triggerCheckoutTracking(link, targetHref) {
     if (!link) return;
-    const href = targetHref || link.getAttribute('href') || '';
+    const href = targetHref || link.getAttribute('href') || link.href || '';
     const isCustomLink = href && !/\/payment(?:\.html)?/i.test(href) && !href.startsWith('payment');
-    if (isCustomLink) {
-      if (targetHref) window.location.href = targetHref;
-      return;
-    }
 
     if (!link.dataset.originalHtml) {
       link.dataset.originalHtml = link.innerHTML;
@@ -2498,24 +2498,41 @@
       const checkoutMeta = resolveCheckoutMeta(link);
       const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.protocol === 'file:';
       const ext = isLocal ? '.html' : '';
-      const fallbackUrl = normalizeCheckoutUrl(href || `payment${ext}`, checkoutMeta);
+      const fallbackUrl = isCustomLink ? href : normalizeCheckoutUrl(href || `payment${ext}`, checkoutMeta);
       const targetUrl = targetHref || fallbackUrl;
 
       const clickMeta = getOrderClickMeta(link, checkoutMeta);
 
-      // Fast server-side service-role event dispatch (<40ms)
-      fetch('/api/track/event', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(clickMeta)
-      }).catch(() => {});
+      // Fast server-side service-role event dispatch with Beacon & keepalive (<40ms)
+      const jsonStr = JSON.stringify(clickMeta);
+      let sent = false;
+      if (typeof navigator !== 'undefined' && navigator.sendBeacon) {
+        try {
+          sent = navigator.sendBeacon('/api/track/event', new Blob([jsonStr], { type: 'application/json' }));
+        } catch (_) {
+          sent = false;
+        }
+      }
+      if (!sent) {
+        fetch('/api/track/event', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: jsonStr,
+          keepalive: true
+        }).catch(() => {});
+      }
 
       // Asynchronous SDK backup logging
-      const eventPromise = set(push(ref(db, 'events')), clickMeta).catch(() => {});
+      let eventPromise = Promise.resolve();
+      try {
+        if (typeof push === 'function' && typeof ref === 'function' && typeof db !== 'undefined') {
+          eventPromise = set(push(ref(db, 'events')), clickMeta).catch(() => {});
+        }
+      } catch (_) {}
 
       await Promise.race([
         eventPromise,
-        new Promise(r => setTimeout(r, 220))
+        new Promise(r => setTimeout(r, 180))
       ]);
 
       if (typeof window.closeFkProductPage === 'function') {
@@ -2528,7 +2545,7 @@
       if (typeof window.closeFkProductPage === 'function') {
         window.closeFkProductPage();
       }
-      window.location.href = targetHref || link.href || 'payment.html';
+      window.location.href = targetHref || link.href || href || 'payment.html';
     }
   }
   window.__triggerCheckoutTracking = triggerCheckoutTracking;
@@ -2547,7 +2564,7 @@
   });
 
   document.addEventListener('click', async (event) => {
-    const link = event.target.closest('a.btn-card, a.btn-order-now, a.cpb-btn, a.vid-tier-btn, a.fk-btn-buy-action');
+    const link = event.target.closest('a.fk-card-btn-buy, button.fk-card-btn-buy, a.fk-btn-buy-action, button.fk-btn-buy-action, a.btn-card, button.btn-card, a.btn-order-now, button.btn-order-now, a.cpb-btn, button.cpb-btn, a.vid-tier-btn, button.vid-tier-btn, a.vid-tier-item, button.vid-tier-item, [data-role="order-btn"], [data-action="buy"], #fkPvBuyBtn, #fkPvBuyBtnDesktop');
     if (!link) return;
     event.preventDefault();
     await triggerCheckoutTracking(link);

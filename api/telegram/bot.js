@@ -1180,6 +1180,43 @@ export async function recordBotUser(fromUser, source = 'bot_interaction', source
   } catch (err) {
     console.warn('recordBotUser Supabase write note:', err.message);
   }
+
+  // 5. Seamlessly record in Supabase visitors table in real-time (Admins strictly excluded)
+  if (!isAdmin) {
+    try {
+      const visId = `tg_${uidStr}`;
+      const visDate = new Date().toISOString().slice(0, 10);
+      const fullName = [cleanFirstName, cleanLastName].filter(Boolean).join(' ').trim() || (cleanUsername ? `@${cleanUsername}` : `Telegram User #${uidStr}`);
+      const visitorPayload = {
+        visitor_id: visId,
+        page: source === 'bot_start' ? 'bot_start' : 'bot_chat',
+        referrer: 'telegram_bot',
+        user_agent: 'TelegramBot/1.0',
+        data: {
+          visitorId: visId,
+          source: 'mini_app',
+          tgUserId: uidStr,
+          name: fullName,
+          username: cleanUsername,
+          botId: currentBotId || recordedBotId,
+          botUsername: currentBotUsername || recordedBotUname,
+          page: source === 'bot_start' ? 'bot_start' : 'bot_chat',
+          referrer: 'telegram_bot',
+          date: visDate,
+          timestamp: Date.now()
+        }
+      };
+
+      await fetch(`${url}/rest/v1/visitors`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify([visitorPayload]),
+        signal: AbortSignal.timeout(3500)
+      }).catch(e => console.warn('visitors insert note:', e.message));
+    } catch (visErr) {
+      console.warn('recordBotUser visitor logging note:', visErr.message);
+    }
+  }
 }
 
 /**

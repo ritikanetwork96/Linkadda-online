@@ -529,7 +529,7 @@ export async function syncAllFromFirebase(force = false) {
             return { key, data };
           }
           if (key === 'visitors' || key === 'events') {
-            const res = await fetch(`${supaUrl}/rest/v1/${key}?select=*&order=created_at.desc&limit=250`, { headers: reqHeaders, cache: 'no-store' });
+            const res = await fetch(`${supaUrl}/rest/v1/${key}?select=*&order=created_at.desc&limit=1000`, { headers: reqHeaders, cache: 'no-store' });
             if (!res.ok) return null;
             const rows = await res.json();
             const data = {};
@@ -1025,37 +1025,109 @@ if (typeof window !== 'undefined') {
     }
   });
 
-  // 2. High-speed 4s lightweight orders sync (zero lag, only re-renders on real changes)
+  // 2. High-speed 4s lightweight orders, events & visitors sync (zero lag, only re-renders on real changes)
   setInterval(async () => {
     try {
       const supaUrl = 'https://mkttxqwpbostzmfygpzq.supabase.co';
       const serviceKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1rdHR4cXdwYm9zdHptZnlncHpxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MzM4NzU3MCwiZXhwIjoyMTA4OTYzNTcwfQ.smaw1XT43DLymk4Yx7kw3ReOVGRLflDVVqMHs59GDPQ';
-      const res = await fetch(`${supaUrl}/rest/v1/orders?select=*&order=created_at.desc&limit=50`, {
-        headers: { 'apikey': serviceKey, 'Authorization': `Bearer ${serviceKey}` },
-        cache: 'no-store',
-        signal: AbortSignal.timeout(3500)
-      });
-      if (!res.ok) return;
-      const rows = await res.json();
-      if (!Array.isArray(rows) || !rows.length) return;
-      let hasOrderChange = false;
-      if (!STORE.orders || typeof STORE.orders !== 'object') STORE.orders = {};
-      rows.forEach(r => {
-        const d = { ...(r.data || {}) };
-        if (r.status === 'approved' || r.status === 'rejected' || r.status === 'paid' || r.status === 'completed') {
-          d.status = r.status;
-          d.orderStatus = r.status;
-          d.paymentStatus = r.status;
-          d.verified = r.status === 'approved' || r.status === 'paid';
-          d.isPaid = r.status === 'approved' || r.status === 'paid';
+      const headers = { 'apikey': serviceKey, 'Authorization': `Bearer ${serviceKey}` };
+
+      const [ordersRes, eventsRes, visitorsRes] = await Promise.allSettled([
+        fetch(`${supaUrl}/rest/v1/orders?select=*&order=created_at.desc&limit=50`, { headers, cache: 'no-store', signal: AbortSignal.timeout(3500) }),
+        fetch(`${supaUrl}/rest/v1/events?select=*&order=created_at.desc&limit=100`, { headers, cache: 'no-store', signal: AbortSignal.timeout(3500) }),
+        fetch(`${supaUrl}/rest/v1/visitors?select=*&order=created_at.desc&limit=100`, { headers, cache: 'no-store', signal: AbortSignal.timeout(3500) })
+      ]);
+
+      let hasStateChange = false;
+
+      // Realtime Orders
+      if (ordersRes.status === 'fulfilled' && ordersRes.value.ok) {
+        const rows = await ordersRes.value.json().catch(() => []);
+        if (Array.isArray(rows) && rows.length) {
+          if (!STORE.orders || typeof STORE.orders !== 'object') STORE.orders = {};
+          rows.forEach(r => {
+            const d = { ...(r.data || {}) };
+            if (r.status === 'approved' || r.status === 'rejected' || r.status === 'paid' || r.status === 'completed') {
+              d.status = r.status;
+              d.orderStatus = r.status;
+              d.paymentStatus = r.status;
+              d.verified = r.status === 'approved' || r.status === 'paid';
+              d.isPaid = r.status === 'approved' || r.status === 'paid';
+            }
+            const existing = STORE.orders[r.id];
+            if (!existing || existing.status !== r.status || existing.updated_at !== r.updated_at) {
+              hasStateChange = true;
+            }
+            STORE.orders[r.id] = { ...d, ...r, id: r.id };
+          });
         }
-        const existing = STORE.orders[r.id];
-        if (!existing || existing.status !== r.status || existing.updated_at !== r.updated_at) {
-          hasOrderChange = true;
+      }
+
+      // Realtime Order Clicks & Events
+      if (eventsRes.status === 'fulfilled' && eventsRes.value.ok) {
+        const rows = await eventsRes.value.json().catch(() => []);
+        if (Array.isArray(rows) && rows.length) {
+          if (!STORE.events || typeof STORE.events !== 'object') STORE.events = {};
+          rows.forEach(r => {
+            const p = (r.data && typeof r.data === 'object') ? r.data : {};
+            const existing = STORE.events[r.id];
+            if (!existing) {
+              hasStateChange = true;
+            }
+            STORE.events[r.id] = {
+              ...p,
+              ...r,
+              id: r.id,
+              type: r.event_type || p.type || p.event_type || 'order_click',
+              eventType: r.event_type || p.eventType || p.event_type || 'order_click',
+              productId: r.product_id || p.productId || p.product_id || null,
+              productTitle: r.product_title || p.productTitle || p.product_title || p.title || null,
+              visitorId: r.visitor_id || p.visitorId || p.visitor_id || null,
+              source: p.source || (p.isTg ? 'mini_app' : 'website'),
+              name: p.name || p.tgName || '',
+              username: p.username || p.tgUsername || '',
+              botId: p.botId || null,
+              botUsername: p.botUsername || null,
+              priceINR: p.priceINR ?? p.price_inr ?? r.price_inr ?? null,
+              priceUSD: p.priceUSD ?? p.price_usd ?? r.price_usd ?? null,
+              timestamp: p.timestamp || (r.created_at ? new Date(r.created_at).getTime() : Date.now()),
+              page: p.page || 'index'
+            };
+          });
         }
-        STORE.orders[r.id] = { ...d, ...r, id: r.id };
-      });
-      if (hasOrderChange) {
+      }
+
+      // Realtime Visitors
+      if (visitorsRes.status === 'fulfilled' && visitorsRes.value.ok) {
+        const rows = await visitorsRes.value.json().catch(() => []);
+        if (Array.isArray(rows) && rows.length) {
+          if (!STORE.visitors || typeof STORE.visitors !== 'object') STORE.visitors = {};
+          rows.forEach(r => {
+            const p = (r.data && typeof r.data === 'object') ? r.data : {};
+            const existing = STORE.visitors[r.id];
+            if (!existing) {
+              hasStateChange = true;
+            }
+            STORE.visitors[r.id] = {
+              ...p,
+              ...r,
+              id: r.id,
+              visitorId: p.visitorId || r.visitor_id || p.visitor_id || r.id,
+              source: p.source || (p.isTg ? 'mini_app' : 'website'),
+              name: p.name || p.tgName || '',
+              username: p.username || p.tgUsername || '',
+              tgUserId: p.tgUserId || null,
+              botId: p.botId || null,
+              botUsername: p.botUsername || null,
+              timestamp: p.timestamp || (r.created_at ? new Date(r.created_at).getTime() : Date.now()),
+              page: p.page || r.page || 'index',
+              referrer: p.referrer || r.referrer || 'direct'
+            };
+          });
+        }
+      }
+
+      if (hasStateChange) {
         emitImmediate();
       }
     } catch (_) {}

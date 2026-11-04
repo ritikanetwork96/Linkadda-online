@@ -507,7 +507,7 @@ export function onValue(refObj, callback) {
   // Static catalog and settings only change when the admin saves changes
   const { table } = parsePath(refObj.path);
   let timer = null;
-  if (table === 'orders' || table === 'visitors') {
+  if (table === 'orders' || table === 'visitors' || table === 'events') {
     timer = setInterval(() => {
       if (typeof document !== 'undefined' && document.hidden) return;
       get(refObj).then(snap => {

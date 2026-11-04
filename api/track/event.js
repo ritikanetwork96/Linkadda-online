@@ -33,7 +33,12 @@ function getSupabaseConfig() {
 export default async function handler(req, res) {
   if (handleCors(req, res, 'POST, GET, OPTIONS')) return;
 
-  const data = (req.method === 'POST' ? req.body : req.query) || {};
+  let data = (req.method === 'POST' ? req.body : req.query) || {};
+  if (typeof data === 'string') {
+    try {
+      data = JSON.parse(data);
+    } catch (_) {}
+  }
   const eventType = String(data.event_type || data.eventType || data.type || 'order_click').trim();
   const productId = data.product_id || data.productId || null;
   const productTitle = data.product_title || data.productTitle || data.name || data.title || null;

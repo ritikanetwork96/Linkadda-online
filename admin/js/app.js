@@ -3550,7 +3550,7 @@ function summarizeDashboard(range = ui.dashboardRange) {
   const productsList = listCollection('products');
   const digest = `${range}_${ordersList.length}_${visitorsList.length}_${eventsList.length}_${productsList.length}`;
   const now = Date.now();
-  if (_memoDashboardSummary && _memoDashboardKey === digest && (now - _memoDashboardTime < 8000)) {
+  if (_memoDashboardSummary && _memoDashboardKey === digest && (now - _memoDashboardTime < 1500)) {
     return _memoDashboardSummary;
   }
 
@@ -3571,10 +3571,11 @@ function summarizeDashboard(range = ui.dashboardRange) {
   const allClicksCount = Math.max(events.filter(clickPredicate).length, stats().clicks || 0);
   const allOrdersCount = Math.max(orders.length, stats().orders || 0);
 
-  // Source segmentation: Website vs Telegram Bot / Mini App
+  // Source segmentation: Website vs Telegram Bot / Mini App (Range Aware)
   let websiteVisitors = 0;
   let miniAppVisitors = 0;
-  visitors.forEach((item) => {
+  const filteredVisitors = isAllRange ? visitors : visitors.filter((item) => isInWindow(recordTimestamp(item), currentWindow.start, currentWindow.end));
+  filteredVisitors.forEach((item) => {
     const s = String(item.source || (item.data && item.data.source) || '').toLowerCase();
     if (s.includes('mini_app') || s.includes('bot') || s.includes('telegram') || item.tgUserId || item.botId || (item.data && (item.data.tgUserId || item.data.botId))) {
       miniAppVisitors++;
@@ -3585,7 +3586,8 @@ function summarizeDashboard(range = ui.dashboardRange) {
 
   let websiteClicks = 0;
   let miniAppClicks = 0;
-  events.filter(clickPredicate).forEach((item) => {
+  const filteredClicks = isAllRange ? events.filter(clickPredicate) : events.filter(clickPredicate).filter((item) => isInWindow(recordTimestamp(item), currentWindow.start, currentWindow.end));
+  filteredClicks.forEach((item) => {
     const s = String(item.source || (item.data && item.data.source) || '').toLowerCase();
     if (s.includes('mini_app') || s.includes('bot') || s.includes('telegram') || item.tgUserId || item.botId || (item.data && (item.data.tgUserId || item.data.botId))) {
       miniAppClicks++;
@@ -3969,6 +3971,7 @@ function doesEventMatchProduct(event = {}, prod = {}, allOrders = []) {
   const eventProdId = String(event.productId || event.product_id || '').trim();
   const prodId = String(prod.id || prod.key || '').trim();
   if (eventProdId && prodId && eventProdId === prodId) return true;
+  if (eventProdId && prod.slug && (eventProdId === prod.slug || eventProdId === String(prod.slug).toLowerCase())) return true;
 
   if (event.href && prodId) {
     try {
@@ -3980,7 +3983,7 @@ function doesEventMatchProduct(event = {}, prod = {}, allOrders = []) {
 
   const norm = (str) => String(str || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
   const prodHaystacks = [prod.title, prod.name, prod.slug].map(norm).filter((s) => s.length >= 2);
-  const eventNeedles = [event.package, event.productName, event.title, event.name, event.label].map(norm).filter((s) => s.length >= 2);
+  const eventNeedles = [event.productTitle, event.product_title, event.package, event.productName, event.title, event.name, event.label].map(norm).filter((s) => s.length >= 2);
 
   for (const needle of eventNeedles) {
     if (['order', 'product', 'buy', 'click', 'event', 'unknown'].includes(needle)) continue;

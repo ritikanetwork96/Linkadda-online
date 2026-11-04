@@ -33,7 +33,12 @@ function getSupabaseConfig() {
 export default async function handler(req, res) {
   if (handleCors(req, res, 'POST, GET, OPTIONS')) return;
 
-  const data = (req.method === 'POST' ? req.body : req.query) || {};
+  let data = (req.method === 'POST' ? req.body : req.query) || {};
+  if (typeof data === 'string') {
+    try {
+      data = JSON.parse(data);
+    } catch (_) {}
+  }
   const visitorId = String(data.visitorId || data.visitor_id || `vis_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`);
   const page = String(data.page || 'index');
   const source = String(data.source || (data.isTg ? 'mini_app' : 'website'));
