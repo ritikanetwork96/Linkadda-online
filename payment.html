@@ -2411,24 +2411,71 @@
 </div><!-- /pay-container -->
 
 <script type="module">
-import { app, auth, db, ref, push, set, get, onValue } from "./supabase-client.js";
+import { app, auth, db, ref, push, set, get, onValue } from "./supabase-client.js?v=20261104_analytics_v47";
 
 // -- TRACK VISITOR SESSION ON PAYMENT CHECKOUT --
-if (!sessionStorage.getItem('visit_tracked')) {
+if (!sessionStorage.getItem('visit_checkout_tracked')) {
   try {
     const todayDateStr = new Date().toISOString().slice(0, 10);
-    const vRef = push(ref(db, 'visitors'));
-    set(vRef, {
+    let tgUser = null;
+    try {
+      if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.user) {
+        tgUser = window.Telegram.WebApp.initDataUnsafe.user;
+      } else {
+        const raw = localStorage.getItem('linkadda_tg_user') || sessionStorage.getItem('linkadda_tg_user');
+        if (raw) tgUser = JSON.parse(raw);
+      }
+    } catch (_) {}
+
+    const qp = new URLSearchParams(window.location.search);
+    const isTg = Boolean(
+      tgUser ||
+      (window.Telegram && window.Telegram.WebApp && (window.Telegram.WebApp.initData || window.Telegram.WebApp.platform)) ||
+      (window.location.search && (window.location.search.indexOf('tgWebApp') !== -1 || window.location.search.indexOf('botId') !== -1))
+    );
+
+    const source = isTg ? 'mini_app' : 'website';
+    const visitorName = tgUser ? [tgUser.first_name, tgUser.last_name].filter(Boolean).join(' ').trim() : (qp.get('tgName') || localStorage.getItem('linkadda_tg_name') || '');
+    const visitorUsername = tgUser ? (tgUser.username || '').replace(/^@/, '') : (qp.get('tgUsername') || localStorage.getItem('linkadda_tg_username') || '').replace(/^@/, '');
+    const tgUserId = tgUser ? String(tgUser.id) : (qp.get('tgUserId') || localStorage.getItem('linkadda_tg_user_id') || null);
+    const botId = qp.get('botId') || localStorage.getItem('linkadda_source_bot_id') || null;
+    const botUsername = qp.get('botUser') || localStorage.getItem('linkadda_source_bot_user') || null;
+    let visId = sessionStorage.getItem('linkadda_vis_id') || localStorage.getItem('linkadda_vis_id');
+    if (!visId) {
+      visId = 'vis_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+      try { sessionStorage.setItem('linkadda_vis_id', visId); } catch (_) {}
+    }
+
+    const payload = {
+      visitorId: visId,
+      visitor_id: visId,
+      page: 'payment_checkout',
+      source,
+      name: visitorName,
+      username: visitorUsername,
+      tgUserId,
+      botId,
+      botUsername,
       date: todayDateStr,
       timestamp: Date.now(),
-      page: 'payment',
       referrer: document.referrer ? (function() { try { return new URL(document.referrer, window.location.origin).hostname; } catch(_) { return 'direct'; } })() : 'direct'
-    }).then(() => {
-      sessionStorage.setItem('visit_tracked', '1');
-    }).catch((err) => {
-      console.warn('Payment visitor logging notice:', err && err.message);
-    });
-  } catch (_) {}
+    };
+
+    fetch('/api/track/visitor', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    }).catch(() => {});
+
+    try {
+      const vRef = push(ref(db, 'visitors'));
+      set(vRef, payload).catch(() => {});
+    } catch (_) {}
+
+    sessionStorage.setItem('visit_checkout_tracked', '1');
+  } catch (err) {
+    console.warn('Payment visitor logging notice:', err && err.message);
+  }
 }
 </script>
 <script>

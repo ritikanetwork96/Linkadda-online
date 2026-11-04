@@ -526,11 +526,52 @@ export async function syncAllFromFirebase(force = false) {
             return { key, data };
           }
           if (key === 'visitors' || key === 'events') {
-            const res = await fetch(`${supaUrl}/rest/v1/${key}?select=*&order=created_at.desc&limit=150`, { headers: reqHeaders, cache: 'no-store' });
+            const res = await fetch(`${supaUrl}/rest/v1/${key}?select=*&order=created_at.desc&limit=250`, { headers: reqHeaders, cache: 'no-store' });
             if (!res.ok) return null;
             const rows = await res.json();
             const data = {};
-            if (Array.isArray(rows)) rows.forEach(r => { data[r.id] = { ...(r.data || {}), ...r, id: r.id }; });
+            if (Array.isArray(rows)) {
+              rows.forEach(r => {
+                const p = (r.data && typeof r.data === 'object') ? r.data : {};
+                if (key === 'visitors') {
+                  data[r.id] = {
+                    ...p,
+                    ...r,
+                    id: r.id,
+                    visitorId: p.visitorId || r.visitor_id || p.visitor_id || r.id,
+                    source: p.source || (p.isTg ? 'mini_app' : 'website'),
+                    name: p.name || p.tgName || '',
+                    username: p.username || p.tgUsername || '',
+                    tgUserId: p.tgUserId || null,
+                    botId: p.botId || null,
+                    botUsername: p.botUsername || null,
+                    timestamp: p.timestamp || (r.created_at ? new Date(r.created_at).getTime() : Date.now()),
+                    page: p.page || r.page || 'index',
+                    referrer: p.referrer || r.referrer || 'direct'
+                  };
+                } else {
+                  data[r.id] = {
+                    ...p,
+                    ...r,
+                    id: r.id,
+                    type: r.event_type || p.type || p.event_type || 'order_click',
+                    eventType: r.event_type || p.eventType || p.event_type || 'order_click',
+                    productId: r.product_id || p.productId || p.product_id || null,
+                    productTitle: r.product_title || p.productTitle || p.product_title || p.title || null,
+                    visitorId: r.visitor_id || p.visitorId || p.visitor_id || null,
+                    source: p.source || (p.isTg ? 'mini_app' : 'website'),
+                    name: p.name || p.tgName || '',
+                    username: p.username || p.tgUsername || '',
+                    botId: p.botId || null,
+                    botUsername: p.botUsername || null,
+                    priceINR: p.priceINR ?? p.price_inr ?? r.price_inr ?? null,
+                    priceUSD: p.priceUSD ?? p.price_usd ?? r.price_usd ?? null,
+                    timestamp: p.timestamp || (r.created_at ? new Date(r.created_at).getTime() : Date.now()),
+                    page: p.page || 'index'
+                  };
+                }
+              });
+            }
             return { key, data };
           }
           const res = await fetch(`${supaUrl}/rest/v1/site_settings?key=eq.${encodeURIComponent(key)}&select=*`, { headers, cache: 'no-store' });

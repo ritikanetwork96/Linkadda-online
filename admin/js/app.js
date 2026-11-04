@@ -3547,14 +3547,38 @@ function summarizeDashboard(range = ui.dashboardRange) {
   const currentWindow = getRangeWindow(range);
   const previousWindow = getRangeWindow(range, 1);
   const clickPredicate = (item) => {
-    const type = String(item.type || '').toLowerCase();
+    if (!item) return false;
+    const type = String(item.type || item.event_type || (item.data && item.data.type) || '').toLowerCase();
     if (type === 'telegram_click' || type === 'review_submission' || type === 'visitor') return false;
-    return type.includes('order') || type.includes('click') || Boolean(item.productId || item.package || item.productName);
+    return type.includes('order') || type.includes('click') || Boolean(item.productId || item.product_id || item.package || item.productName || (item.data && (item.data.productId || item.data.product_id)));
   };
   const isAllRange = range === 'all';
   const allVisitorsCount = Math.max(visitors.length, stats().visitors || 0);
   const allClicksCount = Math.max(events.filter(clickPredicate).length, stats().clicks || 0);
   const allOrdersCount = Math.max(orders.length, stats().orders || 0);
+
+  // Source segmentation: Website vs Telegram Bot / Mini App
+  let websiteVisitors = 0;
+  let miniAppVisitors = 0;
+  visitors.forEach((item) => {
+    const s = String(item.source || (item.data && item.data.source) || '').toLowerCase();
+    if (s.includes('mini_app') || s.includes('bot') || s.includes('telegram') || item.tgUserId || item.botId || (item.data && (item.data.tgUserId || item.data.botId))) {
+      miniAppVisitors++;
+    } else {
+      websiteVisitors++;
+    }
+  });
+
+  let websiteClicks = 0;
+  let miniAppClicks = 0;
+  events.filter(clickPredicate).forEach((item) => {
+    const s = String(item.source || (item.data && item.data.source) || '').toLowerCase();
+    if (s.includes('mini_app') || s.includes('bot') || s.includes('telegram') || item.tgUserId || item.botId || (item.data && (item.data.tgUserId || item.data.botId))) {
+      miniAppClicks++;
+    } else {
+      websiteClicks++;
+    }
+  });
 
   // Status segmentation
   const paidOrders = orders.filter(isPaidOrder);
@@ -3637,9 +3661,15 @@ function summarizeDashboard(range = ui.dashboardRange) {
     visitors: currentVisitors,
     visitorsPrev: prevVisitors,
     visitorsTrend: percentChange(currentVisitors, prevVisitors),
+    websiteVisitors,
+    miniAppVisitors,
     clicks: currentClicks,
     clicksPrev: prevClicks,
     clicksTrend: percentChange(currentClicks, prevClicks),
+    websiteClicks,
+    miniAppClicks,
+    visitorsList: visitors,
+    eventsList: events,
     orders: currentOrders,
     ordersPrev: prevOrders,
     ordersTrend: percentChange(currentOrders, prevOrders),
@@ -3983,9 +4013,10 @@ function doesEventMatchProduct(event = {}, prod = {}, allOrders = []) {
 function buildTopProducts(summary = {}) {
   const range = summary.range || ui.dashboardRange;
   const isOrderClick = (item) => {
-    const type = String(item.type || '').toLowerCase();
+    if (!item) return false;
+    const type = String(item.type || item.event_type || (item.data && item.data.type) || '').toLowerCase();
     if (type === 'telegram_click' || type === 'review_submission' || type === 'visitor') return false;
-    return type.includes('order') || type.includes('click') || Boolean(item.productId || item.package || item.productName);
+    return type.includes('order') || type.includes('click') || Boolean(item.productId || item.product_id || item.package || item.productName || (item.data && (item.data.productId || item.data.product_id)));
   };
   const events = listCollection('events').filter((item) => isInRange(recordTimestamp(item), range) && isOrderClick(item));
   const orders = listCollection('orders').filter((item) => isInRange(recordTimestamp(item), range));
@@ -4217,9 +4248,9 @@ function renderAnalyticsKpis(summary) {
           <span class="kpi-icon primary"><i data-lucide="users"></i></span>
         </div>
         <div class="kpi-value">${formatNumber(visitors)}</div>
-        <div class="kpi-meta">
-          <span class="kpi-change up"><span class="pulse-dot"></span> Live</span>
-          <span>${summary.totals.todaysVisitors || 0} today · ${summary.range.toUpperCase()}</span>
+        <div class="kpi-meta" style="flex-wrap: wrap; gap: 4px;">
+          <span class="kpi-change up" style="font-size: 10.5px; padding: 2px 6px;"><span class="pulse-dot"></span> Live</span>
+          <span style="font-size: 11px; color: #a5b4fc; font-weight: 600;">🌐 ${summary.websiteVisitors || 0} Web · 🤖 ${summary.miniAppVisitors || 0} Mini App</span>
         </div>
         <div class="kpi-sparkline">${renderSparkline(summary.visitorSeries, 'primary')}</div>
       </div>
@@ -4230,9 +4261,9 @@ function renderAnalyticsKpis(summary) {
           <span class="kpi-icon secondary"><i data-lucide="mouse-pointer-click"></i></span>
         </div>
         <div class="kpi-value">${formatNumber(clicks)}</div>
-        <div class="kpi-meta">
-          <span class="kpi-change up"><i data-lucide="zap"></i> ${summary.ctr || 0}% CTR</span>
-          <span>Product inquiries</span>
+        <div class="kpi-meta" style="flex-wrap: wrap; gap: 4px;">
+          <span class="kpi-change up" style="font-size: 10.5px; padding: 2px 6px;"><i data-lucide="zap"></i> ${summary.ctr || 0}% CTR</span>
+          <span style="font-size: 11px; color: #38bdf8; font-weight: 600;">🌐 ${summary.websiteClicks || 0} Web · 🤖 ${summary.miniAppClicks || 0} Mini App</span>
         </div>
         <div class="kpi-sparkline">${renderSparkline(summary.clickSeries, 'secondary')}</div>
       </div>
@@ -4488,6 +4519,178 @@ function renderTopProductsAnalytics(products, totalClicks) {
         </div>
       `;
       }).join('')}
+    </div>
+  `;
+}
+
+function renderLiveVisitorStream(summary = {}) {
+  const visitors = listCollection('visitors') || [];
+  const events = listCollection('events') || [];
+  const tgUsers = _tgBotData.users || [];
+
+  // Build unified live visitors stream
+  const streamMap = new Map();
+
+  // 1. Ingest recorded visitors from visitors table
+  visitors.forEach((v) => {
+    const rawId = String(v.id || v.visitorId || v.visitor_id || '');
+    const id = rawId || `vis_${Math.random().toString(36).slice(2, 8)}`;
+    const ts = recordTimestamp(v);
+    const s = String(v.source || (v.data && v.data.source) || '').toLowerCase();
+    const isTg = s.includes('mini_app') || s.includes('bot') || s.includes('telegram') || Boolean(v.tgUserId || v.botId || (v.data && (v.data.tgUserId || v.data.botId)));
+    const name = v.name || (v.data && v.data.name) || (isTg ? 'Telegram Member' : 'Web Visitor');
+    const username = v.username || (v.data && v.data.username) || '';
+    const botUser = v.botUsername || (v.data && v.data.botUsername) || '';
+    const page = v.page || (v.data && v.data.page) || 'VIP Storefront';
+
+    streamMap.set(id, {
+      id,
+      timestamp: ts,
+      isTg,
+      source: isTg ? 'mini_app' : 'website',
+      name,
+      username: username ? `@${username.replace('@', '')}` : '',
+      botUser: botUser ? `@${botUser.replace('@', '')}` : '',
+      page: page === 'index' ? 'VIP Storefront' : (page.includes('payment') ? 'Payment Checkout' : page),
+      clicks: 0
+    });
+  });
+
+  // 2. Correlate order clicks to visitors
+  events.forEach((ev) => {
+    const vId = String(ev.visitorId || ev.visitor_id || (ev.data && (ev.data.visitorId || ev.data.visitor_id)) || '');
+    if (vId && streamMap.has(vId)) {
+      streamMap.get(vId).clicks += 1;
+    }
+  });
+
+  // 3. Ingest Telegram users who started or visited bot
+  tgUsers.forEach((u) => {
+    const uid = String(u.id);
+    const key = `tg_${uid}`;
+    if (!streamMap.has(key)) {
+      const uName = [u.firstName, u.lastName].filter(Boolean).join(' ').trim() || u.name || `Telegram Member #${uid.slice(-4)}`;
+      const uHandle = u.username ? `@${u.username.replace('@', '')}` : '';
+      const bUname = u.sourceBotUsername ? `@${u.sourceBotUsername.replace('@', '')}` : '';
+      streamMap.set(key, {
+        id: key,
+        timestamp: Number(u.updatedAt || u.createdAt || Date.now()),
+        isTg: true,
+        source: 'mini_app',
+        name: uName,
+        username: uHandle,
+        botUser: bUname,
+        page: 'Telegram Mini App',
+        clicks: 0
+      });
+    }
+  });
+
+  const streamList = Array.from(streamMap.values());
+  streamList.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+  const recentStream = streamList.slice(0, 15);
+
+  const websiteCount = summary.websiteVisitors !== undefined ? summary.websiteVisitors : streamList.filter(s => !s.isTg).length;
+  const miniAppCount = summary.miniAppVisitors !== undefined ? summary.miniAppVisitors : streamList.filter(s => s.isTg).length;
+
+  return `
+    <div class="analytics-live-stream-panel panel glass" style="margin-bottom: 24px; border-radius: 14px; border: 1px solid rgba(255,255,255,0.08); background: rgba(15,23,42,0.6); padding: 22px;">
+      <div class="panel-head" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 14px;">
+        <div>
+          <h3 style="margin: 0; display: flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 700; color: #fff;">
+            <i data-lucide="radio" style="color: #38bdf8; width: 20px; height: 20px;"></i>
+            Live Visitor Stream & Traffic Source Intelligence
+          </h3>
+          <p class="section-subtitle" style="margin: 4px 0 0; font-size: 12.5px; color: var(--muted);">
+            Real-time tracking of visitors opening from Direct Website vs Telegram Mini App / Fleet Bots.
+          </p>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+          <span class="badge" style="background: rgba(99,102,241,0.18); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.35); font-size: 11.5px; padding: 4px 10px; border-radius: 20px; font-weight: 700;">
+            🌐 ${websiteCount} Direct Web
+          </span>
+          <span class="badge" style="background: rgba(56,189,248,0.18); color: #38bdf8; border: 1px solid rgba(56,189,248,0.35); font-size: 11.5px; padding: 4px 10px; border-radius: 20px; font-weight: 700;">
+            🤖 ${miniAppCount} Telegram Mini App
+          </span>
+          <span class="badge" style="background: rgba(16,185,129,0.18); color: #34d399; border: 1px solid rgba(16,185,129,0.35); font-size: 11.5px; padding: 4px 10px; border-radius: 20px; font-weight: 700;">
+            ⚡ ${streamList.length} Total Visitors
+          </span>
+        </div>
+      </div>
+
+      ${!recentStream.length ? `
+        <div style="padding: 30px; text-align: center; color: var(--muted);">
+          <i data-lucide="users" style="width: 36px; height: 36px; color: #818cf8; margin-bottom: 8px;"></i>
+          <p style="margin: 0; font-size: 13px;">No visitor sessions recorded in this time range yet.</p>
+        </div>
+      ` : `
+        <div class="table-responsive" style="overflow-x: auto;">
+          <table class="table" style="width: 100%; border-collapse: separate; border-spacing: 0 6px; font-size: 13px;">
+            <thead>
+              <tr style="color: var(--muted); font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.04em;">
+                <th style="padding: 8px 12px; text-align: left;">Visitor / Identity</th>
+                <th style="padding: 8px 12px; text-align: left;">Traffic Origin</th>
+                <th style="padding: 8px 12px; text-align: left;">Landing / Viewed Page</th>
+                <th style="padding: 8px 12px; text-align: center;">Order Clicks</th>
+                <th style="padding: 8px 12px; text-align: right;">Time</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${recentStream.map((v) => {
+                const initials = getAvatarInitials(v.name, v.isTg ? 'TG' : 'WB');
+                const relTime = formatRelativeTime(v.timestamp);
+                return `
+                  <tr style="background: rgba(255,255,255,0.03); border-radius: 8px; transition: background 0.15s ease;">
+                    <td style="padding: 10px 12px; border-top-left-radius: 8px; border-bottom-left-radius: 8px;">
+                      <div style="display: flex; align-items: center; gap: 10px;">
+                        <div style="width: 32px; height: 32px; border-radius: 8px; background: ${v.isTg ? 'linear-gradient(135deg, #0284c7, #38bdf8)' : 'linear-gradient(135deg, #6366f1, #8b5cf6)'}; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; color: #fff; flex-shrink: 0;">
+                          ${initials}
+                        </div>
+                        <div>
+                          <strong style="color: var(--text); font-size: 13px; display: block;">${escapeHtml(v.name)}</strong>
+                          ${v.username ? `
+                            <a href="https://t.me/${escapeHtml(v.username.replace('@', ''))}" target="_blank" style="color: #38bdf8; font-size: 11.5px; text-decoration: none; display: inline-flex; align-items: center; gap: 3px;">
+                              ${escapeHtml(v.username)} <i data-lucide="external-link" style="width: 10px; height: 10px;"></i>
+                            </a>
+                          ` : `
+                            <span style="color: var(--muted); font-size: 11px;">#${escapeHtml(String(v.id).slice(-6))}</span>
+                          `}
+                        </div>
+                      </div>
+                    </td>
+                    <td style="padding: 10px 12px;">
+                      ${v.isTg ? `
+                        <span class="badge" style="background: rgba(56,189,248,0.14); color: #38bdf8; border: 1px solid rgba(56,189,248,0.3); font-size: 11px; padding: 3px 8px; border-radius: 6px; font-weight: 700; display: inline-flex; align-items: center; gap: 4px;">
+                          <i data-lucide="bot" style="width: 12px; height: 12px;"></i> Mini App ${v.botUser ? `(${escapeHtml(v.botUser)})` : ''}
+                        </span>
+                      ` : `
+                        <span class="badge" style="background: rgba(99,102,241,0.14); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.3); font-size: 11px; padding: 3px 8px; border-radius: 6px; font-weight: 700; display: inline-flex; align-items: center; gap: 4px;">
+                          <i data-lucide="globe" style="width: 12px; height: 12px;"></i> Direct Web
+                        </span>
+                      `}
+                    </td>
+                    <td style="padding: 10px 12px; color: #cbd5e1; font-weight: 500;">
+                      ${escapeHtml(v.page)}
+                    </td>
+                    <td style="padding: 10px 12px; text-align: center;">
+                      ${v.clicks > 0 ? `
+                        <span class="badge" style="background: rgba(16,185,129,0.15); color: #34d399; border: 1px solid rgba(16,185,129,0.3); font-weight: 700; font-size: 11px; padding: 2px 7px; border-radius: 6px;">
+                          ${v.clicks} click${v.clicks === 1 ? '' : 's'}
+                        </span>
+                      ` : `
+                        <span style="color: var(--muted); font-size: 12px;">—</span>
+                      `}
+                    </td>
+                    <td style="padding: 10px 12px; text-align: right; color: var(--muted); font-size: 12px; border-top-right-radius: 8px; border-bottom-right-radius: 8px;">
+                      ${escapeHtml(relTime)}
+                    </td>
+                  </tr>
+                `;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
+      `}
     </div>
   `;
 }
@@ -7466,8 +7669,29 @@ try {
   }
 } catch (_) {}
 
-if (!_tgCachedAdmins.length && Object.keys(_tgCachedAdminProfiles).length) {
-  _tgCachedAdmins = Object.keys(_tgCachedAdminProfiles);
+// Purge any legacy ghost test accounts from local cache
+delete _tgCachedAdminProfiles['6966868142'];
+_tgCachedAdmins = _tgCachedAdmins.filter(id => id !== '6966868142');
+
+const DEFAULT_PRIMARY_ADMIN_ID = '8770964308';
+const DEFAULT_PRIMARY_ADMIN_PROFILE = {
+  id: '8770964308',
+  name: '𓆩✶𓆪𝐓𝐑𝐔𝐒𝐓𝐄𝐃 𝐁𝐑𝐎𝐓𝐇𝐄𝐑𓆩✶𓆪',
+  username: 'TRUSTED_BROTHER1234',
+  badge: '🛡️ ADMIN',
+  badgeBg: 'rgba(56, 189, 248, 0.15)',
+  badgeColor: '#38bdf8',
+  badgeBorder: 'rgba(56, 189, 248, 0.35)',
+  role: 'Receives Order Alerts & Instant Approve/Reject Buttons Across All Bots',
+  assignedBotId: 'all',
+  assignedBotUsername: 'All Fleet Bots'
+};
+
+if (!_tgCachedAdmins.length) {
+  _tgCachedAdmins = [DEFAULT_PRIMARY_ADMIN_ID];
+}
+if (!_tgCachedAdminProfiles[DEFAULT_PRIMARY_ADMIN_ID]) {
+  _tgCachedAdminProfiles[DEFAULT_PRIMARY_ADMIN_ID] = { ...DEFAULT_PRIMARY_ADMIN_PROFILE };
 }
 
 let _tgBotData = {
@@ -7782,6 +8006,15 @@ async function loadTelegramBotAdminFullData(force = false) {
       const profileAdminKeys = Object.keys(_tgBotData.adminProfiles || {});
       if (profileAdminKeys.length > 0) {
         _tgBotData.admins = Array.from(new Set([...(_tgBotData.admins || []), ...profileAdminKeys])).filter(Boolean);
+      }
+      // Guarantee primary official admin 8770964308 is permanently configured & purge test accounts
+      delete _tgBotData.adminProfiles['6966868142'];
+      _tgBotData.admins = (_tgBotData.admins || []).filter(id => id !== '6966868142');
+      if (!_tgBotData.admins.includes(DEFAULT_PRIMARY_ADMIN_ID)) {
+        _tgBotData.admins.unshift(DEFAULT_PRIMARY_ADMIN_ID);
+      }
+      if (!_tgBotData.adminProfiles[DEFAULT_PRIMARY_ADMIN_ID]) {
+        _tgBotData.adminProfiles[DEFAULT_PRIMARY_ADMIN_ID] = { ...DEFAULT_PRIMARY_ADMIN_PROFILE };
       }
       try {
         localStorage.setItem('linkadda_tg_admins', JSON.stringify(_tgBotData.admins));
@@ -8626,7 +8859,16 @@ function renderTelegramAdminsCards(admins = []) {
   const adminProfiles = _tgBotData.adminProfiles || {};
   const profileIds = Object.keys(adminProfiles);
   const rawList = (Array.isArray(admins) && admins.length) ? admins : (_tgBotData.admins || []);
-  const adminList = Array.from(new Set([...rawList, ...profileIds])).filter(Boolean);
+  let adminList = Array.from(new Set([...rawList, ...profileIds])).filter(Boolean);
+  adminList = adminList.filter(id => id !== '6966868142');
+
+  // Guarantee official primary admin 8770964308 is always displayed
+  if (!adminList.includes(DEFAULT_PRIMARY_ADMIN_ID)) {
+    adminList.unshift(DEFAULT_PRIMARY_ADMIN_ID);
+  }
+  if (!adminProfiles[DEFAULT_PRIMARY_ADMIN_ID]) {
+    adminProfiles[DEFAULT_PRIMARY_ADMIN_ID] = { ...DEFAULT_PRIMARY_ADMIN_PROFILE };
+  }
 
   if (!adminList.length) {
     return `
@@ -12061,6 +12303,9 @@ function renderAnalyticsView(data) {
         ${renderConversionFunnel(summary)}
         ${renderAcquisitionChannels(summary)}
       </div>
+
+      <!-- Live Visitor Stream & Traffic Source Intelligence -->
+      ${renderLiveVisitorStream(summary)}
 
       <!-- Top Performing Products Leaderboard -->
       <div class="analytics-products-panel panel glass">
@@ -16083,6 +16328,8 @@ protectRoute((user) => {
     const route = window.location.hash.replace(/^#\/?/, '') || 'dashboard';
     applyRoute(route);
     renderView(getSnapshot());
+    // Pre-fetch all Telegram fleet bots, admins, and bot users immediately in background
+    loadTelegramBotAdminFullData(true).catch(() => {});
   } catch (_) {}
 });
 

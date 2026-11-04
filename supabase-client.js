@@ -108,32 +108,77 @@ export async function set(refObj, data) {
     }
 
     if (table === 'visitors') {
-      const visId = String(data?.visitor_id || id || `vis_${Date.now()}`);
-      await fetch(`${supaUrl}/rest/v1/visitors`, {
+      const visId = String(data?.visitor_id || data?.visitorId || id || `vis_${Date.now()}`);
+      const payload = {
+        visitorId: visId,
+        visitor_id: visId,
+        page: data?.page || 'index',
+        referrer: data?.referrer || 'direct',
+        source: data?.source || (data?.isTg ? 'mini_app' : 'website'),
+        name: data?.name || data?.tgName || '',
+        username: data?.username || data?.tgUsername || '',
+        tgUserId: data?.tgUserId || null,
+        botId: data?.botId || null,
+        botUsername: data?.botUsername || null,
+        userAgent: (typeof navigator !== 'undefined' ? navigator.userAgent : '') || null,
+        data: data || {}
+      };
+      // Try fast server-side service-role endpoint first
+      fetch('/api/track/visitor', {
         method: 'POST',
-        headers: { ...defaultHeaders, 'Prefer': 'resolution=merge-duplicates' },
-        body: JSON.stringify([{
-          visitor_id: visId,
-          page: data?.page || 'index',
-          referrer: data?.referrer || 'direct',
-          user_agent: navigator.userAgent || null,
-          data: data || {}
-        }])
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      }).catch(() => {
+        // Fallback to direct Supabase REST insert (WITHOUT merge-duplicates to avoid RLS 401)
+        fetch(`${supaUrl}/rest/v1/visitors`, {
+          method: 'POST',
+          headers: defaultHeaders,
+          body: JSON.stringify([{
+            visitor_id: visId,
+            page: payload.page,
+            referrer: payload.referrer,
+            user_agent: payload.userAgent,
+            data: payload
+          }])
+        }).catch(() => {});
       });
       return;
     }
 
     if (table === 'events') {
-      await fetch(`${supaUrl}/rest/v1/events`, {
+      const evPayload = {
+        event_type: data?.event_type || data?.type || 'order_click',
+        product_id: data?.product_id || data?.productId || null,
+        product_title: data?.product_title || data?.productTitle || data?.title || null,
+        visitor_id: data?.visitor_id || data?.visitorId || null,
+        source: data?.source || (data?.isTg ? 'mini_app' : 'website'),
+        name: data?.name || data?.tgName || '',
+        username: data?.username || data?.tgUsername || '',
+        botId: data?.botId || null,
+        botUsername: data?.botUsername || null,
+        price_inr: data?.price_inr ?? data?.priceINR ?? null,
+        price_usd: data?.price_usd ?? data?.priceUSD ?? null,
+        page: data?.page || 'index',
+        data: data || {}
+      };
+      // Try fast server-side service-role endpoint first
+      fetch('/api/track/event', {
         method: 'POST',
-        headers: { ...defaultHeaders, 'Prefer': 'resolution=merge-duplicates' },
-        body: JSON.stringify([{
-          event_type: data?.event_type || data?.type || 'order_click',
-          product_id: data?.product_id || data?.productId || null,
-          product_title: data?.product_title || data?.title || null,
-          visitor_id: data?.visitor_id || null,
-          data: data || {}
-        }])
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(evPayload)
+      }).catch(() => {
+        // Fallback to direct Supabase REST insert (WITHOUT merge-duplicates to avoid RLS 401)
+        fetch(`${supaUrl}/rest/v1/events`, {
+          method: 'POST',
+          headers: defaultHeaders,
+          body: JSON.stringify([{
+            event_type: evPayload.event_type,
+            product_id: evPayload.product_id,
+            product_title: evPayload.product_title,
+            visitor_id: evPayload.visitor_id,
+            data: evPayload
+          }])
+        }).catch(() => {});
       });
       return;
     }

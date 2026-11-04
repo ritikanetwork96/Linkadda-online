@@ -126,6 +126,14 @@ const server = http.createServer(async (req, res) => {
         const mod = await import(`./api/telegram/bot.js${bust}`);
         return await mod.default(req, resEnhanced);
       }
+      if (pathname === '/api/track/visitor') {
+        const mod = await import(`./api/track/visitor.js${bust}`);
+        return await mod.default(req, resEnhanced);
+      }
+      if (pathname === '/api/track/event' || pathname === '/api/track/click') {
+        const mod = await import(`./api/track/event.js${bust}`);
+        return await mod.default(req, resEnhanced);
+      }
 
 
       res.statusCode = 404;

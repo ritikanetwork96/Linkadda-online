@@ -1,0 +1,93 @@
+import { handleCors } from '../_utils.js';
+import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+function getSupabaseConfig() {
+  const url = (process.env.SUPABASE_URL || 'https://mkttxqwpbostzmfygpzq.supabase.co').replace(/\/+$/, '');
+  let key = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
+
+  if (!key) {
+    try {
+      const p1 = path.resolve(__dirname, '../../.env');
+      const p2 = path.join(process.cwd(), '.env');
+      const envPath = fs.existsSync(p1) ? p1 : (fs.existsSync(p2) ? p2 : null);
+      if (envPath) {
+        const raw = fs.readFileSync(envPath, 'utf8');
+        const match = raw.match(/SUPABASE_SERVICE_ROLE_KEY\s*=\s*([^\r\n]+)/);
+        if (match && match[1]) key = match[1].trim();
+      }
+    } catch (_) {}
+  }
+
+  if (!key) {
+    key = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1rdHR4cXdwYm9zdHptZnlncHpxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MzM4NzU3MCwiZXhwIjoyMTA4OTYzNTcwfQ.smaw1XT43DLymk4Yx7kw3ReOVGRLflDVVqMHs59GDPQ';
+  }
+
+  return { url, key };
+}
+
+export default async function handler(req, res) {
+  if (handleCors(req, res, 'POST, GET, OPTIONS')) return;
+
+  const data = (req.method === 'POST' ? req.body : req.query) || {};
+  const eventType = String(data.event_type || data.eventType || data.type || 'order_click').trim();
+  const productId = data.product_id || data.productId || null;
+  const productTitle = data.product_title || data.productTitle || data.name || data.title || null;
+  const visitorId = data.visitor_id || data.visitorId || null;
+  const source = String(data.source || (data.isTg ? 'mini_app' : 'website'));
+  const name = String(data.name || data.tgName || '').trim();
+  const username = String(data.username || data.tgUsername || '').trim().replace(/^@/, '');
+  const botId = data.botId || data.sourceBotId || null;
+  const botUsername = data.botUsername || data.sourceBotUsername || null;
+  const priceINR = data.price_inr ?? data.priceINR ?? null;
+  const priceUSD = data.price_usd ?? data.priceUSD ?? null;
+  const page = String(data.page || 'index');
+  const button = String(data.button || 'order_button');
+
+  const { url, key } = getSupabaseConfig();
+  const headers = {
+    'apikey': key,
+    'Authorization': `Bearer ${key}`,
+    'Content-Type': 'application/json',
+    'Prefer': 'return=minimal'
+  };
+
+  const payload = {
+    event_type: eventType,
+    product_id: productId ? String(productId) : null,
+    product_title: productTitle ? String(productTitle) : null,
+    visitor_id: visitorId ? String(visitorId) : null,
+    data: {
+      eventType,
+      productId,
+      productTitle,
+      priceINR,
+      priceUSD,
+      source,
+      name,
+      username,
+      botId,
+      botUsername,
+      page,
+      button,
+      timestamp: Date.now()
+    }
+  };
+
+  try {
+    const sbRes = await fetch(`${url}/rest/v1/events`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify([payload]),
+      signal: AbortSignal.timeout(4000)
+    });
+
+    return res.status(200).json({ ok: true, eventType, productId, source });
+  } catch (err) {
+    return res.status(200).json({ ok: false, error: err.message });
+  }
+}

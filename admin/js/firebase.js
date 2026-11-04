@@ -312,17 +312,55 @@ export async function get(refObj) {
     if (Array.isArray(rows)) {
       rows.forEach(r => {
         const p = (r.data && typeof r.data === 'object') ? r.data : {};
-        data[r.id] = {
-          ...p,
-          ...r,
-          id: r.id,
-          title: p.title || r.title || p.name || r.name || '',
-          priceINR: p.priceINR ?? r.price_inr ?? p.inr ?? '',
-          priceUSD: p.priceUSD ?? r.price_usd ?? p.usd ?? '',
-          displayOrder: p.displayOrder ?? r.display_order ?? 0,
-          status: p.status || r.status || 'active',
-          image: p.image || r.image || '',
-        };
+        if (table === 'visitors') {
+          data[r.id] = {
+            ...p,
+            ...r,
+            id: r.id,
+            visitorId: p.visitorId || r.visitor_id || p.visitor_id || r.id,
+            source: p.source || (p.isTg ? 'mini_app' : 'website'),
+            name: p.name || p.tgName || '',
+            username: p.username || p.tgUsername || '',
+            tgUserId: p.tgUserId || null,
+            botId: p.botId || null,
+            botUsername: p.botUsername || null,
+            timestamp: p.timestamp || (r.created_at ? new Date(r.created_at).getTime() : Date.now()),
+            page: p.page || r.page || 'index',
+            referrer: p.referrer || r.referrer || 'direct'
+          };
+        } else if (table === 'events') {
+          data[r.id] = {
+            ...p,
+            ...r,
+            id: r.id,
+            type: r.event_type || p.type || p.event_type || 'order_click',
+            eventType: r.event_type || p.eventType || p.event_type || 'order_click',
+            productId: r.product_id || p.productId || p.product_id || null,
+            productTitle: r.product_title || p.productTitle || p.product_title || p.title || null,
+            visitorId: r.visitor_id || p.visitorId || p.visitor_id || null,
+            source: p.source || (p.isTg ? 'mini_app' : 'website'),
+            name: p.name || p.tgName || '',
+            username: p.username || p.tgUsername || '',
+            botId: p.botId || null,
+            botUsername: p.botUsername || null,
+            priceINR: p.priceINR ?? p.price_inr ?? r.price_inr ?? null,
+            priceUSD: p.priceUSD ?? p.price_usd ?? r.price_usd ?? null,
+            timestamp: p.timestamp || (r.created_at ? new Date(r.created_at).getTime() : Date.now()),
+            page: p.page || 'index'
+          };
+        } else {
+          data[r.id] = {
+            ...p,
+            ...r,
+            id: r.id,
+            title: p.title || r.title || p.name || r.name || '',
+            priceINR: p.priceINR ?? r.price_inr ?? p.inr ?? '',
+            priceUSD: p.priceUSD ?? r.price_usd ?? p.usd ?? '',
+            displayOrder: p.displayOrder ?? r.display_order ?? 0,
+            status: p.status || r.status || 'active',
+            image: p.image || r.image || '',
+          };
+        }
       });
     }
     return { exists: () => Object.keys(data).length > 0, val: () => data };
