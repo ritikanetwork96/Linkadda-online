@@ -39,33 +39,16 @@ export function getAppUrl(req = null) {
 
 
 export function getSupportContact(targetBot = null) {
-  try {
-    const store = readBotStore();
-    if (store.adminProfiles && typeof store.adminProfiles === 'object') {
-      for (const p of Object.values(store.adminProfiles)) {
-        if (p && p.username && !p.username.toLowerCase().endsWith('_bot')) {
-          const u = p.username.replace('@', '');
-          return {
-            username: u,
-            url: `https://t.me/${u}`,
-            label: `Support Desk (@${u})`
-          };
-        }
-      }
-    }
-    if (targetBot && targetBot.username) {
-      const u = targetBot.username.replace('@', '');
-      return {
-        username: u,
-        url: `https://t.me/${u}`,
-        label: `Support Desk (@${u})`
-      };
-    }
-  } catch (_) {}
+  // Official, permanent 24/7 VIP Support Desk Telegram handle
+  const OFFICIAL_SUPPORT_USERNAME = 'TRUSTED_BROTHER1234';
+  const url = `https://t.me/${OFFICIAL_SUPPORT_USERNAME}`;
+  const label = `Support Desk (@${OFFICIAL_SUPPORT_USERNAME})`;
+  const text = `@${OFFICIAL_SUPPORT_USERNAME}`;
   return {
-    username: 'Support Desk',
-    url: 'https://linkadda-online.onrender.com',
-    label: 'Support Desk'
+    username: OFFICIAL_SUPPORT_USERNAME,
+    url,
+    label,
+    text
   };
 }
 

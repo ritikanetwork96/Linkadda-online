@@ -511,11 +511,14 @@ function navMarkup() {
   return NAV_ITEMS.map((item) => {
     const isOrders = item.key === 'orders';
     const isTg = item.key === 'telegram';
+    const isWelcome = item.key === 'welcome';
     let badgeHtml = '';
     if (isOrders && (pendingOrders > 0 || allOrders.length > 0)) {
       badgeHtml = `<span class="chip" style="margin-left:auto;background:${pendingOrders > 0 ? 'rgba(245,158,11,0.2)' : 'rgba(99,102,241,0.2)'};color:${pendingOrders > 0 ? '#fbbf24' : '#818cf8'};font-size:11px;font-weight:700;padding:2px 7px;border-radius:10px;">${pendingOrders > 0 ? pendingOrders : allOrders.length}</span>`;
     } else if (isTg && _tgBotData.usersCount > 0) {
       badgeHtml = `<span class="chip" style="margin-left:auto;background:rgba(56,189,248,0.2);color:#38bdf8;font-size:11px;font-weight:700;padding:2px 7px;border-radius:10px;">${_tgBotData.usersCount}</span>`;
+    } else if (isWelcome) {
+      badgeHtml = `<span class="chip" style="margin-left:auto;background:rgba(99,102,241,0.22);color:#a5b4fc;font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;">Fleet</span>`;
     }
     return `
       <a class="nav-link ${ui.route === item.key ? 'active' : ''}" href="#/${item.key}" data-route="${item.key}">
@@ -7863,8 +7866,8 @@ async function loadTelegramBotAdminStatus() {
 
 let _tgBotPollInterval = null;
 function syncTelegramBotRealtimePolling(current) {
-  if (current === 'telegram') {
-    // Instant live load when viewing telegram tab
+  if (current === 'telegram' || current === 'welcome') {
+    // Instant live load when viewing telegram or welcome message tab
     loadTelegramBotAdminFullData(true);
     if (!_tgBotPollInterval) {
       _tgBotPollInterval = setInterval(() => {
@@ -8877,6 +8880,9 @@ function renderTelegramBotPageView(data = {}) {
             </div>
           </div>
           <div class="toolbar tg-hero-toolbar" style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+            <button class="btn btn-primary" type="button" data-action="switch-tg-tab" data-target="tgTabWelcome" style="font-size: 12.5px; padding: 9px 18px; border-radius: 10px; background: linear-gradient(135deg, #6366f1, #8b5cf6) !important; border: 1px solid rgba(139, 92, 246, 0.5) !important; color: white !important; display: inline-flex; align-items: center; gap: 7px; box-shadow: 0 4px 16px rgba(99, 102, 241, 0.4); font-weight: 700; cursor: pointer; transition: all 0.2s ease;">
+              <i data-lucide="message-square-text" style="width: 14px; height: 14px;"></i> ✉️ Edit Welcome Message
+            </button>
             <button class="btn btn-ghost" type="button" data-action="refresh-tg-bot" title="Fetch latest status from Telegram API" style="font-size: 12.5px; padding: 9px 16px; border-radius: 10px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12); color: var(--text); backdrop-filter: blur(10px); display: inline-flex; align-items: center; gap: 6px; transition: all 0.2s ease;">
               <i data-lucide="refresh-cw" style="width: 14px; height: 14px; color: #38bdf8;"></i> Refresh Data
             </button>
@@ -12080,6 +12086,10 @@ function renderView(data) {
     else if (current === 'payment') html = renderPaymentManagementView(data.payment || {}, data || {});
     else if (current === 'orders') html = renderOrdersManagementView(data.orders || {}, data || {});
     else if (current === 'telegram') html = renderTelegramBotPageView(data);
+    else if (current === 'welcome') {
+      _tgBotData.activeTab = 'tgTabWelcome';
+      html = renderTelegramBotPageView(data);
+    }
     else if (current === 'reviews') html = renderReviewsManagementView(data.reviews || {}, data || {});
     else if (current === 'screenshots') html = renderScreenshotsGalleryView(data.orders || {}, data || {});
     else if (current === 'analytics') html = renderAnalyticsView(data);
@@ -12307,6 +12317,8 @@ function applyRoute(path) {
     ui.catalogTab = 'products';
   } else if (path === 'categories') {
     ui.catalogTab = 'categories';
+  } else if (path === 'welcome') {
+    _tgBotData.activeTab = 'tgTabWelcome';
   }
   ui.route = targetRoute;
   ui.page = 1;
@@ -13145,6 +13157,11 @@ function attachGlobalHandlers() {
       document.querySelectorAll('.tg-tab-section').forEach(sec => {
         sec.style.display = (sec.id === targetId) ? 'block' : 'none';
       });
+
+      const targetSec = document.getElementById(targetId);
+      if (targetSec && actionBtn.closest('.tg-hero-toolbar')) {
+        targetSec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
 
       if (window.lucide && typeof window.lucide.createIcons === 'function') {
         window.lucide.createIcons();
