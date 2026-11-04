@@ -2690,14 +2690,26 @@
       });
     }
 
+    // Main cover image has absolute priority as slide #1
+    const mainImg = String(cat.image || cat.imageUrl || cat.thumbnail || '').trim();
     let rawList = [];
-    if (primary.length > 0 || gallery.length > 0) {
-      // Prioritize explicit admin images + gallery images array
-      rawList = [...new Set([...primary, ...gallery, cat.image, cat.imageUrl, cat.thumbnail].map(u => String(u || '').trim()).filter(Boolean))];
-    } else {
-      // Fallback only if product has NO explicit images array
-      rawList = [...new Set([cat.image, cat.imageUrl, cat.thumbnail, cat.cover, cat.photo, ...gallery, ...mediaArr].map(u => String(u || '').trim()).filter(Boolean))];
+    if (mainImg) {
+      rawList.push(mainImg);
     }
+    primary.forEach((u) => {
+      const s = String(u || '').trim();
+      if (s && !rawList.includes(s)) rawList.push(s);
+    });
+    gallery.forEach((u) => {
+      const s = String(u || '').trim();
+      if (s && !rawList.includes(s)) rawList.push(s);
+    });
+    if (cat.cover && !rawList.includes(cat.cover)) rawList.push(cat.cover);
+    if (cat.photo && !rawList.includes(cat.photo)) rawList.push(cat.photo);
+    mediaArr.forEach((u) => {
+      const s = String(u || '').trim();
+      if (s && !rawList.includes(s)) rawList.push(s);
+    });
 
     // 1. Check if product has a local exact file in images/ (e.g. prod_<id>.jpg)
     if (!rawList.length && cat.id) {
@@ -4932,6 +4944,12 @@
               const cleanTitle = item.title || p.title || item.name || p.name || '';
               const inr = item.price_inr ?? p.priceINR ?? p.price_inr ?? p.inr ?? '';
               const usd = item.price_usd ?? p.priceUSD ?? p.price_usd ?? p.usd ?? '';
+              const mainImg = item.image || p.image || p.imageUrl || p.thumbnail || '';
+              let imgs = Array.isArray(item.images) && item.images.length ? item.images : (Array.isArray(p.images) ? p.images : []);
+              if (mainImg && (!imgs.length || imgs[0] !== mainImg)) {
+                imgs = [mainImg, ...imgs.filter(u => u !== mainImg)];
+              }
+              const gImgs = Array.isArray(item.gallery_images) && item.gallery_images.length ? item.gallery_images : (Array.isArray(p.galleryImages) ? p.galleryImages : []);
               data[item.id] = {
                 ...p,
                 ...item,
@@ -4942,9 +4960,9 @@
                 priceUSD: usd,
                 price_inr: inr,
                 price_usd: usd,
-                image: item.image || p.image || '',
-                images: item.images || p.images || [],
-                galleryImages: item.gallery_images || item.galleryImages || p.galleryImages || p.gallery_images || [],
+                image: mainImg,
+                images: imgs,
+                galleryImages: gImgs,
                 status: item.status || p.status || 'active',
                 category: item.category || p.category || '',
                 displayOrder: item.display_order ?? p.displayOrder ?? 0,

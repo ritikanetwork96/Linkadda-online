@@ -1851,7 +1851,12 @@ function syncTagEditor(form, name) {
 function getProductEditorRecord(form) {
   const items = form.__mediaStudioItems || [];
   const mainImage = items.find((i) => i.isMainImage)?.url || items.find((i) => i.type === 'image')?.url || form.querySelector('[name="image"]')?.value || '';
-  const allImages = items.filter((i) => i.type === 'image').map((i) => i.url);
+  const rawAllImages = items.filter((i) => i.type === 'image').map((i) => i.url);
+  const allImages = [];
+  if (mainImage) allImages.push(mainImage);
+  rawAllImages.forEach((u) => {
+    if (u && !allImages.includes(u)) allImages.push(u);
+  });
   const galleryImages = allImages.filter((u) => u !== mainImage);
   
   const mainVideo = items.find((i) => i.isMainVideo)?.url || items.find((i) => i.type === 'video')?.url || form.querySelector('[name="video"]')?.value || '';
@@ -2021,7 +2026,12 @@ function attachProductEditorBehaviors(form) {
     }
 
     const mainImgUrl = items.find((i) => i.type === 'image' && i.isMainImage)?.url || items.find((i) => i.type === 'image')?.url || '';
-    const imgList = items.filter((i) => i.type === 'image').map((i) => i.url);
+    const rawImgList = items.filter((i) => i.type === 'image').map((i) => i.url);
+    const imgList = [];
+    if (mainImgUrl) imgList.push(mainImgUrl);
+    rawImgList.forEach((u) => {
+      if (u && !imgList.includes(u)) imgList.push(u);
+    });
     const galleryList = imgList.filter((u) => u !== mainImgUrl);
 
     const mainVidUrl = items.find((i) => i.type === 'video' && i.isMainVideo)?.url || items.find((i) => i.type === 'video')?.url || '';
@@ -2108,6 +2118,10 @@ function attachProductEditorBehaviors(form) {
         item.isMainImage = (i === index);
       }
     });
+    if (index > 0 && index < current.length) {
+      const [chosen] = current.splice(index, 1);
+      current.unshift(chosen);
+    }
     form.__mediaStudioItems = current;
     syncMediaStudio();
   };

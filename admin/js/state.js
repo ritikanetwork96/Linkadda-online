@@ -151,11 +151,14 @@ function syncWebsiteCache() {
     const cleanProducts = {};
     Object.entries(STORE.products || {}).forEach(([id, p]) => {
       if (!p) return;
-      if (typeof p.video === 'string' && p.video.startsWith('data:video')) {
-        cleanProducts[id] = { ...p, video: '' };
-      } else {
-        cleanProducts[id] = p;
-      }
+      let clean = { ...p };
+      if (typeof clean.video === 'string' && clean.video.startsWith('data:')) clean.video = '';
+      if (typeof clean.image === 'string' && clean.image.startsWith('data:')) clean.image = '';
+      if (typeof clean.imageUrl === 'string' && clean.imageUrl.startsWith('data:')) clean.imageUrl = '';
+      if (typeof clean.thumbnail === 'string' && clean.thumbnail.startsWith('data:')) clean.thumbnail = '';
+      if (Array.isArray(clean.images)) clean.images = clean.images.filter((u) => typeof u === 'string' && !u.startsWith('data:'));
+      if (Array.isArray(clean.galleryImages)) clean.galleryImages = clean.galleryImages.filter((u) => typeof u === 'string' && !u.startsWith('data:'));
+      cleanProducts[id] = clean;
     });
     const liveCache = {
       categories: STORE.categories || {},

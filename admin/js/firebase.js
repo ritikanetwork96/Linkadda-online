@@ -93,6 +93,81 @@ export function ref(db, path = '') {
  * Executes a write operation through backend proxy with automatic auth retry,
  * then falls back to direct Supabase service-role REST if needed.
  */
+function buildProductRow(data, id) {
+  const parseMoney = (val) => {
+    if (typeof val === 'number') return Number.isFinite(val) ? val : 0;
+    const num = parseFloat(String(val || '').replace(/[^\d.]/g, ''));
+    return Number.isFinite(num) ? num : 0;
+  };
+  const itemId = String(id || data?.id || `item_${Date.now()}`);
+
+  let mainImage = String(data?.image || data?.imageUrl || data?.thumbnail || '').trim();
+  let rawImages = Array.isArray(data?.images) ? data.images : (data?.images ? [data.images] : []);
+  let rawGallery = Array.isArray(data?.galleryImages) ? data.galleryImages : (Array.isArray(data?.gallery_images) ? data.gallery_images : []);
+
+  let allImages = [];
+  if (mainImage) allImages.push(mainImage);
+  rawImages.forEach((u) => {
+    const s = String(u || '').trim();
+    if (s && !allImages.includes(s)) allImages.push(s);
+  });
+  rawGallery.forEach((u) => {
+    const s = String(u || '').trim();
+    if (s && !allImages.includes(s)) allImages.push(s);
+  });
+  if (!mainImage && allImages.length) {
+    mainImage = allImages[0];
+  }
+  const galleryImages = allImages.filter((u) => u !== mainImage);
+
+  const mainVideo = String(data?.video || data?.videoUrl || '').trim();
+  let rawVideos = Array.isArray(data?.videos) ? data.videos : (data?.videos ? [data.videos] : []);
+  let allVideos = [];
+  if (mainVideo) allVideos.push(mainVideo);
+  rawVideos.forEach((u) => {
+    const s = String(u || '').trim();
+    if (s && !allVideos.includes(s)) allVideos.push(s);
+  });
+
+  const tiers = Array.isArray(data?.tiers) ? data.tiers : [];
+
+  let cleanData = { ...data };
+  delete cleanData.data;
+  cleanData.id = itemId;
+  cleanData.image = mainImage;
+  cleanData.imageUrl = mainImage;
+  cleanData.thumbnail = mainImage;
+  cleanData.images = allImages;
+  cleanData.galleryImages = galleryImages;
+  cleanData.video = mainVideo;
+  cleanData.videos = allVideos;
+  cleanData.tiers = tiers;
+
+  return {
+    id: itemId,
+    slug: data?.slug || itemId,
+    title: data?.title || data?.name || '',
+    category: data?.category || '',
+    price_inr: parseMoney(data?.priceINR || data?.price_inr || data?.inr),
+    price_usd: parseMoney(data?.priceUSD || data?.price_usd || data?.usd),
+    original_price_inr: parseMoney(data?.originalPriceINR || data?.original_price_inr),
+    original_price_usd: parseMoney(data?.originalPriceUSD || data?.original_price_usd),
+    rating: parseFloat(data?.rating) || 4.9,
+    reviews_count: parseInt(data?.reviewsCount || data?.reviews_count) || 100,
+    badge: data?.badge !== undefined ? data.badge : '',
+    image: mainImage,
+    images: allImages,
+    gallery_images: galleryImages,
+    video: mainVideo,
+    videos: allVideos,
+    tiers: tiers,
+    status: data?.status || 'active',
+    display_order: Number(data?.displayOrder || data?.display_order) || 0,
+    data: cleanData,
+    updated_at: new Date().toISOString()
+  };
+}
+
 async function executeDbOperation(action, table, id, data, isSingleton) {
   const parseMoney = (val) => {
     if (typeof val === 'number') return Number.isFinite(val) ? val : 0;
@@ -113,6 +188,32 @@ async function executeDbOperation(action, table, id, data, isSingleton) {
       }
 
       const itemId = String(id || data?.id || `item_${Date.now()}`);
+      if (table === 'products') {
+        const prodRow = buildProductRow(data, itemId);
+        const postRes = await fetch(`${supaUrl}/rest/v1/${table}`, {
+          method: 'POST',
+          headers: { ...serviceHeaders, 'Prefer': 'resolution=merge-duplicates' },
+          body: JSON.stringify([prodRow])
+        });
+        return postRes.ok;
+      } else if (table === 'categories') {
+        const catRow = {
+          id: itemId,
+          slug: data?.slug || itemId,
+          name: data?.name || data?.title || '',
+          image: data?.image || '',
+          display_order: Number(data?.displayOrder || data?.display_order) || 0,
+          data: data,
+          updated_at: new Date().toISOString()
+        };
+        const postRes = await fetch(`${supaUrl}/rest/v1/${table}`, {
+          method: 'POST',
+          headers: { ...serviceHeaders, 'Prefer': 'resolution=merge-duplicates' },
+          body: JSON.stringify([catRow])
+        });
+        return postRes.ok;
+      }
+
       const row = {
         id: itemId,
         slug: data?.slug || itemId,
@@ -120,19 +221,7 @@ async function executeDbOperation(action, table, id, data, isSingleton) {
         data: data,
         updated_at: new Date().toISOString()
       };
-      if (table === 'products') {
-        row.category = data?.category || '';
-        row.price_inr = parseMoney(data?.priceINR || data?.price_inr || data?.inr);
-        row.price_usd = parseMoney(data?.priceUSD || data?.price_usd || data?.usd);
-        row.status = data?.status || 'active';
-        row.image = data?.image || '';
-        row.display_order = Number(data?.displayOrder || data?.display_order) || 0;
-        if (data?.badge !== undefined) row.badge = data.badge;
-      } else if (table === 'categories') {
-        row.name = data?.name || data?.title || '';
-        row.image = data?.image || '';
-        row.display_order = Number(data?.displayOrder || data?.display_order) || 0;
-      } else if (table === 'orders') {
+      if (table === 'orders') {
         row.status = data?.status || 'pending';
       }
 
@@ -184,28 +273,31 @@ async function executeDbOperation(action, table, id, data, isSingleton) {
       const rows = getRes.ok ? await getRes.json() : [];
       const existing = rows?.[0]?.data || rows?.[0] || {};
       const targetDbId = rows?.[0]?.id || id;
-      const merged = { ...existing, ...data };
+      
+      const cleanExisting = { ...existing };
+      delete cleanExisting.data;
+      const cleanData = { ...data };
+      delete cleanData.data;
+      const merged = { ...cleanExisting, ...cleanData };
+
+      if (table === 'products') {
+        const prodRow = buildProductRow(merged, targetDbId);
+        const patchRes = await fetch(`${supaUrl}/rest/v1/${table}?id=eq.${encodeURIComponent(targetDbId)}`, {
+          method: 'PATCH',
+          headers: serviceHeaders,
+          body: JSON.stringify(prodRow)
+        });
+        return patchRes.ok;
+      }
 
       const patchBody = {
         data: merged,
         updated_at: new Date().toISOString()
       };
-      if (table === 'products') {
-        if (merged.title || merged.name) patchBody.title = merged.title || merged.name;
-        if (merged.slug) patchBody.slug = merged.slug;
-        if (merged.category !== undefined) patchBody.category = merged.category;
-        const inrNum = parseMoney(merged.priceINR ?? merged.price_inr ?? merged.inr);
-        if (inrNum > 0 || merged.priceINR !== undefined) patchBody.price_inr = inrNum;
-        const usdNum = parseMoney(merged.priceUSD ?? merged.price_usd ?? merged.usd);
-        if (usdNum > 0 || merged.priceUSD !== undefined) patchBody.price_usd = usdNum;
-        if (merged.status) patchBody.status = merged.status;
-        if (merged.image) patchBody.image = merged.image;
-        if (merged.displayOrder !== undefined) patchBody.display_order = Number(merged.displayOrder) || 0;
-        if (merged.badge !== undefined) patchBody.badge = merged.badge;
-      } else if (table === 'categories') {
+      if (table === 'categories') {
         if (merged.name || merged.title) patchBody.name = merged.name || merged.title;
         if (merged.slug) patchBody.slug = merged.slug;
-        if (merged.image) patchBody.image = merged.image;
+        if (merged.image !== undefined) patchBody.image = merged.image;
         if (merged.displayOrder !== undefined) patchBody.display_order = Number(merged.displayOrder) || 0;
       } else if (table === 'orders') {
         if (merged.status) patchBody.status = merged.status;
