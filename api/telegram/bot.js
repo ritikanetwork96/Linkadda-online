@@ -4100,7 +4100,7 @@ export default async function handler(req, res) {
     try {
       const update = req.body || {};
 
-      // 1. Resolve bot identifier with maximum precision (query param, path, or command mention)
+      // 1. Resolve bot identifier with maximum precision (query param, path, command mention, or callback query)
       let webhookBotId = url.searchParams.get('botId') || url.searchParams.get('bot_id');
       if (!webhookBotId) {
         const pathMatch = url.pathname.match(/\/api\/telegram\/bot\/(bot_[a-zA-Z0-9_-]+|[0-9]+)/i);
@@ -4109,6 +4109,9 @@ export default async function handler(req, res) {
       if (!webhookBotId && update.message?.text) {
         const cmdMatch = update.message.text.match(/^\/[a-zA-Z0-9_]+@([a-zA-Z0-9_]+)/i);
         if (cmdMatch) webhookBotId = cmdMatch[1];
+      }
+      if (!webhookBotId && update.callback_query?.message?.from) {
+        webhookBotId = String(update.callback_query.message.from.id || update.callback_query.message.from.username || '');
       }
 
       // 2. Lookup receiving bot in fleet
@@ -4124,7 +4127,9 @@ export default async function handler(req, res) {
 
       const store = readBotStore();
       const allFleetBots = getConnectedBots();
+      const allBots = allFleetBots;
       const primaryBot = allFleetBots.find(b => b.status === 'active' && b.isPrimary) || allFleetBots.find(b => b.status === 'active') || allFleetBots[0] || null;
+      const targetBot = receivingBot || primaryBot;
       const currentToken = receivingBot?.token || primaryBot?.token || store.activeToken || process.env.TELEGRAM_BOT_TOKEN || '';
       const currentBotId = receivingBot?.botId || primaryBot?.botId || (receivingBot?.id ? `bot_${receivingBot.id}` : '');
       const currentBotUsername = receivingBot?.username || primaryBot?.username || '';
@@ -4749,8 +4754,15 @@ export default async function handler(req, res) {
         const data = cq.data || '';
         const user = cq.from;
         const adminUser = user;
-        const userIdStr = String(user.id);
-        const authorizedAdmins = getAdminChatIds();
+        const userIdStr = String(user?.id || '');
+        let authorizedAdmins = getAdminChatIds();
+
+        if (!authorizedAdmins.includes(userIdStr) && (!cq.message?.chat?.id || !authorizedAdmins.includes(String(cq.message.chat.id)))) {
+          try {
+            await syncBotsFromSupabase(true);
+            authorizedAdmins = getAdminChatIds();
+          } catch (_) {}
+        }
 
         // ⚡ User clicked any inline button -> Record user & trigger 2-minute auto-delete on any unread VIP messages!
         if (user && user.id) {
