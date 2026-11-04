@@ -234,7 +234,7 @@ export async function syncBotsFromSupabase(force = false) {
   try {
     const { url, key } = getSupabaseConfig();
     const headers = { 'apikey': key, 'Authorization': `Bearer ${key}` };
-    const res = await fetch(`${url}/rest/v1/site_settings?key=in.(tg_connected_bots,tg_admin_chat_ids,tg_admin_profiles)&select=*`, {
+    const res = await fetch(`${url}/rest/v1/site_settings?key=in.(tg_connected_bots,tg_admin_chat_ids,tg_admin_profiles,tg_global_welcome_message,tg_bot_welcome_messages)&select=*`, {
       headers,
       signal: AbortSignal.timeout(4500)
     }).catch(() => null);
@@ -255,6 +255,14 @@ export async function syncBotsFromSupabase(force = false) {
           }
           if (row.key === 'tg_admin_profiles' && row.value && typeof row.value === 'object') {
             store.adminProfiles = { ...row.value };
+            changed = true;
+          }
+          if (row.key === 'tg_global_welcome_message') {
+            store.globalWelcomeMessage = typeof row.value === 'string' ? row.value : (row.value?.text || '');
+            changed = true;
+          }
+          if (row.key === 'tg_bot_welcome_messages' && row.value && typeof row.value === 'object') {
+            store.botWelcomeMessages = { ...row.value };
             changed = true;
           }
         }
@@ -314,6 +322,52 @@ export function getBotByIdOrToken(identifier = null) {
     b.token === clean || 
     (b.username && b.username.toLowerCase() === clean.replace('@', ''))
   ) || null;
+}
+
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ✉️ DYNAMIC WELCOME MESSAGE ENGINE & TEMPLATE FORMATTER
+// ══════════════════════════════════════════════════════════════════════════════
+export const DEFAULT_WELCOME_MESSAGE = `👋 <b>Welcome {name}!</b>\n\n` +
+  `🆔 <b>Your Telegram Chat ID:</b> <code>{chat_id}</code>\n\n` +
+  `🔥 Welcome to <b>{store_name}</b>!\n\n` +
+  `Explore all Exclusive VIP Packs & Collections:\n` +
+  `⚡ Instant High-Speed Cloud Access\n` +
+  `🔒 100% Discrete & Anonymous Checkout\n` +
+  `🛡️ Lifetime Free Link Replacement Guarantee\n\n` +
+  `Tap the <b>Open Store</b> button below to begin shopping:`;
+
+export function getWelcomeMessageForBot(botId) {
+  const store = readBotStore();
+  const rawId = String(botId || '').replace(/^bot_/, '');
+  const key = `bot_${rawId}`;
+  const custom = (store.botWelcomeMessages && (store.botWelcomeMessages[key] || store.botWelcomeMessages[rawId]));
+  if (custom && typeof custom === 'string' && custom.trim()) {
+    return { text: custom.trim(), isCustom: true, isGlobal: false, isDefault: false };
+  }
+  const globalMsg = store.globalWelcomeMessage;
+  if (globalMsg && typeof globalMsg === 'string' && globalMsg.trim()) {
+    return { text: globalMsg.trim(), isCustom: false, isGlobal: true, isDefault: false };
+  }
+  return { text: DEFAULT_WELCOME_MESSAGE, isCustom: false, isGlobal: false, isDefault: true };
+}
+
+export function formatWelcomeTemplate(template, params = {}) {
+  const text = String(template || DEFAULT_WELCOME_MESSAGE);
+  const name = params.name || 'VIP Member';
+  const chatId = params.chatId || '';
+  const botName = params.botName || 'LinkAdda Bot';
+  const storeName = params.storeName || 'LinkAdda Online Store';
+  const support = params.support || '@support';
+
+  return text
+    .replace(/\{name\}/gi, escapeTelegramHtml(name))
+    .replace(/\{first_name\}/gi, escapeTelegramHtml(name))
+    .replace(/\{chat_id\}/gi, escapeTelegramHtml(String(chatId)))
+    .replace(/\{bot_name\}/gi, escapeTelegramHtml(botName))
+    .replace(/\{bot_username\}/gi, escapeTelegramHtml(botName))
+    .replace(/\{store_name\}/gi, escapeTelegramHtml(storeName))
+    .replace(/\{support\}/gi, escapeTelegramHtml(support));
 }
 
 export async function saveConnectedBot(botData) {
@@ -3087,6 +3141,9 @@ export default async function handler(req, res) {
           webhook: hookData,
           admins: currentAdmins,
           adminProfiles: store.adminProfiles || {},
+          globalWelcomeMessage: store.globalWelcomeMessage || '',
+          botWelcomeMessages: store.botWelcomeMessages || {},
+          defaultWelcomeMessage: DEFAULT_WELCOME_MESSAGE,
           users: allUsers,
           usersCount: allUsers.length,
           appUrl
@@ -3566,6 +3623,109 @@ export default async function handler(req, res) {
   }
 
 
+  
+  // ✉️ Get Welcome Message Configuration (Admin only)
+  if (req.method === 'GET' && action === 'get-welcome-config') {
+    if (!await verifyAdminRequest(req)) {
+      return res.status(401).json({ ok: false, error: 'Unauthorized: Admin authentication required.' });
+    }
+    const store = readBotStore();
+    return res.status(200).json({
+      ok: true,
+      globalWelcomeMessage: store.globalWelcomeMessage || '',
+      botWelcomeMessages: store.botWelcomeMessages || {},
+      defaultWelcomeMessage: DEFAULT_WELCOME_MESSAGE,
+      bots: getConnectedBots()
+    });
+  }
+
+  // ✉️ Save Welcome Message Configuration (Admin only)
+  if (req.method === 'POST' && (action === 'save-welcome-config' || (req.body && req.body.action === 'save-welcome-config'))) {
+    if (!await verifyAdminRequest(req)) {
+      return res.status(401).json({ ok: false, error: 'Unauthorized: Admin authentication required.' });
+    }
+    try {
+      const body = req.body || {};
+      const store = readBotStore();
+      if (!store.botWelcomeMessages) store.botWelcomeMessages = {};
+
+      let siteSettingsUpdates = [];
+
+      // A. Update global welcome template
+      if (typeof body.globalWelcomeMessage === 'string') {
+        store.globalWelcomeMessage = body.globalWelcomeMessage.trim();
+        siteSettingsUpdates.push({
+          key: 'tg_global_welcome_message',
+          value: store.globalWelcomeMessage,
+          updated_at: new Date().toISOString()
+        });
+      }
+
+      // B. Force apply to all bots (clears individual bot overrides)
+      if (body.forceApplyToAll) {
+        store.botWelcomeMessages = {};
+        siteSettingsUpdates.push({
+          key: 'tg_bot_welcome_messages',
+          value: {},
+          updated_at: new Date().toISOString()
+        });
+      }
+
+      // C. Update specific bot custom message
+      if (body.botId && typeof body.botMessage === 'string') {
+        const cleanId = String(body.botId).replace(/^bot_/, '');
+        store.botWelcomeMessages[`bot_${cleanId}`] = body.botMessage.trim();
+        siteSettingsUpdates.push({
+          key: 'tg_bot_welcome_messages',
+          value: store.botWelcomeMessages,
+          updated_at: new Date().toISOString()
+        });
+      }
+
+      // D. Reset specific bot message to global default
+      if (body.resetBotId) {
+        const cleanId = String(body.resetBotId).replace(/^bot_/, '');
+        delete store.botWelcomeMessages[`bot_${cleanId}`];
+        delete store.botWelcomeMessages[cleanId];
+        siteSettingsUpdates.push({
+          key: 'tg_bot_welcome_messages',
+          value: store.botWelcomeMessages,
+          updated_at: new Date().toISOString()
+        });
+      }
+
+      writeBotStore(store);
+
+      // Async sync to Supabase site_settings
+      if (siteSettingsUpdates.length > 0) {
+        try {
+          const { url: sUrl, key: sKey } = getSupabaseConfig();
+          await fetch(`${sUrl}/rest/v1/site_settings`, {
+            method: 'POST',
+            headers: {
+              'apikey': sKey,
+              'Authorization': `Bearer ${sKey}`,
+              'Content-Type': 'application/json',
+              'Prefer': 'resolution=merge-duplicates'
+            },
+            body: JSON.stringify(siteSettingsUpdates)
+          });
+        } catch (e) {
+          console.warn('[save-welcome-config Supabase sync warning]:', e.message);
+        }
+      }
+
+      return res.status(200).json({
+        ok: true,
+        globalWelcomeMessage: store.globalWelcomeMessage || '',
+        botWelcomeMessages: store.botWelcomeMessages || {},
+        defaultWelcomeMessage: DEFAULT_WELCOME_MESSAGE
+      });
+    } catch (e) {
+      return res.status(500).json({ ok: false, error: e.message });
+    }
+  }
+
   // Manual Trigger: Order Notification
   if (req.method === 'POST' && (action === 'notify-order' || url.pathname.endsWith('/notify-order'))) {
     try {
@@ -3805,6 +3965,215 @@ export default async function handler(req, res) {
           markUserMessagesAsRead(msg.chat.id);
         }
 
+        
+        const fromIdStr = String(fromUser?.id || msg.chat?.id || '');
+        const isFromAdmin = adminIds.includes(fromIdStr);
+
+        // ═══════════════════════════════════════════════════════════════════
+        // 👑 TELEGRAM IN-BOT ADMIN WELCOME MESSAGE CONTROLLER & ACTIONS
+        // ═══════════════════════════════════════════════════════════════════
+        if (isFromAdmin) {
+          const store = readBotStore();
+          const pending = store.pendingAdminActions?.[fromIdStr];
+
+          // 1. Pending Interactive Input (Admin clicked [✏️ Set Custom Welcome Message])
+          if (pending && pending.action === 'awaiting_welcome_text') {
+            if (!pending.expiresAt || pending.expiresAt > Date.now()) {
+              if (text.trim().toLowerCase() === '/cancel') {
+                delete store.pendingAdminActions[fromIdStr];
+                writeBotStore(store);
+                await callTelegram('sendMessage', {
+                  chat_id: msg.chat.id,
+                  text: '❌ <b>Edit Cancelled.</b>\nYour welcome message remains unchanged.',
+                  parse_mode: 'HTML'
+                }, currentToken);
+                return res.status(200).json({ ok: true });
+              }
+
+              const targetBotId = pending.botId || currentBotId;
+              const cleanTgtId = String(targetBotId).replace(/^bot_/, '');
+              if (!store.botWelcomeMessages) store.botWelcomeMessages = {};
+              store.botWelcomeMessages[`bot_${cleanTgtId}`] = text.trim();
+              delete store.pendingAdminActions[fromIdStr];
+              writeBotStore(store);
+
+              // Sync to Supabase site_settings
+              try {
+                const { url: sUrl, key: sKey } = getSupabaseConfig();
+                fetch(`${sUrl}/rest/v1/site_settings`, {
+                  method: 'POST',
+                  headers: { 'apikey': sKey, 'Authorization': `Bearer ${sKey}`, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates' },
+                  body: JSON.stringify([{ key: 'tg_bot_welcome_messages', value: store.botWelcomeMessages, updated_at: new Date().toISOString() }])
+                }).catch(() => {});
+              } catch (_) {}
+
+              const preview = formatWelcomeTemplate(text.trim(), {
+                name: fromUser.first_name || 'Alex',
+                chatId: fromUser.id,
+                botName: currentBotUsername ? `@${currentBotUsername}` : 'This Bot',
+                storeName: 'LinkAdda Online Store',
+                support: getSupportContact(receivingBot).url
+              });
+
+              await callTelegram('sendMessage', {
+                chat_id: msg.chat.id,
+                text: `✅ <b>Custom Welcome Message Saved!</b>\n\n` +
+                      `Active specifically for <b>@${escapeTelegramHtml(currentBotUsername || 'this bot')}</b>.\n\n` +
+                      `<b>Customer Preview:</b>\n` +
+                      `━━━━━━━━━━━━━━━━━━━━\n` +
+                      preview + `\n` +
+                      `━━━━━━━━━━━━━━━━━━━━`,
+                parse_mode: 'HTML',
+                reply_markup: {
+                  inline_keyboard: [
+                    [{ text: '👁️ Test /start Live Preview', callback_data: `preview_welcome_${cleanTgtId}` }],
+                    [{ text: '🔄 Reset to Global Default', callback_data: `reset_welcome_${cleanTgtId}` }],
+                    [{ text: '⚙️ Welcome Settings Menu', callback_data: `manage_welcome_${cleanTgtId}` }]
+                  ]
+                }
+              }, currentToken);
+              return res.status(200).json({ ok: true });
+            } else {
+              delete store.pendingAdminActions[fromIdStr];
+              writeBotStore(store);
+            }
+          }
+
+          // 2. Command: /setwelcome <text>
+          if (/^\/setwelcome(?:\s+.*)?$/i.test(text)) {
+            const customText = text.replace(/^\/setwelcome\s*/i, '').trim();
+            const cleanCurrentId = String(currentBotId || '').replace(/^bot_/, '');
+            if (!customText) {
+              if (!store.pendingAdminActions) store.pendingAdminActions = {};
+              store.pendingAdminActions[fromIdStr] = {
+                action: 'awaiting_welcome_text',
+                botId: `bot_${cleanCurrentId}`,
+                expiresAt: Date.now() + 900000
+              };
+              writeBotStore(store);
+
+              await callTelegram('sendMessage', {
+                chat_id: msg.chat.id,
+                text: `✏️ <b>Set Welcome Message for @${escapeTelegramHtml(currentBotUsername || 'this bot')}</b>\n\n` +
+                      `Please send your new welcome message text now as your next message.\n\n` +
+                      `<b>Available Placeholders:</b>\n` +
+                      `• <code>{name}</code> - Customer's name\n` +
+                      `• <code>{chat_id}</code> - Customer's Telegram ID\n` +
+                      `• <code>{bot_name}</code> - This bot's @username\n` +
+                      `• <code>{store_name}</code> - LinkAdda Online Store\n` +
+                      `• <code>{support}</code> - Support contact link\n\n` +
+                      `<i>Send your text now, or type /cancel to abort.</i>`,
+                parse_mode: 'HTML'
+              }, currentToken);
+              return res.status(200).json({ ok: true });
+            }
+
+            if (!store.botWelcomeMessages) store.botWelcomeMessages = {};
+            store.botWelcomeMessages[`bot_${cleanCurrentId}`] = customText;
+            writeBotStore(store);
+
+            try {
+              const { url: sUrl, key: sKey } = getSupabaseConfig();
+              fetch(`${sUrl}/rest/v1/site_settings`, {
+                method: 'POST',
+                headers: { 'apikey': sKey, 'Authorization': `Bearer ${sKey}`, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates' },
+                body: JSON.stringify([{ key: 'tg_bot_welcome_messages', value: store.botWelcomeMessages, updated_at: new Date().toISOString() }])
+              }).catch(() => {});
+            } catch (_) {}
+
+            const preview = formatWelcomeTemplate(customText, {
+              name: fromUser.first_name || 'Alex',
+              chatId: fromUser.id,
+              botName: currentBotUsername ? `@${currentBotUsername}` : 'This Bot',
+              storeName: 'LinkAdda Online Store',
+              support: getSupportContact(receivingBot).url
+            });
+
+            await callTelegram('sendMessage', {
+              chat_id: msg.chat.id,
+              text: `✅ <b>Custom Welcome Message Saved!</b>\n\n` +
+                    `Active specifically for <b>@${escapeTelegramHtml(currentBotUsername || 'this bot')}</b>.\n\n` +
+                    `<b>Customer Preview:</b>\n` +
+                    `━━━━━━━━━━━━━━━━━━━━\n` +
+                    preview + `\n` +
+                    `━━━━━━━━━━━━━━━━━━━━`,
+              parse_mode: 'HTML',
+              reply_markup: {
+                inline_keyboard: [
+                  [{ text: '👁️ Test /start Live Preview', callback_data: `preview_welcome_${cleanCurrentId}` }],
+                  [{ text: '🔄 Reset to Global Default', callback_data: `reset_welcome_${cleanCurrentId}` }]
+                ]
+              }
+            }, currentToken);
+            return res.status(200).json({ ok: true });
+          }
+
+          // 3. Command: /resetwelcome
+          if (/^\/resetwelcome$/i.test(text.trim())) {
+            const cleanCurrentId = String(currentBotId || '').replace(/^bot_/, '');
+            if (store.botWelcomeMessages) {
+              delete store.botWelcomeMessages[`bot_${cleanCurrentId}`];
+              delete store.botWelcomeMessages[cleanCurrentId];
+              writeBotStore(store);
+              try {
+                const { url: sUrl, key: sKey } = getSupabaseConfig();
+                fetch(`${sUrl}/rest/v1/site_settings`, {
+                  method: 'POST',
+                  headers: { 'apikey': sKey, 'Authorization': `Bearer ${sKey}`, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates' },
+                  body: JSON.stringify([{ key: 'tg_bot_welcome_messages', value: store.botWelcomeMessages, updated_at: new Date().toISOString() }])
+                }).catch(() => {});
+              } catch (_) {}
+            }
+
+            await callTelegram('sendMessage', {
+              chat_id: msg.chat.id,
+              text: `🔄 <b>Welcome message reset for @${escapeTelegramHtml(currentBotUsername || 'this bot')}!</b>\n\n` +
+                    `This bot will now automatically use the <b>Global Default Template</b> configured in your Admin Panel.`,
+              parse_mode: 'HTML',
+              reply_markup: {
+                inline_keyboard: [
+                  [{ text: '👁️ Test /start Live Preview', callback_data: `preview_welcome_${cleanCurrentId}` }]
+                ]
+              }
+            }, currentToken);
+            return res.status(200).json({ ok: true });
+          }
+
+          // 4. Command: /welcome or /getwelcome
+          if (/^\/(?:welcome|getwelcome)$/i.test(text.trim())) {
+            const cleanCurrentId = String(currentBotId || '').replace(/^bot_/, '');
+            const welcomeInfo = getWelcomeMessageForBot(currentBotId);
+            const statusLabel = welcomeInfo.isCustom ? '🟣 Custom (Specific to this bot)' : (welcomeInfo.isGlobal ? '🟢 Global Default (Admin Panel)' : '⚪ System Factory Default');
+            const preview = formatWelcomeTemplate(welcomeInfo.text, {
+              name: fromUser.first_name || 'VIP Member',
+              chatId: fromUser.id,
+              botName: currentBotUsername ? `@${currentBotUsername}` : 'This Bot',
+              storeName: 'LinkAdda Online Store',
+              support: getSupportContact(receivingBot).url
+            });
+
+            await callTelegram('sendMessage', {
+              chat_id: msg.chat.id,
+              text: `⚙️ <b>Welcome Message Manager</b>\n` +
+                    `🤖 <b>Bot:</b> @${escapeTelegramHtml(currentBotUsername || 'LinkAdda Bot')}\n` +
+                    `📊 <b>Status:</b> ${statusLabel}\n\n` +
+                    `<b>Current Message Preview:</b>\n` +
+                    `━━━━━━━━━━━━━━━━━━━━\n` +
+                    preview + `\n` +
+                    `━━━━━━━━━━━━━━━━━━━━`,
+              parse_mode: 'HTML',
+              reply_markup: {
+                inline_keyboard: [
+                  [{ text: '✏️ Set Custom Welcome Message', callback_data: `edit_welcome_${cleanCurrentId}` }],
+                  [{ text: '👁️ Test Customer /start Preview', callback_data: `preview_welcome_${cleanCurrentId}` }],
+                  ...(welcomeInfo.isCustom ? [[{ text: '🔄 Reset to Global Default', callback_data: `reset_welcome_${cleanCurrentId}` }]] : [])
+                ]
+              }
+            }, currentToken);
+            return res.status(200).json({ ok: true });
+          }
+        }
+
         if (isStartCmd) {
           const payloadMatch = text.match(/^\/(?:start|satrt|strat|stert)(?:@[a-zA-Z0-9_]+)?\s+(.+)$/i);
           const payload = payloadMatch ? payloadMatch[1].trim() : '';
@@ -3840,16 +4209,16 @@ export default async function handler(req, res) {
           }
 
           const isAdminSender = adminIds.includes(String(msg.chat.id));
-          const welcomeText = 
-            `👋 <b>Welcome ${escapeTelegramHtml(fromUser.first_name || 'VIP Member')}!</b>\n\n` +
-            (isAdminSender ? `👑 <b>Administrator Mode Active!</b> Order alerts & approve/reject buttons are connected.\n\n` : '') +
-            `🆔 <b>Your Telegram Chat ID:</b> <code>${msg.chat.id}</code>\n\n` +
-            `🔥 Welcome to <b>LinkAdda Online Store</b>!\n\n` +
-            `Explore all Exclusive VIP Packs & Collections:\n` +
-            `⚡ Instant High-Speed Cloud Access\n` +
-            `🔒 100% Discrete & Anonymous Checkout\n` +
-            `🛡️ Lifetime Free Link Replacement Guarantee\n\n` +
-            `Tap the <b>Open Store</b> button below to begin shopping:`;
+          const welcomeInfo = getWelcomeMessageForBot(currentBotId);
+          const resolvedWelcome = formatWelcomeTemplate(welcomeInfo.text, {
+            name: fromUser.first_name || fromUser.username || 'VIP Member',
+            chatId: msg.chat.id,
+            botName: currentBotUsername ? `@${currentBotUsername}` : (receivingBot?.name || 'LinkAdda Bot'),
+            storeName: 'LinkAdda Online Store',
+            support: getSupportContact(receivingBot).url
+          });
+
+          const welcomeText = (isAdminSender ? `👑 <b>Administrator Mode Active!</b> Order alerts & approve/reject buttons are connected.\n\n` : '') + resolvedWelcome;
 
           await callTelegram('sendMessage', {
             chat_id: msg.chat.id,

@@ -7483,7 +7483,10 @@ let _tgBotData = {
   isLoading: false,
   isSendingBroadcast: false,
   broadcastResult: null,
-  searchFilter: ''
+  searchFilter: '',
+  globalWelcomeMessage: '',
+  botWelcomeMessages: {},
+  defaultWelcomeMessage: `👋 <b>Welcome {name}!</b>\n\n🆔 <b>Your Telegram Chat ID:</b> <code>{chat_id}</code>\n\n🔥 Welcome to <b>{store_name}</b>!\n\nExplore all Exclusive VIP Packs & Collections:\n⚡ Instant High-Speed Cloud Access\n🔒 100% Discrete & Anonymous Checkout\n🛡️ Lifetime Free Link Replacement Guarantee\n\nTap the <b>Open Store</b> button below to begin shopping:`
 };
 
 function getBackendApiBase() {
@@ -7733,7 +7736,7 @@ async function loadTelegramBotAdminFullData(force = false) {
   try {
     // ⚡ STEP 1: Direct Supabase Service-Role Sync (<50ms, zero server spinup lag)
     const supaServiceKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1rdHR4cXdwYm9zdHptZnlncHpxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MzM4NzU3MCwiZXhwIjoyMTA4OTYzNTcwfQ.smaw1XT43DLymk4Yx7kw3ReOVGRLflDVVqMHs59GDPQ';
-    const sbSettingsRes = await fetch('https://mkttxqwpbostzmfygpzq.supabase.co/rest/v1/site_settings?key=in.(tg_bot_users,tg_connected_bots,tg_admin_chat_ids,tg_admin_profiles)&select=key,value', {
+    const sbSettingsRes = await fetch('https://mkttxqwpbostzmfygpzq.supabase.co/rest/v1/site_settings?key=in.(tg_bot_users,tg_connected_bots,tg_admin_chat_ids,tg_admin_profiles,tg_global_welcome_message,tg_bot_welcome_messages)&select=key,value', {
       headers: { 'apikey': supaServiceKey, 'Authorization': `Bearer ${supaServiceKey}` },
       cache: 'no-store'
     }).then(r => r.json()).catch(() => null);
@@ -7772,6 +7775,16 @@ async function loadTelegramBotAdminFullData(force = false) {
       } catch (_) {}
 
       // 3. Authoritative Bot Users (Strict Fleet Bot Isolation)
+      // 3.5. Authoritative Welcome Messages from Supabase
+      const welcomeRow = sbSettingsRes.find(r => r.key === 'tg_global_welcome_message');
+      if (welcomeRow && typeof welcomeRow.value === 'string') {
+        _tgBotData.globalWelcomeMessage = welcomeRow.value;
+      }
+      const botWelcomeRow = sbSettingsRes.find(r => r.key === 'tg_bot_welcome_messages');
+      if (botWelcomeRow && botWelcomeRow.value && typeof botWelcomeRow.value === 'object') {
+        _tgBotData.botWelcomeMessages = { ...botWelcomeRow.value };
+      }
+
       const usersRow = sbSettingsRes.find(r => r.key === 'tg_bot_users');
       const userUnion = {};
       const adminIdSet = new Set((_tgBotData.admins || []).map(a => String(a).trim()));
@@ -8020,6 +8033,31 @@ function updateTelegramBotLiveUI() {
   });
 
   // Update subscriber table if container exists
+  // Update Welcome Fleet Cards if container exists
+  const welcomeFleetContainer = document.getElementById('tgWelcomeFleetListContainer');
+  if (welcomeFleetContainer && typeof renderTelegramWelcomeFleetCards === 'function') {
+    const nextWelcomeFleetHtml = renderTelegramWelcomeFleetCards(fleetBots);
+    if (welcomeFleetContainer.innerHTML !== nextWelcomeFleetHtml) {
+      welcomeFleetContainer.innerHTML = nextWelcomeFleetHtml;
+    }
+  }
+
+  // Update global welcome input if user is not actively typing in it
+  const globalWelcomeInput = document.getElementById('tgGlobalWelcomeInput');
+  if (globalWelcomeInput && document.activeElement !== globalWelcomeInput && _tgBotData.globalWelcomeMessage) {
+    if (globalWelcomeInput.value !== _tgBotData.globalWelcomeMessage) {
+      globalWelcomeInput.value = _tgBotData.globalWelcomeMessage;
+      const previewEl = document.getElementById('tgWelcomePreviewBubble');
+      if (previewEl && typeof formatWelcomePreviewText === 'function') {
+        previewEl.innerHTML = formatWelcomePreviewText(_tgBotData.globalWelcomeMessage);
+      }
+      const charCountEl = document.getElementById('tgWelcomeCharCount');
+      if (charCountEl) {
+        charCountEl.textContent = `${_tgBotData.globalWelcomeMessage.length} / 4096 chars`;
+      }
+    }
+  }
+
   const tableContainer = document.getElementById('tgUsersTableContainer');
   if (tableContainer) {
     if (!_isUserActivelyScrolling) {
@@ -8920,6 +8958,9 @@ function renderTelegramBotPageView(data = {}) {
         <button type="button" class="btn ${activeTab === 'tgTabUsers' ? 'active-tab-btn' : ''}" data-action="switch-tg-tab" data-target="tgTabUsers" style="padding: 11px 20px; font-weight: 800; font-size: 13.5px; border-radius: 10px; ${activeTab === 'tgTabUsers' ? 'background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; border: none; box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);' : 'background: rgba(255,255,255,0.05); color: var(--text); border: 1px solid var(--border); box-shadow: none;'} display: inline-flex; align-items: center; gap: 8px; cursor: pointer;">
           <i data-lucide="users" style="width: 16px; height: 16px;"></i> 👥 Bot Subscribers & Users (<span id="tgTabUsersCountBadge">${usersCount}</span>)
         </button>
+        <button type="button" class="btn ${activeTab === 'tgTabWelcome' ? 'active-tab-btn' : ''}" data-action="switch-tg-tab" data-target="tgTabWelcome" style="padding: 11px 20px; font-weight: 700; font-size: 13.5px; border-radius: 10px; ${activeTab === 'tgTabWelcome' ? 'background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; border: none; box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);' : 'background: rgba(255,255,255,0.05); color: var(--text); border: 1px solid var(--border); box-shadow: none;'} display: inline-flex; align-items: center; gap: 8px; cursor: pointer;">
+          <i data-lucide="message-square-text" style="width: 16px; height: 16px;"></i> ✉️ Welcome Message Center
+        </button>
         <button type="button" class="btn ${activeTab === 'tgTabBots' ? 'active-tab-btn' : ''}" data-action="switch-tg-tab" data-target="tgTabBots" style="padding: 11px 20px; font-weight: 700; font-size: 13.5px; border-radius: 10px; ${activeTab === 'tgTabBots' ? 'background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; border: none; box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);' : 'background: rgba(255,255,255,0.05); color: var(--text); border: 1px solid var(--border); box-shadow: none;'} display: inline-flex; align-items: center; gap: 8px; cursor: pointer;">
           <i data-lucide="bot" style="width: 16px; height: 16px;"></i> 🤖 Connected Bots Fleet (<span id="tgTabBotsCountBadge">${bots.length}</span>)
         </button>
@@ -8990,6 +9031,8 @@ function renderTelegramBotPageView(data = {}) {
       </section>
 
       <!-- TAB 2: Telegram Admins Manager -->
+      ${renderTelegramWelcomeSection()}
+
       <section id="tgTabAdmins" class="tg-tab-section panel glass" style="display: ${activeTab === 'tgTabAdmins' ? 'block' : 'none'}; padding: 24px 28px; border-radius: 16px; border: 1px solid rgba(245, 158, 11, 0.35); background: linear-gradient(180deg, rgba(245, 158, 11, 0.03) 0%, rgba(15, 23, 42, 0.6) 100%); margin-bottom: 24px;">
         <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px; margin-bottom: 20px; padding-bottom: 14px; border-bottom: 1px solid rgba(255,255,255,0.06);">
           <div style="display: flex; align-items: center; gap: 12px;">
@@ -12778,6 +12821,304 @@ function attachGlobalHandlers() {
       }
       return;
     }
+    
+    // ══════════════════════════════════════════════════════════════════════
+    // ✉️ WELCOME MESSAGE CENTER EVENT CONTROLLERS
+    // ══════════════════════════════════════════════════════════════════════
+
+    // 1. Tag Insert Pills
+    const tagBtn = event.target.closest('[data-insert-tag]');
+    if (tagBtn) {
+      event.preventDefault();
+      const tag = tagBtn.getAttribute('data-insert-tag');
+      const activeTextarea = document.getElementById('tgCustomBotWelcomeInput') || document.getElementById('tgGlobalWelcomeInput');
+      if (activeTextarea && tag) {
+        const start = activeTextarea.selectionStart || activeTextarea.value.length;
+        const end = activeTextarea.selectionEnd || activeTextarea.value.length;
+        const val = activeTextarea.value;
+        activeTextarea.value = val.substring(0, start) + tag + val.substring(end);
+        activeTextarea.selectionStart = activeTextarea.selectionEnd = start + tag.length;
+        activeTextarea.focus();
+        activeTextarea.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+      return;
+    }
+
+    // 2. Save Global Welcome Template
+    if (action === 'save-global-welcome') {
+      event.preventDefault();
+      const input = document.getElementById('tgGlobalWelcomeInput');
+      if (!input) return;
+      const newTemplate = input.value.trim();
+      if (!newTemplate) {
+        showToast('Please enter a welcome message template.', 'warning');
+        return;
+      }
+
+      actionBtn.disabled = true;
+      const origHtml = actionBtn.innerHTML;
+      actionBtn.innerHTML = '<i data-lucide="loader-2" class="spin-icon"></i> Saving...';
+      if (window.lucide) lucide.createIcons();
+
+      try {
+        _tgBotData.globalWelcomeMessage = newTemplate;
+
+        // Dual-Layer Write: Instant Direct Supabase sync (<40ms)
+        const supaServiceKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1rdHR4cXdwYm9zdHptZnlncHpxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MzM4NzU3MCwiZXhwIjoyMTA4OTYzNTcwfQ.smaw1XT43DLymk4Yx7kw3ReOVGRLflDVVqMHs59GDPQ';
+        await fetch('https://mkttxqwpbostzmfygpzq.supabase.co/rest/v1/site_settings', {
+          method: 'POST',
+          headers: {
+            'apikey': supaServiceKey,
+            'Authorization': `Bearer ${supaServiceKey}`,
+            'Content-Type': 'application/json',
+            'Prefer': 'resolution=merge-duplicates'
+          },
+          body: JSON.stringify([{ key: 'tg_global_welcome_message', value: newTemplate, updated_at: new Date().toISOString() }])
+        }).catch(() => {});
+
+        // Background server-side persistence
+        telegramApiFetch('save-welcome-config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...getAdminAuthHeaders() },
+          body: JSON.stringify({ globalWelcomeMessage: newTemplate })
+        }).catch(() => {});
+
+        showToast('Global Welcome Message template saved successfully!', 'success');
+        updateTelegramBotLiveUI();
+      } catch (err) {
+        showToast('Error saving welcome template: ' + err.message, 'danger');
+      } finally {
+        actionBtn.disabled = false;
+        actionBtn.innerHTML = origHtml;
+        if (window.lucide) lucide.createIcons();
+      }
+      return;
+    }
+
+    // 3. Force Apply Global Welcome Template to All Bots
+    if (action === 'force-apply-welcome-all') {
+      event.preventDefault();
+      const input = document.getElementById('tgGlobalWelcomeInput');
+      if (!input) return;
+      const newTemplate = input.value.trim();
+      if (!newTemplate) {
+        showToast('Please enter a welcome message template first.', 'warning');
+        return;
+      }
+
+      openModal(`
+        <div style="padding: 24px 28px; max-width: 480px; text-align: center;">
+          <div style="width: 52px; height: 52px; border-radius: 16px; background: rgba(99,102,241,0.15); color: #818cf8; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 16px;">
+            <i data-lucide="zap" style="width: 28px; height: 28px;"></i>
+          </div>
+          <h3 style="margin: 0 0 8px 0; font-size: 19px; font-weight: 800; color: var(--text);">Force Apply to All Bots?</h3>
+          <p style="margin: 0 0 20px 0; font-size: 13px; color: var(--muted); line-height: 1.5;">
+            This will apply the current global template to <b>ALL connected fleet bots</b> and clear any individual bot custom messages set in Telegram or panel.
+          </p>
+          <div style="display: flex; gap: 10px; justify-content: center;">
+            <button type="button" class="btn btn-ghost" data-close-modal style="padding: 10px 18px; border-radius: 9px;">Cancel</button>
+            <button type="button" class="btn btn-primary" id="confirmForceApplyWelcomeBtn" style="padding: 10px 22px; border-radius: 9px; background: linear-gradient(135deg, #6366f1, #8b5cf6) !important; color: white !important; font-weight: 700;">
+              Yes, Apply to All Bots
+            </button>
+          </div>
+        </div>
+      `);
+
+      const confirmBtn = document.getElementById('confirmForceApplyWelcomeBtn');
+      if (confirmBtn) {
+        confirmBtn.addEventListener('click', async () => {
+          confirmBtn.disabled = true;
+          confirmBtn.textContent = 'Applying...';
+          try {
+            _tgBotData.globalWelcomeMessage = newTemplate;
+            _tgBotData.botWelcomeMessages = {};
+
+            const supaServiceKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1rdHR4cXdwYm9zdHptZnlncHpxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MzM4NzU3MCwiZXhwIjoyMTA4OTYzNTcwfQ.smaw1XT43DLymk4Yx7kw3ReOVGRLflDVVqMHs59GDPQ';
+            await fetch('https://mkttxqwpbostzmfygpzq.supabase.co/rest/v1/site_settings', {
+              method: 'POST',
+              headers: {
+                'apikey': supaServiceKey,
+                'Authorization': `Bearer ${supaServiceKey}`,
+                'Content-Type': 'application/json',
+                'Prefer': 'resolution=merge-duplicates'
+              },
+              body: JSON.stringify([
+                { key: 'tg_global_welcome_message', value: newTemplate, updated_at: new Date().toISOString() },
+                { key: 'tg_bot_welcome_messages', value: {}, updated_at: new Date().toISOString() }
+              ])
+            }).catch(() => {});
+
+            telegramApiFetch('save-welcome-config', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', ...getAdminAuthHeaders() },
+              body: JSON.stringify({ globalWelcomeMessage: newTemplate, forceApplyToAll: true })
+            }).catch(() => {});
+
+            closeModal();
+            showToast('Global template applied to ALL fleet bots!', 'success');
+            updateTelegramBotLiveUI();
+          } catch (err) {
+            showToast('Error applying to all bots: ' + err.message, 'danger');
+          }
+        });
+      }
+      return;
+    }
+
+    // 4. Restore Standard Default Template in Editor
+    if (action === 'reset-standard-welcome') {
+      event.preventDefault();
+      const input = document.getElementById('tgGlobalWelcomeInput');
+      if (input && _tgBotData.defaultWelcomeMessage) {
+        input.value = _tgBotData.defaultWelcomeMessage;
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        showToast('Restored standard template. Tap "Save Global Template" to apply.', 'info');
+      }
+      return;
+    }
+
+    // 5. Open Custom Welcome Editor Modal for Specific Bot
+    if (action === 'customize-bot-welcome') {
+      event.preventDefault();
+      const botId = actionBtn.getAttribute('data-bot-id');
+      const cleanId = String(botId || '').replace(/^bot_/, '');
+      const fleetBots = _tgBotData.bots || [];
+      const bot = fleetBots.find(b => String(b.id || b.botId).replace(/^bot_/, '') === cleanId) || { id: cleanId, username: 'Bot' };
+      const botMap = _tgBotData.botWelcomeMessages || {};
+      const currentMsg = botMap[`bot_${cleanId}`] || botMap[cleanId] || _tgBotData.globalWelcomeMessage || _tgBotData.defaultWelcomeMessage || '';
+      const bUname = (bot.username || 'Bot').replace(/^@/, '');
+
+      openModal(`
+        <div style="padding: 24px 28px; width: min(640px, calc(100vw - 32px)); box-sizing: border-box;">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.08);">
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <div style="width: 36px; height: 36px; border-radius: 10px; background: linear-gradient(135deg, #a855f7, #6366f1); display: flex; align-items: center; justify-content: center; color: white;">
+                <i data-lucide="bot" style="width: 18px; height: 18px;"></i>
+              </div>
+              <div>
+                <h3 style="margin: 0; font-size: 16px; font-weight: 800; color: var(--text);">Customize Welcome for @${escapeHtml(bUname)}</h3>
+                <div style="font-size: 11px; color: #c084fc; font-weight: 600;">Custom Campaign Override for this Bot Only</div>
+              </div>
+            </div>
+            <button type="button" class="btn btn-ghost" data-close-modal style="padding: 6px;"><i data-lucide="x"></i></button>
+          </div>
+
+          <div style="background: rgba(0,0,0,0.22); border-radius: 10px; padding: 10px 14px; border: 1px solid rgba(255,255,255,0.06); margin-bottom: 14px;">
+            <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--muted); letter-spacing: 0.04em; margin-bottom: 6px;">Insert Tags:</div>
+            <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+              <button type="button" class="tg-tag-pill" data-insert-tag="{name}">🏷️ {name}</button>
+              <button type="button" class="tg-tag-pill" data-insert-tag="{chat_id}">🆔 {chat_id}</button>
+              <button type="button" class="tg-tag-pill" data-insert-tag="{bot_name}">🤖 {bot_name}</button>
+              <button type="button" class="tg-tag-pill" data-insert-tag="{store_name}">🛍️ {store_name}</button>
+              <button type="button" class="tg-tag-pill" data-insert-tag="{support}">💬 {support}</button>
+            </div>
+          </div>
+
+          <div style="margin-bottom: 16px;">
+            <label for="tgCustomBotWelcomeInput" style="display: block; font-size: 12.5px; font-weight: 700; color: var(--text); margin-bottom: 6px;">
+              Welcome Message Content:
+            </label>
+            <textarea id="tgCustomBotWelcomeInput" rows="10" style="width: 100%; box-sizing: border-box; background: rgba(11, 15, 25, 0.95); border: 1px solid rgba(255,255,255,0.12); border-radius: 10px; padding: 12px; color: #f8fafc; font-family: monospace; font-size: 12.5px; line-height: 1.5; outline: none;">${escapeHtml(currentMsg)}</textarea>
+            <small style="display: block; color: var(--muted); font-size: 11px; margin-top: 4px;">Supports HTML formatting tags. Leave empty and tap Save to revert to Global Default.</small>
+          </div>
+
+          <div style="display: flex; justify-content: flex-end; gap: 10px;">
+            <button type="button" class="btn btn-ghost" data-close-modal style="padding: 9px 18px; border-radius: 8px;">Cancel</button>
+            <button type="button" class="btn btn-primary" id="saveCustomBotWelcomeBtn" data-bot-id="${escapeHtml(cleanId)}" style="padding: 9px 20px; border-radius: 8px; background: linear-gradient(135deg, #a855f7, #6366f1) !important; color: white !important; font-weight: 700;">
+              Save for @${escapeHtml(bUname)}
+            </button>
+          </div>
+        </div>
+      `);
+
+      const saveBtn = document.getElementById('saveCustomBotWelcomeBtn');
+      if (saveBtn) {
+        saveBtn.addEventListener('click', async () => {
+          const customTextarea = document.getElementById('tgCustomBotWelcomeInput');
+          const customVal = customTextarea ? customTextarea.value.trim() : '';
+
+          saveBtn.disabled = true;
+          saveBtn.textContent = 'Saving...';
+
+          try {
+            if (!_tgBotData.botWelcomeMessages) _tgBotData.botWelcomeMessages = {};
+            if (customVal) {
+              _tgBotData.botWelcomeMessages[`bot_${cleanId}`] = customVal;
+            } else {
+              delete _tgBotData.botWelcomeMessages[`bot_${cleanId}`];
+              delete _tgBotData.botWelcomeMessages[cleanId];
+            }
+
+            const supaServiceKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1rdHR4cXdwYm9zdHptZnlncHpxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MzM4NzU3MCwiZXhwIjoyMTA4OTYzNTcwfQ.smaw1XT43DLymk4Yx7kw3ReOVGRLflDVVqMHs59GDPQ';
+            await fetch('https://mkttxqwpbostzmfygpzq.supabase.co/rest/v1/site_settings', {
+              method: 'POST',
+              headers: {
+                'apikey': supaServiceKey,
+                'Authorization': `Bearer ${supaServiceKey}`,
+                'Content-Type': 'application/json',
+                'Prefer': 'resolution=merge-duplicates'
+              },
+              body: JSON.stringify([{ key: 'tg_bot_welcome_messages', value: _tgBotData.botWelcomeMessages, updated_at: new Date().toISOString() }])
+            }).catch(() => {});
+
+            telegramApiFetch('save-welcome-config', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', ...getAdminAuthHeaders() },
+              body: JSON.stringify({ botId: cleanId, botMessage: customVal })
+            }).catch(() => {});
+
+            closeModal();
+            showToast(`Welcome message updated for @${bUname}!`, 'success');
+            updateTelegramBotLiveUI();
+          } catch (err) {
+            showToast('Error saving bot welcome: ' + err.message, 'danger');
+          }
+        });
+      }
+      return;
+    }
+
+    // 6. Reset Bot Welcome Message to Global Default
+    if (action === 'reset-bot-welcome') {
+      event.preventDefault();
+      const botId = actionBtn.getAttribute('data-bot-id');
+      const cleanId = String(botId || '').replace(/^bot_/, '');
+      
+      actionBtn.disabled = true;
+      actionBtn.textContent = '...';
+
+      try {
+        if (_tgBotData.botWelcomeMessages) {
+          delete _tgBotData.botWelcomeMessages[`bot_${cleanId}`];
+          delete _tgBotData.botWelcomeMessages[cleanId];
+        }
+
+        const supaServiceKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1rdHR4cXdwYm9zdHptZnlncHpxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MzM4NzU3MCwiZXhwIjoyMTA4OTYzNTcwfQ.smaw1XT43DLymk4Yx7kw3ReOVGRLflDVVqMHs59GDPQ';
+        await fetch('https://mkttxqwpbostzmfygpzq.supabase.co/rest/v1/site_settings', {
+          method: 'POST',
+          headers: {
+            'apikey': supaServiceKey,
+            'Authorization': `Bearer ${supaServiceKey}`,
+            'Content-Type': 'application/json',
+            'Prefer': 'resolution=merge-duplicates'
+          },
+          body: JSON.stringify([{ key: 'tg_bot_welcome_messages', value: _tgBotData.botWelcomeMessages, updated_at: new Date().toISOString() }])
+        }).catch(() => {});
+
+        telegramApiFetch('save-welcome-config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...getAdminAuthHeaders() },
+          body: JSON.stringify({ resetBotId: cleanId })
+        }).catch(() => {});
+
+        showToast('Bot reset to Global Default template!', 'info');
+        updateTelegramBotLiveUI();
+      } catch (err) {
+        showToast('Error resetting bot welcome: ' + err.message, 'danger');
+      }
+      return;
+    }
+
     if (action === 'switch-tg-tab') {
       const targetId = actionBtn.getAttribute('data-target');
       if (!targetId) return;
@@ -15584,3 +15925,259 @@ protectRoute((user) => {
 });
 
 
+
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ✉️ TELEGRAM WELCOME MESSAGE INTELLIGENCE CENTER (RENDERER & PREVIEW)
+// ══════════════════════════════════════════════════════════════════════════════
+
+function formatWelcomePreviewText(raw) {
+  if (!raw) raw = _tgBotData.defaultWelcomeMessage || '';
+  const primaryBot = (_tgBotData.bots && _tgBotData.bots.find(b => b.isPrimary)) || _tgBotData.bot || {};
+  const bUname = (primaryBot.username || 'LinkAdda_VIP_Bot').replace(/^@/, '');
+
+  let out = escapeHtml(raw)
+    .replace(/\{name\}/gi, 'Alex (VIP Member)')
+    .replace(/\{first_name\}/gi, 'Alex')
+    .replace(/\{chat_id\}/gi, '<code>8770964308</code>')
+    .replace(/\{bot_name\}/gi, '<b>@' + escapeHtml(bUname) + '</b>')
+    .replace(/\{bot_username\}/gi, '<b>@' + escapeHtml(bUname) + '</b>')
+    .replace(/\{store_name\}/gi, '<b>LinkAdda Online Store</b>')
+    .replace(/\{support\}/gi, '<a href="https://t.me/support" target="_blank" style="color: #38bdf8;">@support</a>');
+
+  // Re-enable safe Telegram tags that user typed
+  out = out
+    .replace(/&lt;b&gt;/gi, '<b>')
+    .replace(/&lt;\/b&gt;/gi, '</b>')
+    .replace(/&lt;strong&gt;/gi, '<strong>')
+    .replace(/&lt;\/strong&gt;/gi, '</strong>')
+    .replace(/&lt;i&gt;/gi, '<i>')
+    .replace(/&lt;\/i&gt;/gi, '</i>')
+    .replace(/&lt;em&gt;/gi, '<em>')
+    .replace(/&lt;\/em&gt;/gi, '</em>')
+    .replace(/&lt;code&gt;/gi, '<code>')
+    .replace(/&lt;\/code&gt;/gi, '</code>')
+    .replace(/&lt;u&gt;/gi, '<u>')
+    .replace(/&lt;\/u&gt;/gi, '</u>')
+    .replace(/&lt;s&gt;/gi, '<s>')
+    .replace(/&lt;\/s&gt;/gi, '</s>')
+    .replace(/\n/g, '<br>');
+
+  return out;
+}
+
+function renderTelegramWelcomeFleetCards(fleetBots = []) {
+  if (!fleetBots || !fleetBots.length) {
+    return `
+      <div style="padding: 24px; text-align: center; color: var(--muted); background: rgba(0,0,0,0.2); border-radius: 12px; border: 1px dashed rgba(255,255,255,0.08);">
+        No connected bots found in fleet. Connect a bot in the "Connected Bots Fleet" tab first.
+      </div>
+    `;
+  }
+
+  const botMap = _tgBotData.botWelcomeMessages || {};
+
+  return fleetBots.map(b => {
+    const rawId = String(b.id || b.botId || '').replace(/^bot_/, '');
+    const customMsg = botMap[`bot_${rawId}`] || botMap[rawId];
+    const isCustom = Boolean(customMsg && customMsg.trim());
+    const uname = (b.username || 'Bot').replace(/^@/, '');
+
+    return `
+      <div class="tg-bot-welcome-card" style="${isCustom ? 'border-color: rgba(168, 85, 247, 0.4); background: linear-gradient(135deg, rgba(168, 85, 247, 0.04) 0%, rgba(15, 23, 42, 0.7) 100%);' : ''}">
+        <div>
+          <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 10px;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <div style="width: 36px; height: 36px; border-radius: 10px; background: ${isCustom ? 'linear-gradient(135deg, #a855f7, #6366f1)' : 'linear-gradient(135deg, #0284c7, #38bdf8)'}; display: flex; align-items: center; justify-content: center; color: white; font-weight: 800; font-size: 14px; flex-shrink: 0;">
+                ${escapeHtml(uname.charAt(0).toUpperCase())}
+              </div>
+              <div>
+                <div style="font-size: 14px; font-weight: 800; color: var(--text); display: flex; align-items: center; gap: 6px;">
+                  <span>@${escapeHtml(uname)}</span>
+                  ${b.isPrimary ? '<span style="font-size: 9px; padding: 1px 5px; border-radius: 4px; background: rgba(99,102,241,0.25); color: #a5b4fc; font-weight: 700;">PRIMARY</span>' : ''}
+                </div>
+                <div style="font-size: 11px; color: var(--muted); margin-top: 2px;">ID: ${escapeHtml(rawId)} · ${b.name || 'Telegram Bot'}</div>
+              </div>
+            </div>
+            <div>
+              ${isCustom 
+                ? '<span class="tg-welcome-badge-custom">🟣 Custom Override</span>' 
+                : '<span class="tg-welcome-badge-global">🟢 Global Default</span>'}
+            </div>
+          </div>
+
+          <!-- Message Snippet -->
+          <div style="background: rgba(0,0,0,0.25); border-radius: 8px; padding: 10px 12px; font-size: 12px; color: var(--muted); border: 1px solid rgba(255,255,255,0.04); margin-bottom: 12px; max-height: 80px; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; line-height: 1.45;">
+            ${escapeHtml(isCustom ? customMsg : (_tgBotData.globalWelcomeMessage || _tgBotData.defaultWelcomeMessage || ''))}
+          </div>
+        </div>
+
+        <!-- Action Row -->
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 12px;">
+          <div style="font-size: 11px; color: var(--muted);">
+            ${isCustom ? 'Active via Telegram / Panel' : 'Synced to Global Template'}
+          </div>
+          <div style="display: flex; gap: 6px; align-items: center;">
+            ${isCustom ? `
+              <button type="button" class="btn btn-ghost btn-sm" data-action="reset-bot-welcome" data-bot-id="${escapeHtml(rawId)}" title="Reset to Global Default Template" style="font-size: 11.5px; padding: 4px 10px; border-radius: 6px; color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3);">
+                <i data-lucide="rotate-ccw" style="width: 12px; height: 12px;"></i> Reset
+              </button>
+            ` : ''}
+            <button type="button" class="btn btn-primary btn-sm" data-action="customize-bot-welcome" data-bot-id="${escapeHtml(rawId)}" style="font-size: 11.5px; padding: 5px 12px; border-radius: 6px; background: linear-gradient(135deg, #6366f1, #8b5cf6) !important; color: white !important;">
+              <i data-lucide="edit-3" style="width: 12px; height: 12px;"></i> ${isCustom ? 'Edit Override' : 'Customize Bot'}
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function renderTelegramWelcomeSection() {
+  const activeTab = _tgBotData.activeTab || 'tgTabUsers';
+  const fleetBots = (_tgBotData.bots && _tgBotData.bots.length) ? _tgBotData.bots : ([_tgBotData.bot].filter(Boolean));
+  const primaryBot = fleetBots.find(b => b.isPrimary) || fleetBots[0] || {};
+  const currentGlobal = _tgBotData.globalWelcomeMessage || _tgBotData.defaultWelcomeMessage || '';
+  const botMap = _tgBotData.botWelcomeMessages || {};
+  const customCount = Object.keys(botMap).filter(k => botMap[k] && botMap[k].trim()).length;
+
+  return `
+    <section id="tgTabWelcome" class="tg-tab-section panel glass" style="display: ${activeTab === 'tgTabWelcome' ? 'block' : 'none'}; padding: 24px 28px; border-radius: 16px; border: 1px solid rgba(99, 102, 241, 0.35); background: linear-gradient(180deg, rgba(99, 102, 241, 0.03) 0%, rgba(15, 23, 42, 0.6) 100%); margin-bottom: 24px;">
+      
+      <!-- Head Row -->
+      <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid rgba(255,255,255,0.06);">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <div style="width: 40px; height: 40px; border-radius: 12px; background: linear-gradient(135deg, #6366f1, #a855f7); display: flex; align-items: center; justify-content: center; color: white; box-shadow: 0 6px 18px rgba(99, 102, 241, 0.35);">
+            <i data-lucide="message-square-text" style="width: 22px; height: 22px;"></i>
+          </div>
+          <div>
+            <h3 style="margin: 0; font-size: 18px; font-weight: 800; color: var(--text);">Telegram Welcome Message Intelligence Center</h3>
+            <p style="margin: 3px 0 0 0; font-size: 12.5px; color: var(--muted);">Configure the greeting message sent on /start. Edit the global template for all bots or customize individual bots directly here or via in-bot Telegram commands (/welcome, /setwelcome).</p>
+          </div>
+        </div>
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <span style="font-size: 11.5px; font-weight: 700; color: #a5b4fc; background: rgba(99,102,241,0.15); border: 1px solid rgba(99,102,241,0.3); padding: 4px 10px; border-radius: 8px;">
+            ${fleetBots.length} Connected Bots · ${customCount} Customized
+          </span>
+        </div>
+      </div>
+
+      <!-- Variable Insertion Quick Tags -->
+      <div style="background: rgba(0,0,0,0.22); border-radius: 12px; padding: 12px 16px; border: 1px solid rgba(255,255,255,0.06); margin-bottom: 18px;">
+        <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--muted); letter-spacing: 0.05em; margin-bottom: 8px;">
+          ⚡ Dynamic Placeholders (Click any tag to insert into editor):
+        </div>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+          <button type="button" class="tg-tag-pill" data-insert-tag="{name}" title="Inserts customer's first name">🏷️ {name} <span style="opacity: 0.6; font-weight: normal;">(Customer Name)</span></button>
+          <button type="button" class="tg-tag-pill" data-insert-tag="{chat_id}" title="Inserts customer's Telegram Chat ID">🆔 {chat_id} <span style="opacity: 0.6; font-weight: normal;">(Telegram ID)</span></button>
+          <button type="button" class="tg-tag-pill" data-insert-tag="{bot_name}" title="Inserts this bot's @username">🤖 {bot_name} <span style="opacity: 0.6; font-weight: normal;">(@Username)</span></button>
+          <button type="button" class="tg-tag-pill" data-insert-tag="{store_name}" title="Inserts LinkAdda Online Store">🛍️ {store_name} <span style="opacity: 0.6; font-weight: normal;">(Store Name)</span></button>
+          <button type="button" class="tg-tag-pill" data-insert-tag="{support}" title="Inserts VIP Support link">💬 {support} <span style="opacity: 0.6; font-weight: normal;">(Support Link)</span></button>
+        </div>
+      </div>
+
+      <!-- Dual-Pane Layout: Left = Editor, Right = Live Telegram Mockup Preview -->
+      <div class="tg-welcome-layout-grid">
+        
+        <!-- Left: Global Template Editor -->
+        <div style="display: flex; flex-direction: column; justify-content: space-between;">
+          <div>
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+              <label for="tgGlobalWelcomeInput" style="font-size: 13px; font-weight: 700; color: var(--text);">
+                🌐 Global Welcome Message Template (Default for All Bots)
+              </label>
+              <span id="tgWelcomeCharCount" style="font-size: 11px; color: var(--muted); font-family: monospace;">
+                ${currentGlobal.length} / 4096 chars
+              </span>
+            </div>
+            
+            <textarea id="tgGlobalWelcomeInput" rows="11" style="width: 100%; box-sizing: border-box; background: rgba(11, 15, 25, 0.85); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; padding: 14px; color: #f8fafc; font-family: 'Consolas', 'Menlo', 'Monaco', monospace; font-size: 13px; line-height: 1.5; resize: vertical; outline: none; transition: border-color 0.2s ease;">${escapeHtml(currentGlobal)}</textarea>
+            
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 6px; font-size: 11.5px; color: var(--muted);">
+              <span>Supports Telegram HTML: <code>&lt;b&gt;bold&lt;/b&gt;</code>, <code>&lt;i&gt;italic&lt;/i&gt;</code>, <code>&lt;code&gt;code&lt;/code&gt;</code></span>
+              <button type="button" data-action="reset-standard-welcome" class="btn btn-ghost btn-xs" style="font-size: 11px; color: #94a3b8; text-decoration: underline; padding: 0;">
+                Restore Default Text
+              </button>
+            </div>
+          </div>
+
+          <!-- Save Toolbar -->
+          <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 18px; padding-top: 16px; border-top: 1px solid rgba(255,255,255,0.06);">
+            <button type="button" data-action="save-global-welcome" class="btn btn-primary" style="font-size: 13px; padding: 10px 22px; border-radius: 10px; background: linear-gradient(135deg, #10b981, #059669) !important; color: white !important; font-weight: 700; display: inline-flex; align-items: center; gap: 7px; box-shadow: 0 4px 16px rgba(16, 185, 129, 0.4);">
+              <i data-lucide="check-circle" style="width: 15px; height: 15px;"></i> Save Global Template
+            </button>
+            <button type="button" data-action="force-apply-welcome-all" class="btn btn-ghost" title="Resets all per-bot customizations and applies this global message to every bot" style="font-size: 12.5px; padding: 10px 16px; border-radius: 10px; background: rgba(99,102,241,0.12); border: 1px solid rgba(99,102,241,0.3); color: #a5b4fc; font-weight: 700; display: inline-flex; align-items: center; gap: 6px;">
+              <i data-lucide="zap" style="width: 14px; height: 14px; color: #818cf8;"></i> Force Apply to All Bots
+            </button>
+          </div>
+        </div>
+
+        <!-- Right: Real-time Telegram Device Mockup Preview -->
+        <div>
+          <div style="font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+            <i data-lucide="smartphone" style="width: 15px; height: 15px; color: #38bdf8;"></i> Live Telegram Customer Preview
+          </div>
+          
+          <div class="tg-phone-frame">
+            <div class="tg-phone-topbar">
+              <div class="tg-phone-bot-info">
+                <div class="tg-phone-avatar">
+                  ${escapeHtml((primaryBot.username || 'L').charAt(0).toUpperCase())}
+                </div>
+                <div>
+                  <div style="font-size: 13px; font-weight: 800; color: #ffffff;">${escapeHtml(primaryBot.name || 'LinkAdda VIP Bot')}</div>
+                  <div style="font-size: 10.5px; color: #38bdf8;">bot · 24/7 online</div>
+                </div>
+              </div>
+              <div style="font-size: 11px; color: #64748b;">
+                Telegram
+              </div>
+            </div>
+
+            <div class="tg-phone-screen-body">
+              <div style="text-align: center; margin-bottom: 4px;">
+                <span style="font-size: 10px; background: rgba(0,0,0,0.4); padding: 2px 8px; border-radius: 999px; color: #94a3b8;">Today</span>
+              </div>
+              
+              <div class="tg-chat-bubble">
+                <div id="tgWelcomePreviewBubble">
+                  ${formatWelcomePreviewText(currentGlobal)}
+                </div>
+                <div class="tg-chat-meta">
+                  <span>12:00 PM</span>
+                  <span style="color: #38bdf8;">✓✓</span>
+                </div>
+              </div>
+
+              <!-- Action Buttons Under Bubble -->
+              <div class="tg-mockup-buttons">
+                <div class="tg-mockup-btn">
+                  <span>🛍️ Open Store (VIP Content)</span> <span style="font-size: 11px; opacity: 0.7;">↗</span>
+                </div>
+                <div class="tg-mockup-btn" style="background: rgba(30, 58, 138, 0.5);">
+                  <span>💬 24/7 VIP Support</span> <span style="font-size: 11px; opacity: 0.7;">↗</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Fleet Bots Welcome Customization Deck -->
+      <div style="margin-top: 32px; padding-top: 24px; border-top: 1px solid rgba(255,255,255,0.08);">
+        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-bottom: 6px;">
+          <div>
+            <h4 style="margin: 0; font-size: 15px; font-weight: 800; color: var(--text);">🤖 Fleet Bots Welcome Status & Overrides</h4>
+            <p style="margin: 3px 0 0 0; font-size: 12px; color: var(--muted);">Bots set to "Global Default" automatically mirror the template above. Any bot customized here or in Telegram (/welcome) runs its own custom campaign.</p>
+          </div>
+        </div>
+
+        <div id="tgWelcomeFleetListContainer" class="tg-fleet-welcome-grid">
+          ${renderTelegramWelcomeFleetCards(fleetBots)}
+        </div>
+      </div>
+
+    </section>
+  `;
+}
