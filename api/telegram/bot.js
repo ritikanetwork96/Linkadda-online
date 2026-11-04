@@ -19,6 +19,12 @@ export function getAdminChatIds() {
         if (id) adminSet.add(id);
       });
     }
+    if (store.adminProfiles && typeof store.adminProfiles === 'object') {
+      Object.keys(store.adminProfiles).forEach(id => {
+        const cleanId = String(id).trim();
+        if (cleanId) adminSet.add(cleanId);
+      });
+    }
   } catch (_) {}
   const envAdmins = (process.env.ADMIN_CHAT_IDS || '').split(',').map(s => s.trim()).filter(Boolean);
   envAdmins.forEach(id => adminSet.add(id));
@@ -2518,6 +2524,58 @@ function escapeTelegramHtml(str) {
 }
 
 /**
+ * Converts Telegram Message Entities (bold, italic, custom_emoji, links) into valid Telegram HTML
+ * Natively preserves Telegram Premium Custom Emojis using <tg-emoji emoji-id="..."> tags!
+ */
+export function telegramEntitiesToHtml(text, entities) {
+  if (!text) return '';
+  if (!entities || !entities.length) return escapeTelegramHtml(text);
+
+  // Collect boundary points (UTF-16 code unit offsets)
+  const points = new Set([0, text.length]);
+  for (const ent of entities) {
+    if (typeof ent.offset === 'number' && typeof ent.length === 'number') {
+      points.add(Math.max(0, Math.min(text.length, ent.offset)));
+      points.add(Math.max(0, Math.min(text.length, ent.offset + ent.length)));
+    }
+  }
+  const sortedPoints = Array.from(points).sort((a, b) => a - b);
+
+  let out = '';
+  for (let i = 0; i < sortedPoints.length - 1; i++) {
+    const start = sortedPoints[i];
+    const end = sortedPoints[i + 1];
+    const chunk = escapeTelegramHtml(text.slice(start, end));
+
+    // Entities covering this chunk
+    const active = entities.filter(e => e.offset <= start && (e.offset + e.length) >= end);
+
+    let openTags = '';
+    let closeTags = '';
+
+    for (const ent of active) {
+      if (ent.type === 'bold') { openTags += '<b>'; closeTags = '</b>' + closeTags; }
+      else if (ent.type === 'italic') { openTags += '<i>'; closeTags = '</i>' + closeTags; }
+      else if (ent.type === 'underline') { openTags += '<u>'; closeTags = '</u>' + closeTags; }
+      else if (ent.type === 'strikethrough') { openTags += '<s>'; closeTags = '</s>' + closeTags; }
+      else if (ent.type === 'spoiler') { openTags += '<tg-spoiler>'; closeTags = '</tg-spoiler>' + closeTags; }
+      else if (ent.type === 'code') { openTags += '<code>'; closeTags = '</code>' + closeTags; }
+      else if (ent.type === 'pre') { openTags += '<pre>'; closeTags = '</pre>' + closeTags; }
+      else if (ent.type === 'text_link' && ent.url) { openTags += `<a href="${escapeTelegramHtml(ent.url)}">`; closeTags = '</a>' + closeTags; }
+      else if (ent.type === 'custom_emoji' && ent.custom_emoji_id) { openTags += `<tg-emoji emoji-id="${escapeTelegramHtml(ent.custom_emoji_id)}">`; closeTags = '</tg-emoji>' + closeTags; }
+    }
+
+    out += openTags + chunk + closeTags;
+  }
+
+  return out.replace(/<\/b><b>/g, '')
+            .replace(/<\/i><i>/g, '')
+            .replace(/<\/u><u>/g, '')
+            .replace(/<\/s><s>/g, '')
+            .replace(/<\/tg-spoiler><tg-spoiler>/g, '');
+}
+
+/**
  * Broadcast New Product to all Telegram Bot Users
  * Supports dual Telegram Mini App options:
  * 1. View Product (Full gallery slideshow, video demo, specs, reviews, tiers)
@@ -4092,10 +4150,10 @@ export default async function handler(req, res) {
           const store = readBotStore();
           const pending = store.pendingAdminActions?.[fromIdStr];
 
-          // 1. Pending Interactive Input (Admin clicked [✏️ Set Custom Welcome Message])
+          // 1. Pending Interactive Input: Custom Welcome Message (Supports Telegram Premium Emojis)
           if (pending && pending.action === 'awaiting_welcome_text') {
             if (!pending.expiresAt || pending.expiresAt > Date.now()) {
-              if (text.trim().toLowerCase() === '/cancel') {
+              if (text && text.trim().toLowerCase() === '/cancel') {
                 delete store.pendingAdminActions[fromIdStr];
                 writeBotStore(store);
                 await callTelegram('sendMessage', {
@@ -4106,10 +4164,12 @@ export default async function handler(req, res) {
                 return res.status(200).json({ ok: true });
               }
 
+              const rawText = msg.text || text || '';
+              const formattedHtml = telegramEntitiesToHtml(rawText, msg.entities);
               const targetBotId = pending.botId || currentBotId;
               const cleanTgtId = String(targetBotId).replace(/^bot_/, '');
               if (!store.botWelcomeMessages) store.botWelcomeMessages = {};
-              store.botWelcomeMessages[`bot_${cleanTgtId}`] = text.trim();
+              store.botWelcomeMessages[`bot_${cleanTgtId}`] = formattedHtml;
               delete store.pendingAdminActions[fromIdStr];
               writeBotStore(store);
 
@@ -4123,7 +4183,7 @@ export default async function handler(req, res) {
                 }).catch(() => {});
               } catch (_) {}
 
-              const preview = formatWelcomeTemplate(text.trim(), {
+              const preview = formatWelcomeTemplate(formattedHtml, {
                 name: fromUser.first_name || 'Alex',
                 chatId: fromUser.id,
                 botName: currentBotUsername ? `@${currentBotUsername}` : 'This Bot',
@@ -4134,7 +4194,8 @@ export default async function handler(req, res) {
               await callTelegram('sendMessage', {
                 chat_id: msg.chat.id,
                 text: `✅ <b>Custom Welcome Message Saved!</b>\n\n` +
-                      `Active specifically for <b>@${escapeTelegramHtml(currentBotUsername || 'this bot')}</b>.\n\n` +
+                      `Active specifically for <b>@${escapeTelegramHtml(currentBotUsername || 'this bot')}</b>.\n` +
+                      `💎 <i>Telegram Premium Custom Emojis preserved!</i>\n\n` +
                       `<b>Customer Preview:</b>\n` +
                       `━━━━━━━━━━━━━━━━━━━━\n` +
                       preview + `\n` +
@@ -4144,7 +4205,7 @@ export default async function handler(req, res) {
                   inline_keyboard: [
                     [{ text: '👁️ Test /start Live Preview', callback_data: `preview_welcome_${cleanTgtId}` }],
                     [{ text: '🔄 Reset to Global Default', callback_data: `reset_welcome_${cleanTgtId}` }],
-                    [{ text: '⚙️ Welcome Settings Menu', callback_data: `manage_welcome_${cleanTgtId}` }]
+                    [{ text: '⚙️ Admin Control Center', callback_data: `admin_menu_${cleanTgtId}` }]
                   ]
                 }
               }, currentToken);
@@ -4155,7 +4216,244 @@ export default async function handler(req, res) {
             }
           }
 
-          // 2. Command: /setwelcome <text>
+          // 2. Pending Interactive Input: Global Welcome Message (All Bots)
+          if (pending && pending.action === 'awaiting_global_welcome_text') {
+            if (!pending.expiresAt || pending.expiresAt > Date.now()) {
+              if (text && text.trim().toLowerCase() === '/cancel') {
+                delete store.pendingAdminActions[fromIdStr];
+                writeBotStore(store);
+                await callTelegram('sendMessage', {
+                  chat_id: msg.chat.id,
+                  text: '❌ <b>Edit Cancelled.</b>',
+                  parse_mode: 'HTML'
+                }, currentToken);
+                return res.status(200).json({ ok: true });
+              }
+
+              const rawText = msg.text || text || '';
+              const formattedHtml = telegramEntitiesToHtml(rawText, msg.entities);
+              store.globalWelcomeMessage = formattedHtml;
+              delete store.pendingAdminActions[fromIdStr];
+              writeBotStore(store);
+
+              try {
+                const { url: sUrl, key: sKey } = getSupabaseConfig();
+                fetch(`${sUrl}/rest/v1/site_settings`, {
+                  method: 'POST',
+                  headers: { 'apikey': sKey, 'Authorization': `Bearer ${sKey}`, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates' },
+                  body: JSON.stringify([{ key: 'tg_global_welcome_message', value: formattedHtml, updated_at: new Date().toISOString() }])
+                }).catch(() => {});
+              } catch (_) {}
+
+              await callTelegram('sendMessage', {
+                chat_id: msg.chat.id,
+                text: `✅ <b>Global Welcome Message Saved across ALL fleet bots!</b>\n💎 <i>Telegram Premium Custom Emojis preserved!</i>`,
+                parse_mode: 'HTML',
+                reply_markup: {
+                  inline_keyboard: [
+                    [{ text: '👁️ Test Live Preview', callback_data: `preview_welcome_${String(currentBotId || '').replace(/^bot_/, '')}` }],
+                    [{ text: '⚙️ Admin Control Center', callback_data: `admin_menu_${String(currentBotId || '').replace(/^bot_/, '')}` }]
+                  ]
+                }
+              }, currentToken);
+              return res.status(200).json({ ok: true });
+            } else {
+              delete store.pendingAdminActions[fromIdStr];
+              writeBotStore(store);
+            }
+          }
+
+          // 3. Pending Interactive Input: Broadcast Any Message (Text, Link, Product, Media, Premium Emojis)
+          if (pending && pending.action === 'awaiting_broadcast_msg') {
+            if (!pending.expiresAt || pending.expiresAt > Date.now()) {
+              if (text && text.trim().toLowerCase() === '/cancel') {
+                delete store.pendingAdminActions[fromIdStr];
+                writeBotStore(store);
+                await callTelegram('sendMessage', {
+                  chat_id: msg.chat.id,
+                  text: '❌ <b>Broadcast Cancelled.</b>',
+                  parse_mode: 'HTML'
+                }, currentToken);
+                return res.status(200).json({ ok: true });
+              }
+
+              const targetBotId = pending.botId || currentBotId;
+              const cleanTgtId = String(targetBotId).replace(/^bot_/, '');
+              const bMatch = allBots.find(b => b.botId === cleanTgtId || b.id === cleanTgtId || b.botId === `bot_${cleanTgtId}`);
+              const bUname = bMatch?.username || currentBotUsername || cleanTgtId;
+
+              const allUsers = await getAllBotUsers();
+              const thisBotUsers = allUsers.filter(u => doesUserBelongToFleetBot(u, bMatch || { botId: `bot_${cleanTgtId}`, id: cleanTgtId }, allBots));
+              const thisBotCount = thisBotUsers.length;
+              const totalCount = allUsers.length;
+
+              if (!store.pendingBroadcasts) store.pendingBroadcasts = {};
+              const broadcastId = `bc_${Date.now()}`;
+              store.pendingBroadcasts[broadcastId] = {
+                fromChatId: msg.chat.id,
+                messageId: msg.message_id,
+                targetBotId: `bot_${cleanTgtId}`,
+                expiresAt: Date.now() + 600000
+              };
+              delete store.pendingAdminActions[fromIdStr];
+              writeBotStore(store);
+
+              await callTelegram('sendMessage', {
+                chat_id: msg.chat.id,
+                text:
+                  `📢 <b>Message Received & Ready for Broadcast!</b>\n\n` +
+                  `📊 <b>Target Audience:</b>\n` +
+                  `• 🤖 <b>@${escapeTelegramHtml(bUname)}:</b> ${thisBotCount} customers\n` +
+                  `• 🌐 <b>All Connected Bots:</b> ${totalCount} customers\n\n` +
+                  `💎 <i>Your Telegram Premium Custom Emojis, photos, videos, formatting & links preserved!</i>\n\n` +
+                  `Choose destination below:`,
+                parse_mode: 'HTML',
+                reply_to_message_id: msg.message_id,
+                reply_markup: {
+                  inline_keyboard: [
+                    [{ text: `🚀 Send to @${bUname} (${thisBotCount} users)`, callback_data: `exec_bc_this_${broadcastId}` }],
+                    [{ text: `🌐 Broadcast to ALL Bots (${totalCount} users)`, callback_data: `exec_bc_all_${broadcastId}` }],
+                    [{ text: '❌ Cancel Broadcast', callback_data: 'cancel_admin_action' }]
+                  ]
+                }
+              }, currentToken);
+              return res.status(200).json({ ok: true });
+            } else {
+              delete store.pendingAdminActions[fromIdStr];
+              writeBotStore(store);
+            }
+          }
+
+          // 4. Command: /admin or /menu or /panel or /tools
+          if (/^\/(?:admin|menu|panel|tools|dashboard)$/i.test(text.trim())) {
+            const cleanCurrentId = String(currentBotId || '').replace(/^bot_/, '');
+            const welcomeInfo = getWelcomeMessageForBot(currentBotId);
+            const statusLabel = welcomeInfo.isCustom ? '🟣 Custom (This bot)' : (welcomeInfo.isGlobal ? '🟢 Global Default' : '⚪ System Default');
+            const allUsers = await getAllBotUsers();
+            const thisSubs = allUsers.filter(u => doesUserBelongToFleetBot(u, targetBot || { botId: `bot_${cleanCurrentId}`, id: cleanCurrentId }, allBots)).length;
+
+            const appUrl = getAppUrl(req);
+            const botParam = currentBotId ? `botId=${encodeURIComponent(currentBotId)}&botUser=${encodeURIComponent(currentBotUsername)}` : '';
+            const userParams = `tgUserId=${encodeURIComponent(msg.chat.id)}&tgUsername=${encodeURIComponent(fromUser?.username || '')}&tgName=${encodeURIComponent([fromUser?.first_name, fromUser?.last_name].filter(Boolean).join(' ') || '')}`;
+            const fullParams = [botParam, userParams].filter(Boolean).join('&');
+            const storeWebUrl = fullParams ? `${appUrl}?${fullParams}` : appUrl;
+
+            await callTelegram('sendMessage', {
+              chat_id: msg.chat.id,
+              text:
+                `👑 <b>Administrator Control Center</b>\n\n` +
+                `🤖 <b>Bot:</b> @${escapeTelegramHtml(currentBotUsername || 'LinkAdda Bot')}\n` +
+                `👥 <b>Subscribers:</b> ${thisSubs} active users (${allUsers.length} total across fleet)\n` +
+                `✉️ <b>Welcome Template:</b> ${statusLabel}\n\n` +
+                `<i>Tap an action below to manage this bot:</i>`,
+              parse_mode: 'HTML',
+              reply_markup: {
+                inline_keyboard: [
+                  [
+                    { text: '✏️ Edit Welcome Message', callback_data: `edit_welcome_${cleanCurrentId}` },
+                    { text: '📢 Send / Broadcast', callback_data: `start_broadcast_${cleanCurrentId}` }
+                  ],
+                  [
+                    { text: '👁️ Test /start Preview', callback_data: `preview_welcome_${cleanCurrentId}` },
+                    { text: '🔄 Reset Welcome', callback_data: `reset_welcome_${cleanCurrentId}` }
+                  ],
+                  [
+                    { text: '🌐 Set Global Welcome (All Bots)', callback_data: 'edit_global_welcome' },
+                    { text: '👥 Subscribers Overview', callback_data: `view_subs_${cleanCurrentId}` }
+                  ],
+                  [
+                    { text: '🛍️ Open Store (VIP Content)', web_app: { url: storeWebUrl } }
+                  ]
+                ]
+              }
+            }, currentToken);
+            return res.status(200).json({ ok: true });
+          }
+
+          // 5. Command: /broadcast or /send or /announce
+          if (/^\/(?:broadcast|send|announce|post)$/i.test(text.trim())) {
+            const cleanCurrentId = String(currentBotId || '').replace(/^bot_/, '');
+            if (!store.pendingAdminActions) store.pendingAdminActions = {};
+            store.pendingAdminActions[fromIdStr] = {
+              action: 'awaiting_broadcast_msg',
+              botId: `bot_${cleanCurrentId}`,
+              expiresAt: Date.now() + 900000
+            };
+            writeBotStore(store);
+
+            await callTelegram('sendMessage', {
+              chat_id: msg.chat.id,
+              text:
+                `📢 <b>Broadcast / Send Message to Customers</b>\n\n` +
+                `Active Bot: <b>@${escapeTelegramHtml(currentBotUsername || 'this bot')}</b>\n\n` +
+                `Send <b>ANY</b> message now that you want to deliver to customers:\n` +
+                `• Normal text or formatted messages\n` +
+                `• 💎 Telegram Premium Custom Emojis\n` +
+                `• Product photos, banners, or demo videos with captions\n` +
+                `• Store links or Telegram links\n\n` +
+                `<i>Send your message now, or type /cancel to abort.</i>`,
+              parse_mode: 'HTML',
+              reply_markup: {
+                inline_keyboard: [
+                  [{ text: '❌ Cancel', callback_data: 'cancel_admin_action' }]
+                ]
+              }
+            }, currentToken);
+            return res.status(200).json({ ok: true });
+          }
+
+          // 6. Command: /setglobalwelcome <text>
+          if (/^\/setglobalwelcome(?:\s+.*)?$/i.test(text)) {
+            const customText = text.replace(/^\/setglobalwelcome\s*/i, '').trim();
+            if (!customText) {
+              if (!store.pendingAdminActions) store.pendingAdminActions = {};
+              store.pendingAdminActions[fromIdStr] = {
+                action: 'awaiting_global_welcome_text',
+                expiresAt: Date.now() + 900000
+              };
+              writeBotStore(store);
+
+              await callTelegram('sendMessage', {
+                chat_id: msg.chat.id,
+                text:
+                  `🌐 <b>Set Global Welcome Message for ALL Fleet Bots</b>\n\n` +
+                  `Please send your new global welcome message now.\n\n` +
+                  `💎 <i>Telegram Premium Custom Emojis supported!</i>\n\n` +
+                  `<b>Available Placeholders:</b>\n` +
+                  `• <code>{name}</code> - Customer's name\n` +
+                  `• <code>{chat_id}</code> - Customer's Telegram ID\n` +
+                  `• <code>{bot_name}</code> - This bot's @username\n` +
+                  `• <code>{store_name}</code> - LinkAdda Online Store\n` +
+                  `• <code>{support}</code> - Support contact link\n\n` +
+                  `<i>Send your message now, or type /cancel to abort.</i>`,
+                parse_mode: 'HTML'
+              }, currentToken);
+              return res.status(200).json({ ok: true });
+            }
+
+            const rawText = msg.text || text || '';
+            const formattedHtml = telegramEntitiesToHtml(rawText, msg.entities);
+            store.globalWelcomeMessage = formattedHtml;
+            writeBotStore(store);
+
+            try {
+              const { url: sUrl, key: sKey } = getSupabaseConfig();
+              fetch(`${sUrl}/rest/v1/site_settings`, {
+                method: 'POST',
+                headers: { 'apikey': sKey, 'Authorization': `Bearer ${sKey}`, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates' },
+                body: JSON.stringify([{ key: 'tg_global_welcome_message', value: formattedHtml, updated_at: new Date().toISOString() }])
+              }).catch(() => {});
+            } catch (_) {}
+
+            await callTelegram('sendMessage', {
+              chat_id: msg.chat.id,
+              text: `✅ <b>Global Welcome Message Saved across ALL fleet bots!</b>\n💎 <i>Telegram Premium Custom Emojis preserved!</i>`,
+              parse_mode: 'HTML'
+            }, currentToken);
+            return res.status(200).json({ ok: true });
+          }
+
+          // 7. Command: /setwelcome <text>
           if (/^\/setwelcome(?:\s+.*)?$/i.test(text)) {
             const customText = text.replace(/^\/setwelcome\s*/i, '').trim();
             const cleanCurrentId = String(currentBotId || '').replace(/^bot_/, '');
@@ -4172,6 +4470,7 @@ export default async function handler(req, res) {
                 chat_id: msg.chat.id,
                 text: `✏️ <b>Set Welcome Message for @${escapeTelegramHtml(currentBotUsername || 'this bot')}</b>\n\n` +
                       `Please send your new welcome message text now as your next message.\n\n` +
+                      `💎 <i>Telegram Premium Custom Emojis supported!</i>\n\n` +
                       `<b>Available Placeholders:</b>\n` +
                       `• <code>{name}</code> - Customer's name\n` +
                       `• <code>{chat_id}</code> - Customer's Telegram ID\n` +
@@ -4184,8 +4483,10 @@ export default async function handler(req, res) {
               return res.status(200).json({ ok: true });
             }
 
+            const rawText = msg.text || text || '';
+            const formattedHtml = telegramEntitiesToHtml(rawText, msg.entities);
             if (!store.botWelcomeMessages) store.botWelcomeMessages = {};
-            store.botWelcomeMessages[`bot_${cleanCurrentId}`] = customText;
+            store.botWelcomeMessages[`bot_${cleanCurrentId}`] = formattedHtml;
             writeBotStore(store);
 
             try {
@@ -4197,7 +4498,7 @@ export default async function handler(req, res) {
               }).catch(() => {});
             } catch (_) {}
 
-            const preview = formatWelcomeTemplate(customText, {
+            const preview = formatWelcomeTemplate(formattedHtml, {
               name: fromUser.first_name || 'Alex',
               chatId: fromUser.id,
               botName: currentBotUsername ? `@${currentBotUsername}` : 'This Bot',
@@ -4208,7 +4509,8 @@ export default async function handler(req, res) {
             await callTelegram('sendMessage', {
               chat_id: msg.chat.id,
               text: `✅ <b>Custom Welcome Message Saved!</b>\n\n` +
-                    `Active specifically for <b>@${escapeTelegramHtml(currentBotUsername || 'this bot')}</b>.\n\n` +
+                    `Active specifically for <b>@${escapeTelegramHtml(currentBotUsername || 'this bot')}</b>.\n` +
+                    `💎 <i>Telegram Premium Custom Emojis preserved!</i>\n\n` +
                     `<b>Customer Preview:</b>\n` +
                     `━━━━━━━━━━━━━━━━━━━━\n` +
                     preview + `\n` +
@@ -4217,14 +4519,15 @@ export default async function handler(req, res) {
               reply_markup: {
                 inline_keyboard: [
                   [{ text: '👁️ Test /start Live Preview', callback_data: `preview_welcome_${cleanCurrentId}` }],
-                  [{ text: '🔄 Reset to Global Default', callback_data: `reset_welcome_${cleanCurrentId}` }]
+                  [{ text: '🔄 Reset to Global Default', callback_data: `reset_welcome_${cleanCurrentId}` }],
+                  [{ text: '⚙️ Admin Control Center', callback_data: `admin_menu_${cleanCurrentId}` }]
                 ]
               }
             }, currentToken);
             return res.status(200).json({ ok: true });
           }
 
-          // 3. Command: /resetwelcome
+          // 8. Command: /resetwelcome
           if (/^\/resetwelcome$/i.test(text.trim())) {
             const cleanCurrentId = String(currentBotId || '').replace(/^bot_/, '');
             if (store.botWelcomeMessages) {
@@ -4248,14 +4551,15 @@ export default async function handler(req, res) {
               parse_mode: 'HTML',
               reply_markup: {
                 inline_keyboard: [
-                  [{ text: '👁️ Test /start Live Preview', callback_data: `preview_welcome_${cleanCurrentId}` }]
+                  [{ text: '👁️ Test /start Live Preview', callback_data: `preview_welcome_${cleanCurrentId}` }],
+                  [{ text: '⚙️ Admin Control Center', callback_data: `admin_menu_${cleanCurrentId}` }]
                 ]
               }
             }, currentToken);
             return res.status(200).json({ ok: true });
           }
 
-          // 4. Command: /welcome or /getwelcome
+          // 9. Command: /welcome or /getwelcome
           if (/^\/(?:welcome|getwelcome)$/i.test(text.trim())) {
             const cleanCurrentId = String(currentBotId || '').replace(/^bot_/, '');
             const welcomeInfo = getWelcomeMessageForBot(currentBotId);
@@ -4280,16 +4584,17 @@ export default async function handler(req, res) {
               parse_mode: 'HTML',
               reply_markup: {
                 inline_keyboard: [
-                  [{ text: '✏️ Set Custom Welcome Message', callback_data: `edit_welcome_${cleanCurrentId}` }],
+                  [{ text: '✏️ Edit Welcome Message', callback_data: `edit_welcome_${cleanCurrentId}` }],
+                  [{ text: '📢 Send / Broadcast', callback_data: `start_broadcast_${cleanCurrentId}` }],
                   [{ text: '👁️ Test Customer /start Preview', callback_data: `preview_welcome_${cleanCurrentId}` }],
-                  ...(welcomeInfo.isCustom ? [[{ text: '🔄 Reset to Global Default', callback_data: `reset_welcome_${cleanCurrentId}` }]] : [])
+                  ...(welcomeInfo.isCustom ? [[{ text: '🔄 Reset to Global Default', callback_data: `reset_welcome_${cleanCurrentId}` }]] : []),
+                  [{ text: '⚙️ Admin Control Center', callback_data: `admin_menu_${cleanCurrentId}` }]
                 ]
               }
             }, currentToken);
             return res.status(200).json({ ok: true });
           }
         }
-
         if (isStartCmd) {
           const payloadMatch = text.match(/^\/(?:start|satrt|strat|stert)(?:@[a-zA-Z0-9_]+)?\s+(.+)$/i);
           const payload = payloadMatch ? payloadMatch[1].trim() : '';
@@ -4335,16 +4640,29 @@ export default async function handler(req, res) {
           });
 
           const welcomeText = (isAdminSender ? `👑 <b>Administrator Mode Active!</b> Order alerts & approve/reject buttons are connected.\n\n` : '') + resolvedWelcome;
+          const cleanCurrentId = String(currentBotId || '').replace(/^bot_/, '');
+
+          const inlineButtons = isAdminSender ? [
+            [{ text: '🛍️ Open Store (VIP Content)', web_app: { url: storeWebUrl } }],
+            [
+              { text: '✏️ Edit Welcome Message', callback_data: `edit_welcome_${cleanCurrentId}` },
+              { text: '📢 Send / Broadcast', callback_data: `start_broadcast_${cleanCurrentId}` }
+            ],
+            [
+              { text: '⚙️ Admin Control Center', callback_data: `admin_menu_${cleanCurrentId}` },
+              { text: `💬 ${getSupportContact(receivingBot).label}`, url: getSupportContact(receivingBot).url }
+            ]
+          ] : [
+            [{ text: '🛍️ Open Store (VIP Content)', web_app: { url: storeWebUrl } }],
+            [{ text: `💬 ${getSupportContact(receivingBot).label}`, url: getSupportContact(receivingBot).url }]
+          ];
 
           await callTelegram('sendMessage', {
             chat_id: msg.chat.id,
             text: welcomeText,
             parse_mode: 'HTML',
             reply_markup: {
-              inline_keyboard: [
-                [{ text: '🛍️ Open Store (VIP Content)', web_app: { url: storeWebUrl } }],
-                [{ text: `💬 ${getSupportContact(receivingBot).label}`, url: getSupportContact(receivingBot).url }]
-              ]
+              inline_keyboard: inlineButtons
             }
           }, currentToken);
           return res.status(200).json({ ok: true });
@@ -4439,6 +4757,376 @@ export default async function handler(req, res) {
             callback_query_id: cq.id,
             text: '⚠️ You are not an authorized Admin for this bot!',
             show_alert: true
+          }, currentToken);
+          return res.status(200).json({ ok: true });
+        }
+
+        // ── Admin In-Bot Interactive Actions ──
+        if (data.startsWith('edit_welcome_')) {
+          const tgtBotId = data.replace('edit_welcome_', '') || String(currentBotId || '').replace(/^bot_/, '');
+          const bMatch = allBots.find(b => b.botId === tgtBotId || b.id === tgtBotId || b.botId === `bot_${tgtBotId}`);
+          const bUname = bMatch?.username || currentBotUsername || tgtBotId;
+
+          const store = readBotStore();
+          if (!store.pendingAdminActions) store.pendingAdminActions = {};
+          store.pendingAdminActions[userIdStr] = {
+            action: 'awaiting_welcome_text',
+            botId: `bot_${tgtBotId}`,
+            expiresAt: Date.now() + 900000
+          };
+          writeBotStore(store);
+
+          await callTelegram('answerCallbackQuery', { callback_query_id: cq.id }, currentToken);
+
+          await callTelegram('sendMessage', {
+            chat_id: cq.message.chat.id,
+            text:
+              `✏️ <b>Edit Welcome Message for @${escapeTelegramHtml(bUname)}</b>\n\n` +
+              `Send your new welcome message now as your next message.\n\n` +
+              `💎 <i>Telegram Premium Custom Emojis, Bold, Italic, Links & formatting supported!</i>\n\n` +
+              `<b>Available Placeholders:</b>\n` +
+              `• <code>{name}</code> - Customer's name\n` +
+              `• <code>{chat_id}</code> - Customer's Telegram ID\n` +
+              `• <code>{bot_name}</code> - @${escapeTelegramHtml(bUname)}\n` +
+              `• <code>{store_name}</code> - LinkAdda Online Store\n` +
+              `• <code>{support}</code> - Support contact link\n\n` +
+              `<i>Send your text now, or send /cancel to abort.</i>`,
+            parse_mode: 'HTML',
+            reply_markup: {
+              inline_keyboard: [
+                [{ text: '🌐 Set as Global (All Bots)', callback_data: 'edit_global_welcome' }],
+                [{ text: '❌ Cancel', callback_data: 'cancel_admin_action' }]
+              ]
+            }
+          }, currentToken);
+          return res.status(200).json({ ok: true });
+        }
+
+        if (data === 'edit_global_welcome') {
+          const store = readBotStore();
+          if (!store.pendingAdminActions) store.pendingAdminActions = {};
+          store.pendingAdminActions[userIdStr] = {
+            action: 'awaiting_global_welcome_text',
+            expiresAt: Date.now() + 900000
+          };
+          writeBotStore(store);
+
+          await callTelegram('answerCallbackQuery', { callback_query_id: cq.id }, currentToken);
+
+          await callTelegram('sendMessage', {
+            chat_id: cq.message.chat.id,
+            text:
+              `🌐 <b>Set Global Welcome Message (All Bots)</b>\n\n` +
+              `Send the welcome message that will be used by <b>ALL connected fleet bots</b>.\n\n` +
+              `💎 <i>Telegram Premium Custom Emojis, Bold, Italic, Links & formatting supported!</i>\n\n` +
+              `<i>Send your text now, or send /cancel to abort.</i>`,
+            parse_mode: 'HTML',
+            reply_markup: {
+              inline_keyboard: [
+                [{ text: '❌ Cancel', callback_data: 'cancel_admin_action' }]
+              ]
+            }
+          }, currentToken);
+          return res.status(200).json({ ok: true });
+        }
+
+        if (data.startsWith('preview_welcome_')) {
+          const tgtBotId = data.replace('preview_welcome_', '') || String(currentBotId || '').replace(/^bot_/, '');
+          const welcomeInfo = getWelcomeMessageForBot(`bot_${tgtBotId}`);
+          const bMatch = allBots.find(b => b.botId === tgtBotId || b.id === tgtBotId || b.botId === `bot_${tgtBotId}`);
+          const bUname = bMatch?.username || currentBotUsername || tgtBotId;
+
+          const preview = formatWelcomeTemplate(welcomeInfo.text, {
+            name: user.first_name || 'VIP Member',
+            chatId: user.id,
+            botName: `@${bUname}`,
+            storeName: 'LinkAdda Online Store',
+            support: getSupportContact(receivingBot).url
+          });
+
+          await callTelegram('answerCallbackQuery', { callback_query_id: cq.id }, currentToken);
+
+          await callTelegram('sendMessage', {
+            chat_id: cq.message.chat.id,
+            text: preview,
+            parse_mode: 'HTML',
+            reply_markup: {
+              inline_keyboard: [
+                [{ text: '🛍️ Open Store (VIP Content)', web_app: { url: getAppUrl(req) } }],
+                [{ text: `💬 ${getSupportContact(receivingBot).label}`, url: getSupportContact(receivingBot).url }],
+                [{ text: '✏️ Edit Welcome Message', callback_data: `edit_welcome_${tgtBotId}` }],
+                [{ text: '⚙️ Admin Menu', callback_data: `admin_menu_${tgtBotId}` }]
+              ]
+            }
+          }, currentToken);
+          return res.status(200).json({ ok: true });
+        }
+
+        if (data.startsWith('reset_welcome_')) {
+          const tgtBotId = data.replace('reset_welcome_', '') || String(currentBotId || '').replace(/^bot_/, '');
+          const store = readBotStore();
+          if (store.botWelcomeMessages) {
+            delete store.botWelcomeMessages[`bot_${tgtBotId}`];
+            delete store.botWelcomeMessages[tgtBotId];
+            writeBotStore(store);
+            try {
+              const { url: sUrl, key: sKey } = getSupabaseConfig();
+              fetch(`${sUrl}/rest/v1/site_settings`, {
+                method: 'POST',
+                headers: { 'apikey': sKey, 'Authorization': `Bearer ${sKey}`, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates' },
+                body: JSON.stringify([{ key: 'tg_bot_welcome_messages', value: store.botWelcomeMessages, updated_at: new Date().toISOString() }])
+              }).catch(() => {});
+            } catch (_) {}
+          }
+
+          await callTelegram('answerCallbackQuery', {
+            callback_query_id: cq.id,
+            text: '🔄 Welcome message reset to Global Default!'
+          }, currentToken);
+
+          await callTelegram('sendMessage', {
+            chat_id: cq.message.chat.id,
+            text: `🔄 <b>Welcome message reset to Global Default!</b>\n\nThis bot will now use the Global Welcome Message configured in your Admin Panel.`,
+            parse_mode: 'HTML',
+            reply_markup: {
+              inline_keyboard: [
+                [{ text: '👁️ Test Live Preview', callback_data: `preview_welcome_${tgtBotId}` }],
+                [{ text: '⚙️ Back to Admin Menu', callback_data: `admin_menu_${tgtBotId}` }]
+              ]
+            }
+          }, currentToken);
+          return res.status(200).json({ ok: true });
+        }
+
+        if (data.startsWith('start_broadcast_')) {
+          const tgtBotId = data.replace('start_broadcast_', '') || String(currentBotId || '').replace(/^bot_/, '');
+          const bMatch = allBots.find(b => b.botId === tgtBotId || b.id === tgtBotId || b.botId === `bot_${tgtBotId}`);
+          const bUname = bMatch?.username || currentBotUsername || tgtBotId;
+
+          const store = readBotStore();
+          if (!store.pendingAdminActions) store.pendingAdminActions = {};
+          store.pendingAdminActions[userIdStr] = {
+            action: 'awaiting_broadcast_msg',
+            botId: `bot_${tgtBotId}`,
+            expiresAt: Date.now() + 900000
+          };
+          writeBotStore(store);
+
+          await callTelegram('answerCallbackQuery', { callback_query_id: cq.id }, currentToken);
+
+          await callTelegram('sendMessage', {
+            chat_id: cq.message.chat.id,
+            text:
+              `📢 <b>Broadcast / Send Message to Customers</b>\n\n` +
+              `Active Bot: <b>@${escapeTelegramHtml(bUname)}</b>\n\n` +
+              `Send <b>ANY</b> message now that you want to deliver to customers:\n` +
+              `• Normal text or formatted message\n` +
+              `• 💎 Telegram Premium Custom Emojis\n` +
+              `• Product photos, banners, or demo videos with captions\n` +
+              `• Store links or Telegram links\n\n` +
+              `<i>Send your message now, or type /cancel to abort.</i>`,
+            parse_mode: 'HTML',
+            reply_markup: {
+              inline_keyboard: [
+                [{ text: '❌ Cancel', callback_data: 'cancel_admin_action' }]
+              ]
+            }
+          }, currentToken);
+          return res.status(200).json({ ok: true });
+        }
+
+        if (data.startsWith('exec_bc_this_') || data.startsWith('exec_bc_all_')) {
+          const isAll = data.startsWith('exec_bc_all_');
+          const bcId = data.replace('exec_bc_all_', '').replace('exec_bc_this_', '');
+          const store = readBotStore();
+          const bcInfo = store.pendingBroadcasts?.[bcId];
+
+          if (!bcInfo) {
+            await callTelegram('answerCallbackQuery', {
+              callback_query_id: cq.id,
+              text: '⚠️ Broadcast session expired or not found. Please send the message again.',
+              show_alert: true
+            }, currentToken);
+            return res.status(200).json({ ok: true });
+          }
+
+          delete store.pendingBroadcasts[bcId];
+          writeBotStore(store);
+
+          await callTelegram('answerCallbackQuery', {
+            callback_query_id: cq.id,
+            text: '🚀 Broadcast started! Delivering messages now...'
+          }, currentToken);
+
+          const statusMsg = await callTelegram('sendMessage', {
+            chat_id: cq.message.chat.id,
+            text: `⏳ <b>Broadcasting in progress...</b>\nPlease wait while messages are delivered.`,
+            parse_mode: 'HTML'
+          }, currentToken);
+
+          const statusMsgId = statusMsg?.result?.message_id;
+
+          const allUsers = await getAllBotUsers();
+          const cleanTgtId = String(bcInfo.targetBotId).replace(/^bot_/, '');
+          const bMatch = allBots.find(b => b.botId === cleanTgtId || b.id === cleanTgtId || b.botId === `bot_${cleanTgtId}`);
+          
+          let recipients = [];
+          if (isAll) {
+            recipients = allUsers;
+          } else {
+            recipients = allUsers.filter(u => doesUserBelongToFleetBot(u, bMatch || { botId: `bot_${cleanTgtId}`, id: cleanTgtId }, allBots));
+          }
+
+          let delivered = 0;
+          let failed = 0;
+          const startTime = Date.now();
+
+          for (const u of recipients) {
+            const uid = String(u.id);
+            if (!uid || authorizedAdmins.includes(uid)) continue;
+
+            try {
+              const res = await callTelegram('copyMessage', {
+                chat_id: uid,
+                from_chat_id: bcInfo.fromChatId,
+                message_id: bcInfo.messageId
+              }, currentToken);
+
+              if (res && res.ok) {
+                delivered++;
+              } else {
+                failed++;
+              }
+            } catch (_) {
+              failed++;
+            }
+
+            // Anti-flood rate limiting: 35ms pause between messages
+            await new Promise(r => setTimeout(r, 35));
+          }
+
+          const elapsedSec = Math.round((Date.now() - startTime) / 1000);
+          const finalReport =
+            `✅ <b>Broadcast Completed!</b>\n\n` +
+            `🎯 <b>Target:</b> ${isAll ? 'All Connected Fleet Bots' : `@${bMatch?.username || cleanTgtId}`}\n` +
+            `👥 <b>Recipients:</b> ${recipients.length}\n` +
+            `📥 <b>Delivered:</b> ${delivered}\n` +
+            `${failed > 0 ? `⚠️ <b>Failed / Blocked:</b> ${failed}\n` : ''}` +
+            `⏱️ <b>Time:</b> ${elapsedSec}s`;
+
+          if (statusMsgId) {
+            await callTelegram('editMessageText', {
+              chat_id: cq.message.chat.id,
+              message_id: statusMsgId,
+              text: finalReport,
+              parse_mode: 'HTML',
+              reply_markup: {
+                inline_keyboard: [
+                  [{ text: '⚙️ Admin Control Center', callback_data: `admin_menu_${cleanTgtId}` }]
+                ]
+              }
+            }, currentToken);
+          } else {
+            await callTelegram('sendMessage', {
+              chat_id: cq.message.chat.id,
+              text: finalReport,
+              parse_mode: 'HTML'
+            }, currentToken);
+          }
+
+          return res.status(200).json({ ok: true });
+        }
+
+        if (data.startsWith('admin_menu_') || data === 'admin_menu') {
+          const tgtBotId = data.replace('admin_menu_', '') || String(currentBotId || '').replace(/^bot_/, '');
+          const bMatch = allBots.find(b => b.botId === tgtBotId || b.id === tgtBotId || b.botId === `bot_${tgtBotId}`);
+          const bUname = bMatch?.username || currentBotUsername || tgtBotId;
+
+          const welcomeInfo = getWelcomeMessageForBot(`bot_${tgtBotId}`);
+          const statusLabel = welcomeInfo.isCustom ? '🟣 Custom (This bot)' : (welcomeInfo.isGlobal ? '🟢 Global Default' : '⚪ System Default');
+
+          const allUsers = await getAllBotUsers();
+          const thisSubs = allUsers.filter(u => doesUserBelongToFleetBot(u, bMatch || { botId: `bot_${tgtBotId}`, id: tgtBotId }, allBots)).length;
+
+          await callTelegram('answerCallbackQuery', { callback_query_id: cq.id }, currentToken);
+
+          await callTelegram('sendMessage', {
+            chat_id: cq.message.chat.id,
+            text:
+              `⚙️ <b>Admin Control Center</b>\n\n` +
+              `🤖 <b>Bot:</b> @${escapeTelegramHtml(bUname)}\n` +
+              `👥 <b>Subscribers:</b> ${thisSubs} active users (${allUsers.length} total across fleet)\n` +
+              `✉️ <b>Welcome Template:</b> ${statusLabel}\n\n` +
+              `<i>Choose an action below:</i>`,
+            parse_mode: 'HTML',
+            reply_markup: {
+              inline_keyboard: [
+                [
+                  { text: '✏️ Edit Welcome Message', callback_data: `edit_welcome_${tgtBotId}` },
+                  { text: '📢 Send / Broadcast', callback_data: `start_broadcast_${tgtBotId}` }
+                ],
+                [
+                  { text: '👁️ Test /start Preview', callback_data: `preview_welcome_${tgtBotId}` },
+                  { text: '🔄 Reset Welcome', callback_data: `reset_welcome_${tgtBotId}` }
+                ],
+                [
+                  { text: '🌐 Set Global Welcome (All Bots)', callback_data: 'edit_global_welcome' },
+                  { text: '👥 Subscribers Overview', callback_data: `view_subs_${tgtBotId}` }
+                ],
+                [
+                  { text: '🛍️ Open Store (VIP Content)', web_app: { url: getAppUrl(req) } }
+                ]
+              ]
+            }
+          }, currentToken);
+          return res.status(200).json({ ok: true });
+        }
+
+        if (data.startsWith('view_subs_')) {
+          const tgtBotId = data.replace('view_subs_', '') || String(currentBotId || '').replace(/^bot_/, '');
+          const bMatch = allBots.find(b => b.botId === tgtBotId || b.id === tgtBotId || b.botId === `bot_${tgtBotId}`);
+          const bUname = bMatch?.username || currentBotUsername || tgtBotId;
+
+          const allUsers = await getAllBotUsers();
+          const thisSubs = allUsers.filter(u => doesUserBelongToFleetBot(u, bMatch || { botId: `bot_${tgtBotId}`, id: tgtBotId }, allBots));
+
+          await callTelegram('answerCallbackQuery', { callback_query_id: cq.id }, currentToken);
+
+          const sampleNames = thisSubs.slice(0, 10).map((u, i) => `${i + 1}. ${escapeTelegramHtml(u.firstName || u.username || u.id)} (@${escapeTelegramHtml(u.username || 'user')})`).join('\n');
+
+          await callTelegram('sendMessage', {
+            chat_id: cq.message.chat.id,
+            text:
+              `👥 <b>Subscribers Overview</b>\n\n` +
+              `🤖 <b>@${escapeTelegramHtml(bUname)}:</b> ${thisSubs.length} active customers\n` +
+              `🌐 <b>Fleet Total:</b> ${allUsers.length} total customers\n\n` +
+              `${sampleNames ? `<b>Recent Users:</b>\n${sampleNames}\n\n` : ''}` +
+              `<i>Broadcast messages will reach all ${thisSubs.length} users of this bot!</i>`,
+            parse_mode: 'HTML',
+            reply_markup: {
+              inline_keyboard: [
+                [{ text: '📢 Send / Broadcast Message', callback_data: `start_broadcast_${tgtBotId}` }],
+                [{ text: '⚙️ Back to Admin Menu', callback_data: `admin_menu_${tgtBotId}` }]
+              ]
+            }
+          }, currentToken);
+          return res.status(200).json({ ok: true });
+        }
+
+        if (data === 'cancel_admin_action' || data === 'cancel_bc') {
+          const store = readBotStore();
+          if (store.pendingAdminActions) delete store.pendingAdminActions[userIdStr];
+          writeBotStore(store);
+
+          await callTelegram('answerCallbackQuery', {
+            callback_query_id: cq.id,
+            text: '❌ Action cancelled.'
+          }, currentToken);
+
+          await callTelegram('sendMessage', {
+            chat_id: cq.message.chat.id,
+            text: '❌ <b>Action Cancelled.</b>',
+            parse_mode: 'HTML'
           }, currentToken);
           return res.status(200).json({ ok: true });
         }
