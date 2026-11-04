@@ -1980,6 +1980,31 @@
       const footerP = document.querySelector('.footer-bottom p');
       if (footerP) footerP.innerHTML = esc(s.footer);
     }
+    if (s.telegram) {
+      const rawTg = String(s.telegram).trim();
+      const tgUsername = rawTg.replace(/^https?:\/\/t\.me\//i, '').replace(/^@/, '').replace(/\/+$/, '') || 'TRUSTED_BROTHER1234';
+      const tgUrl = `https://t.me/${tgUsername}`;
+      window.__LINKADDA_SUPPORT_TG = tgUrl;
+      window.__LINKADDA_SUPPORT_USERNAME = tgUsername;
+      if (defaultSiteState && defaultSiteState.payment) defaultSiteState.payment.telegramUrl = tgUrl;
+
+      // Dynamically update all Telegram support & contact links across index.html
+      document.querySelectorAll('a[href*="t.me/"]').forEach(a => {
+        if (!a.href.includes('_bot') && !a.href.includes('+joinchat') && !a.href.includes('/+')) {
+          a.href = tgUrl;
+        }
+      });
+      const dock = document.getElementById('floatingTgDock');
+      if (dock) dock.href = tgUrl;
+      document.querySelectorAll('.footer-tg-link, .btn-contact-telegram').forEach(a => {
+        a.href = tgUrl;
+      });
+      document.querySelectorAll('.profile-option-item .opt-sub').forEach(el => {
+        if (el.textContent.includes('Live Desk')) {
+          el.textContent = `@${tgUsername} (24/7 Live Desk)`;
+        }
+      });
+    }
   }
 
   function applyHero(h) {
@@ -3305,8 +3330,10 @@
       const isConfirmed = ord.status === 'confirmed' || ord.status === 'completed' || ord.status === 'paid' || ord.status === 'approved';
       const orderId = esc(String(ord.orderId || 'VIP-ORDER').slice(-10).toUpperCase());
       const accessLink = ord.downloadLink || ord.fileUrl || ord.orderLink || '';
+      const liveTgUrl = window.__LINKADDA_SUPPORT_TG || (defaultSiteState && defaultSiteState.payment && defaultSiteState.payment.telegramUrl) || 'https://t.me/TRUSTED_BROTHER1234';
+      const liveTgUname = window.__LINKADDA_SUPPORT_USERNAME || liveTgUrl.replace(/^https?:\/\/t\.me\//i, '').replace(/^@/, '').replace(/\/+$/, '') || 'TRUSTED_BROTHER1234';
       const tgMsg = `Hi Admin, I have placed order #${orderId} (${ord.productName || 'VIP Content Pack'}). Please verify and approve my payment.`;
-      const tgUrl = `https://t.me/TRUSTED_BROTHER1234?text=${encodeURIComponent(tgMsg)}`;
+      const tgUrl = `${liveTgUrl}?text=${encodeURIComponent(tgMsg)}`;
 
       const thumbImg = findProductMediaForOrder(ord);
       const thumbHtml = thumbImg
@@ -3359,8 +3386,8 @@
                     <i class="fa-regular fa-clone"></i> Copy
                   </button>
                 ` : `
-                  <a href="https://t.me/TRUSTED_BROTHER1234?text=${encodeURIComponent('Hi Admin, my order #' + orderId + ' is approved. Please provide my Telegram access link.')}" target="_blank" rel="noopener" class="order-track-btn confirmed" style="background:#0088cc;color:#fff;border-color:#0088cc;">
-                    <i class="fa-brands fa-telegram"></i> Get Link (@TRUSTED_BROTHER1234)
+                  <a href="${liveTgUrl}?text=${encodeURIComponent('Hi Admin, my order #' + orderId + ' is approved. Please provide my Telegram access link.')}" target="_blank" rel="noopener" class="order-track-btn confirmed" style="background:#0088cc;color:#fff;border-color:#0088cc;">
+                    <i class="fa-brands fa-telegram"></i> Get Link (@${liveTgUname})
                   </a>
                 `}
               </div>
@@ -4888,13 +4915,20 @@
         })
         .catch(() => {});
 
-      // 3. Sync live site_settings (pinned deal banner, hero, faq, testimonials) - strictly public keys
-      fetch(`${supaUrl}/rest/v1/site_settings?key=in.(banner,hero,faq,testimonials)&select=key,value`, { headers, cache: 'no-store' })
+      // 3. Sync live site_settings (pinned deal banner, hero, faq, testimonials, settings, tg_support_contact) - strictly public keys
+      fetch(`${supaUrl}/rest/v1/site_settings?key=in.(banner,hero,faq,testimonials,settings,tg_support_contact)&select=key,value`, { headers, cache: 'no-store' })
         .then(r => r.json())
         .then(rows => {
           if (Array.isArray(rows) && rows.length) {
             let bannerUpdated = false;
             rows.forEach(row => {
+              if (row.key === 'settings' && row.value && typeof row.value === 'object') {
+                liveCollections.settings = row.value;
+                if (typeof applySiteSettings === 'function') applySiteSettings(row.value);
+              }
+              if (row.key === 'tg_support_contact' && row.value && (row.value.url || row.value.username)) {
+                if (typeof applySiteSettings === 'function') applySiteSettings({ telegram: row.value.url || row.value.username });
+              }
               if (row.key === 'banner' && row.value && typeof row.value === 'object') {
                 liveCollections.banner = row.value;
                 if (typeof applyBanner === 'function') applyBanner(row.value);
@@ -6934,6 +6968,6 @@
   <script type="module" src="media-resolver.js?v=20261013_v1"></script>
   <script src="live-ticker.js?v=20261013_v1"></script>
   <script src="linkadda-store.js?v=20261013_v1"></script>
-  <script type="module" src="auth-modal.js?v=20261013_v1"></script>
+  <script type="module" src="auth-modal.js?v=20261104_dynamic_tg_v2"></script>
 </body>
 </html>

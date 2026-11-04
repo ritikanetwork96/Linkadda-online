@@ -7739,12 +7739,23 @@ async function loadTelegramBotAdminFullData(force = false) {
   try {
     // ⚡ STEP 1: Direct Supabase Service-Role Sync (<50ms, zero server spinup lag)
     const supaServiceKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1rdHR4cXdwYm9zdHptZnlncHpxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MzM4NzU3MCwiZXhwIjoyMTA4OTYzNTcwfQ.smaw1XT43DLymk4Yx7kw3ReOVGRLflDVVqMHs59GDPQ';
-    const sbSettingsRes = await fetch('https://mkttxqwpbostzmfygpzq.supabase.co/rest/v1/site_settings?key=in.(tg_bot_users,tg_connected_bots,tg_admin_chat_ids,tg_admin_profiles,tg_global_welcome_message,tg_bot_welcome_messages)&select=key,value', {
+    const sbSettingsRes = await fetch('https://mkttxqwpbostzmfygpzq.supabase.co/rest/v1/site_settings?key=in.(settings,tg_support_contact,tg_bot_users,tg_connected_bots,tg_admin_chat_ids,tg_admin_profiles,tg_global_welcome_message,tg_bot_welcome_messages)&select=key,value', {
       headers: { 'apikey': supaServiceKey, 'Authorization': `Bearer ${supaServiceKey}` },
       cache: 'no-store'
     }).then(r => r.json()).catch(() => null);
 
     if (Array.isArray(sbSettingsRes)) {
+      // 0. Support Telegram Contact
+      const supportRow = sbSettingsRes.find(r => r.key === 'tg_support_contact');
+      if (supportRow && supportRow.value && supportRow.value.username) {
+        _tgBotData.supportTelegram = supportRow.value.username;
+      } else {
+        const settingsRow = sbSettingsRes.find(r => r.key === 'settings');
+        if (settingsRow && settingsRow.value && settingsRow.value.telegram) {
+          _tgBotData.supportTelegram = String(settingsRow.value.telegram).replace(/^https?:\/\/t\.me\//i, '').replace(/^@/, '').replace(/\/+$/, '');
+        }
+      }
+      if (!_tgBotData.supportTelegram) _tgBotData.supportTelegram = 'TRUSTED_BROTHER1234';
       // 1. Authoritative Fleet Bots from Supabase
       const botsRow = sbSettingsRes.find(r => r.key === 'tg_connected_bots');
       if (botsRow && botsRow.value && typeof botsRow.value === 'object') {
@@ -9053,6 +9064,34 @@ function renderTelegramBotPageView(data = {}) {
           <button type="button" data-action="test-tg-bot" class="btn btn-ghost btn-sm" style="font-size: 12px; padding: 6px 12px; border: 1px solid rgba(245, 158, 11, 0.4); color: #fbbf24; border-radius: 8px;">
             <i data-lucide="send" style="width: 12px; height: 12px;"></i> Ping All Admins
           </button>
+        </div>
+
+        <!-- Live Support Desk Handle Quick Editor -->
+        <div class="panel" style="padding: 18px 22px; border-radius: 14px; background: rgba(56, 189, 248, 0.05); border: 1px solid rgba(56, 189, 248, 0.3); margin-bottom: 22px;">
+          <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 12px;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <div style="width: 32px; height: 32px; border-radius: 8px; background: linear-gradient(135deg, #0284c7, #38bdf8); display: flex; align-items: center; justify-content: center; color: white;">
+                <i data-lucide="headset" style="width: 16px; height: 16px;"></i>
+              </div>
+              <div>
+                <strong style="color: var(--text); font-size: 14px;">Official Telegram Support Desk Account</strong>
+                <small style="color: var(--muted); display: block; font-size: 11.5px;">All bot inline buttons (💬 Support Desk), live store help, and checkout claim desks point to this handle.</small>
+              </div>
+            </div>
+            <span id="currentSupportTgBadge" class="badge info" style="font-size: 11px; padding: 4px 10px; font-weight: 700;">
+              @${escapeHtml(_tgBotData.supportTelegram || 'TRUSTED_BROTHER1234')}
+            </span>
+          </div>
+
+          <form id="quickSupportTgForm" class="tg-responsive-form" style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
+            <div style="flex: 1; min-width: 240px;">
+              <input type="text" id="quickSupportTgInput" value="${escapeHtml(_tgBotData.supportTelegram || 'TRUSTED_BROTHER1234')}" placeholder="e.g. TRUSTED_BROTHER1234 or https://t.me/..." class="input" style="width: 100%; padding: 10px 14px; font-family: monospace; font-size: 13px;" required />
+            </div>
+            <button type="submit" id="quickSupportTgBtn" class="btn btn-primary" style="padding: 10px 20px; font-weight: 700; font-size: 13px; border-radius: 8px; background: linear-gradient(135deg, #0284c7, #38bdf8) !important; color: white !important; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; height: 42px;">
+              <i data-lucide="check" style="width: 14px; height: 14px;"></i> Update Support Handle
+            </button>
+          </form>
+          <div id="quickSupportTgFeedback" style="margin-top: 8px; display: none; font-size: 12px;"></div>
         </div>
 
         <!-- Dynamic Admins Cards Grid Container -->
@@ -15229,13 +15268,119 @@ function attachGlobalHandlers() {
 
       try {
         await updateRecord('settings', null, nextSettings);
-        showToast('Settings saved successfully and synced live to store!', 'success');
+
+        // Instant dual-sync to Supabase tg_support_contact and Telegram bot fleet store
+        if (nextSettings.telegram) {
+          const cleanTg = String(nextSettings.telegram).trim().replace(/^https?:\/\/t\.me\//i, '').replace(/^@/, '').replace(/\/+$/, '');
+          _tgBotData.supportTelegram = cleanTg;
+          const supaKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1rdHR4cXdwYm9zdHptZnlncHpxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MzM4NzU3MCwiZXhwIjoyMTA4OTYzNTcwfQ.smaw1XT43DLymk4Yx7kw3ReOVGRLflDVVqMHs59GDPQ';
+          fetch('https://mkttxqwpbostzmfygpzq.supabase.co/rest/v1/site_settings', {
+            method: 'POST',
+            headers: { 'apikey': supaKey, 'Authorization': `Bearer ${supaKey}`, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates' },
+            body: JSON.stringify([{
+              key: 'tg_support_contact',
+              value: { username: cleanTg, url: `https://t.me/${cleanTg}`, label: `Support Desk (@${cleanTg})`, text: `@${cleanTg}`, updatedAt: Date.now() },
+              updated_at: new Date().toISOString()
+            }])
+          }).catch(() => {});
+
+          // Trigger bot runtime sync
+          telegramApiFetch('save-support-contact', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...getAdminAuthHeaders() },
+            body: JSON.stringify({ telegram: cleanTg })
+          }).catch(() => {});
+        }
+
+        showToast('Settings saved successfully and synced live across website & bots!', 'success');
       } catch (err) {
         showToast(err?.message || 'Failed to save settings', 'danger');
       } finally {
         if (btn) {
           btn.disabled = false;
           btn.innerHTML = '<i data-lucide="check"></i> Save Settings';
+          if (window.lucide) lucide.createIcons();
+        }
+      }
+      return;
+    }
+    if (form.id === 'quickSupportTgForm') {
+      const input = form.querySelector('#quickSupportTgInput');
+      const btn = form.querySelector('#quickSupportTgBtn');
+      const feedback = form.querySelector('#quickSupportTgFeedback');
+      const badge = document.getElementById('currentSupportTgBadge');
+      const val = (input?.value || '').trim();
+      const clean = val.replace(/^https?:\/\/t\.me\//i, '').replace(/^@/, '').replace(/\/+$/, '');
+      if (!clean) {
+        showToast('Please enter a valid Telegram username or URL', 'warning');
+        return;
+      }
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i data-lucide="loader-2" class="spin"></i> Updating...';
+      }
+
+      try {
+        _tgBotData.supportTelegram = clean;
+        if (badge) badge.textContent = `@${clean}`;
+
+        const supaKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1rdHR4cXdwYm9zdHptZnlncHpxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MzM4NzU3MCwiZXhwIjoyMTA4OTYzNTcwfQ.smaw1XT43DLymk4Yx7kw3ReOVGRLflDVVqMHs59GDPQ';
+        const supaUrl = 'https://mkttxqwpbostzmfygpzq.supabase.co';
+
+        // 1. Update tg_support_contact in Supabase
+        fetch(`${supaUrl}/rest/v1/site_settings`, {
+          method: 'POST',
+          headers: { 'apikey': supaKey, 'Authorization': `Bearer ${supaKey}`, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates' },
+          body: JSON.stringify([{
+            key: 'tg_support_contact',
+            value: { username: clean, url: `https://t.me/${clean}`, label: `Support Desk (@${clean})`, text: `@${clean}`, updatedAt: Date.now() },
+            updated_at: new Date().toISOString()
+          }])
+        }).catch(() => {});
+
+        // 2. Update settings table in Supabase
+        fetch(`${supaUrl}/rest/v1/site_settings?key=eq.settings&select=value`, {
+          headers: { 'apikey': supaKey, 'Authorization': `Bearer ${supaKey}` }
+        }).then(r => r.json()).then(rows => {
+          if (rows?.[0]?.value) {
+            const currentSettings = rows[0].value;
+            currentSettings.telegram = `https://t.me/${clean}`;
+            currentSettings.updatedAt = Date.now();
+            fetch(`${supaUrl}/rest/v1/site_settings?key=eq.settings`, {
+              method: 'PATCH',
+              headers: { 'apikey': supaKey, 'Authorization': `Bearer ${supaKey}`, 'Content-Type': 'application/json' },
+              body: JSON.stringify({ value: currentSettings, updated_at: new Date().toISOString() })
+            }).catch(() => {});
+          }
+        }).catch(() => {});
+
+        // 3. Sync to bot API runtime
+        await telegramApiFetch('save-support-contact', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...getAdminAuthHeaders() },
+          body: JSON.stringify({ telegram: clean })
+        });
+
+        // 4. Update localStorage cache
+        try {
+          const cached = JSON.parse(localStorage.getItem('linkadda_cached_settings') || '{}');
+          if (!cached.settings) cached.settings = {};
+          cached.settings.telegram = `https://t.me/${clean}`;
+          localStorage.setItem('linkadda_cached_settings', JSON.stringify(cached));
+        } catch (_) {}
+
+        showToast(`Support Telegram updated to @${clean} across all bots and storefront!`, 'success');
+        if (feedback) {
+          feedback.style.display = 'block';
+          feedback.style.color = '#34d399';
+          feedback.textContent = `✅ Live: Support Telegram is now @${clean}`;
+        }
+      } catch (err) {
+        showToast('Error updating support handle: ' + err.message, 'danger');
+      } finally {
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = '<i data-lucide="check"></i> Update Support Handle';
           if (window.lucide) lucide.createIcons();
         }
       }

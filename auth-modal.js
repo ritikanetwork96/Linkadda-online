@@ -872,6 +872,26 @@ export function copyOrderLink(url, btn) {
 }
 window.copyOrderLink = copyOrderLink;
 
+function getLiveSupportTg() {
+  if (typeof window !== 'undefined' && window.__LINKADDA_SUPPORT_TG) {
+    const raw = window.__LINKADDA_SUPPORT_TG;
+    const u = raw.replace(/^https?:\/\/t\.me\//i, '').replace(/^@/, '').replace(/\/+$/, '') || 'TRUSTED_BROTHER1234';
+    return { url: `https://t.me/${u}`, username: u };
+  }
+  try {
+    const cached = localStorage.getItem('linkadda_cached_settings');
+    if (cached) {
+      const p = JSON.parse(cached);
+      const tg = p?.settings?.telegram || p?.payment?.telegramUrl;
+      if (tg) {
+        const u = String(tg).trim().replace(/^https?:\/\/t\.me\//i, '').replace(/^@/, '').replace(/\/+$/, '') || 'TRUSTED_BROTHER1234';
+        return { url: `https://t.me/${u}`, username: u };
+      }
+    }
+  } catch (_) {}
+  return { url: 'https://t.me/TRUSTED_BROTHER1234', username: 'TRUSTED_BROTHER1234' };
+}
+
 export function formatOrderCardHtml(ord) {
   if (!ord) return '';
   const isConfirmed = ord.status === 'confirmed' || ord.status === 'completed' || ord.status === 'paid' || ord.status === 'approved';
@@ -882,10 +902,11 @@ export function formatOrderCardHtml(ord) {
   const specificLink = (ord.channelLink || ord.downloadLink || ord.fileUrl || '').trim();
   const hasSpecificLink = specificLink && (!specificLink.includes('VIP_KINK') && !specificLink.includes('TRUSTED_BROTHER'));
 
+  const supTg = getLiveSupportTg();
   const tgMsg = `Hi Admin, I have placed order #${orderId} (${ord.productName || 'VIP Content Pack'}). Please verify and approve my payment.`;
-  const tgUrl = `https://t.me/TRUSTED_BROTHER1234?text=${encodeURIComponent(tgMsg)}`;
+  const tgUrl = `${supTg.url}?text=${encodeURIComponent(tgMsg)}`;
   const claimMsg = `Hi Admin, my order #${orderId} (${ord.productName || 'VIP Content Pack'}) is approved! Please provide my VIP Telegram access link.`;
-  const claimUrl = `https://t.me/TRUSTED_BROTHER1234?text=${encodeURIComponent(claimMsg)}`;
+  const claimUrl = `${supTg.url}?text=${encodeURIComponent(claimMsg)}`;
 
   let noteHtml = '';
   let actionHtml = '';
@@ -910,14 +931,14 @@ export function formatOrderCardHtml(ord) {
       noteHtml = `
         <div class="user-order-note confirmed" style="background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.3); color: #34d399; border-radius: 8px; padding: 6px 10px; display: flex; align-items: center; gap: 6px; font-size: 12px; margin-top: 4px;">
           <i class="fa-solid fa-circle-check"></i>
-          <span>Order Approved! Message Admin on Telegram (@TRUSTED_BROTHER1234) to claim your link.</span>
+          <span>Order Approved! Message Admin on Telegram (@${supTg.username}) to claim your link.</span>
         </div>
       `;
       actionHtml = `
         <div class="user-order-actions" style="display: flex; gap: 8px; margin-top: 8px; align-items: stretch;">
           <a href="${claimUrl}" target="_blank" rel="noopener" class="btn-order-access confirmed" style="flex: 1; text-align: center; text-decoration: none; justify-content: center; display: inline-flex; align-items: center; gap: 8px; font-weight: 700; padding: 10px 14px; border-radius: 12px; background: linear-gradient(135deg, #0088cc, #0284c7); color: #ffffff;">
             <i class="fa-brands fa-telegram"></i>
-            <span>Get Link from Admin (@TRUSTED_BROTHER1234)</span>
+            <span>Get Link from Admin (@${supTg.username})</span>
           </a>
         </div>
       `;
@@ -1112,7 +1133,8 @@ export function addOrderConfirmedNotification(ord) {
     // Deduplicate
     if (list.some(n => n.id === notifId)) return;
 
-    const adminDmUrl = 'https://t.me/TRUSTED_BROTHER1234';
+    const supTg = getLiveSupportTg();
+    const adminDmUrl = supTg.url;
     const productName = ord.productName || ord.name || ord.title || 'VIP Content Pack';
     const eventTime = ord.reviewedAt || ord.approvedAt || ord.timestamp || Date.now();
 
@@ -1122,11 +1144,11 @@ export function addOrderConfirmedNotification(ord) {
       orderId: rawId,
       productName: productName,
       title: `Order #${orderId} Approved! 🎉`,
-      desc: `Your order #${orderId} has been verified and approved! To claim your content access, direct message Admin on Telegram: @TRUSTED_BROTHER1234`,
+      desc: `Your order #${orderId} has been verified and approved! To claim your content access, direct message Admin on Telegram: @${supTg.username}`,
       timestamp: eventTime,
       time: formatRelativeTime(eventTime),
       actionUrl: adminDmUrl,
-      actionText: 'Contact Admin on Telegram (@TRUSTED_BROTHER1234)',
+      actionText: `Contact Admin on Telegram (@${supTg.username})`,
       unread: true,
       icon: 'fa-circle-check',
       theme: 'success'
@@ -1139,7 +1161,7 @@ export function addOrderConfirmedNotification(ord) {
     updateNotificationsUI();
     renderNotificationsPage();
 
-    showAppToast(`🎉 Order #${orderId} approved! Message Admin on Telegram for instant access: @TRUSTED_BROTHER1234`);
+    showAppToast(`🎉 Order #${orderId} approved! Message Admin on Telegram for instant access: @${supTg.username}`);
   } catch (err) {
     console.warn('Order confirmed notification notice:', err);
   }
@@ -1525,14 +1547,15 @@ export function openNotificationDetailModal(notif) {
     if (itemNameEl) itemNameEl.textContent = notif.productName || 'VIP Content Pack';
     if (orderIdEl) orderIdEl.textContent = '#' + String(notif.orderId || '').slice(-10).toUpperCase();
 
-    const link = notif.actionUrl || 'https://t.me/TRUSTED_BROTHER1234';
+    const supTg = getLiveSupportTg();
+    const link = notif.actionUrl || supTg.url;
     if (actionWrap) actionWrap.style.display = 'flex';
     if (ctaBtn) {
       ctaBtn.href = link;
       ctaBtn.dataset.url = link;
     }
     if (ctaBtnLabel) {
-      ctaBtnLabel.textContent = 'Contact Admin on Telegram (@TRUSTED_BROTHER1234)';
+      ctaBtnLabel.textContent = `Contact Admin on Telegram (@${supTg.username})`;
     }
   } else if (notif.actionUrl) {
     if (statusPill) statusPill.style.display = 'none';

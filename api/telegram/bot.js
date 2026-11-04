@@ -39,17 +39,31 @@ export function getAppUrl(req = null) {
 
 
 export function getSupportContact(targetBot = null) {
-  // Official, permanent 24/7 VIP Support Desk Telegram handle
-  const OFFICIAL_SUPPORT_USERNAME = 'TRUSTED_BROTHER1234';
-  const url = `https://t.me/${OFFICIAL_SUPPORT_USERNAME}`;
-  const label = `Support Desk (@${OFFICIAL_SUPPORT_USERNAME})`;
-  const text = `@${OFFICIAL_SUPPORT_USERNAME}`;
-  return {
-    username: OFFICIAL_SUPPORT_USERNAME,
-    url,
-    label,
-    text
-  };
+  try {
+    const store = readBotStore();
+    const rawSupport = store.supportTelegram || process.env.TELEGRAM_SUPPORT_HANDLE || 'TRUSTED_BROTHER1234';
+    const cleanUsername = String(rawSupport)
+      .trim()
+      .replace(/^https?:\/\/t\.me\//i, '')
+      .replace(/^@/, '')
+      .replace(/\/+$/, '') || 'TRUSTED_BROTHER1234';
+    const url = `https://t.me/${cleanUsername}`;
+    const label = `Support Desk (@${cleanUsername})`;
+    const text = `@${cleanUsername}`;
+    return {
+      username: cleanUsername,
+      url,
+      label,
+      text
+    };
+  } catch (_) {
+    return {
+      username: 'TRUSTED_BROTHER1234',
+      url: 'https://t.me/TRUSTED_BROTHER1234',
+      label: 'Support Desk (@TRUSTED_BROTHER1234)',
+      text: '@TRUSTED_BROTHER1234'
+    };
+  }
 }
 
 function getSupabaseConfig() {
@@ -217,7 +231,7 @@ export async function syncBotsFromSupabase(force = false) {
   try {
     const { url, key } = getSupabaseConfig();
     const headers = { 'apikey': key, 'Authorization': `Bearer ${key}` };
-    const res = await fetch(`${url}/rest/v1/site_settings?key=in.(tg_connected_bots,tg_admin_chat_ids,tg_admin_profiles,tg_global_welcome_message,tg_bot_welcome_messages)&select=*`, {
+    const res = await fetch(`${url}/rest/v1/site_settings?key=in.(settings,tg_support_contact,tg_connected_bots,tg_admin_chat_ids,tg_admin_profiles,tg_global_welcome_message,tg_bot_welcome_messages)&select=*`, {
       headers,
       signal: AbortSignal.timeout(4500)
     }).catch(() => null);
@@ -228,6 +242,17 @@ export async function syncBotsFromSupabase(force = false) {
         const store = readBotStore();
         let changed = false;
         for (const row of rows) {
+          if (row.key === 'tg_support_contact' && row.value && row.value.username) {
+            store.supportTelegram = row.value.username;
+            changed = true;
+          }
+          if (row.key === 'settings' && row.value && row.value.telegram && !store.supportTelegram) {
+            const raw = String(row.value.telegram).replace(/^https?:\/\/t\.me\//i, '').replace(/^@/, '').replace(/\/+$/, '');
+            if (raw) {
+              store.supportTelegram = raw;
+              changed = true;
+            }
+          }
           if (row.key === 'tg_connected_bots' && row.value && typeof row.value === 'object') {
             store.bots = { ...row.value };
             changed = true;
@@ -3607,6 +3632,77 @@ export default async function handler(req, res) {
 
 
   
+  // 💬 Get Support Desk Configuration
+  if (req.method === 'GET' && action === 'get-support-contact') {
+    return res.status(200).json({
+      ok: true,
+      support: getSupportContact()
+    });
+  }
+
+  // 💬 Save Support Desk Configuration (Admin only)
+  if (req.method === 'POST' && (action === 'save-support-contact' || (req.body && req.body.action === 'save-support-contact'))) {
+    if (!await verifyAdminRequest(req)) {
+      return res.status(401).json({ ok: false, error: 'Unauthorized: Admin authentication required.' });
+    }
+    try {
+      const body = req.body || {};
+      const raw = body.telegram || body.supportTelegram || body.username || '';
+      const cleanUsername = String(raw).trim().replace(/^https?:\/\/t\.me\//i, '').replace(/^@/, '').replace(/\/+$/, '');
+      if (!cleanUsername) {
+        return res.status(400).json({ ok: false, error: 'Valid Telegram handle or URL required.' });
+      }
+
+      const store = readBotStore();
+      store.supportTelegram = cleanUsername;
+      writeBotStore(store);
+
+      const supportObj = {
+        username: cleanUsername,
+        url: `https://t.me/${cleanUsername}`,
+        label: `Support Desk (@${cleanUsername})`,
+        text: `@${cleanUsername}`,
+        updatedAt: Date.now()
+      };
+
+      try {
+        const { url: sUrl, key: sKey } = getSupabaseConfig();
+        if (sUrl && sKey) {
+          // 1. Sync tg_support_contact in Supabase
+          fetch(`${sUrl}/rest/v1/site_settings`, {
+            method: 'POST',
+            headers: { 'apikey': sKey, 'Authorization': `Bearer ${sKey}`, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates' },
+            body: JSON.stringify([{ key: 'tg_support_contact', value: supportObj, updated_at: new Date().toISOString() }])
+          }).catch(() => {});
+
+          // 2. Sync settings.telegram in Supabase so website storefront stays 100% in sync
+          fetch(`${sUrl}/rest/v1/site_settings?key=eq.settings&select=value`, {
+            headers: { 'apikey': sKey, 'Authorization': `Bearer ${sKey}` }
+          }).then(r => r.json()).then(rows => {
+            if (rows?.[0]?.value) {
+              const currentSettings = rows[0].value;
+              currentSettings.telegram = `https://t.me/${cleanUsername}`;
+              currentSettings.updatedAt = Date.now();
+              fetch(`${sUrl}/rest/v1/site_settings?key=eq.settings`, {
+                method: 'PATCH',
+                headers: { 'apikey': sKey, 'Authorization': `Bearer ${sKey}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ value: currentSettings, updated_at: new Date().toISOString() })
+              }).catch(() => {});
+            }
+          }).catch(() => {});
+        }
+      } catch (_) {}
+
+      return res.status(200).json({
+        ok: true,
+        support: supportObj,
+        message: `Support contact successfully updated to @${cleanUsername} across all bots and pages!`
+      });
+    } catch (err) {
+      return res.status(500).json({ ok: false, error: err.message });
+    }
+  }
+
   // ✉️ Get Welcome Message Configuration (Admin only)
   if (req.method === 'GET' && action === 'get-welcome-config') {
     if (!await verifyAdminRequest(req)) {
