@@ -608,6 +608,10 @@ export async function addAdminChatId(chatId, label = '', assignedBotId = 'all', 
   if (!cleanId || cleanId.length < 5) {
     throw new Error('Invalid Telegram Chat ID. Chat IDs are 8-10 digit numbers.');
   }
+
+  // Ensure all latest fleet bots and admins are synced from Supabase
+  await syncBotsFromSupabase(true).catch(() => {});
+
   const store = readBotStore();
   if (!Array.isArray(store.admins)) store.admins = [];
   if (!store.admins.includes(cleanId)) {
@@ -615,11 +619,12 @@ export async function addAdminChatId(chatId, label = '', assignedBotId = 'all', 
   }
   if (!store.adminProfiles) store.adminProfiles = {};
 
+  const allFleetBots = getConnectedBots();
+
   // Auto-fetch real Telegram First Name & Username via getChat API across all fleet bots
   let tgFirstName = '';
   let tgLastName = '';
   let tgUsername = '';
-  const allFleetBots = getConnectedBots();
   for (const b of allFleetBots) {
     if (!b.token) continue;
     try {
@@ -669,18 +674,67 @@ export async function addAdminChatId(chatId, label = '', assignedBotId = 'all', 
 
   writeBotStore(store);
 
+  // Send interactive Welcome Ping Alert to newly connected Administrator across candidate bots
   let welcomeSent = false;
-  try {
-    const res = await callTelegram('sendMessage', {
-      chat_id: cleanId,
-      text: `👑 <b>Administrator Connected!</b>\n\n` +
-            `Hello <b>${escapeTelegramHtml(resolvedName)}</b>,\n` +
-            `You have been connected as an Administrator for <b>LinkAdda Online</b>.\n` +
-            `You will now receive realtime order notifications, payment screenshots, and approval alerts directly here!`,
-      parse_mode: 'HTML'
-    });
-    welcomeSent = Boolean(res?.ok);
-  } catch (_) {}
+  let welcomeBotUsername = '';
+  let welcomeError = null;
+
+  const candidateBots = [];
+  if (assignedBotId && assignedBotId !== 'all') {
+    const assigned = allFleetBots.find(b => b.botId === assignedBotId || b.id === assignedBotId || b.botId === `bot_${assignedBotId}`);
+    if (assigned) candidateBots.push(assigned);
+  }
+  const userBotId = store.users?.[cleanId]?.botId;
+  if (userBotId) {
+    const userBot = allFleetBots.find(b => b.botId === userBotId || b.id === userBotId || b.botId === `bot_${userBotId}`);
+    if (userBot && !candidateBots.some(b => b.botId === userBot.botId)) candidateBots.push(userBot);
+  }
+  const primaryBot = allFleetBots.find(b => b.status === 'active' && b.isPrimary) || allFleetBots[0];
+  if (primaryBot && !candidateBots.some(b => b.botId === primaryBot.botId)) candidateBots.push(primaryBot);
+  for (const b of allFleetBots) {
+    if (!candidateBots.some(c => c.botId === b.botId)) candidateBots.push(b);
+  }
+
+  for (const b of candidateBots) {
+    if (!b.token) continue;
+    try {
+      const cleanTgtId = String(b.id || b.botId || '').replace(/^bot_/, '');
+      const res = await callTelegram('sendMessage', {
+        chat_id: cleanId,
+        text: `👑 <b>Administrator Connected!</b>\n\n` +
+              `Hello <b>${escapeTelegramHtml(resolvedName)}</b>,\n` +
+              `You have been connected as an Administrator for <b>LinkAdda Online</b> on @${escapeTelegramHtml(b.username || 'this bot')}.\n\n` +
+              `⚡ <b>Your Admin Capabilities:</b>\n` +
+              `• Real-time Order Alerts & Payment Proof notifications\n` +
+              `• One-Tap Approve & Reject buttons in Telegram\n` +
+              `• In-Bot Welcome Message editor (with Telegram Premium Emojis)\n` +
+              `• Broadcast any message (text, photos, links) to all bot customers\n\n` +
+              `Tap <b>/menu</b> or <b>/start</b> anytime to access your Admin Control Center!`,
+        parse_mode: 'HTML',
+        reply_markup: {
+          inline_keyboard: [
+            [
+              { text: '✏️ Edit Welcome Message', callback_data: `edit_welcome_${cleanTgtId}` },
+              { text: '📢 Send / Broadcast', callback_data: `start_broadcast_${cleanTgtId}` }
+            ],
+            [
+              { text: '⚙️ Admin Control Center', callback_data: `admin_menu_${cleanTgtId}` }
+            ]
+          ]
+        }
+      }, b.token);
+
+      if (res && res.ok) {
+        welcomeSent = true;
+        welcomeBotUsername = b.username;
+        break;
+      } else if (res && res.description) {
+        welcomeError = res.description;
+      }
+    } catch (err) {
+      welcomeError = err.message;
+    }
+  }
 
   try {
     const { url, key } = getSupabaseConfig();
@@ -694,7 +748,15 @@ export async function addAdminChatId(chatId, label = '', assignedBotId = 'all', 
     });
   } catch (_) {}
 
-  return { ok: true, admins: getAdminChatIds(), adminProfiles: store.adminProfiles, admin: store.adminProfiles[cleanId], welcomeSent };
+  return {
+    ok: true,
+    admins: getAdminChatIds(),
+    adminProfiles: store.adminProfiles,
+    admin: store.adminProfiles[cleanId],
+    welcomeSent,
+    welcomeBotUsername,
+    welcomeError
+  };
 }
 
 export async function removeAdminChatId(chatId) {
@@ -735,11 +797,15 @@ let _cachedWebhookDataTime = 0;
  */
 export async function getActiveBotConfig(forceRefresh = false) {
   const now = Date.now();
-  if (!forceRefresh && cachedBotConfig && (now - lastBotCacheFetch < BOT_CACHE_TTL_MS)) {
+  if (!forceRefresh && cachedBotConfig && (now - lastBotCacheFetch < BOT_CACHE_TTL_MS) && cachedBotConfig.token) {
     return cachedBotConfig;
   }
 
-  const allBots = getConnectedBots();
+  let allBots = getConnectedBots();
+  if (!allBots.length) {
+    await syncBotsFromSupabase(true).catch(() => {});
+    allBots = getConnectedBots();
+  }
   const primaryBot = allBots.find(b => b.status === 'active' && b.isPrimary) ||
                      allBots.find(b => b.status === 'active') ||
                      allBots.find(b => b.isPrimary) ||
@@ -4080,7 +4146,16 @@ export default async function handler(req, res) {
         const msg = update.message;
         const text = (msg.text || '').trim();
         const fromUser = msg.from;
-        const adminIds = getAdminChatIds();
+        let adminIds = getAdminChatIds();
+        const fromIdStr = String(fromUser?.id || msg.chat?.id || '');
+
+        if (!adminIds.includes(fromIdStr)) {
+          // Double-check latest Supabase settings in case admin was just connected in Admin Panel
+          try {
+            await syncBotsFromSupabase(true);
+            adminIds = getAdminChatIds();
+          } catch (_) {}
+        }
 
         const isStartCmd = /^\/(?:start|satrt|strat|stert|help|menu|store|open)(?:@[a-zA-Z0-9_]+)?(?:\s+.*)?$/i.test(text) ||
                            /^(?:start|satrt|strat|help|menu|store|open|hi|hello|hey|namaste)$/i.test(text) ||
@@ -4140,8 +4215,7 @@ export default async function handler(req, res) {
         }
 
         
-        const fromIdStr = String(fromUser?.id || msg.chat?.id || '');
-        const isFromAdmin = adminIds.includes(fromIdStr);
+        const isFromAdmin = adminIds.includes(fromIdStr) || adminIds.includes(String(msg.chat?.id || ''));
 
         // ═══════════════════════════════════════════════════════════════════
         // 👑 TELEGRAM IN-BOT ADMIN WELCOME MESSAGE CONTROLLER & ACTIONS
@@ -4629,7 +4703,7 @@ export default async function handler(req, res) {
             return res.status(200).json({ ok: true });
           }
 
-          const isAdminSender = adminIds.includes(String(msg.chat.id));
+          const isAdminSender = isFromAdmin || adminIds.includes(String(msg.chat.id)) || adminIds.includes(fromIdStr);
           const welcomeInfo = getWelcomeMessageForBot(currentBotId);
           const resolvedWelcome = formatWelcomeTemplate(welcomeInfo.text, {
             name: fromUser.first_name || fromUser.username || 'VIP Member',

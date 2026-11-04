@@ -7687,8 +7687,6 @@ try {
 } catch (_) {}
 
 // Purge any legacy ghost test accounts from local cache
-delete _tgCachedAdminProfiles['6966868142'];
-_tgCachedAdmins = _tgCachedAdmins.filter(id => id !== '6966868142');
 
 const DEFAULT_PRIMARY_ADMIN_ID = '8770964308';
 const DEFAULT_PRIMARY_ADMIN_PROFILE = {
@@ -8025,8 +8023,6 @@ async function loadTelegramBotAdminFullData(force = false) {
         _tgBotData.admins = Array.from(new Set([...(_tgBotData.admins || []), ...profileAdminKeys])).filter(Boolean);
       }
       // Guarantee primary official admin 8770964308 is permanently configured & purge test accounts
-      delete _tgBotData.adminProfiles['6966868142'];
-      _tgBotData.admins = (_tgBotData.admins || []).filter(id => id !== '6966868142');
       if (!_tgBotData.admins.includes(DEFAULT_PRIMARY_ADMIN_ID)) {
         _tgBotData.admins.unshift(DEFAULT_PRIMARY_ADMIN_ID);
       }
@@ -8877,7 +8873,6 @@ function renderTelegramAdminsCards(admins = []) {
   const profileIds = Object.keys(adminProfiles);
   const rawList = (Array.isArray(admins) && admins.length) ? admins : (_tgBotData.admins || []);
   let adminList = Array.from(new Set([...rawList, ...profileIds])).filter(Boolean);
-  adminList = adminList.filter(id => id !== '6966868142');
 
   // Guarantee official primary admin 8770964308 is always displayed
   if (!adminList.includes(DEFAULT_PRIMARY_ADMIN_ID)) {
@@ -13968,7 +13963,11 @@ function attachGlobalHandlers() {
           feedback.style.background = 'rgba(16, 185, 129, 0.15)';
           feedback.style.border = '1px solid rgba(16, 185, 129, 0.3)';
           feedback.style.color = '#6ee7b7';
-          feedback.innerHTML = `🎉 <strong>Success!</strong> Connected <strong>${escapeHtml(adminName)}</strong>${escapeHtml(adminUname)} (ID: <code>${escapeHtml(chatId)}</code>)! Live alerts & approval buttons are now active.`;
+          if (result.welcomeSent) {
+            feedback.innerHTML = `🎉 <strong>Success!</strong> Connected <strong>${escapeHtml(adminName)}</strong>${escapeHtml(adminUname)} (ID: <code>${escapeHtml(chatId)}</code>)! ✉️ Welcome alert & control buttons delivered via <strong>@${escapeHtml(result.welcomeBotUsername || "bot")}</strong>.`;
+          } else {
+            feedback.innerHTML = `🎉 <strong>Connected!</strong> Saved <strong>${escapeHtml(adminName)}</strong>${escapeHtml(adminUname)} (ID: <code>${escapeHtml(chatId)}</code>) as Administrator. ℹ️ <em>Note: If they have not sent /start to the bot yet, please ask them to send <strong>/start</strong> to activate Telegram notifications.</em>`;
+          }
         }
 
         showToast(`👑 Admin ${adminName} connected!`, 'success');
