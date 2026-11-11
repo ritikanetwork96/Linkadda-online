@@ -185,6 +185,7 @@
   <link rel="stylesheet" href="auth-modal.css?v=20261011_v9" />
   <link rel="stylesheet" href="mobile-app.css?v=20261011_v9" />
   <script src="preload.js?v=20261011_v8" charset="UTF-8"></script>
+  <script src="currency.js?v=20261111_v1" charset="UTF-8"></script>
   <style id="critical-hero-toast-fix">
     /* ── LIGHT MODE LUXURY HEADER ACTION BUTTONS ── */
     [data-theme="light"] .fk-notif-btn-wrap {
@@ -941,6 +942,74 @@
       .about-teaser-stat-item .stat-num { font-size: 1.15rem; }
       .btn-about-page { width: 100%; justify-content: center; }
     }
+
+    /* ── CURRENCY SWITCHER PILL & DUAL PRICE ADAPTATION ── */
+    .fk-currency-btn-wrap {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1.5px solid rgba(255, 255, 255, 0.16);
+      border-radius: 20px;
+      padding: 5px 11px;
+      color: #fff;
+      font-size: 0.78rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      white-space: nowrap;
+      user-select: none;
+    }
+    .fk-currency-btn-wrap:hover {
+      background: rgba(255, 255, 255, 0.15);
+      border-color: rgba(255, 42, 141, 0.5);
+      transform: translateY(-1px);
+    }
+    .fk-currency-btn-wrap:active {
+      transform: scale(0.97);
+    }
+    [data-theme="light"] .fk-currency-btn-wrap {
+      background: rgba(16, 185, 129, 0.09) !important;
+      border: 1.5px solid rgba(16, 185, 129, 0.35) !important;
+      color: #065f46 !important;
+      box-shadow: 0 2px 8px rgba(16, 185, 129, 0.08) !important;
+    }
+    [data-theme="light"] .fk-currency-btn-wrap:hover {
+      background: rgba(16, 185, 129, 0.2) !important;
+      border-color: rgba(16, 185, 129, 0.6) !important;
+    }
+    @media (max-width: 540px) {
+      .fk-currency-btn-wrap {
+        padding: 4px 8px;
+        font-size: 0.72rem;
+      }
+    }
+
+    /* Currency-aware product card and dual-price styling */
+    [data-currency="INR"] .fk-price-inr {
+      font-weight: 800;
+      color: var(--fk-text, #ffffff);
+      font-size: 1.12rem;
+    }
+    [data-currency="INR"] .fk-price-usd {
+      opacity: 0.72;
+      font-size: 0.82rem;
+      color: #94a3b8;
+    }
+
+    [data-currency="USD"] .fk-dual-price {
+      flex-direction: row-reverse;
+    }
+    [data-currency="USD"] .fk-price-usd {
+      font-weight: 800;
+      color: #10b981;
+      font-size: 1.15rem;
+    }
+    [data-currency="USD"] .fk-price-inr {
+      opacity: 0.68;
+      font-size: 0.82rem;
+      color: #94a3b8;
+    }
   </style>
 </head>
 <body class="fk-mode">
@@ -979,6 +1048,10 @@
         </a>
 
         <div class="fk-header-actions">
+          <button type="button" class="fk-currency-btn-wrap" id="headerCurrencyBtn" title="Change Currency (₹ INR / $ USDT)" onclick="window.toggleStoreCurrency && window.toggleStoreCurrency();">
+            <span class="fk-currency-flag" id="headerCurrencyFlag">🇮🇳</span>
+            <span class="fk-currency-code" id="headerCurrencyCode">INR (₹)</span>
+          </button>
           <button type="button" class="fk-notif-btn-wrap" id="headerNotifBtn" title="Notifications" onclick="window.showNotificationsPage ? window.showNotificationsPage('store') : (window.location.hash = '#notifications')">
             <i class="fa-solid fa-bell"></i>
             <span class="fk-notif-badge-dot" id="headerNotifDot"></span>
@@ -1659,6 +1732,16 @@
     if (activeTgUsername) params.set('tgUsername', activeTgUsername);
     if (activeTgName) params.set('tgName', activeTgName);
 
+    let activeCurr = '';
+    try {
+      if (typeof window.getStoreCurrency === 'function') {
+        activeCurr = window.getStoreCurrency();
+      } else {
+        activeCurr = localStorage.getItem('linkadda_store_currency') || 'INR';
+      }
+    } catch (_) {}
+    if (activeCurr) params.set('currency', activeCurr);
+
     const queryString = params.toString() ? `?${params.toString()}` : '';
     const fallback = `payment${ext}${queryString}`;
     if (!raw) return fallback;
@@ -1680,6 +1763,7 @@
         if (activeTgUserId && !p.has('tgUserId')) p.set('tgUserId', activeTgUserId);
         if (activeTgUsername && !p.has('tgUsername')) p.set('tgUsername', activeTgUsername);
         if (activeTgName && !p.has('tgName')) p.set('tgName', activeTgName);
+        if (activeCurr && !p.has('currency')) p.set('currency', activeCurr);
         return `payment${ext}?${p.toString()}`;
       }
     } catch (_) {}
@@ -3893,7 +3977,7 @@
             <span class="fk-price-usd">$${cleanUSD}</span>
           </div>
           <div class="fk-price-sub-row">
-            <span class="fk-mrp-cut">&#8377;${mrpINR}</span>
+            <span class="fk-mrp-cut" data-mrp-inr="&#8377;${mrpINR}" data-mrp-usd="$${mrpUSD}">&#8377;${mrpINR}</span>
             <span class="fk-discount-tag">${discountPercent}% OFF</span>
           </div>
         </div>
@@ -5709,8 +5793,18 @@
     const cart = getCart();
     const { totalINR, totalUSD } = getCartTotals();
     
-    if (totalINREl) totalINREl.textContent = `₹${totalINR.toLocaleString('en-IN')}`;
-    if (totalUSDEl) totalUSDEl.textContent = `$${totalUSD.toLocaleString('en-US')}`;
+    const activeCurr = (typeof window.getStoreCurrency === 'function') ? window.getStoreCurrency() : 'INR';
+    if (totalINREl) {
+      totalINREl.textContent = `₹${totalINR.toLocaleString('en-IN')}`;
+      totalINREl.style.fontWeight = activeCurr === 'INR' ? '800' : '500';
+      totalINREl.style.opacity = activeCurr === 'INR' ? '1' : '0.65';
+    }
+    if (totalUSDEl) {
+      totalUSDEl.textContent = `$${totalUSD.toLocaleString('en-US')}`;
+      totalUSDEl.style.fontWeight = activeCurr === 'USD' ? '800' : '500';
+      totalUSDEl.style.color = activeCurr === 'USD' ? '#10b981' : '';
+      totalUSDEl.style.opacity = activeCurr === 'USD' ? '1' : '0.65';
+    }
     
     if (cart.length === 0) {
       body.innerHTML = `
@@ -5828,6 +5922,7 @@
     const { totalINR, totalUSD, totalCount } = getCartTotals();
     const orderRef = push(ref(db, 'orders'));
     const checkoutToken = createCheckoutToken();
+    const activeCurr = (typeof window.getStoreCurrency === 'function') ? window.getStoreCurrency() : (localStorage.getItem('linkadda_store_currency') || 'INR');
     
     const productName = cart.length === 1 
       ? `${cart[0].name}${cart[0].tier ? ' (' + cart[0].tier + ')' : ''}`
@@ -5847,7 +5942,7 @@
       lockedAmountINR: totalINR,
       lockedAmountUSD: totalUSD,
       checkoutToken,
-      currency: 'INR',
+      currency: activeCurr,
       paymentStatus: 'pending',
       orderStatus: 'pending',
       status: 'pending',
@@ -5860,7 +5955,7 @@
     
     const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.protocol === 'file:';
     const ext = isLocal ? '.html' : '';
-    const targetUrl = `payment${ext}?orderId=${encodeURIComponent(orderRef.key)}&cart=1&token=${encodeURIComponent(checkoutToken)}&inr=${encodeURIComponent(totalINR)}&usd=${encodeURIComponent(totalUSD)}`;
+    const targetUrl = `payment${ext}?orderId=${encodeURIComponent(orderRef.key)}&cart=1&token=${encodeURIComponent(checkoutToken)}&inr=${encodeURIComponent(totalINR)}&usd=${encodeURIComponent(totalUSD)}&currency=${encodeURIComponent(activeCurr)}`;
 
     try {
       await Promise.race([
@@ -5907,6 +6002,16 @@
   window.addEventListener('storage', () => {
     updateCartBadges();
     syncCartButtonsUI();
+  });
+
+  // Currency Change Global Event Handler (Syncs rendered DOM elements)
+  window.addEventListener('currencyChange', (e) => {
+    if (typeof renderCartDrawer === 'function') renderCartDrawer();
+    const isUSD = e.detail && e.detail.isUSD;
+    document.querySelectorAll('.fk-mrp-cut').forEach(el => {
+      const mrpVal = isUSD ? el.getAttribute('data-mrp-usd') : el.getAttribute('data-mrp-inr');
+      if (mrpVal) el.textContent = mrpVal;
+    });
   });
   </script>
 
