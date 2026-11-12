@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Opening UPI Payment · LinkAdda</title>
+  <meta name="theme-color" content="#0c0d14" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+
+  <style>
+    :root {
+      --bg: #0c0d14;
+      --card: #141522;
+      --border: rgba(255, 255, 255, 0.1);
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --emerald: #10b981;
+      --purple: #5f259f;
+      --blue: #0284c7;
+      --paytm: #002970;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+    body {
+      background-color: var(--bg);
+      background-image: 
+        radial-gradient(circle at 50% 10%, rgba(95, 37, 159, 0.25), transparent 50%),
+        radial-gradient(circle at 80% 90%, rgba(16, 185, 129, 0.15), transparent 45%);
+      color: var(--text);
+      font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px 16px;
+    }
+    .launcher-card {
+      width: 100%;
+      max-width: 420px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 32px 24px;
+      text-align: center;
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.05);
+      position: relative;
+      overflow: hidden;
+      animation: popIn 0.3s ease-out;
+    }
+    @keyframes popIn {
+      from { opacity: 0; transform: scale(0.96) translateY(10px); }
+      to { opacity: 1; transform: scale(1) translateY(0); }
+    }
+    .launcher-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background: linear-gradient(90deg, #10b981, #5f259f, #38bdf8);
+    }
+    .app-icon-wrap {
+      width: 76px;
+      height: 76px;
+      border-radius: 22px;
+      margin: 0 auto 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4);
+    }
+    .app-icon-wrap.phonepe {
+      background: #5f259f;
+      box-shadow: 0 12px 30px rgba(95, 37, 159, 0.5);
+    }
+    .app-icon-wrap.gpay {
+      background: #ffffff;
+      box-shadow: 0 12px 30px rgba(255, 255, 255, 0.2);
+    }
+    .app-icon-wrap.paytm {
+      background: #002970;
+      box-shadow: 0 12px 30px rgba(0, 41, 112, 0.5);
+    }
+    .app-icon-wrap.any {
+      background: linear-gradient(135deg, #059669, #10b981);
+      box-shadow: 0 12px 30px rgba(16, 185, 129, 0.4);
+    }
+    .app-icon-wrap img {
+      width: 44px;
+      height: 44px;
+      object-fit: contain;
+    }
+    .pulse-ring {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      border-radius: 22px;
+      border: 2px solid rgba(16, 185, 129, 0.6);
+      animation: pulse 1.8s infinite;
+    }
+    @keyframes pulse {
+      0% { transform: scale(1); opacity: 0.8; }
+      100% { transform: scale(1.35); opacity: 0; }
+    }
+    .launch-title {
+      font-size: 1.35rem;
+      font-weight: 800;
+      margin-bottom: 6px;
+      letter-spacing: -0.3px;
+    }
+    .launch-sub {
+      font-size: 0.88rem;
+      color: var(--muted);
+      margin-bottom: 20px;
+    }
+    .amount-box {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 16px;
+      padding: 14px;
+      margin-bottom: 22px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .amount-box .lbl {
+      font-size: 0.82rem;
+      color: var(--muted);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .amount-box .val {
+      font-size: 1.45rem;
+      font-weight: 800;
+      color: #34d399;
+      font-family: 'Inter', sans-serif;
+    }
+    .btn-main {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      width: 100%;
+      padding: 15px 20px;
+      border-radius: 14px;
+      font-size: 1rem;
+      font-weight: 800;
+      text-decoration: none;
+      color: #ffffff;
+      background: linear-gradient(135deg, #059669 0%, #10b981 100%);
+      box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4);
+      transition: all 0.2s ease;
+      margin-bottom: 12px;
+      cursor: pointer;
+      border: none;
+    }
+    .btn-main:active {
+      transform: scale(0.98);
+    }
+    .btn-main.phonepe {
+      background: linear-gradient(135deg, #5f259f 0%, #7c3aed 100%);
+      box-shadow: 0 6px 20px rgba(95, 37, 159, 0.45);
+    }
+    .btn-main.gpay {
+      background: linear-gradient(135deg, #1d4ed8 0%, #3b82f6 100%);
+      box-shadow: 0 6px 20px rgba(29, 78, 216, 0.45);
+    }
+    .btn-main.paytm {
+      background: linear-gradient(135deg, #002970 0%, #0284c7 100%);
+      box-shadow: 0 6px 20px rgba(0, 41, 112, 0.45);
+    }
+    .btn-secondary {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      width: 100%;
+      padding: 12px 18px;
+      border-radius: 12px;
+      font-size: 0.88rem;
+      font-weight: 700;
+      text-decoration: none;
+      color: #e2e8f0;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      transition: all 0.2s ease;
+      margin-bottom: 12px;
+      cursor: pointer;
+    }
+    .btn-secondary:hover, .btn-secondary:active {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+    .copy-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 20px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      font-size: 0.78rem;
+      color: var(--muted);
+      cursor: pointer;
+      margin-bottom: 18px;
+      transition: all 0.2s;
+    }
+    .copy-pill:active {
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+      border-color: #10b981;
+    }
+    .back-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--muted);
+      font-size: 0.84rem;
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+    .back-link:hover {
+      color: #ffffff;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="launcher-card">
+    <div class="app-icon-wrap" id="appIconWrap">
+      <div class="pulse-ring"></div>
+      <img id="appIconImg" src="images/upi.svg" alt="UPI App" />
+    </div>
+
+    <h1 class="launch-title" id="launchTitle">Opening UPI App...</h1>
+    <p class="launch-sub" id="launchSub">Please wait while your UPI payment app opens.</p>
+
+    <div class="amount-box">
+      <div class="lbl">Exact Amount</div>
+      <div class="val" id="amountDisplay">₹0.00</div>
+    </div>
+
+    <!-- Primary Launch Action -->
+    <a href="javascript:void(0)" id="primaryLaunchBtn" class="btn-main">
+      <i class="fa-solid fa-bolt"></i> <span id="primaryBtnText">Open App to Pay</span>
+    </a>
+
+    <!-- Universal Chooser Action (All installed apps) -->
+    <a href="javascript:void(0)" id="allAppsBtn" class="btn-secondary">
+      <i class="fa-solid fa-shapes"></i> Choose Other UPI App (All Apps)
+    </a>
+
+    <!-- Copy UPI ID Pill -->
+    <div class="copy-pill" id="copyPill" onclick="copyUpiIdManual()">
+      <i class="fa-regular fa-copy"></i>
+      <span id="copyPillText">UPI ID: Ritikane@ptyes</span>
+    </div>
+
+    <div>
+      <a href="javascript:window.history.back()" class="back-link">
+        <i class="fa-solid fa-arrow-left"></i> Return to Store
+      </a>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      const qp = new URLSearchParams(window.location.search);
+      const appType = (qp.get('app') || 'any').toLowerCase();
+      const upiId = qp.get('pa') || 'Ritikane@ptyes';
+      const payeeName = qp.get('pn') || 'LinkAdda';
+      const amount = qp.get('am') || '';
+      const orderRef = qp.get('tr') || '';
+      const note = qp.get('tn') || (orderRef ? `Order ${orderRef}` : 'Store Payment');
+
+      const isAndroid = /android/i.test(navigator.userAgent);
+      const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+
+      // Build Base UPI Query String
+      const params = new URLSearchParams();
+      params.set('pa', upiId);
+      params.set('pn', payeeName);
+      if (amount) params.set('am', Number(amount).toFixed(2));
+      params.set('cu', 'INR');
+      if (orderRef) params.set('tr', orderRef);
+      if (note) params.set('tn', note);
+
+      const queryString = params.toString();
+      const rawUpiUri = `upi://pay?${queryString}`;
+
+      // Build Target Specific Intent & Universal Intent
+      let targetIntent = rawUpiUri;
+      const universalIntent = isAndroid
+        ? `intent://pay?${queryString}#Intent;scheme=upi;action=android.intent.action.VIEW;end;`
+        : rawUpiUri;
+
+      let appName = 'UPI App';
+      let iconSrc = 'images/upi.svg';
+      let themeClass = 'any';
+
+      if (appType === 'phonepe') {
+        appName = 'PhonePe';
+        iconSrc = 'images/phonepe.svg';
+        themeClass = 'phonepe';
+        targetIntent = isAndroid
+          ? `intent://pay?${queryString}#Intent;scheme=upi;package=com.phonepe.app;action=android.intent.action.VIEW;end;`
+          : (isIOS ? `phonepe://upi/pay?${queryString}` : rawUpiUri);
+      } else if (appType === 'gpay') {
+        appName = 'Google Pay';
+        iconSrc = 'images/gpay.svg';
+        themeClass = 'gpay';
+        targetIntent = isAndroid
+          ? `intent://pay?${queryString}#Intent;scheme=upi;package=com.google.android.apps.nbu.paisa.user;action=android.intent.action.VIEW;end;`
+          : (isIOS ? `gpay://upi/pay?${queryString}` : rawUpiUri);
+      } else if (appType === 'paytm') {
+        appName = 'Paytm';
+        iconSrc = 'images/paytm.svg';
+        themeClass = 'paytm';
+        targetIntent = isAndroid
+          ? `intent://pay?${queryString}#Intent;scheme=upi;package=net.one97.paytm;action=android.intent.action.VIEW;end;`
+          : (isIOS ? `paytmmp://pay?${queryString}` : rawUpiUri);
+      } else {
+        // 'any' / All Apps
+        targetIntent = universalIntent;
+      }
+
+      // Update UI Elements
+      document.getElementById('launchTitle').textContent = `Opening ${appName}...`;
+      document.getElementById('launchSub').textContent = `If ${appName} didn't launch automatically, tap the button below.`;
+      document.getElementById('amountDisplay').textContent = amount ? `₹${Number(amount).toFixed(2)}` : '₹0.00';
+      document.getElementById('primaryBtnText').textContent = `⚡ Open ${appName} (Pay ₹${amount || ''})`;
+      document.getElementById('copyPillText').textContent = `UPI: ${upiId} (Tap to copy)`;
+
+      const iconWrap = document.getElementById('appIconWrap');
+      const iconImg = document.getElementById('appIconImg');
+      if (iconWrap) iconWrap.className = `app-icon-wrap ${themeClass}`;
+      if (iconImg) iconImg.src = iconSrc;
+
+      const mainBtn = document.getElementById('primaryLaunchBtn');
+      if (mainBtn) {
+        mainBtn.href = targetIntent;
+        mainBtn.className = `btn-main ${themeClass}`;
+      }
+
+      const allBtn = document.getElementById('allAppsBtn');
+      if (allBtn) {
+        allBtn.href = universalIntent;
+        // If appType was already 'any', hide duplicate chooser button
+        if (appType === 'any') allBtn.style.display = 'none';
+      }
+
+      // 1. Copy UPI ID immediately to clipboard
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(upiId).catch(() => {});
+        }
+      } catch (_) {}
+
+      // 2. Trigger auto launch immediately
+      try {
+        const a = document.createElement('a');
+        a.href = targetIntent;
+        a.rel = 'noopener';
+        a.style.display = 'none';
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => {
+          try { document.body.removeChild(a); } catch (_) {}
+        }, 300);
+      } catch (_) {}
+
+      // Fallback auto redirect after brief microtask
+      setTimeout(() => {
+        try {
+          window.location.href = targetIntent;
+        } catch (_) {}
+      }, 150);
+
+      window.copyUpiIdManual = function () {
+        try {
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(upiId).then(() => {
+              const pillText = document.getElementById('copyPillText');
+              if (pillText) pillText.textContent = '✅ Copied to Clipboard!';
+              setTimeout(() => {
+                if (pillText) pillText.textContent = `UPI: ${upiId} (Tap to copy)`;
+              }, 2000);
+            });
+          }
+        } catch (_) {}
+      };
+    })();
+  </script>
+</body>
+</html>
