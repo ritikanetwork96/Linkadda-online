@@ -453,13 +453,15 @@
     // Target URI for specific app
     const isAndroid = /android/i.test(navigator.userAgent);
     const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+    const isMobile = /android|iphone|ipad|ipod|mobile/i.test(navigator.userAgent);
 
     let targetUri = genericUpiUri;
     if (isAndroid) {
+      const fallbackEncoded = encodeURIComponent(genericUpiUri);
       if (cfg.pkg) {
-        targetUri = `intent://pay?${queryStr}#Intent;scheme=upi;package=${cfg.pkg};end;`;
+        targetUri = `intent://pay?${queryStr}#Intent;scheme=upi;package=${cfg.pkg};action=android.intent.action.VIEW;S.browser_fallback_url=${fallbackEncoded};end;`;
       } else {
-        targetUri = `intent://pay?${queryStr}#Intent;scheme=upi;end;`;
+        targetUri = genericUpiUri;
       }
     } else if (isIOS) {
       targetUri = cfg.iosScheme ? `${cfg.iosScheme}${queryStr}` : genericUpiUri;
@@ -471,16 +473,27 @@
     }
     const anyUpiBtn = document.getElementById('anyUpiBtn');
     if (anyUpiBtn) {
-      anyUpiBtn.href = isAndroid ? `intent://pay?${queryStr}#Intent;scheme=upi;end;` : genericUpiUri;
+      anyUpiBtn.href = genericUpiUri;
     }
 
-    // Instant auto-launch
+    // Instant auto-launch on mobile only
     function attemptAutoLaunch() {
+      if (!isMobile) {
+        toggleQr();
+        return;
+      }
       try {
-        window.location.href = targetUri;
+        const a = document.createElement('a');
+        a.href = targetUri;
+        a.rel = 'noopener';
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => {
+          try { document.body.removeChild(a); } catch (_) {}
+        }, 300);
       } catch (_) {}
     }
-    // Fire immediately and after short delay if needed
+    // Fire immediately
     attemptAutoLaunch();
 
     // Copy UPI ID helper

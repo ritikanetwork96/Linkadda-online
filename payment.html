@@ -3695,16 +3695,17 @@ function buildTargetUpiUri(appType) {
   const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
 
   if (isAndroid) {
+    const fallbackEncoded = encodeURIComponent(upiUri);
     if (appType === 'phonepe') {
-      return `intent://pay?${queryString}#Intent;scheme=upi;package=com.phonepe.app;end;`;
+      return `intent://pay?${queryString}#Intent;scheme=upi;package=com.phonepe.app;action=android.intent.action.VIEW;S.browser_fallback_url=${fallbackEncoded};end;`;
     }
     if (appType === 'gpay') {
-      return `intent://pay?${queryString}#Intent;scheme=upi;package=com.google.android.apps.nbu.paisa.user;end;`;
+      return `intent://pay?${queryString}#Intent;scheme=upi;package=com.google.android.apps.nbu.paisa.user;action=android.intent.action.VIEW;S.browser_fallback_url=${fallbackEncoded};end;`;
     }
     if (appType === 'paytm') {
-      return `intent://pay?${queryString}#Intent;scheme=upi;package=net.one97.paytm;end;`;
+      return `intent://pay?${queryString}#Intent;scheme=upi;package=net.one97.paytm;action=android.intent.action.VIEW;S.browser_fallback_url=${fallbackEncoded};end;`;
     }
-    return `intent://pay?${queryString}#Intent;scheme=upi;end;`;
+    return upiUri;
   }
 
   if (isIOS) {
@@ -3877,7 +3878,7 @@ function showTgUpiModal(appType, appName, upiId, amount, targetUri) {
   if (iconWrap) iconWrap.innerHTML = iconImg;
 
   if (launchBtn) {
-    launchBtn.innerHTML = `<i class="fa-solid fa-bolt"></i> Open ${appName}`;
+    launchBtn.innerHTML = `<i class="fa-solid fa-bolt"></i> Open ${appName} to Pay`;
     launchBtn.onclick = function() {
       try {
         if (window.Telegram?.WebApp?.HapticFeedback) {
@@ -3885,8 +3886,16 @@ function showTgUpiModal(appType, appName, upiId, amount, targetUri) {
         }
       } catch (_) {}
       copyToClipboardSilent(upiId);
-      showPaymentNotice(`Launching ${appName}... UPI ID copied!`);
-      dispatchTgSafeUri(targetUri);
+      showPaymentNotice(`Opening ${appName}... (UPI ID copied!)`);
+
+      const { orderRef } = getUpiDetails();
+      const extUrl = `${window.location.origin}/upi-pay.html?app=${encodeURIComponent(appType)}&pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent('LinkAdda Digital Market')}&am=${encodeURIComponent(amount > 0 ? amount.toFixed(2) : '')}&tr=${encodeURIComponent(orderRef || '')}`;
+
+      if (window.Telegram?.WebApp?.openLink) {
+        window.Telegram.WebApp.openLink(extUrl);
+      } else {
+        triggerDirectDeepLink(targetUri, upiUri);
+      }
     };
   }
 
@@ -3918,11 +3927,11 @@ window.closeTgUpiModal = closeTgUpiModal;
 window.scrollToQrAndCloseTgModal = scrollToQrAndCloseTgModal;
 
 function triggerDirectDeepLink(targetUri, fallbackUri) {
-  const isTg = isTelegramEnvironment();
+  if (!targetUri) return;
+  const isMobile = /android|iphone|ipad|ipod|mobile/i.test(navigator.userAgent);
+  if (!isMobile) return;
 
-  // ⚠️ CRITICAL: Inside Telegram Mini App Android WebView, setting window.location.href to
-  // intent://, upi://, or custom scheme throws net::ERR_UNKNOWN_URL_SCHEME (yellow duck crash screen).
-  // We MUST dispatch exclusively via invisible iframe so top-level WebView never crashes!
+  const isTg = isTelegramEnvironment();
   if (isTg) {
     dispatchTgSafeUri(targetUri);
     return;
@@ -3939,30 +3948,21 @@ function triggerDirectDeepLink(targetUri, fallbackUri) {
     a.click();
     setTimeout(() => {
       try { document.body.removeChild(a); } catch (_) {}
-    }, 150);
-  } catch (_) {}
-
-  try {
-    window.location.href = targetUri;
-  } catch (_) {}
-
-  if (fallbackUri && fallbackUri !== targetUri) {
-    setTimeout(() => {
-      try {
-        window.location.href = fallbackUri;
-      } catch (_) {}
-    }, 600);
+    }, 300);
+  } catch (err) {
+    console.warn('Direct deep link click note:', err);
   }
 }
 
 function openUpiApp(e, appType) {
   if (e) {
-    try { e.preventDefault(); } catch (_) {}
+    try { e.preventDefault(); e.stopPropagation(); } catch (_) {}
   }
   const { amount, upiId, orderRef, queryString, upiUri } = getUpiDetails();
   const targetUri = buildTargetUpiUri(appType);
   const appName = appType === 'phonepe' ? 'PhonePe' : appType === 'gpay' ? 'Google Pay' : appType === 'paytm' ? 'Paytm' : 'UPI App';
   const isTg = isTelegramEnvironment();
+  const isMobile = /android|iphone|ipad|ipod|mobile/i.test(navigator.userAgent);
 
   // 1. Instantly copy UPI ID to user clipboard
   copyToClipboardSilent(upiId);
@@ -3971,32 +3971,28 @@ function openUpiApp(e, appType) {
   const upiIdEl = document.getElementById('upiIdText');
   if (upiIdEl && upiId) upiIdEl.textContent = upiId;
 
+  // 3. Desktop PC safeguard: Never navigate to mobile intent/scheme on PC!
+  if (!isMobile) {
+    showPaymentNotice(`📱 UPI ID copied (${upiId})! Please scan the QR code using your phone's UPI app.`, 'info');
+    scrollToQrAndCloseTgModal();
+    return;
+  }
+
+  // 4. Telegram Mini App environment
   if (isTg) {
-    // 3. Trigger Native Telegram Haptic Feedback
     try {
       if (window.Telegram?.WebApp?.HapticFeedback) {
         window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
       }
     } catch (_) {}
 
-    // 4. In-App Notice - Never open external browser or expose Render link!
     showPaymentNotice(`UPI ID copied (${upiId})! Select option below.`);
-
-    // 5. Open Telegram-safe modal with clear 1-tap actions
     showTgUpiModal(appType, appName, upiId, amount, targetUri);
-
-    // 6. Safe dispatch via hidden iframe (does NOT trigger ERR_UNKNOWN_URL_SCHEME)
-    dispatchTgSafeUri(targetUri);
     return;
   }
 
-  // Regular browser execution (Chrome, Safari, etc.)
-  showPaymentNotice(`Opening ${appName}... UPI ID copied!`);
-  const fallbackTimer = setTimeout(() => {
-    window.location.href = upiUri;
-  }, 600);
-
-  window.addEventListener('blur', () => clearTimeout(fallbackTimer), { once: true });
+  // 5. Regular mobile browser execution (Chrome, Safari, etc.)
+  showPaymentNotice(`Opening ${appName}... (UPI ID copied!)`);
   triggerDirectDeepLink(targetUri, upiUri);
 }
 window.isTelegramEnvironment = isTelegramEnvironment;
@@ -4065,24 +4061,26 @@ function renderUpiQr() {
   const upiUri = buildUpiPaymentUri();
 
   // Update Direct Mobile UPI Pay Button and Fast App launcher links
-  const isTg = isTelegramEnvironment();
   const directBtn = document.getElementById('upiDirectPayBtn');
   if (directBtn) {
-    directBtn.href = isTg ? 'javascript:void(0)' : buildTargetUpiUri('any');
+    directBtn.href = 'javascript:void(0)';
     directBtn.setAttribute('onclick', "openUpiApp(event, 'any')");
     directBtn.style.display = 'inline-flex';
   }
   const btnPhonepe = document.getElementById('upiFastBtnPhonepe') || document.querySelector('a.upi-fast-app-btn[title*="PhonePe"]');
   if (btnPhonepe) {
-    btnPhonepe.href = isTg ? 'javascript:void(0)' : buildTargetUpiUri('phonepe');
+    btnPhonepe.href = 'javascript:void(0)';
+    btnPhonepe.setAttribute('onclick', "openUpiApp(event, 'phonepe')");
   }
   const btnGpay = document.getElementById('upiFastBtnGpay') || document.querySelector('a.upi-fast-app-btn[title*="Google Pay"]');
   if (btnGpay) {
-    btnGpay.href = isTg ? 'javascript:void(0)' : buildTargetUpiUri('gpay');
+    btnGpay.href = 'javascript:void(0)';
+    btnGpay.setAttribute('onclick', "openUpiApp(event, 'gpay')");
   }
   const btnPaytm = document.getElementById('upiFastBtnPaytm') || document.querySelector('a.upi-fast-app-btn[title*="Paytm"]');
   if (btnPaytm) {
-    btnPaytm.href = isTg ? 'javascript:void(0)' : buildTargetUpiUri('paytm');
+    btnPaytm.href = 'javascript:void(0)';
+    btnPaytm.setAttribute('onclick', "openUpiApp(event, 'paytm')");
   }
 
   // Draw reliable dynamic QR (QRCode JS with high-res multi-CDN image fallback)
