@@ -2025,11 +2025,7 @@
 <header class="pay-header">
   <a class="back-btn" id="headerBackBtn" href="index.html"><i class="fa-solid fa-arrow-left"></i> Shop</a>
   <div class="secure-badge"><i class="fa-solid fa-lock"></i> Secure</div>
-  <button type="button" class="fk-currency-toggle-pill" id="headerCurrencyBtn" title="Toggle Currency (₹ INR / $ USDT)" onclick="window.toggleStoreCurrency && window.toggleStoreCurrency()" style="margin-left:auto; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.18); border-radius:20px; padding:4px 10px; color:#fff; font-size:12px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:5px;">
-    <span id="headerCurrencyFlag">🇮🇳</span>
-    <span id="headerCurrencyCode">INR (₹)</span>
-  </button>
-  <div class="logo" style="margin-left:8px;"><i class="fa-solid fa-fire-flame-curved"></i> Linkadda</div>
+  <div class="logo" style="margin-left:auto;"><i class="fa-solid fa-fire-flame-curved"></i> Linkadda</div>
 </header>
 
 <!-- STEPS -->
@@ -2082,17 +2078,6 @@
     <div class="sec-title">Choose Payment Method</div>
 
     <div class="method-grid" id="methodGrid"></div>
-
-    <div class="currency-switch-banner" id="currencySwitchBanner" onclick="window.toggleStoreCurrency && window.toggleStoreCurrency()" style="cursor:pointer; display:flex; align-items:center; justify-content:space-between; background:rgba(255,255,255,0.04); border:1px dashed rgba(255,255,255,0.18); border-radius:12px; padding:12px 16px; margin-top:12px; margin-bottom:14px; transition:all 0.2s;">
-      <div style="display:flex; align-items:center; gap:10px;">
-        <span id="bannerSwitchIcon" style="font-size:1.3rem;">🌐</span>
-        <div>
-          <div id="bannerSwitchTitle" style="font-weight:700; color:#fff; font-size:0.86rem;">Want to pay using Crypto (USDT)?</div>
-          <div id="bannerSwitchSub" style="color:rgba(255,255,255,0.6); font-size:0.75rem;">Tap here to switch to Binance Pay & USDT</div>
-        </div>
-      </div>
-      <span class="badge-switch" id="bannerSwitchBadge" style="background:rgba(56,189,248,0.12); color:#38bdf8; border:1px solid rgba(56,189,248,0.3); border-radius:8px; padding:5px 12px; font-size:0.75rem; font-weight:700; white-space:nowrap;">Switch to USDT &rarr;</span>
-    </div>
 
     <div class="alert" id="alertMethod"><i class="fa-solid fa-circle-exclamation"></i> Please select a payment method to continue.</div>
 
@@ -2897,27 +2882,6 @@ function renderDynamicPaymentMethods() {
       selectedMethod = rec.id;
     } else if (activeMethods.length > 0) {
       selectedMethod = activeMethods[0].id;
-    }
-  }
-
-  // Update switcher banner content based on active currency
-  const switchBanner = document.getElementById('currencySwitchBanner');
-  const bannerIcon = document.getElementById('bannerSwitchIcon');
-  const bannerTitle = document.getElementById('bannerSwitchTitle');
-  const bannerSub = document.getElementById('bannerSwitchSub');
-  const bannerBadge = document.getElementById('bannerSwitchBadge');
-
-  if (switchBanner && bannerTitle) {
-    if (isIndia) {
-      if (bannerIcon) bannerIcon.textContent = '🌐';
-      bannerTitle.textContent = 'Want to pay using Crypto (USDT)?';
-      if (bannerSub) bannerSub.textContent = 'Tap here to switch to Binance Pay & USDT';
-      if (bannerBadge) bannerBadge.innerHTML = 'Switch to USDT &rarr;';
-    } else {
-      if (bannerIcon) bannerIcon.textContent = '🇮🇳';
-      bannerTitle.textContent = 'Want to pay using Indian UPI (₹)?';
-      if (bannerSub) bannerSub.textContent = 'Tap here to switch to Google Pay, PhonePe, Paytm';
-      if (bannerBadge) bannerBadge.innerHTML = 'Switch to UPI &rarr;';
     }
   }
 
@@ -3887,15 +3851,8 @@ function showTgUpiModal(appType, appName, upiId, amount, targetUri) {
       } catch (_) {}
       copyToClipboardSilent(upiId);
       showPaymentNotice(`Opening ${appName}... (UPI ID copied!)`);
-
-      const { orderRef } = getUpiDetails();
-      const extUrl = `${window.location.origin}/upi-pay.html?app=${encodeURIComponent(appType)}&pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent('LinkAdda Digital Market')}&am=${encodeURIComponent(amount > 0 ? amount.toFixed(2) : '')}&tr=${encodeURIComponent(orderRef || '')}`;
-
-      if (window.Telegram?.WebApp?.openLink) {
-        window.Telegram.WebApp.openLink(extUrl);
-      } else {
-        triggerDirectDeepLink(targetUri, upiUri);
-      }
+      triggerDirectDeepLink(targetUri, upiUri);
+      closeTgUpiModal();
     };
   }
 
@@ -3931,37 +3888,33 @@ function triggerDirectDeepLink(targetUri, fallbackUri) {
   const isMobile = /android|iphone|ipad|ipod|mobile/i.test(navigator.userAgent);
   if (!isMobile) return;
 
-  const isTg = isTelegramEnvironment();
-  if (isTg) {
-    dispatchTgSafeUri(targetUri);
-    return;
-  }
-
-  // Regular browser execution (Chrome, Safari, Edge, etc.)
+  // 1. Programmatic click on hidden anchor tag
   try {
     const a = document.createElement('a');
     a.href = targetUri;
-    a.target = '_self';
     a.rel = 'noopener';
     a.style.display = 'none';
     document.body.appendChild(a);
     a.click();
     setTimeout(() => {
       try { document.body.removeChild(a); } catch (_) {}
-    }, 300);
+    }, 500);
   } catch (err) {
     console.warn('Direct deep link click note:', err);
   }
+
+  // 2. Direct location navigation fallback
+  setTimeout(() => {
+    try {
+      window.location.href = targetUri;
+    } catch (_) {}
+  }, 250);
 }
 
 function openUpiApp(e, appType) {
-  if (e) {
-    try { e.preventDefault(); e.stopPropagation(); } catch (_) {}
-  }
   const { amount, upiId, orderRef, queryString, upiUri } = getUpiDetails();
   const targetUri = buildTargetUpiUri(appType);
   const appName = appType === 'phonepe' ? 'PhonePe' : appType === 'gpay' ? 'Google Pay' : appType === 'paytm' ? 'Paytm' : 'UPI App';
-  const isTg = isTelegramEnvironment();
   const isMobile = /android|iphone|ipad|ipod|mobile/i.test(navigator.userAgent);
 
   // 1. Instantly copy UPI ID to user clipboard
@@ -3973,26 +3926,24 @@ function openUpiApp(e, appType) {
 
   // 3. Desktop PC safeguard: Never navigate to mobile intent/scheme on PC!
   if (!isMobile) {
+    if (e) {
+      try { e.preventDefault(); e.stopPropagation(); } catch (_) {}
+    }
     showPaymentNotice(`📱 UPI ID copied (${upiId})! Please scan the QR code using your phone's UPI app.`, 'info');
     scrollToQrAndCloseTgModal();
     return;
   }
 
-  // 4. Telegram Mini App environment
-  if (isTg) {
-    try {
-      if (window.Telegram?.WebApp?.HapticFeedback) {
-        window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
-      }
-    } catch (_) {}
+  // 4. Mobile Execution (both Telegram Mini App and regular mobile browser)
+  try {
+    if (window.Telegram?.WebApp?.HapticFeedback) {
+      window.Telegram.WebApp.HapticFeedback.impactOccurred('medium');
+    }
+  } catch (_) {}
 
-    showPaymentNotice(`UPI ID copied (${upiId})! Select option below.`);
-    showTgUpiModal(appType, appName, upiId, amount, targetUri);
-    return;
-  }
-
-  // 5. Regular mobile browser execution (Chrome, Safari, etc.)
   showPaymentNotice(`Opening ${appName}... (UPI ID copied!)`);
+
+  // Direct dispatch: Opens native app directly without opening any middle website!
   triggerDirectDeepLink(targetUri, upiUri);
 }
 window.isTelegramEnvironment = isTelegramEnvironment;
@@ -4061,25 +4012,26 @@ function renderUpiQr() {
   const upiUri = buildUpiPaymentUri();
 
   // Update Direct Mobile UPI Pay Button and Fast App launcher links
+  const isMobile = /android|iphone|ipad|ipod|mobile/i.test(navigator.userAgent);
   const directBtn = document.getElementById('upiDirectPayBtn');
   if (directBtn) {
-    directBtn.href = 'javascript:void(0)';
+    directBtn.href = isMobile ? buildTargetUpiUri('any') : 'javascript:void(0)';
     directBtn.setAttribute('onclick', "openUpiApp(event, 'any')");
     directBtn.style.display = 'inline-flex';
   }
   const btnPhonepe = document.getElementById('upiFastBtnPhonepe') || document.querySelector('a.upi-fast-app-btn[title*="PhonePe"]');
   if (btnPhonepe) {
-    btnPhonepe.href = 'javascript:void(0)';
+    btnPhonepe.href = isMobile ? buildTargetUpiUri('phonepe') : 'javascript:void(0)';
     btnPhonepe.setAttribute('onclick', "openUpiApp(event, 'phonepe')");
   }
   const btnGpay = document.getElementById('upiFastBtnGpay') || document.querySelector('a.upi-fast-app-btn[title*="Google Pay"]');
   if (btnGpay) {
-    btnGpay.href = 'javascript:void(0)';
+    btnGpay.href = isMobile ? buildTargetUpiUri('gpay') : 'javascript:void(0)';
     btnGpay.setAttribute('onclick', "openUpiApp(event, 'gpay')");
   }
   const btnPaytm = document.getElementById('upiFastBtnPaytm') || document.querySelector('a.upi-fast-app-btn[title*="Paytm"]');
   if (btnPaytm) {
-    btnPaytm.href = 'javascript:void(0)';
+    btnPaytm.href = isMobile ? buildTargetUpiUri('paytm') : 'javascript:void(0)';
     btnPaytm.setAttribute('onclick', "openUpiApp(event, 'paytm')");
   }
 

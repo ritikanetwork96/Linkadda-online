@@ -115,9 +115,11 @@
       }
 
       // Update Profile / Settings currency display
-      var profilePill = document.querySelector('.profile-currency-pill');
-      if (profilePill) {
-        profilePill.textContent = (curr === 'INR') ? '🇮🇳 ₹ INR' : '🌐 $ USDT';
+      var profilePills = document.querySelectorAll('.profile-currency-pill');
+      if (profilePills && profilePills.length > 0) {
+        profilePills.forEach(function (pill) {
+          pill.textContent = (curr === 'INR') ? '🇮🇳 ₹ INR' : '🌐 $ USDT';
+        });
       }
     } catch (_) {}
   }
@@ -168,6 +170,14 @@
   // 5. Tier 2: Background IP Geolocation Check (Runs async without blocking)
   function runTier2BackgroundGeo() {
     if (isManualChoice) return; // User explicitly selected preference, do not override
+
+    // VPN Safeguard:
+    // If Tier 1 hardware detection identified this device as Indian (Asia/Kolkata timezone or +05:30 offset),
+    // NEVER let a foreign IP (from a VPN / Proxy) override the currency to USD!
+    // A VPN alters IP routing but cannot alter physical device timezone/offset.
+    if (detectedCountry === 'IN') {
+      return;
+    }
 
     try {
       var cachedGeo = localStorage.getItem(STORAGE_KEY_COUNTRY);

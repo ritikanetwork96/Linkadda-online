@@ -1054,10 +1054,6 @@
         </a>
 
         <div class="fk-header-actions">
-          <button type="button" class="fk-currency-btn-wrap" id="headerCurrencyBtn" title="Change Currency (₹ INR / $ USDT)" onclick="window.toggleStoreCurrency && window.toggleStoreCurrency();">
-            <span class="fk-currency-flag" id="headerCurrencyFlag">🇮🇳</span>
-            <span class="fk-currency-code" id="headerCurrencyCode">INR (₹)</span>
-          </button>
           <button type="button" class="fk-notif-btn-wrap" id="headerNotifBtn" title="Notifications" onclick="window.showNotificationsPage ? window.showNotificationsPage('store') : (window.location.hash = '#notifications')">
             <i class="fa-solid fa-bell"></i>
             <span class="fk-notif-badge-dot" id="headerNotifDot"></span>
@@ -1429,9 +1425,6 @@
     <div class="mobile-nav" id="mobileNav">
       <button class="mob-user-btn" id="mobUserBtn" type="button" onclick="window.showProfilePage ? window.showProfilePage() : (window.location.hash = '#profile')" style="width: 100%; margin: 0 0 10px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 16px; border-radius: 9999px; background: rgba(255, 42, 141, 0.14); border: 1.5px solid rgba(255, 42, 141, 0.35); color: #ff65a3; font-weight: 700; font-size: 0.88rem; cursor: pointer;">
         <i class="fa-solid fa-circle-user"></i> <span id="mobUserBtnText">Account</span>
-      </button>
-      <button class="header-currency-toggle" id="mobCurrencyToggle" type="button" style="margin: 0 auto 10px; width: fit-content;">
-        <i class="fa-solid fa-coins"></i> <span id="mobCurrencyToggleText">Currency: ₹ INR</span>
       </button>
       <button class="mob-search-btn" id="mobSearchBtn">
         <i class="fa-solid fa-magnifying-glass"></i> Search Products & FAQs
@@ -6825,7 +6818,7 @@
             </div>
 
             <!-- Option 3: Store Currency -->
-            <div class="profile-option-item clickable" onclick="document.getElementById('mobCurrencyToggle')?.click()" role="button" tabindex="0">
+            <div class="profile-option-item clickable" id="settingsCurrencyOption" onclick="window.toggleStoreCurrency && window.toggleStoreCurrency()" role="button" tabindex="0">
               <div class="profile-option-left">
                 <div class="profile-opt-icon-wrap currency">
                   <i class="fa-solid fa-coins"></i>
