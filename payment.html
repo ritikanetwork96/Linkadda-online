@@ -3937,39 +3937,18 @@ function openUpiApp(e, appType) {
   // 4. Highlight the QR Code and UPI ID copy box
   highlightQrBox();
 
-  // 5. Desktop PC safeguard: Never navigate to mobile intent on PC!
-  if (!isMobile) {
-    showPaymentNotice(`📱 UPI ID copied (${upiId})! Please scan the QR code using your phone's UPI app.`, 'info');
+  // 5. In Telegram WebApp, In-App WebView, or PC:
+  // 100% In-App Flow: Never open external browser/middle website, zero latency, 0 crashes!
+  if (inTgOrWv || !isMobile) {
+    const amtStr = amount > 0 ? `₹${amount.toFixed(2)}` : '';
+    showPaymentNotice(`📱 ${appName} UPI ID copied (${upiId})! Open ${appName} & pay ${amtStr}.`);
     scrollToQrAndCloseTgModal();
     return;
   }
 
-  // 6. Mobile Execution:
+  // 6. Regular Standalone Mobile Browser ONLY (Chrome/Safari outside Telegram)
   const amtStr = amount > 0 ? `₹${amount.toFixed(2)}` : '';
-  showPaymentNotice(`🚀 Launching ${appName}... (${amtStr} locked, UPI ID copied!)`);
-
-  const amtParam = amount > 0 ? amount.toFixed(2) : '';
-  const launchUrl = `${window.location.origin}/launch-upi?app=${encodeURIComponent(appType)}&pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent('LinkAdda')}&am=${encodeURIComponent(amtParam)}&tr=${encodeURIComponent(orderRef)}&tn=${encodeURIComponent('Order ' + orderRef)}`;
-
-  // If inside Telegram Mini App: use Telegram's sanctioned openLink to safely launch external app handler!
-  if (inTgOrWv && window.Telegram?.WebApp?.openLink) {
-    try {
-      window.Telegram.WebApp.openLink(launchUrl);
-      return;
-    } catch (err) {
-      console.warn('Telegram openLink note:', err);
-    }
-  }
-
-  // If in Telegram but openLink threw, or other webview:
-  if (inTgOrWv) {
-    try {
-      window.open(launchUrl, '_blank');
-      return;
-    } catch (_) {}
-  }
-
-  // 7. Regular Standalone Mobile Browser ONLY (outside WebView/Telegram)
+  showPaymentNotice(`Opening ${appName}... (UPI ID copied!)`);
   const targetUri = buildTargetUpiUri(appType);
   triggerDirectDeepLink(targetUri, upiUri);
 }
