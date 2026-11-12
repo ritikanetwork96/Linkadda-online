@@ -343,7 +343,7 @@
       } else {
         specialTag.style.cssText = '';
       }
-      specialTag.innerHTML = `<i class="fa-solid fa-crown" style="font-size:10px;"></i> ${escapeHtml(badgeTxt)} (UPI & USDT Crypto)`;
+      specialTag.innerHTML = `<i class="fa-solid fa-crown" style="font-size:10px;"></i> ${escapeHtml(badgeTxt)}`;
     }
 
     // 3. Real Product Description (Direct from Admin record)
@@ -839,13 +839,15 @@
             const isSelected = idx === window.__fkActiveVariantIdx;
             const inrVal = String(t.inr || prod.priceINR || '399').replace(/[^\d]/g, '');
             const usdVal = String(t.usd || prod.priceUSD || '14').replace(/[^\d]/g, '');
+            const isUSD = (typeof window.getStoreCurrency === 'function' ? window.getStoreCurrency() : (localStorage.getItem('linkadda_store_currency') || 'INR')) === 'USD';
+            const priceText = isUSD ? `$${usdVal} USDT` : `₹${inrVal}`;
             return `
               <div class="la-pack-option-row ${isSelected ? 'selected' : ''}" data-idx="${idx}" onclick="window.selectPackOption(${idx})">
                 <div class="la-pack-left">
                   <div class="la-pack-radio"></div>
                   <div class="la-pack-title">${escapeHtml(t.label || t.name || `Option ${idx + 1}`)}</div>
                 </div>
-                <div class="la-pack-price">₹${inrVal} / $${usdVal}</div>
+                <div class="la-pack-price">${priceText}</div>
               </div>
             `;
           }).join('')}
@@ -900,20 +902,22 @@
       ? String(rawMrpUSD).replace(/[^\d]/g, '')
       : Math.max(Number(currentUSD) + 5, Math.round(Number(currentUSD) * 1.8));
 
-    // 1. Dual Selling Price (Shown together side-by-side)
+    const isUSD = (typeof window.getStoreCurrency === 'function' ? window.getStoreCurrency() : (localStorage.getItem('linkadda_store_currency') || 'INR')) === 'USD';
+
+    // 1. Single Active Selling Price
     const sellingPriceEl = document.getElementById('fkPvSellingPrice');
     if (sellingPriceEl) {
-      sellingPriceEl.innerHTML = `
-        <span class="pv-inr">₹${currentINR}</span>
-        <span class="pv-sep">/</span>
-        <span class="pv-usd">$${currentUSD} <small>USDT</small></span>
-      `;
+      if (isUSD) {
+        sellingPriceEl.innerHTML = `<span class="pv-usd">$${currentUSD} <small>USDT</small></span>`;
+      } else {
+        sellingPriceEl.innerHTML = `<span class="pv-inr">₹${currentINR}</span>`;
+      }
     }
 
-    // 2. Dual MRP Strikethrough
+    // 2. MRP Strikethrough
     const mrpEl = document.getElementById('fkPvMRPCut');
     if (mrpEl) {
-      mrpEl.textContent = `₹${mrpINR} / $${mrpUSD}`;
+      mrpEl.textContent = isUSD ? `$${mrpUSD}` : `₹${mrpINR}`;
     }
 
     // 3. Discount Percentage
@@ -928,7 +932,9 @@
     const diffINR = Math.max(100, Number(mrpINR) - Number(currentINR));
     const diffUSD = Math.max(5, Number(mrpUSD) - Number(currentUSD));
     if (savingsEl) {
-      savingsEl.innerHTML = `<i class="fa-solid fa-coins"></i> You save ₹${diffINR} / $${diffUSD} on this pack!`;
+      savingsEl.innerHTML = isUSD
+        ? `<i class="fa-solid fa-coins"></i> You save $${diffUSD} on this pack!`
+        : `<i class="fa-solid fa-coins"></i> You save ₹${diffINR} on this pack!`;
     }
 
     // 5. Update Direct Buy Now Links (Both Desktop & Mobile Sticky)
@@ -1505,6 +1511,18 @@
       }
     } catch (_) {}
   }, { passive: true });
+
+  // Re-sync quick view modal if currency changes dynamically
+  window.addEventListener('currencyChange', function () {
+    try {
+      if (window.__fkActiveProduct && document.getElementById('fkProductPageOverlay')?.classList.contains('active')) {
+        renderPackOptions(window.__fkActiveProduct);
+        const tiers = window.__fkActiveProduct.__effectiveTiers || [];
+        const activeTier = tiers[window.__fkActiveVariantIdx] || null;
+        updateQuickViewPrice(window.__fkActiveProduct, activeTier);
+      }
+    } catch (_) {}
+  });
 
 })();
 

@@ -2134,15 +2134,15 @@
           <div style="margin-bottom:14px;">
             <div style="font-size:11px;color:var(--muted);font-weight:700;letter-spacing:0.5px;text-transform:uppercase;text-align:center;margin-bottom:8px;">Tap App to Pay Instantly (Locked Amount):</div>
             <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:8px;">
-              <a href="#" id="upiFastBtnGpay" class="upi-fast-app-btn" onclick="openUpiApp(event, 'gpay')" title="Pay with Google Pay" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:10px 4px;border-radius:12px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.14);text-decoration:none;color:#f8fafc;font-size:11.5px;font-weight:700;transition:all 0.2s;">
+              <a href="javascript:void(0)" id="upiFastBtnGpay" class="upi-fast-app-btn" onclick="openUpiApp(event, 'gpay')" title="Pay with Google Pay" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:10px 4px;border-radius:12px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.14);text-decoration:none;color:#f8fafc;font-size:11.5px;font-weight:700;transition:all 0.2s;">
                 <span style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;background:#ffffff;box-shadow:0 2px 6px rgba(0,0,0,0.25);"><img src="images/gpay.svg" alt="GPay" style="width:20px;height:20px;object-fit:contain;" /></span>
                 <span>Google Pay</span>
               </a>
-              <a href="#" id="upiFastBtnPhonepe" class="upi-fast-app-btn" onclick="openUpiApp(event, 'phonepe')" title="Pay with PhonePe" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:10px 4px;border-radius:12px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.14);text-decoration:none;color:#f8fafc;font-size:11.5px;font-weight:700;transition:all 0.2s;">
+              <a href="javascript:void(0)" id="upiFastBtnPhonepe" class="upi-fast-app-btn" onclick="openUpiApp(event, 'phonepe')" title="Pay with PhonePe" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:10px 4px;border-radius:12px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.14);text-decoration:none;color:#f8fafc;font-size:11.5px;font-weight:700;transition:all 0.2s;">
                 <span style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;background:#5f259f;box-shadow:0 2px 6px rgba(95,37,159,0.45);"><img src="images/phonepe.svg" alt="PhonePe" style="width:20px;height:20px;object-fit:contain;" /></span>
                 <span>PhonePe</span>
               </a>
-              <a href="#" id="upiFastBtnPaytm" class="upi-fast-app-btn" onclick="openUpiApp(event, 'paytm')" title="Pay with Paytm" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:10px 4px;border-radius:12px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.14);text-decoration:none;color:#f8fafc;font-size:11.5px;font-weight:700;transition:all 0.2s;">
+              <a href="javascript:void(0)" id="upiFastBtnPaytm" class="upi-fast-app-btn" onclick="openUpiApp(event, 'paytm')" title="Pay with Paytm" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:10px 4px;border-radius:12px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.14);text-decoration:none;color:#f8fafc;font-size:11.5px;font-weight:700;transition:all 0.2s;">
                 <span style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;background:#002970;box-shadow:0 2px 6px rgba(0,41,112,0.45);"><img src="images/paytm.svg" alt="Paytm" style="width:24px;height:16px;object-fit:contain;" /></span>
                 <span>Paytm</span>
               </a>
@@ -2156,7 +2156,7 @@
             <div id="upiQRError" class="qr-empty" style="display:none">Payment QR is not configured.</div>
           </div>
           <div class="qr-label">Scan with GPay · PhonePe · Paytm · Any UPI App</div>
-          <a href="#" id="upiDirectPayBtn" class="btn-upi-direct" onclick="openUpiApp(event, 'any')" style="display: none; align-items: center; justify-content: center; gap: 8px; width: 100%; margin-top: 10px; margin-bottom: 6px; padding: 12px 18px; border-radius: 12px; background: linear-gradient(135deg, #059669 0%, #10b981 100%); color: #ffffff; font-weight: 700; font-size: 0.92rem; text-decoration: none; box-shadow: 0 4px 15px rgba(16, 185, 129, 0.35); transition: all 0.2s ease;">
+          <a href="javascript:void(0)" id="upiDirectPayBtn" class="btn-upi-direct" onclick="openUpiApp(event, 'any')" style="display: none; align-items: center; justify-content: center; gap: 8px; width: 100%; margin-top: 10px; margin-bottom: 6px; padding: 12px 18px; border-radius: 12px; background: linear-gradient(135deg, #059669 0%, #10b981 100%); color: #ffffff; font-weight: 700; font-size: 0.92rem; text-decoration: none; box-shadow: 0 4px 15px rgba(16, 185, 129, 0.35); transition: all 0.2s ease;">
             <i class="fa-solid fa-bolt"></i> Pay via UPI App (Auto-Fill Amount)
           </a>
           <button class="download-qr-btn" onclick="downloadCurrentQRCode('upi')"><i class="fa-solid fa-download"></i> Download QR Code</button>
@@ -3669,7 +3669,7 @@ function buildTargetUpiUri(appType) {
     if (appType === 'paytm') {
       return `intent://pay?${queryString}#Intent;scheme=upi;package=net.one97.paytm;action=android.intent.action.VIEW;S.browser_fallback_url=${fallbackEncoded};end;`;
     }
-    return upiUri;
+    return `intent://pay?${queryString}#Intent;scheme=upi;action=android.intent.action.VIEW;S.browser_fallback_url=${fallbackEncoded};end;`;
   }
 
   if (isIOS) {
@@ -3888,22 +3888,32 @@ function triggerDirectDeepLink(targetUri, fallbackUri) {
   const isMobile = /android|iphone|ipad|ipod|mobile/i.test(navigator.userAgent);
   if (!isMobile) return;
 
-  // 1. Programmatic click on hidden anchor tag
+  const isTg = isTelegramEnvironment();
+  if (isTg) {
+    // ⚠️ CRITICAL: Inside Telegram Mini App Android WebView, setting window.location.href to
+    // intent:// or upi:// triggers net::ERR_UNKNOWN_URL_SCHEME (the yellow duck crash screen).
+    // In Telegram, dispatch strictly via invisible iframe so the WebApp NEVER crashes!
+    dispatchTgSafeUri(targetUri);
+    return;
+  }
+
+  // Regular mobile browser execution (Chrome, Safari, etc.)
   try {
     const a = document.createElement('a');
     a.href = targetUri;
+    a.target = '_self';
     a.rel = 'noopener';
     a.style.display = 'none';
     document.body.appendChild(a);
     a.click();
     setTimeout(() => {
       try { document.body.removeChild(a); } catch (_) {}
-    }, 500);
+    }, 400);
   } catch (err) {
     console.warn('Direct deep link click note:', err);
   }
 
-  // 2. Direct location navigation fallback
+  // Fallback for regular mobile browser if a.click() didn't trigger
   setTimeout(() => {
     try {
       window.location.href = targetUri;
@@ -3912,10 +3922,14 @@ function triggerDirectDeepLink(targetUri, fallbackUri) {
 }
 
 function openUpiApp(e, appType) {
+  if (e) {
+    try { e.preventDefault(); e.stopPropagation(); } catch (_) {}
+  }
   const { amount, upiId, orderRef, queryString, upiUri } = getUpiDetails();
   const targetUri = buildTargetUpiUri(appType);
   const appName = appType === 'phonepe' ? 'PhonePe' : appType === 'gpay' ? 'Google Pay' : appType === 'paytm' ? 'Paytm' : 'UPI App';
   const isMobile = /android|iphone|ipad|ipod|mobile/i.test(navigator.userAgent);
+  const isTg = isTelegramEnvironment();
 
   // 1. Instantly copy UPI ID to user clipboard
   copyToClipboardSilent(upiId);
@@ -3926,9 +3940,6 @@ function openUpiApp(e, appType) {
 
   // 3. Desktop PC safeguard: Never navigate to mobile intent/scheme on PC!
   if (!isMobile) {
-    if (e) {
-      try { e.preventDefault(); e.stopPropagation(); } catch (_) {}
-    }
     showPaymentNotice(`📱 UPI ID copied (${upiId})! Please scan the QR code using your phone's UPI app.`, 'info');
     scrollToQrAndCloseTgModal();
     return;
@@ -3937,7 +3948,7 @@ function openUpiApp(e, appType) {
   // 4. Mobile Execution (both Telegram Mini App and regular mobile browser)
   try {
     if (window.Telegram?.WebApp?.HapticFeedback) {
-      window.Telegram.WebApp.HapticFeedback.impactOccurred('medium');
+      window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
     }
   } catch (_) {}
 
@@ -4013,25 +4024,26 @@ function renderUpiQr() {
 
   // Update Direct Mobile UPI Pay Button and Fast App launcher links
   const isMobile = /android|iphone|ipad|ipod|mobile/i.test(navigator.userAgent);
+  const isTg = isTelegramEnvironment();
   const directBtn = document.getElementById('upiDirectPayBtn');
   if (directBtn) {
-    directBtn.href = isMobile ? buildTargetUpiUri('any') : 'javascript:void(0)';
+    directBtn.href = isMobile && !isTg ? buildTargetUpiUri('any') : 'javascript:void(0)';
     directBtn.setAttribute('onclick', "openUpiApp(event, 'any')");
     directBtn.style.display = 'inline-flex';
   }
   const btnPhonepe = document.getElementById('upiFastBtnPhonepe') || document.querySelector('a.upi-fast-app-btn[title*="PhonePe"]');
   if (btnPhonepe) {
-    btnPhonepe.href = isMobile ? buildTargetUpiUri('phonepe') : 'javascript:void(0)';
+    btnPhonepe.href = isMobile && !isTg ? buildTargetUpiUri('phonepe') : 'javascript:void(0)';
     btnPhonepe.setAttribute('onclick', "openUpiApp(event, 'phonepe')");
   }
   const btnGpay = document.getElementById('upiFastBtnGpay') || document.querySelector('a.upi-fast-app-btn[title*="Google Pay"]');
   if (btnGpay) {
-    btnGpay.href = isMobile ? buildTargetUpiUri('gpay') : 'javascript:void(0)';
+    btnGpay.href = isMobile && !isTg ? buildTargetUpiUri('gpay') : 'javascript:void(0)';
     btnGpay.setAttribute('onclick', "openUpiApp(event, 'gpay')");
   }
   const btnPaytm = document.getElementById('upiFastBtnPaytm') || document.querySelector('a.upi-fast-app-btn[title*="Paytm"]');
   if (btnPaytm) {
-    btnPaytm.href = isMobile ? buildTargetUpiUri('paytm') : 'javascript:void(0)';
+    btnPaytm.href = isMobile && !isTg ? buildTargetUpiUri('paytm') : 'javascript:void(0)';
     btnPaytm.setAttribute('onclick', "openUpiApp(event, 'paytm')");
   }
 
