@@ -4077,29 +4077,15 @@ function renderUpiQr() {
     return true;
   }
 
-  // Priority 1: If admin uploaded/selected a custom QR image, SHOW IT DIRECTLY!
+  // If admin uploaded a static QR image, extract the merchant UPI ID so we use their exact VPA
   const customQrImage = CONFIG.qrImage || (window.__paymentPayment && (window.__paymentPayment.qrImage || window.__paymentPayment.upiQr));
   if (customQrImage && String(customQrImage).trim() !== '') {
-    qrGeneratedEl.style.display = 'none';
-    qrError.style.display = 'none';
-    qrImage.style.display = 'block';
-    qrImage.style.maxWidth = '200px';
-    qrImage.style.maxHeight = '200px';
-    qrImage.style.width = 'auto';
-    qrImage.style.height = 'auto';
-    qrImage.style.objectFit = 'contain';
-    qrImage.style.margin = '0 auto';
-    qrImage.style.borderRadius = '12px';
-    qrImage.src = customQrImage;
-    qrImage.onerror = () => {
-      // Gracefully fall back to dynamic generated QR if admin's image URL fails to load
-      drawQrDirectly();
-    };
     checkAndDecodeUpiFromQrImage(customQrImage);
-    return;
   }
 
-  // Priority 2: Draw generated dynamic UPI QR code with locked amount
+  // ALWAYS draw dynamic generated QR code with the EXACT LOCKED PRODUCT AMOUNT (am=...)!
+  // This guarantees that when a customer scans or downloads this QR code in PhonePe, Google Pay,
+  // Paytm, or any UPI app, the payment amount is strictly locked and non-editable!
   drawQrDirectly();
 }
 
@@ -4712,8 +4698,161 @@ function selectMethod(m, isUserAction) {
   if (m === 'upi' && typeof renderUpiQr === 'function') renderUpiQr();
 }
 
+function downloadUpiLockedQRCode() {
+  try {
+    const { amount, upiId, orderRef, upiUri } = getUpiDetails();
+    const amtStr = amount > 0 ? `₹${amount.toFixed(2)}` : '₹0.00';
+    const filename = `LinkAdda-UPI-Pay-${amtStr.replace(/[^0-9.]/g, '') || 'Order'}.png`;
+    const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=460x460&margin=10&data=${encodeURIComponent(upiUri)}`;
+
+    showPaymentNotice(`⏳ Preparing HD QR Card with locked ${amtStr}...`);
+
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+
+    const fallbackDownload = () => {
+      const sec = document.getElementById('upiSection');
+      const cvs = sec?.querySelector('canvas');
+      if (cvs) {
+        const a = document.createElement('a');
+        a.href = cvs.toDataURL('image/png');
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        showPaymentNotice(`✅ Downloaded QR Code! Amount is locked to ${amtStr}.`);
+      } else {
+        const a = document.createElement('a');
+        a.href = qrApiUrl;
+        a.target = '_blank';
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      }
+    };
+
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = 600;
+        canvas.height = 800;
+        const ctx = canvas.getContext('2d');
+
+        // Outer Dark Slate Background
+        ctx.fillStyle = '#0b0d14';
+        ctx.fillRect(0, 0, 600, 800);
+
+        // Top Gradient Accent Line
+        const grad = ctx.createLinearGradient(0, 0, 600, 0);
+        grad.addColorStop(0, '#10b981');
+        grad.addColorStop(0.5, '#6366f1');
+        grad.addColorStop(1, '#06b6d4');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, 600, 8);
+
+        // Inner Card Background
+        ctx.fillStyle = '#141724';
+        if (typeof ctx.roundRect === 'function') {
+          ctx.roundRect(22, 28, 556, 744, 22);
+        } else {
+          ctx.rect(22, 28, 556, 744);
+        }
+        ctx.fill();
+
+        // Card Border
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+
+        // Store Title
+        ctx.fillStyle = '#f8fafc';
+        ctx.font = 'bold 24px "Plus Jakarta Sans", sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('LinkAdda Online Store', 300, 72);
+
+        // Locked Amount Box
+        ctx.fillStyle = 'rgba(16, 185, 129, 0.14)';
+        if (typeof ctx.roundRect === 'function') {
+          ctx.roundRect(70, 92, 460, 64, 14);
+        } else {
+          ctx.rect(70, 92, 460, 64);
+        }
+        ctx.fill();
+        ctx.strokeStyle = '#10b981';
+        ctx.lineWidth = 1.8;
+        ctx.stroke();
+
+        ctx.fillStyle = '#34d399';
+        ctx.font = 'bold 32px "Inter", sans-serif';
+        ctx.fillText(amtStr, 300, 136);
+
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = 'bold 12px "Inter", sans-serif';
+        ctx.fillText('🔒 FIXED & LOCKED AMOUNT (NON-EDITABLE)', 300, 178);
+
+        // QR Code Outer White Frame
+        ctx.fillStyle = '#ffffff';
+        if (typeof ctx.roundRect === 'function') {
+          ctx.roundRect(110, 196, 380, 380, 16);
+        } else {
+          ctx.rect(110, 196, 380, 380);
+        }
+        ctx.fill();
+
+        // Draw Dynamic High-Res QR Code
+        ctx.drawImage(img, 120, 206, 360, 360);
+
+        // App Compatibility Text
+        ctx.fillStyle = '#f8fafc';
+        ctx.font = 'bold 16px "Plus Jakarta Sans", sans-serif';
+        ctx.fillText('Scan with GPay · PhonePe · Paytm · Any UPI', 300, 615);
+
+        // Payee UPI ID
+        ctx.fillStyle = '#cbd5e1';
+        ctx.font = '600 14px "Inter", sans-serif';
+        ctx.fillText(`UPI ID: ${upiId}`, 300, 648);
+
+        // Order Reference ID if present
+        if (orderRef) {
+          ctx.fillStyle = '#94a3b8';
+          ctx.font = '13px "Inter", sans-serif';
+          ctx.fillText(`Order Ref: ${orderRef}`, 300, 676);
+        }
+
+        // Instructions Footer
+        ctx.fillStyle = '#64748b';
+        ctx.font = '12px "Inter", sans-serif';
+        ctx.fillText('Open PhonePe / GPay ➔ Scan QR ➔ Select this photo from Gallery.', 300, 715);
+        ctx.fillText('Exact amount is pre-filled automatically by the QR code.', 300, 735);
+
+        // Download
+        const dataUrl = canvas.toDataURL('image/png');
+        const a = document.createElement('a');
+        a.href = dataUrl;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        showPaymentNotice(`✅ Downloaded QR Card! Amount is locked to ${amtStr}.`);
+      } catch (err) {
+        fallbackDownload();
+      }
+    };
+    img.onerror = fallbackDownload;
+    img.src = qrApiUrl;
+  } catch (e) {
+    console.warn('downloadUpiLockedQRCode failed:', e);
+  }
+}
+
 function downloadCurrentQRCode(methodId) {
   const method = methodId || selectedMethod || 'qr';
+  if (method === 'upi') {
+    downloadUpiLockedQRCode();
+    return;
+  }
+
   const sec = document.getElementById(method + 'Section') || document.querySelector('#screen2 div[id$="Section"]:not([style*="display: none"]):not([style*="display:none"])');
   if (!sec) return;
 
