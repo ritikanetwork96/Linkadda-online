@@ -14181,3 +14181,652 @@ body[data-theme="light"] {
   border: 1px solid #e2e8f0 !important;
   color: #334155 !important;
 }
+
+
+/* ==========================================================================
+   TELEGRAM FLEET & WELCOME INTELLIGENCE CENTER (BASE & DARK MODE)
+   ========================================================================== */
+
+.tg-hero-section {
+  padding: 24px 28px;
+  border-radius: 18px;
+  margin-bottom: 24px;
+  border: 1px solid rgba(99, 102, 241, 0.35);
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, rgba(15, 23, 42, 0.8) 100%);
+}
+
+.tg-hero-metric-card {
+  background: linear-gradient(135deg, rgba(255,255,255,0.04) 0%, rgba(15,23,42,0.7) 100%);
+  backdrop-filter: blur(14px);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 14px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 6px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.tg-hero-metric-card:hover {
+  transform: translateY(-2px);
+}
+
+.tg-metric-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--muted);
+  letter-spacing: 0.04em;
+}
+
+.tg-metric-icon {
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tg-metric-sub {
+  color: var(--muted);
+}
+
+.tg-tab-section {
+  padding: 24px 28px;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  margin-bottom: 24px;
+  background: linear-gradient(180deg, rgba(99, 102, 241, 0.03) 0%, rgba(15, 23, 42, 0.6) 100%);
+}
+
+.tg-channel-deck-wrapper {
+  padding: 16px 14px;
+  background: rgba(0, 0, 0, 0.32);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.tg-channel-deck-title {
+  color: #94a3b8;
+}
+
+.tg-active-channel-pill {
+  background: rgba(56, 189, 248, 0.15);
+  color: #38bdf8;
+  border: 1px solid rgba(56, 189, 248, 0.3);
+}
+
+.tg-channel-card {
+  cursor: pointer;
+  padding: 12px 14px;
+  border-radius: 12px;
+  transition: all 0.2s ease;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.tg-channel-card.active {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.25), rgba(139, 92, 246, 0.25));
+  border: 1.5px solid #818cf8;
+  box-shadow: 0 4px 16px rgba(99, 102, 241, 0.3);
+}
+
+.tg-channel-card-title {
+  color: var(--text);
+}
+
+.tg-channel-card-sub {
+  color: var(--muted);
+}
+
+.tg-channel-card-count {
+  color: #a5b4fc;
+}
+
+.tg-channel-deck-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.tg-source-pill {
+  font-size: 11.5px;
+  padding: 4px 10px;
+  border-radius: 16px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--muted);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.tg-source-pill.active {
+  background: #6366f1 !important;
+  color: #ffffff !important;
+  border: none !important;
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.35);
+}
+
+.tg-view-mode-pillbox {
+  display: flex;
+  background: rgba(0, 0, 0, 0.4);
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 2px;
+}
+
+.tg-view-mode-pillbox button {
+  padding: 5px 9px;
+  border-radius: 6px;
+  border: none;
+  font-size: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: transparent;
+  color: var(--muted);
+}
+
+.tg-view-mode-pillbox button.active {
+  background: #6366f1;
+  color: #ffffff;
+}
+
+.tg-copy-ids-btn {
+  font-size: 11.5px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.tg-subscribers-table-wrapper {
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.tg-subscribers-table-scroll {
+  background: rgba(15, 23, 42, 0.45);
+}
+
+.tg-table-head-row {
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.tg-subscriber-card {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.03) 0%, rgba(0, 0, 0, 0.4) 100%);
+}
+
+.tg-id-chip {
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.tg-source-chip {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.tg-placeholder-box {
+  background: rgba(0, 0, 0, 0.22);
+  border-radius: 12px;
+  padding: 12px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  margin-bottom: 18px;
+}
+
+.tg-placeholder-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--muted);
+  letter-spacing: 0.05em;
+  margin-bottom: 8px;
+}
+
+.tg-bot-welcome-card {
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 12px;
+  transition: all 0.2s ease;
+}
+
+.tg-bot-welcome-card.is-custom {
+  border-color: rgba(168, 85, 247, 0.4);
+  background: linear-gradient(135deg, rgba(168, 85, 247, 0.06) 0%, rgba(15, 23, 42, 0.7) 100%);
+}
+
+.tg-bot-welcome-snippet {
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 12px;
+  color: var(--muted);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  margin-bottom: 12px;
+  max-height: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  line-height: 1.45;
+}
+
+.tg-connect-form-panel,
+.tg-add-admin-panel {
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(99, 102, 241, 0.3);
+}
+
+.tg-support-desk-panel {
+  background: rgba(56, 189, 248, 0.05);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+}
+
+.tg-admin-bot-select {
+  background: rgba(15, 23, 42, 0.9);
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+
+.tg-broadcast-box {
+  background: rgba(0, 0, 0, 0.25);
+}
+
+/* ==========================================================================
+   STRICT ISOLATION OF TELEGRAM PHONE PREVIEW MOCKUP (NEVER BLEED LIGHT THEME)
+   ========================================================================== */
+
+.tg-phone-frame,
+.tg-phone-frame *,
+.tg-phone-topbar,
+.tg-phone-topbar *,
+.tg-phone-screen-body,
+.tg-chat-bubble,
+.tg-chat-bubble *,
+.tg-chat-bubble b,
+.tg-chat-bubble strong,
+.tg-chat-bubble span,
+.tg-chat-bubble div,
+.tg-chat-bubble p {
+  color: #ffffff !important;
+}
+
+.tg-phone-frame {
+  background: #0b0f19 !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1) !important;
+}
+
+.tg-phone-topbar {
+  background: #17212b !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+.tg-phone-screen-body {
+  background: radial-gradient(circle at 50% 0%, rgba(99, 102, 241, 0.12), transparent 70%), #0e1621 !important;
+}
+
+.tg-chat-bubble {
+  background: #182533 !important;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35) !important;
+}
+
+.tg-chat-bubble code {
+  color: #38bdf8 !important;
+  background: rgba(0, 0, 0, 0.5) !important;
+  border: 1px solid rgba(56, 189, 248, 0.25) !important;
+}
+
+.tg-phone-frame .tg-chat-meta span {
+  color: rgba(255, 255, 255, 0.6) !important;
+}
+
+.tg-phone-frame .tg-chat-meta span:last-child {
+  color: #38bdf8 !important;
+}
+
+.tg-mockup-btn {
+  background: rgba(43, 82, 120, 0.8) !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  color: #ffffff !important;
+}
+
+.tg-mockup-btn * {
+  color: #ffffff !important;
+}
+
+/* ==========================================================================
+   HIGH CONTRAST PRISTINE LIGHT MODE OVERRIDES FOR TELEGRAM & FLEET HUB
+   ========================================================================== */
+
+[data-theme="light"] .tg-hero-section {
+  background: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+  box-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.06), 0 2px 6px -1px rgba(15, 23, 42, 0.04) !important;
+}
+
+[data-theme="light"] .tg-hero-section h2 {
+  color: #0f172a !important;
+}
+
+[data-theme="light"] .tg-hero-section p {
+  color: #64748b !important;
+}
+
+[data-theme="light"] .tg-hero-metric-card {
+  background: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+  box-shadow: 0 4px 16px -2px rgba(15, 23, 42, 0.06), 0 1px 3px rgba(15, 23, 42, 0.04) !important;
+}
+
+[data-theme="light"] .tg-hero-metric-card:hover {
+  box-shadow: 0 8px 24px -4px rgba(15, 23, 42, 0.1) !important;
+}
+
+[data-theme="light"] .tg-metric-title {
+  color: #475569 !important;
+  font-weight: 700 !important;
+}
+
+[data-theme="light"] .tg-metric-sub {
+  color: #64748b !important;
+}
+
+[data-theme="light"] .tg-tab-section {
+  background: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+  box-shadow: 0 4px 18px -2px rgba(15, 23, 42, 0.06) !important;
+}
+
+[data-theme="light"] .tg-tab-section h3,
+[data-theme="light"] .tg-tab-section h4 {
+  color: #0f172a !important;
+}
+
+[data-theme="light"] .tg-tab-section p {
+  color: #64748b !important;
+}
+
+/* Channel Selector Deck */
+[data-theme="light"] .tg-channel-deck-wrapper {
+  background: #f8fafc !important;
+  border-bottom: 1px solid #e2e8f0 !important;
+}
+
+[data-theme="light"] .tg-channel-deck-title {
+  color: #475569 !important;
+}
+
+[data-theme="light"] .tg-active-channel-pill {
+  background: #e0f2fe !important;
+  color: #0284c7 !important;
+  border: 1px solid #bae6fd !important;
+}
+
+[data-theme="light"] .tg-channel-card {
+  background: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.04) !important;
+}
+
+[data-theme="light"] .tg-channel-card:hover {
+  border-color: #cbd5e1 !important;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08) !important;
+}
+
+[data-theme="light"] .tg-channel-card.active {
+  background: #eef2ff !important;
+  border: 1.5px solid #6366f1 !important;
+  box-shadow: 0 4px 14px rgba(99, 102, 241, 0.2) !important;
+}
+
+[data-theme="light"] .tg-channel-card-title {
+  color: #0f172a !important;
+}
+
+[data-theme="light"] .tg-channel-card-sub {
+  color: #64748b !important;
+}
+
+[data-theme="light"] .tg-channel-card-count {
+  color: #4f46e5 !important;
+}
+
+[data-theme="light"] .tg-channel-deck-toolbar {
+  border-top: 1px solid #e2e8f0 !important;
+}
+
+[data-theme="light"] .tg-source-pill {
+  background: #ffffff !important;
+  color: #475569 !important;
+  border: 1px solid #cbd5e1 !important;
+}
+
+[data-theme="light"] .tg-source-pill:hover {
+  background: #f1f5f9 !important;
+  color: #0f172a !important;
+}
+
+[data-theme="light"] .tg-view-mode-pillbox {
+  background: #f1f5f9 !important;
+  border: 1px solid #e2e8f0 !important;
+}
+
+[data-theme="light"] .tg-view-mode-pillbox button {
+  color: #64748b !important;
+}
+
+[data-theme="light"] .tg-view-mode-pillbox button.active {
+  background: #ffffff !important;
+  color: #4f46e5 !important;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08) !important;
+}
+
+[data-theme="light"] .tg-copy-ids-btn {
+  background: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  color: #334155 !important;
+}
+
+/* Subscribers Table */
+[data-theme="light"] .tg-subscribers-table-wrapper {
+  background: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+}
+
+[data-theme="light"] .tg-subscribers-table-scroll {
+  background: #ffffff !important;
+}
+
+[data-theme="light"] .tg-table-head-row {
+  background: #f8fafc !important;
+  border-bottom: 1px solid #e2e8f0 !important;
+}
+
+[data-theme="light"] .tg-subscribers-table th {
+  color: #475569 !important;
+}
+
+[data-theme="light"] .tg-subscribers-table td {
+  color: #0f172a !important;
+  border-bottom: 1px solid #f1f5f9 !important;
+}
+
+[data-theme="light"] .tg-subscribers-table tr:hover td {
+  background: #f8fafc !important;
+}
+
+/* Subscriber Visual Cards */
+[data-theme="light"] .tg-subscriber-card {
+  background: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+  box-shadow: 0 3px 10px rgba(15, 23, 42, 0.04) !important;
+}
+
+[data-theme="light"] .tg-sub-name {
+  color: #0f172a !important;
+}
+
+[data-theme="light"] .tg-sub-meta {
+  color: #64748b !important;
+}
+
+[data-theme="light"] .tg-id-chip {
+  background: #f8fafc !important;
+  border: 1px solid #e2e8f0 !important;
+}
+
+[data-theme="light"] .tg-id-chip code {
+  color: #334155 !important;
+}
+
+[data-theme="light"] .tg-source-chip {
+  background: #f1f5f9 !important;
+  border: 1px solid #e2e8f0 !important;
+}
+
+/* Dynamic Placeholders Box */
+[data-theme="light"] .tg-placeholder-box {
+  background: #f8fafc !important;
+  border: 1px solid #e2e8f0 !important;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.02) !important;
+}
+
+[data-theme="light"] .tg-placeholder-title {
+  color: #334155 !important;
+}
+
+[data-theme="light"] .tg-tag-pill {
+  background: #ffffff !important;
+  color: #4338ca !important;
+  border: 1px solid #cbd5e1 !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05) !important;
+}
+
+[data-theme="light"] .tg-tag-pill:hover {
+  background: #eef2ff !important;
+  color: #3730a3 !important;
+  border-color: #6366f1 !important;
+  box-shadow: 0 2px 6px rgba(99, 102, 241, 0.2) !important;
+}
+
+/* Fleet Bots Welcome Cards */
+[data-theme="light"] .tg-bot-welcome-card {
+  background: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+  box-shadow: 0 4px 16px -2px rgba(15, 23, 42, 0.06), 0 1px 3px rgba(15, 23, 42, 0.04) !important;
+}
+
+[data-theme="light"] .tg-bot-welcome-card.is-custom {
+  background: #faf5ff !important;
+  border: 1.5px solid #d8b4fe !important;
+  box-shadow: 0 4px 16px -2px rgba(168, 85, 247, 0.12) !important;
+}
+
+[data-theme="light"] .tg-bot-welcome-card .bot-name-label {
+  color: #0f172a !important;
+}
+
+[data-theme="light"] .tg-bot-welcome-card .bot-sub-label {
+  color: #64748b !important;
+}
+
+[data-theme="light"] .tg-bot-welcome-snippet {
+  background: #f8fafc !important;
+  border: 1px solid #e2e8f0 !important;
+  color: #334155 !important;
+  font-weight: 500 !important;
+}
+
+[data-theme="light"] .tg-welcome-badge-custom {
+  background: #f3e8ff !important;
+  color: #7e22ce !important;
+  border: 1px solid #d8b4fe !important;
+}
+
+[data-theme="light"] .tg-welcome-badge-global {
+  background: #ecfdf5 !important;
+  color: #047857 !important;
+  border: 1px solid #a7f3d0 !important;
+}
+
+/* Form panels in fleet & admins */
+[data-theme="light"] .tg-connect-form-panel,
+[data-theme="light"] .tg-add-admin-panel {
+  background: #f8fafc !important;
+  border: 1px solid #e2e8f0 !important;
+}
+
+[data-theme="light"] .tg-support-desk-panel {
+  background: #f0f9ff !important;
+  border: 1px solid #bae6fd !important;
+}
+
+[data-theme="light"] .tg-admin-bot-select {
+  background: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  color: #0f172a !important;
+}
+
+[data-theme="light"] .tg-broadcast-box {
+  background: #f8fafc !important;
+  border-color: #e2e8f0 !important;
+}
+
+/* Global Welcome message textareas */
+[data-theme="light"] #tgGlobalWelcomeInput,
+[data-theme="light"] #tgCustomBotWelcomeInput {
+  background: #ffffff !important;
+  color: #0f172a !important;
+  border: 1.5px solid #cbd5e1 !important;
+}
+
+[data-theme="light"] #tgGlobalWelcomeInput:focus,
+[data-theme="light"] #tgCustomBotWelcomeInput:focus {
+  border-color: #6366f1 !important;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15) !important;
+}
+
+/* Modal VIP Delivery Box */
+[data-theme="light"] .product-modal-vip-box {
+  background: #f8fafc !important;
+  border: 1px solid #c7d2fe !important;
+  color: #0f172a !important;
+}
+
+/* Universal Light Theme fallback for any remaining dark inline styles */
+[data-theme="light"] div[style*="rgba(15, 23, 42"]:not(.tg-phone-frame):not(.tg-phone-frame *),
+[data-theme="light"] div[style*="rgba(15,23,42"]:not(.tg-phone-frame):not(.tg-phone-frame *),
+[data-theme="light"] div[style*="rgba(0,0,0,0.2"]:not(.tg-phone-frame):not(.tg-phone-frame *),
+[data-theme="light"] div[style*="rgba(0, 0, 0, 0.2"]:not(.tg-phone-frame):not(.tg-phone-frame *),
+[data-theme="light"] div[style*="rgba(0,0,0,0.3"]:not(.tg-phone-frame):not(.tg-phone-frame *),
+[data-theme="light"] div[style*="rgba(0, 0, 0, 0.3"]:not(.tg-phone-frame):not(.tg-phone-frame *),
+[data-theme="light"] section[style*="rgba(15, 23, 42"],
+[data-theme="light"] section[style*="rgba(15,23,42"] {
+  background: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  color: #0f172a !important;
+}

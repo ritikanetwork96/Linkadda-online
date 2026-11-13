@@ -7715,6 +7715,8 @@ if (!_tgCachedAdminProfiles[DEFAULT_PRIMARY_ADMIN_ID]) {
   _tgCachedAdminProfiles[DEFAULT_PRIMARY_ADMIN_ID] = { ...DEFAULT_PRIMARY_ADMIN_PROFILE };
 }
 
+let _isUserActivelyScrolling = false;
+
 let _tgBotData = {
   activeTab: 'tgTabUsers',
   botUserFilter: 'all',
@@ -8076,10 +8078,20 @@ async function loadTelegramBotAdminFullData(force = false) {
                 hasActiveFleetBot = true;
               }
             }
-            u.bots = sanitizedBots;
-            u.sourceBotIds = Object.keys(sanitizedBots);
+            if (hasActiveFleetBot) {
+              u.bots = sanitizedBots;
+              u.sourceBotIds = Object.keys(sanitizedBots);
+            }
           }
-          if (hasActiveFleetBot) {
+          if (!hasActiveFleetBot) {
+            const uBotId = String(u.sourceBotId || u.lastBotId || '');
+            const uBotIdClean = uBotId.replace(/^bot_/, '');
+            const uBotUname = String(u.sourceBotUsername || '').toLowerCase().replace('@', '');
+            if (activeBotIds.has(uBotId) || activeBotRawIds.has(uBotIdClean) || (uBotUname && activeBotUnames.has(uBotUname))) {
+              hasActiveFleetBot = true;
+            }
+          }
+          if (hasActiveFleetBot || activeBotIds.size === 0 || (!u.sourceBotId && !u.sourceBotUsername)) {
             userUnion[uidStr] = u;
           }
         });
@@ -8326,12 +8338,7 @@ function updateTelegramBotLiveUI() {
 
   const tableContainer = document.getElementById('tgUsersTableContainer');
   if (tableContainer) {
-    if (!_isUserActivelyScrolling) {
-      const nextTableHtml = renderTelegramUsersTableList(users, _tgBotData.searchFilter);
-      if (tableContainer.innerHTML !== nextTableHtml) {
-        tableContainer.innerHTML = nextTableHtml;
-      }
-    }
+    tableContainer.innerHTML = renderTelegramUsersTableList(users, _tgBotData.searchFilter);
   }
 
   if (window.lucide) {
@@ -8340,7 +8347,11 @@ function updateTelegramBotLiveUI() {
 }
 
 function renderTelegramUsersTableList(users = [], filter = '') {
-  if (_tgBotData.isLoading && (!users || !users.length)) {
+  const effectiveUsers = (Array.isArray(users) && users.length) 
+    ? users 
+    : ((_tgBotData.users && _tgBotData.users.length) ? _tgBotData.users : (_tgCachedUsers || []));
+
+  if (_tgBotData.isLoading && (!effectiveUsers || !effectiveUsers.length)) {
     return `
       <div style="padding: 48px 20px; text-align: center; color: var(--muted);">
         <div class="spin-loader" style="width: 36px; height: 36px; border: 3px solid rgba(99,102,241,0.2); border-top-color: #6366f1; border-radius: 50%; display: inline-block; animation: authSpin 0.75s linear infinite; margin-bottom: 14px;"></div>
@@ -8360,12 +8371,11 @@ function renderTelegramUsersTableList(users = [], filter = '') {
   // ⚡ Filter out any admin accounts: Admins are strictly managed under the "Telegram Admins" tab!
   const adminIds = new Set((_tgBotData.admins || []).map(String));
 
-  const subscribersOnly = (Array.isArray(users) ? users : []).filter(u => {
+  const subscribersOnly = effectiveUsers.filter(u => {
     if (!u || !u.id) return false;
     const uidStr = String(u.id).trim();
     if (adminIds.has(uidStr) || adminIds.has(uidStr.replace(/^@/, ''))) return false;
     if (u.isAdmin || u.source === 'admin_tester' || u.source === 'admin_account') return false;
-    if (fleetBots.length > 0 && !fleetBots.some(b => userBelongsToBot(u, b))) return false;
     return true;
   });
 
@@ -8422,35 +8432,35 @@ function renderTelegramUsersTableList(users = [], filter = '') {
   };
 
   return `
-    <div style="padding: 16px 14px; background: rgba(0,0,0,0.32); border-bottom: 1px solid rgba(255,255,255,0.08);">
+    <div class="tg-channel-deck-wrapper">
 
       <!-- 1. TOP BOT CHANNEL SELECTOR DECK (Cards) -->
       <div style="margin-bottom: 16px;">
         <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; flex-wrap: wrap;">
-          <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: #94a3b8; letter-spacing: 0.05em; display: inline-flex; align-items: center; gap: 6px;">
-            <i data-lucide="radio" style="width: 13px; height: 13px; color: #38bdf8;"></i> Select Bot Channel to View Subscribers:
+          <span class="tg-channel-deck-title" style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; display: inline-flex; align-items: center; gap: 6px;">
+            <i data-lucide="radio" style="width: 13px; height: 13px; color: #0284c7;"></i> Select Bot Channel to View Subscribers:
           </span>
-          <span style="font-size: 12px; color: #38bdf8; font-weight: 700; display: inline-flex; align-items: center; gap: 5px;">
-            Active Channel: <span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; padding: 2px 8px; border-radius: 6px; border: 1px solid rgba(56, 189, 248, 0.3);">${escapeHtml(activeBotLabel)}</span>
+          <span style="font-size: 12px; color: #0284c7; font-weight: 700; display: inline-flex; align-items: center; gap: 5px;">
+            Active Channel: <span class="tg-active-channel-pill" style="padding: 2px 8px; border-radius: 6px;">${escapeHtml(activeBotLabel)}</span>
           </span>
         </div>
 
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 155px), 1fr)); gap: 10px;">
           
           <!-- All Bots Card -->
-          <div data-action="set-bot-user-filter" data-bot-id="all" style="cursor: pointer; padding: 12px 14px; border-radius: 12px; transition: all 0.2s ease; ${currentBotFilter === 'all' ? 'background: linear-gradient(135deg, rgba(99,102,241,0.25), rgba(139,92,246,0.25)); border: 1.5px solid #818cf8; box-shadow: 0 4px 16px rgba(99,102,241,0.3);' : 'background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);'}; display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+          <div data-action="set-bot-user-filter" data-bot-id="all" class="tg-channel-card ${currentBotFilter === 'all' ? 'active' : ''}">
             <div style="display: flex; align-items: center; gap: 8px; min-width: 0;">
               <div style="width: 34px; height: 34px; border-radius: 10px; background: linear-gradient(135deg, #6366f1, #8b5cf6); display: flex; align-items: center; justify-content: center; color: white; flex-shrink: 0; box-shadow: 0 2px 8px rgba(99,102,241,0.3);">
                 <i data-lucide="globe" style="width: 17px; height: 17px;"></i>
               </div>
               <div style="min-width: 0;">
-                <strong style="color: var(--text); font-size: 12.5px; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">All Bots Combined</strong>
-                <span style="font-size: 10.5px; color: var(--muted); white-space: nowrap;">Real Customers</span>
+                <strong class="tg-channel-card-title" style="font-size: 12.5px; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">All Bots Combined</strong>
+                <span class="tg-channel-card-sub" style="font-size: 10.5px; white-space: nowrap;">Real Customers</span>
               </div>
             </div>
             <div style="text-align: right; flex-shrink: 0;">
-              <div style="font-size: 17px; font-weight: 800; color: #a5b4fc;">${subscribersOnly.length}</div>
-              <span style="font-size: 9.5px; color: var(--muted); text-transform: uppercase; font-weight: 600;">Users</span>
+              <div class="tg-channel-card-count" style="font-size: 17px; font-weight: 800;">${subscribersOnly.length}</div>
+              <span class="tg-channel-card-sub" style="font-size: 9.5px; text-transform: uppercase; font-weight: 600;">Users</span>
             </div>
           </div>
 
@@ -8462,21 +8472,21 @@ function renderTelegramUsersTableList(users = [], filter = '') {
             const uName = b.username || 'Bot';
 
             return `
-              <div data-action="set-bot-user-filter" data-bot-id="${escapeHtml(bId)}" data-bot-username="${escapeHtml(uName)}" style="cursor: pointer; padding: 12px 14px; border-radius: 12px; transition: all 0.2s ease; ${isSelected ? 'background: linear-gradient(135deg, rgba(2,132,199,0.25), rgba(56,189,248,0.25)); border: 1.5px solid #38bdf8; box-shadow: 0 4px 16px rgba(2,132,199,0.35);' : 'background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);'}; display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+              <div data-action="set-bot-user-filter" data-bot-id="${escapeHtml(bId)}" data-bot-username="${escapeHtml(uName)}" class="tg-channel-card ${isSelected ? 'active' : ''}">
                 <div style="display: flex; align-items: center; gap: 8px; min-width: 0;">
                   <div style="width: 34px; height: 34px; border-radius: 10px; background: linear-gradient(135deg, #0284c7, #38bdf8); display: flex; align-items: center; justify-content: center; color: white; flex-shrink: 0; box-shadow: 0 2px 8px rgba(2,132,199,0.25);">
                     <i data-lucide="bot" style="width: 17px; height: 17px;"></i>
                   </div>
                   <div style="min-width: 0;">
-                    <strong style="color: var(--text); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block;">@${escapeHtml(uName)}</strong>
-                    <span style="font-size: 10px; font-weight: 700; color: #38bdf8; text-transform: uppercase;">
+                    <strong class="tg-channel-card-title" style="font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block;">@${escapeHtml(uName)}</strong>
+                    <span style="font-size: 10px; font-weight: 700; color: #0284c7; text-transform: uppercase;">
                       🤖 Active Bot
                     </span>
                   </div>
                 </div>
                 <div style="text-align: right; flex-shrink: 0;">
-                  <div style="font-size: 17px; font-weight: 800; color: ${isSelected ? '#38bdf8' : 'var(--text)'};">${count}</div>
-                  <span style="font-size: 9.5px; color: var(--muted); text-transform: uppercase; font-weight: 600;">Users</span>
+                  <div class="tg-channel-card-count" style="font-size: 17px; font-weight: 800;">${count}</div>
+                  <span class="tg-channel-card-sub" style="font-size: 9.5px; text-transform: uppercase; font-weight: 600;">Users</span>
                 </div>
               </div>
             `;
@@ -8486,36 +8496,36 @@ function renderTelegramUsersTableList(users = [], filter = '') {
       </div>
 
       <!-- 2. TOOLBAR: Source Filter Pills, View Mode Switcher, & Search -->
-      <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.06);">
+      <div class="tg-channel-deck-toolbar">
         
         <!-- Source Filter Pills -->
         <div style="display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; -webkit-overflow-scrolling: touch; scrollbar-width: none;">
-          <button type="button" class="btn btn-sm" data-action="set-user-source-filter" data-source="all" style="font-size: 11.5px; padding: 4px 10px; border-radius: 16px; cursor: pointer; transition: all 0.15s ease; ${currentSourceFilter === 'all' ? 'background: #6366f1; color: white; border: none;' : 'background: rgba(255,255,255,0.05); color: var(--muted); border: 1px solid rgba(255,255,255,0.08);'}">
+          <button type="button" class="btn btn-sm tg-source-pill ${currentSourceFilter === 'all' ? 'active' : ''}" data-action="set-user-source-filter" data-source="all">
             All Subscribers (${sourceCounts.all})
           </button>
-          <button type="button" class="btn btn-sm" data-action="set-user-source-filter" data-source="bot_start" style="font-size: 11.5px; padding: 4px 10px; border-radius: 16px; cursor: pointer; transition: all 0.15s ease; ${currentSourceFilter === 'bot_start' ? 'background: #a855f7; color: white; border: none;' : 'background: rgba(255,255,255,0.05); color: var(--muted); border: 1px solid rgba(255,255,255,0.08);'}">
+          <button type="button" class="btn btn-sm tg-source-pill ${currentSourceFilter === 'bot_start' ? 'active' : ''}" data-action="set-user-source-filter" data-source="bot_start">
             🟢 Bot /start (${sourceCounts.bot_start})
           </button>
-          <button type="button" class="btn btn-sm" data-action="set-user-source-filter" data-source="order_checkout" style="font-size: 11.5px; padding: 4px 10px; border-radius: 16px; cursor: pointer; transition: all 0.15s ease; ${currentSourceFilter === 'order_checkout' ? 'background: #10b981; color: white; border: none;' : 'background: rgba(255,255,255,0.05); color: var(--muted); border: 1px solid rgba(255,255,255,0.08);'}">
+          <button type="button" class="btn btn-sm tg-source-pill ${currentSourceFilter === 'order_checkout' ? 'active' : ''}" data-action="set-user-source-filter" data-source="order_checkout">
             🛍️ Store Buyers (${sourceCounts.order_checkout})
           </button>
-          <button type="button" class="btn btn-sm" data-action="set-user-source-filter" data-source="mini_app_visit" style="font-size: 11.5px; padding: 4px 10px; border-radius: 16px; cursor: pointer; transition: all 0.15s ease; ${currentSourceFilter === 'mini_app_visit' ? 'background: #38bdf8; color: white; border: none;' : 'background: rgba(255,255,255,0.05); color: var(--muted); border: 1px solid rgba(255,255,255,0.08);'}">
+          <button type="button" class="btn btn-sm tg-source-pill ${currentSourceFilter === 'mini_app_visit' ? 'active' : ''}" data-action="set-user-source-filter" data-source="mini_app_visit">
             📱 Mini App (${sourceCounts.mini_app_visit})
           </button>
         </div>
 
         <!-- View Mode Switcher & Quick Copy -->
         <div style="display: flex; gap: 8px; align-items: center;">
-          <div style="display: flex; background: rgba(0,0,0,0.4); border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); padding: 2px;">
-            <button type="button" data-action="set-user-view-mode" data-mode="table" title="Table View" style="padding: 5px 9px; border-radius: 6px; border: none; font-size: 12px; cursor: pointer; display: flex; align-items: center; gap: 4px; ${currentViewMode === 'table' ? 'background: #6366f1; color: white;' : 'background: transparent; color: var(--muted);'}">
+          <div class="tg-view-mode-pillbox">
+            <button type="button" data-action="set-user-view-mode" data-mode="table" title="Table View" class="${currentViewMode === 'table' ? 'active' : ''}">
               <i data-lucide="list" style="width: 13px; height: 13px;"></i> Table
             </button>
-            <button type="button" data-action="set-user-view-mode" data-mode="cards" title="Visual Cards View" style="padding: 5px 9px; border-radius: 6px; border: none; font-size: 12px; cursor: pointer; display: flex; align-items: center; gap: 4px; ${currentViewMode === 'cards' ? 'background: #6366f1; color: white;' : 'background: transparent; color: var(--muted);'}">
+            <button type="button" data-action="set-user-view-mode" data-mode="cards" title="Visual Cards View" class="${currentViewMode === 'cards' ? 'active' : ''}">
               <i data-lucide="layout-grid" style="width: 13px; height: 13px;"></i> Cards
             </button>
           </div>
 
-          <button type="button" data-action="copy-all-user-ids" class="btn btn-ghost btn-sm" style="font-size: 11.5px; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--border); display: inline-flex; align-items: center; gap: 4px;" title="Copy all filtered user IDs to clipboard">
+          <button type="button" data-action="copy-all-user-ids" class="btn btn-ghost btn-sm tg-copy-ids-btn" title="Copy all filtered user IDs to clipboard">
             <i data-lucide="copy" style="width: 12px; height: 12px;"></i> Copy IDs (${filtered.length})
           </button>
         </div>
@@ -8591,7 +8601,7 @@ function renderTelegramUsersTableList(users = [], filter = '') {
           }
 
           return `
-            <div class="panel glass" style="padding: 16px 18px; border-radius: 14px; border: 1px solid rgba(255,255,255,0.08); background: linear-gradient(135deg, rgba(255,255,255,0.03) 0%, rgba(0,0,0,0.4) 100%); display: flex; flex-direction: column; justify-content: space-between; gap: 12px; transition: transform 0.15s ease, border-color 0.15s ease;">
+            <div class="panel glass tg-subscriber-card" style="padding: 16px 18px; border-radius: 14px; display: flex; flex-direction: column; justify-content: space-between; gap: 12px; transition: transform 0.15s ease, border-color 0.15s ease;">
               
               <!-- Card Header: Avatar, Name, Handle -->
               <div>
@@ -8601,24 +8611,24 @@ function renderTelegramUsersTableList(users = [], filter = '') {
                       ${escapeHtml(initials)}
                     </div>
                     <div style="min-width: 0;">
-                      <strong style="color: var(--text); font-size: 14px; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(displayName)}</strong>
+                      <strong class="tg-sub-name" style="font-size: 14px; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(displayName)}</strong>
                       ${hasUsername 
-                        ? `<a href="https://t.me/${escapeHtml(u.username)}" target="_blank" style="color: #38bdf8; text-decoration: none; font-size: 12px; font-weight: 600; display: inline-flex; align-items: center; gap: 3px;">@${escapeHtml(u.username)} <i data-lucide="external-link" style="width: 10px; height: 10px;"></i></a>`
-                        : `<span style="color: var(--muted); font-size: 11px; font-style: italic;">No @username</span>`}
+                        ? `<a href="https://t.me/${escapeHtml(u.username)}" target="_blank" style="color: #0284c7; text-decoration: none; font-size: 12px; font-weight: 600; display: inline-flex; align-items: center; gap: 3px;">@${escapeHtml(u.username)} <i data-lucide="external-link" style="width: 10px; height: 10px;"></i></a>`
+                        : `<span class="tg-sub-meta" style="font-size: 11px; font-style: italic;">No @username</span>`}
                     </div>
                   </div>
 
-                  <span style="font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 6px; background: rgba(255,255,255,0.05); color: ${sourceColor}; border: 1px solid rgba(255,255,255,0.08); text-transform: uppercase; flex-shrink: 0;">
+                  <span class="tg-source-chip" style="font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 6px; color: ${sourceColor}; text-transform: uppercase; flex-shrink: 0;">
                     ${escapeHtml(sourceLabel)}
                   </span>
                 </div>
 
                 <!-- Telegram ID chip -->
-                <div style="display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; background: rgba(0,0,0,0.3); border-radius: 8px; border: 1px solid rgba(255,255,255,0.05); margin-bottom: 10px;">
-                  <span style="font-size: 11px; color: var(--muted); font-weight: 600;">Telegram ID:</span>
+                <div class="tg-id-chip" style="display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; border-radius: 8px; margin-bottom: 10px;">
+                  <span class="tg-sub-meta" style="font-size: 11px; font-weight: 600;">Telegram ID:</span>
                   <div style="display: flex; align-items: center; gap: 6px;">
-                    <code style="font-size: 12px; font-weight: 800; color: #cbd5e1; font-family: monospace;">${escapeHtml(String(u.id))}</code>
-                    <button type="button" class="btn btn-ghost" onclick="navigator.clipboard.writeText('${escapeHtml(String(u.id))}'); showToast('Copied ID: ${escapeHtml(String(u.id))}', 'info');" title="Copy Telegram User ID" style="padding: 2px 5px; border-radius: 4px; border: none; color: #94a3b8; cursor: pointer;">
+                    <code style="font-size: 12px; font-weight: 800; font-family: monospace;">${escapeHtml(String(u.id))}</code>
+                    <button type="button" class="btn btn-ghost" onclick="navigator.clipboard.writeText('${escapeHtml(String(u.id))}'); showToast('Copied ID: ${escapeHtml(String(u.id))}', 'info');" title="Copy Telegram User ID" style="padding: 2px 5px; border-radius: 4px; border: none; cursor: pointer;">
                       <i data-lucide="copy" style="width: 11px; height: 11px;"></i>
                     </button>
                   </div>
@@ -8663,10 +8673,10 @@ function renderTelegramUsersTableList(users = [], filter = '') {
       </div>
     ` : `
       <!-- TABLE VIEW (Clean High-Contrast Full Data Table) -->
-      <div style="overflow-x: auto; width: 100%; -webkit-overflow-scrolling: touch; border-radius: 12px; border: 1px solid rgba(255,255,255,0.08); background: rgba(15, 23, 42, 0.45);">
-        <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 12.5px;">
+      <div class="tg-subscribers-table-scroll" style="overflow-x: auto; width: 100%; -webkit-overflow-scrolling: touch; border-radius: 12px; border: 1px solid var(--border);">
+        <table class="tg-subscribers-table" style="width: 100%; border-collapse: collapse; text-align: left; font-size: 12.5px;">
           <thead>
-            <tr style="border-bottom: 1px solid rgba(255,255,255,0.08); background: rgba(0,0,0,0.3);">
+            <tr class="tg-table-head-row" style="border-bottom: 1px solid var(--border);">
               <th style="padding: 10px 14px; font-weight: 700; color: var(--muted); text-transform: uppercase; font-size: 10.5px; letter-spacing: 0.04em;">Subscriber / Name</th>
               <th style="padding: 10px 14px; font-weight: 700; color: #38bdf8; text-transform: uppercase; font-size: 10.5px; letter-spacing: 0.04em;">Enrolled Bot Channels</th>
               <th style="padding: 10px 14px; font-weight: 700; color: var(--muted); text-transform: uppercase; font-size: 10.5px; letter-spacing: 0.04em;">Telegram Username</th>
@@ -9136,7 +9146,7 @@ function renderTelegramBotPageView(data = {}) {
       </style>
 
       <!-- Top Hero Header Bar -->
-      <section class="panel glass tg-hero-section" style="padding: 24px 28px; border-radius: 18px; margin-bottom: 24px; border: 1px solid rgba(99, 102, 241, 0.35); background: linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, rgba(15, 23, 42, 0.8) 100%);">
+      <section class="panel glass tg-hero-section">
         <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;">
           <div style="display: flex; align-items: center; gap: 16px;">
             <div style="width: 50px; height: 50px; border-radius: 14px; background: linear-gradient(135deg, #0088cc, #6366f1); display: flex; align-items: center; justify-content: center; color: white; box-shadow: 0 8px 24px rgba(0, 136, 204, 0.4); flex-shrink: 0;">
@@ -9154,11 +9164,11 @@ function renderTelegramBotPageView(data = {}) {
             <button class="btn btn-primary" type="button" data-action="switch-tg-tab" data-target="tgTabWelcome" style="font-size: 12.5px; padding: 9px 18px; border-radius: 10px; background: linear-gradient(135deg, #6366f1, #8b5cf6) !important; border: 1px solid rgba(139, 92, 246, 0.5) !important; color: white !important; display: inline-flex; align-items: center; gap: 7px; box-shadow: 0 4px 16px rgba(99, 102, 241, 0.4); font-weight: 700; cursor: pointer; transition: all 0.2s ease;">
               <i data-lucide="message-square-text" style="width: 14px; height: 14px;"></i> ✉️ Edit Welcome Message
             </button>
-            <button class="btn btn-ghost" type="button" data-action="refresh-tg-bot" title="Fetch latest status from Telegram API" style="font-size: 12.5px; padding: 9px 16px; border-radius: 10px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12); color: var(--text); backdrop-filter: blur(10px); display: inline-flex; align-items: center; gap: 6px; transition: all 0.2s ease;">
-              <i data-lucide="refresh-cw" style="width: 14px; height: 14px; color: #38bdf8;"></i> Refresh Data
+            <button class="btn btn-ghost" type="button" data-action="refresh-tg-bot" title="Fetch latest status from Telegram API" style="font-size: 12.5px; padding: 9px 16px; border-radius: 10px; background: rgba(255,255,255,0.05); border: 1px solid var(--border); color: var(--text); backdrop-filter: blur(10px); display: inline-flex; align-items: center; gap: 6px; transition: all 0.2s ease;">
+              <i data-lucide="refresh-cw" style="width: 14px; height: 14px; color: #0284c7;"></i> Refresh Data
             </button>
-            <button class="btn btn-ghost" type="button" data-action="test-tg-bot" title="Send a test ping alert to all Admins" style="font-size: 12.5px; padding: 9px 16px; border-radius: 10px; background: rgba(99,102,241,0.12); border: 1px solid rgba(99,102,241,0.3); color: #a5b4fc; backdrop-filter: blur(10px); display: inline-flex; align-items: center; gap: 6px; transition: all 0.2s ease;">
-              <i data-lucide="send" style="width: 14px; height: 14px; color: #818cf8;"></i> Test Ping Admins
+            <button class="btn btn-ghost" type="button" data-action="test-tg-bot" title="Send a test ping alert to all Admins" style="font-size: 12.5px; padding: 9px 16px; border-radius: 10px; background: rgba(99,102,241,0.12); border: 1px solid rgba(99,102,241,0.3); color: #6366f1; backdrop-filter: blur(10px); display: inline-flex; align-items: center; gap: 6px; transition: all 0.2s ease;">
+              <i data-lucide="send" style="width: 14px; height: 14px; color: #6366f1;"></i> Test Ping Admins
             </button>
             ${bot.username ? `<a class="btn btn-primary" id="tgOpenLiveBotBtn" href="https://t.me/${escapeHtml(bot.username.replace(/^@/, ''))}" target="_blank" style="font-size: 12.5px; padding: 9px 18px; border-radius: 10px; background: linear-gradient(135deg, #0284c7, #38bdf8) !important; border: 1px solid rgba(56,189,248,0.4) !important; color: white !important; display: inline-flex; align-items: center; gap: 7px; box-shadow: 0 4px 16px rgba(2, 132, 199, 0.4); font-weight: 700; transition: all 0.2s ease;">
               <i data-lucide="external-link" style="width: 14px; height: 14px;"></i> Open Bot (@${escapeHtml(bot.username.replace(/^@/, ''))})
@@ -9170,54 +9180,64 @@ function renderTelegramBotPageView(data = {}) {
         <div class="tg-hero-metrics-grid">
           
           <!-- Metric 1: Live Bot Fleet -->
-          <div style="background: linear-gradient(135deg, rgba(255,255,255,0.04) 0%, rgba(15,23,42,0.7) 100%); backdrop-filter: blur(14px); border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 14px 16px; display: flex; flex-direction: column; justify-content: space-between; gap: 6px; box-shadow: 0 4px 16px rgba(0,0,0,0.25);">
+          <div class="tg-hero-metric-card tg-metric-fleet">
             <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
-              <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--muted); letter-spacing: 0.04em;">Connected Bot Fleet</div>
-              <div style="width: 26px; height: 26px; border-radius: 7px; background: rgba(56,189,248,0.15); display: flex; align-items: center; justify-content: center; color: #38bdf8;">
+              <div class="tg-metric-title">Connected Bot Fleet</div>
+              <div class="tg-metric-icon" style="background: rgba(56,189,248,0.15); color: #0284c7;">
                 <i data-lucide="bot" style="width: 14px; height: 14px;"></i>
               </div>
             </div>
-            <div id="tgActiveBotUsername" style="font-size: 18px; font-weight: 800; color: #38bdf8; display: flex; align-items: center; gap: 6px;">
+            <div id="tgActiveBotUsername" class="tg-metric-value" style="font-size: 18px; font-weight: 800; color: #0284c7; display: flex; align-items: center; gap: 6px;">
               <span>${bots.length} Connected Bots</span>
             </div>
-            <small id="tgActiveBotId" style="display: block; color: var(--muted); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${bot.username ? `Active: @${escapeHtml(bot.username.replace(/^@/, ''))} · Multi-Bot Live` : 'No Bot Active · Connect Bot Below'}</small>
+            <small id="tgActiveBotId" class="tg-metric-sub" style="display: block; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${bot.username ? `Active: @${escapeHtml(bot.username.replace(/^@/, ''))} · Multi-Bot Live` : 'No Bot Active · Connect Bot Below'}</small>
           </div>
 
           <!-- Metric 2: Webhook Delivery -->
-          <div style="background: linear-gradient(135deg, rgba(255,255,255,0.04) 0%, rgba(15,23,42,0.7) 100%); backdrop-filter: blur(14px); border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 14px 16px; display: flex; flex-direction: column; justify-content: space-between; gap: 6px; box-shadow: 0 4px 16px rgba(0,0,0,0.25);">
+          <div class="tg-hero-metric-card tg-metric-webhook">
             <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
-              <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--muted); letter-spacing: 0.04em;">Webhook Self-Healing</div>
-              <div style="width: 26px; height: 26px; border-radius: 7px; background: rgba(16,185,129,0.15); display: flex; align-items: center; justify-content: center; color: #34d399;">
+              <div class="tg-metric-title">Webhook Self-Healing</div>
+              <div class="tg-metric-icon" style="background: rgba(16,185,129,0.15); color: #059669;">
                 <i data-lucide="zap" style="width: 14px; height: 14px;"></i>
               </div>
             </div>
-            <div id="tgWebhookStatus" style="font-size: 15px; font-weight: 700; color: ${hasWebhookUrl ? '#10b981' : '#f59e0b'}; display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+            <div id="tgWebhookStatus" class="tg-metric-value" style="font-size: 15px; font-weight: 700; color: ${hasWebhookUrl ? '#059669' : '#d97706'}; display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
               ${hasWebhookUrl 
-                ? `<span style="color: #10b981;">✅ Auto-Syncing</span> <span style="font-size: 11px; color: var(--muted); font-weight: normal;">(24/7 Live)</span>`
-                : `<span style="color: #f59e0b;">⚠️ Pending</span> <button type="button" data-action="resync-tg-webhook" class="btn btn-primary btn-sm" style="font-size: 11px; padding: 2px 8px; border-radius: 6px; background: #6366f1 !important; color: white !important;">⚡ Activate Now</button>`}
+                ? `<span style="color: #059669;">✅ Auto-Syncing</span> <span class="tg-metric-sub" style="font-size: 11px; font-weight: normal;">(24/7 Live)</span>`
+                : `<span style="color: #d97706;">⚠️ Pending</span> <button type="button" data-action="resync-tg-webhook" class="btn btn-primary btn-sm" style="font-size: 11px; padding: 2px 8px; border-radius: 6px; background: #6366f1 !important; color: white !important;">⚡ Activate Now</button>`}
             </div>
-            <small id="tgWebhookPending" style="display: block; color: var(--muted); font-size: 11px;">Pending updates: ${webhook.pending_update_count ?? 0} · Self-Healing Active</small>
+            <small id="tgWebhookPending" class="tg-metric-sub" style="display: block; font-size: 11px;">Pending updates: ${webhook.pending_update_count ?? 0} · Self-Healing Active</small>
           </div>
 
           <!-- Metric 3: Total Subscribers -->
-          <div style="background: linear-gradient(135deg, rgba(255,255,255,0.04) 0%, rgba(15,23,42,0.7) 100%); backdrop-filter: blur(14px); border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 14px 16px; display: flex; flex-direction: column; justify-content: space-between; gap: 6px; box-shadow: 0 4px 16px rgba(0,0,0,0.25);">
+          <div class="tg-hero-metric-card tg-metric-audience">
             <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
-              <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--muted); letter-spacing: 0.04em;">Audience / Subscribers</div>
-              <div style="width: 26px; height: 26px; border-radius: 7px; background: rgba(245,158,11,0.15); display: flex; align-items: center; justify-content: center; color: #fbbf24;">
+              <div class="tg-metric-title">Audience / Subscribers</div>
+              <div class="tg-metric-icon" style="background: rgba(245,158,11,0.15); color: #d97706;">
                 <i data-lucide="users" style="width: 14px; height: 14px;"></i>
               </div>
             </div>
-            <div style="font-size: 18px; font-weight: 800; color: #f59e0b; display: flex; align-items: center; gap: 6px;">
-              <span id="tgUsersStatCount">${usersCount}</span> <span style="font-size: 12px; font-weight: 600; color: var(--muted);">Users</span>
+            <div class="tg-metric-value" style="font-size: 18px; font-weight: 800; color: #d97706; display: flex; align-items: center; gap: 6px;">
+              <span id="tgUsersStatCount">${usersCount}</span> <span class="tg-metric-sub" style="font-size: 12px; font-weight: 600;">Users</span>
             </div>
-            <small style="display: block; color: var(--muted); font-size: 11px;">Subscribers across all connected bots</small>
+            <small class="tg-metric-sub" style="display: block; font-size: 11px;">Subscribers across all connected bots</small>
           </div>
 
           <!-- Metric 4: Telegram Admins -->
-          <div style="background: linear-gradient(135deg, rgba(255,255,255,0.04) 0%, rgba(15,23,42,0.7) 100%); backdrop-filter: blur(14px); border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 14px 16px; display: flex; flex-direction: column; justify-content: space-between; gap: 6px; box-shadow: 0 4px 16px rgba(0,0,0,0.25);">
+          <div class="tg-hero-metric-card tg-metric-admins">
             <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
-              <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--muted); letter-spacing: 0.04em;">Order Alert Admins</div>
-              <div style="width: 26px; height: 26px; border-radius: 7px; background: rgba(168,85,247,0.15); display: flex; align-items: center; justify-content: center; color: #c084fc;">
+              <div class="tg-metric-title">Order Alert Admins</div>
+              <div class="tg-metric-icon" style="background: rgba(168,85,247,0.15); color: #7c3aed;">
+                <i data-lucide="shield-check" style="width: 14px; height: 14px;"></i>
+              </div>
+            </div>
+            <div class="tg-metric-value" style="font-size: 16px; font-weight: 800; color: #7c3aed; display: flex; align-items: center; gap: 6px;">
+              <span id="tgAdminsStatCount">${admins.length}</span> <span>Authorized Admins</span>
+            </div>
+            <small class="tg-metric-sub" style="display: block; font-size: 11px;">Live order proof & approval alerts</small>
+          </div>
+
+        </div>
                 <i data-lucide="shield-check" style="width: 14px; height: 14px;"></i>
               </div>
             </div>
@@ -9250,7 +9270,7 @@ function renderTelegramBotPageView(data = {}) {
       </div>
 
       <!-- TAB 1: Connected Bots Fleet Manager -->
-      <section id="tgTabBots" class="tg-tab-section panel glass" style="display: ${activeTab === 'tgTabBots' ? 'block' : 'none'}; padding: 24px 28px; border-radius: 16px; border: 1px solid rgba(99, 102, 241, 0.35); background: linear-gradient(180deg, rgba(99, 102, 241, 0.03) 0%, rgba(15, 23, 42, 0.6) 100%); margin-bottom: 24px;">
+      <section id="tgTabBots" class="tg-tab-section panel glass" style="display: ${activeTab === 'tgTabBots' ? 'block' : 'none'};">
         <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px; margin-bottom: 20px; padding-bottom: 14px; border-bottom: 1px solid rgba(255,255,255,0.06);">
           <div style="display: flex; align-items: center; gap: 12px;">
             <div style="width: 38px; height: 38px; border-radius: 10px; background: linear-gradient(135deg, #0284c7, #38bdf8); display: flex; align-items: center; justify-content: center; color: white;">
@@ -9277,7 +9297,7 @@ function renderTelegramBotPageView(data = {}) {
         </div>
 
         <!-- Connect New Bot Form Panel -->
-        <div class="panel" style="padding: 20px 22px; border-radius: 14px; background: rgba(0,0,0,0.35); border: 1px solid rgba(99, 102, 241, 0.3); margin-top: 10px;">
+        <div class="panel tg-connect-form-panel" style="padding: 20px 22px; border-radius: 14px; margin-top: 10px;">
           <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
             <div style="width: 30px; height: 30px; border-radius: 8px; background: linear-gradient(135deg, #6366f1, #8b5cf6); display: flex; align-items: center; justify-content: center; color: white;">
               <i data-lucide="plus" style="width: 16px; height: 16px;"></i>
@@ -9310,7 +9330,7 @@ function renderTelegramBotPageView(data = {}) {
       <!-- TAB 2: Telegram Admins Manager -->
       ${renderTelegramWelcomeSection()}
 
-      <section id="tgTabAdmins" class="tg-tab-section panel glass" style="display: ${activeTab === 'tgTabAdmins' ? 'block' : 'none'}; padding: 24px 28px; border-radius: 16px; border: 1px solid rgba(245, 158, 11, 0.35); background: linear-gradient(180deg, rgba(245, 158, 11, 0.03) 0%, rgba(15, 23, 42, 0.6) 100%); margin-bottom: 24px;">
+      <section id="tgTabAdmins" class="tg-tab-section panel glass" style="display: ${activeTab === 'tgTabAdmins' ? 'block' : 'none'};">
         <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px; margin-bottom: 20px; padding-bottom: 14px; border-bottom: 1px solid rgba(255,255,255,0.06);">
           <div style="display: flex; align-items: center; gap: 12px;">
             <div style="width: 38px; height: 38px; border-radius: 10px; background: linear-gradient(135deg, #f59e0b, #d97706); display: flex; align-items: center; justify-content: center; color: white;">
@@ -9327,7 +9347,7 @@ function renderTelegramBotPageView(data = {}) {
         </div>
 
         <!-- Live Support Desk Handle Quick Editor -->
-        <div class="panel" style="padding: 18px 22px; border-radius: 14px; background: rgba(56, 189, 248, 0.05); border: 1px solid rgba(56, 189, 248, 0.3); margin-bottom: 22px;">
+        <div class="panel tg-support-desk-panel" style="padding: 18px 22px; border-radius: 14px; margin-bottom: 22px;">
           <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 12px;">
             <div style="display: flex; align-items: center; gap: 10px;">
               <div style="width: 32px; height: 32px; border-radius: 8px; background: linear-gradient(135deg, #0284c7, #38bdf8); display: flex; align-items: center; justify-content: center; color: white;">
@@ -9360,7 +9380,7 @@ function renderTelegramBotPageView(data = {}) {
         </div>
 
         <!-- Add New Admin Form Panel -->
-        <div class="panel" style="padding: 20px 22px; border-radius: 14px; background: rgba(0,0,0,0.35); border: 1px solid rgba(245, 158, 11, 0.3); margin-top: 10px;">
+        <div class="panel tg-add-admin-panel" style="padding: 20px 22px; border-radius: 14px; margin-top: 10px;">
           <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
             <div style="width: 30px; height: 30px; border-radius: 8px; background: linear-gradient(135deg, #f59e0b, #d97706); display: flex; align-items: center; justify-content: center; color: white;">
               <i data-lucide="user-plus" style="width: 16px; height: 16px;"></i>
@@ -9377,7 +9397,7 @@ function renderTelegramBotPageView(data = {}) {
               <div id="newAdminLookupLiveBadge" style="margin-top: 6px; font-size: 12px; display: none;"></div>
             </div>
             <div style="min-width: 210px;">
-              <select id="newAdminAssignedBotSelect" class="input" style="width: 100%; padding: 11px 12px; font-size: 13px; background: rgba(15, 23, 42, 0.9); border: 1px solid var(--border); border-radius: 8px; color: var(--text);">
+              <select id="newAdminAssignedBotSelect" class="input tg-admin-bot-select" style="width: 100%; padding: 11px 12px; font-size: 13px; border-radius: 8px;">
                 <option value="all">🌐 All Fleet Bots (Global)</option>
                 ${bots.map(b => `
                   <option value="${escapeHtml(b.botId || b.id)}">🤖 @${escapeHtml(b.username || b.botId)} (${escapeHtml(b.name || 'Bot')})</option>
@@ -9402,7 +9422,7 @@ function renderTelegramBotPageView(data = {}) {
       </section>
 
       <!-- TAB 3: Mass Broadcast Message -->
-      <section id="tgTabBroadcast" class="tg-tab-section panel glass" style="display: ${activeTab === 'tgTabBroadcast' ? 'block' : 'none'}; padding: 24px 28px; border-radius: 16px; border: 1px solid rgba(56, 189, 248, 0.35); background: linear-gradient(180deg, rgba(56, 189, 248, 0.03) 0%, rgba(15, 23, 42, 0.6) 100%); margin-bottom: 24px;">
+      <section id="tgTabBroadcast" class="tg-tab-section panel glass" style="display: ${activeTab === 'tgTabBroadcast' ? 'block' : 'none'};">
         <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.06);">
           <div style="display: flex; align-items: center; gap: 10px;">
             <div style="width: 36px; height: 36px; border-radius: 10px; background: linear-gradient(135deg, #0284c7, #38bdf8); display: flex; align-items: center; justify-content: center; color: white;">
@@ -9535,7 +9555,7 @@ function renderTelegramBotPageView(data = {}) {
         </div>
 
         <!-- Dynamic Subscribers Table Container -->
-        <div id="tgUsersTableContainer" style="background: rgba(0,0,0,0.25); border: 1px solid var(--border); border-radius: 12px; overflow: hidden;">
+        <div id="tgUsersTableContainer" class="tg-subscribers-table-wrapper">
           ${renderTelegramUsersTableList(users, '')}
         </div>
       </section>
@@ -16256,7 +16276,7 @@ initRouteHandling();
 ui.data = getSnapshot();
 renderView(ui.data || {});
 
-let _isUserActivelyScrolling = false;
+// _isUserActivelyScrolling declared at top of file
 let _scrollSettleTimeout = null;
 let _deferredRenderPending = null;
 
@@ -16415,7 +16435,7 @@ function renderTelegramWelcomeFleetCards(fleetBots = []) {
     const uname = (b.username || 'Bot').replace(/^@/, '');
 
     return `
-      <div class="tg-bot-welcome-card" style="${isCustom ? 'border-color: rgba(168, 85, 247, 0.4); background: linear-gradient(135deg, rgba(168, 85, 247, 0.04) 0%, rgba(15, 23, 42, 0.7) 100%);' : ''}">
+      <div class="tg-bot-welcome-card ${isCustom ? 'is-custom' : 'is-global'}">
         <div>
           <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 10px;">
             <div style="display: flex; align-items: center; gap: 10px;">
@@ -16423,11 +16443,11 @@ function renderTelegramWelcomeFleetCards(fleetBots = []) {
                 ${escapeHtml(uname.charAt(0).toUpperCase())}
               </div>
               <div>
-                <div style="font-size: 14px; font-weight: 800; color: var(--text); display: flex; align-items: center; gap: 6px;">
+                <div class="bot-name-label" style="font-size: 14px; font-weight: 800; display: flex; align-items: center; gap: 6px;">
                   <span>@${escapeHtml(uname)}</span>
                   ${b.isPrimary ? '<span style="font-size: 9px; padding: 1px 5px; border-radius: 4px; background: rgba(99,102,241,0.25); color: #a5b4fc; font-weight: 700;">PRIMARY</span>' : ''}
                 </div>
-                <div style="font-size: 11px; color: var(--muted); margin-top: 2px;">ID: ${escapeHtml(rawId)} · ${b.name || 'Telegram Bot'}</div>
+                <div class="bot-sub-label" style="font-size: 11px; margin-top: 2px;">ID: ${escapeHtml(rawId)} · ${b.name || 'Telegram Bot'}</div>
               </div>
             </div>
             <div>
@@ -16438,7 +16458,7 @@ function renderTelegramWelcomeFleetCards(fleetBots = []) {
           </div>
 
           <!-- Message Snippet -->
-          <div style="background: rgba(0,0,0,0.25); border-radius: 8px; padding: 10px 12px; font-size: 12px; color: var(--muted); border: 1px solid rgba(255,255,255,0.04); margin-bottom: 12px; max-height: 80px; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; line-height: 1.45;">
+          <div class="tg-bot-welcome-snippet">
             ${escapeHtml(isCustom ? customMsg : (_tgBotData.globalWelcomeMessage || _tgBotData.defaultWelcomeMessage || ''))}
           </div>
         </div>
@@ -16473,7 +16493,7 @@ function renderTelegramWelcomeSection() {
   const customCount = Object.keys(botMap).filter(k => botMap[k] && botMap[k].trim()).length;
 
   return `
-    <section id="tgTabWelcome" class="tg-tab-section panel glass" style="display: ${activeTab === 'tgTabWelcome' ? 'block' : 'none'}; padding: 24px 28px; border-radius: 16px; border: 1px solid rgba(99, 102, 241, 0.35); background: linear-gradient(180deg, rgba(99, 102, 241, 0.03) 0%, rgba(15, 23, 42, 0.6) 100%); margin-bottom: 24px;">
+    <section id="tgTabWelcome" class="tg-tab-section panel glass" style="display: ${activeTab === 'tgTabWelcome' ? 'block' : 'none'};">
       
       <!-- Head Row -->
       <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid rgba(255,255,255,0.06);">
@@ -16494,8 +16514,8 @@ function renderTelegramWelcomeSection() {
       </div>
 
       <!-- Variable Insertion Quick Tags -->
-      <div style="background: rgba(0,0,0,0.22); border-radius: 12px; padding: 12px 16px; border: 1px solid rgba(255,255,255,0.06); margin-bottom: 18px;">
-        <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--muted); letter-spacing: 0.05em; margin-bottom: 8px;">
+      <div class="tg-placeholder-box">
+        <div class="tg-placeholder-title">
           ⚡ Dynamic Placeholders (Click any tag to insert into editor):
         </div>
         <div style="display: flex; gap: 8px; flex-wrap: wrap;">
