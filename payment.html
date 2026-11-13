@@ -6001,6 +6001,14 @@ async function saveOrderToFirebase(amountText, methodName) {
             'Prefer': 'resolution=merge-duplicates,return=minimal'
           };
 
+          // Strip heavy base64 strings from payload to protect Supabase bandwidth & egress quota
+          const safeData = { ...payload };
+          delete safeData.screenshotUrl;
+          delete safeData.paymentProof;
+          delete safeData.screenshotRaw;
+
+          const safeProofUrl = (finalProof && (finalProof.startsWith('http://') || finalProof.startsWith('https://'))) ? finalProof : '';
+
           const orderRow = {
             id: orderId,
             order_id: orderId,
@@ -6012,14 +6020,10 @@ async function saveOrderToFirebase(amountText, methodName) {
             amount: Number(payload.amount || payload.priceINR || 0) || 0,
             currency: payload.currency || 'INR',
             payment_method: payload.paymentMethod || methodName || '',
-            payment_proof: finalProof,
+            payment_proof: safeProofUrl,
             utr: payload.utr || payload.transactionId || '',
             status: 'pending',
-            data: {
-              ...payload,
-              paymentProof: finalProof,
-              screenshotUrl: finalProof
-            }
+            data: safeData
           };
 
           await fetch(`${supaUrl}/rest/v1/orders`, {
@@ -6142,7 +6146,7 @@ function startLiveOrderStatusWatcher(orderId) {
 
   async function checkStatus() {
     try {
-      const res = await fetch(`${supaUrl}/rest/v1/orders?or=(id.eq.${encodeURIComponent(orderId)},order_id.eq.${encodeURIComponent(orderId)})&select=*`, {
+      const res = await fetch(`${supaUrl}/rest/v1/orders?or=(id.eq.${encodeURIComponent(orderId)},order_id.eq.${encodeURIComponent(orderId)})&select=id,status,channel_link,product_id,data`, {
         headers,
         cache: 'no-store'
       });
@@ -6166,7 +6170,7 @@ function startLiveOrderStatusWatcher(orderId) {
         if (link && (link.includes('VIP_KINK') || link.includes('TRUSTED_BROTHER1234'))) link = '';
         if (!link && order.product_id) {
           try {
-            const pRes = await fetch(`${supaUrl}/rest/v1/products?id=eq.${encodeURIComponent(order.product_id)}&select=*`, { headers });
+            const pRes = await fetch(`${supaUrl}/rest/v1/products?id=eq.${encodeURIComponent(order.product_id)}&select=id,channel_link,data`, { headers });
             if (pRes.ok) {
               const pRows = await pRes.json();
               if (pRows?.[0]) link = pRows[0].channel_link || pRows[0].data?.channelLink || '';

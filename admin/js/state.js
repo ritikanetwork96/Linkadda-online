@@ -484,8 +484,11 @@ export async function syncAllFromFirebase(force = false) {
             let rows = [];
             // Direct lightning-fast Supabase REST fetch (<50ms)
             try {
-              const orderParam = key === 'orders' ? '&order=created_at.desc' : '';
-              const res = await fetch(`${supaUrl}/rest/v1/${key}?select=*${orderParam}`, { headers: reqHeaders, cache: 'no-store' });
+              let query = `${supaUrl}/rest/v1/${key}?select=*`;
+              if (key === 'orders') {
+                query = `${supaUrl}/rest/v1/orders?select=id,order_id,product_title,amount,numericAmount,currency,payment_method,utr,telegramUserId,telegramUsername,status,created_at,updated_at,customer_name,customer_phone,channel_link,source_bot_id,payment_proof&order=created_at.desc&limit=100`;
+              }
+              const res = await fetch(query, { headers: reqHeaders, cache: 'no-store' });
               if (res.ok) {
                 const fetched = await res.json();
                 if (Array.isArray(fetched) && fetched.length > 0) rows = fetched;
@@ -529,7 +532,7 @@ export async function syncAllFromFirebase(force = false) {
             return { key, data };
           }
           if (key === 'visitors' || key === 'events') {
-            const res = await fetch(`${supaUrl}/rest/v1/${key}?select=*&order=created_at.desc&limit=1000`, { headers: reqHeaders, cache: 'no-store' });
+            const res = await fetch(`${supaUrl}/rest/v1/${key}?select=*&order=created_at.desc&limit=100`, { headers: reqHeaders, cache: 'no-store' });
             if (!res.ok) return null;
             const rows = await res.json();
             const data = {};
@@ -1025,17 +1028,18 @@ if (typeof window !== 'undefined') {
     }
   });
 
-  // 2. High-speed 4s lightweight orders, events & visitors sync (zero lag, only re-renders on real changes)
+  // 2. High-speed 8s lightweight orders, events & visitors sync (paused when tab hidden to save bandwidth)
   setInterval(async () => {
+    if (typeof document !== 'undefined' && document.hidden) return;
     try {
       const supaUrl = 'https://mkttxqwpbostzmfygpzq.supabase.co';
       const serviceKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1rdHR4cXdwYm9zdHptZnlncHpxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MzM4NzU3MCwiZXhwIjoyMTA4OTYzNTcwfQ.smaw1XT43DLymk4Yx7kw3ReOVGRLflDVVqMHs59GDPQ';
       const headers = { 'apikey': serviceKey, 'Authorization': `Bearer ${serviceKey}` };
 
       const [ordersRes, eventsRes, visitorsRes] = await Promise.allSettled([
-        fetch(`${supaUrl}/rest/v1/orders?select=*&order=created_at.desc&limit=50`, { headers, cache: 'no-store', signal: AbortSignal.timeout(3500) }),
-        fetch(`${supaUrl}/rest/v1/events?select=*&order=created_at.desc&limit=100`, { headers, cache: 'no-store', signal: AbortSignal.timeout(3500) }),
-        fetch(`${supaUrl}/rest/v1/visitors?select=*&order=created_at.desc&limit=100`, { headers, cache: 'no-store', signal: AbortSignal.timeout(3500) })
+        fetch(`${supaUrl}/rest/v1/orders?select=id,order_id,product_title,amount,numericAmount,currency,payment_method,utr,telegramUserId,telegramUsername,status,created_at,updated_at,customer_name,customer_phone,channel_link,source_bot_id,payment_proof&order=created_at.desc&limit=30`, { headers, cache: 'no-store', signal: AbortSignal.timeout(3500) }),
+        fetch(`${supaUrl}/rest/v1/events?select=id,event_type,product_id,product_title,visitor_id,created_at&order=created_at.desc&limit=30`, { headers, cache: 'no-store', signal: AbortSignal.timeout(3500) }),
+        fetch(`${supaUrl}/rest/v1/visitors?select=id,ip,user_agent,city,country,created_at,last_seen&order=created_at.desc&limit=30`, { headers, cache: 'no-store', signal: AbortSignal.timeout(3500) })
       ]);
 
       let hasStateChange = false;
