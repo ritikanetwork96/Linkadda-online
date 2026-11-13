@@ -65,7 +65,7 @@ function getEnvConfig() {
     return { type: 's3', endpoint, bucket, region, accessKeyId, secretAccessKey, publicUrl: '' };
   }
 
-  const supabaseUrl = process.env.SUPABASE_URL || 'https://mkttxqwpbostzmfygpzq.supabase.co';
+  const supabaseUrl = process.env.SUPABASE_URL || 'https://xazhsjotzoentrkminol.supabase.co';
   return {
     type: 'supabase',
     url: supabaseUrl,
@@ -91,7 +91,7 @@ async function uploadToStorageBackend(key, buffer, contentType, s3Client, config
   }
 
   // 2. Fallback: Supabase Storage
-  const supabaseUrl = (process.env.SUPABASE_URL || 'https://mkttxqwpbostzmfygpzq.supabase.co').replace(/\/+$/, '');
+  const supabaseUrl = (process.env.SUPABASE_URL || 'https://xazhsjotzoentrkminol.supabase.co').replace(/\/+$/, '');
   const serviceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
   const supabaseBucket = process.env.SUPABASE_BUCKET || 'linkadda-media';
 
@@ -301,7 +301,7 @@ export default async function handler(req, res) {
       }
 
       const partBuffers = [];
-      const supabaseUrl = process.env.SUPABASE_URL || 'https://mkttxqwpbostzmfygpzq.supabase.co';
+      const supabaseUrl = process.env.SUPABASE_URL || 'https://xazhsjotzoentrkminol.supabase.co';
       const serviceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
       const supabaseBucket = process.env.SUPABASE_BUCKET || 'linkadda-media';
 

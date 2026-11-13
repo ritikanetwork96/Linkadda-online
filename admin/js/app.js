@@ -7977,8 +7977,8 @@ async function loadTelegramBotAdminFullData(force = false) {
   _tgBotData.isLoading = true;
   try {
     // ⚡ STEP 1: Direct Supabase Service-Role Sync (<50ms, zero server spinup lag)
-    const supaServiceKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1rdHR4cXdwYm9zdHptZnlncHpxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MzM4NzU3MCwiZXhwIjoyMTA4OTYzNTcwfQ.smaw1XT43DLymk4Yx7kw3ReOVGRLflDVVqMHs59GDPQ';
-    const sbSettingsRes = await fetch('https://mkttxqwpbostzmfygpzq.supabase.co/rest/v1/site_settings?key=in.(settings,tg_support_contact,tg_bot_users,tg_connected_bots,tg_admin_chat_ids,tg_admin_profiles,tg_global_welcome_message,tg_bot_welcome_messages)&select=key,value', {
+    const supaServiceKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhhemhzam90em9lbnRya21pbm9sIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5NDU2MTM2NCwiZXhwIjoyMTEwMTM3MzY0fQ.sO_ZTRbmS7XInvK8YE6XEGz37URqzVmxxtsRABCGfHw';
+    const sbSettingsRes = await fetch('https://xazhsjotzoentrkminol.supabase.co/rest/v1/site_settings?key=in.(settings,tg_support_contact,tg_bot_users,tg_connected_bots,tg_admin_chat_ids,tg_admin_profiles,tg_global_welcome_message,tg_bot_welcome_messages)&select=key,value', {
       headers: { 'apikey': supaServiceKey, 'Authorization': `Bearer ${supaServiceKey}` },
       cache: 'no-store'
     }).then(r => r.json()).catch(() => null);
@@ -13172,8 +13172,8 @@ function attachGlobalHandlers() {
         _tgBotData.globalWelcomeMessage = newTemplate;
 
         // Dual-Layer Write: Instant Direct Supabase sync (<40ms)
-        const supaServiceKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1rdHR4cXdwYm9zdHptZnlncHpxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MzM4NzU3MCwiZXhwIjoyMTA4OTYzNTcwfQ.smaw1XT43DLymk4Yx7kw3ReOVGRLflDVVqMHs59GDPQ';
-        await fetch('https://mkttxqwpbostzmfygpzq.supabase.co/rest/v1/site_settings', {
+        const supaServiceKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhhemhzam90em9lbnRya21pbm9sIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5NDU2MTM2NCwiZXhwIjoyMTEwMTM3MzY0fQ.sO_ZTRbmS7XInvK8YE6XEGz37URqzVmxxtsRABCGfHw';
+        await fetch('https://xazhsjotzoentrkminol.supabase.co/rest/v1/site_settings', {
           method: 'POST',
           headers: {
             'apikey': supaServiceKey,
@@ -13241,8 +13241,8 @@ function attachGlobalHandlers() {
             _tgBotData.globalWelcomeMessage = newTemplate;
             _tgBotData.botWelcomeMessages = {};
 
-            const supaServiceKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1rdHR4cXdwYm9zdHptZnlncHpxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MzM4NzU3MCwiZXhwIjoyMTA4OTYzNTcwfQ.smaw1XT43DLymk4Yx7kw3ReOVGRLflDVVqMHs59GDPQ';
-            await fetch('https://mkttxqwpbostzmfygpzq.supabase.co/rest/v1/site_settings', {
+            const supaServiceKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhhemhzam90em9lbnRya21pbm9sIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5NDU2MTM2NCwiZXhwIjoyMTEwMTM3MzY0fQ.sO_ZTRbmS7XInvK8YE6XEGz37URqzVmxxtsRABCGfHw';
+            await fetch('https://xazhsjotzoentrkminol.supabase.co/rest/v1/site_settings', {
               method: 'POST',
               headers: {
                 'apikey': supaServiceKey,
@@ -13357,8 +13357,8 @@ function attachGlobalHandlers() {
               delete _tgBotData.botWelcomeMessages[cleanId];
             }
 
-            const supaServiceKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1rdHR4cXdwYm9zdHptZnlncHpxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MzM4NzU3MCwiZXhwIjoyMTA4OTYzNTcwfQ.smaw1XT43DLymk4Yx7kw3ReOVGRLflDVVqMHs59GDPQ';
-            await fetch('https://mkttxqwpbostzmfygpzq.supabase.co/rest/v1/site_settings', {
+            const supaServiceKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhhemhzam90em9lbnRya21pbm9sIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5NDU2MTM2NCwiZXhwIjoyMTEwMTM3MzY0fQ.sO_ZTRbmS7XInvK8YE6XEGz37URqzVmxxtsRABCGfHw';
+            await fetch('https://xazhsjotzoentrkminol.supabase.co/rest/v1/site_settings', {
               method: 'POST',
               headers: {
                 'apikey': supaServiceKey,
@@ -13401,8 +13401,8 @@ function attachGlobalHandlers() {
           delete _tgBotData.botWelcomeMessages[cleanId];
         }
 
-        const supaServiceKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1rdHR4cXdwYm9zdHptZnlncHpxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MzM4NzU3MCwiZXhwIjoyMTA4OTYzNTcwfQ.smaw1XT43DLymk4Yx7kw3ReOVGRLflDVVqMHs59GDPQ';
-        await fetch('https://mkttxqwpbostzmfygpzq.supabase.co/rest/v1/site_settings', {
+        const supaServiceKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhhemhzam90em9lbnRya21pbm9sIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5NDU2MTM2NCwiZXhwIjoyMTEwMTM3MzY0fQ.sO_ZTRbmS7XInvK8YE6XEGz37URqzVmxxtsRABCGfHw';
+        await fetch('https://xazhsjotzoentrkminol.supabase.co/rest/v1/site_settings', {
           method: 'POST',
           headers: {
             'apikey': supaServiceKey,
@@ -13688,8 +13688,8 @@ function attachGlobalHandlers() {
         }
         try {
           localStorage.setItem('linkadda_tg_fleet_bots', JSON.stringify(_tgBotData.bots));
-          const supaUrl = 'https://mkttxqwpbostzmfygpzq.supabase.co';
-          const supaKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1rdHR4cXdwYm9zdHptZnlncHpxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MzM4NzU3MCwiZXhwIjoyMTA4OTYzNTcwfQ.smaw1XT43DLymk4Yx7kw3ReOVGRLflDVVqMHs59GDPQ';
+          const supaUrl = 'https://xazhsjotzoentrkminol.supabase.co';
+          const supaKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhhemhzam90em9lbnRya21pbm9sIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5NDU2MTM2NCwiZXhwIjoyMTEwMTM3MzY0fQ.sO_ZTRbmS7XInvK8YE6XEGz37URqzVmxxtsRABCGfHw';
           const botsMap = {};
           (_tgBotData.bots || []).forEach(b => { if (b && b.botId) botsMap[b.botId] = b; });
           await fetch(`${supaUrl}/rest/v1/site_settings`, {
@@ -13794,8 +13794,8 @@ function attachGlobalHandlers() {
         }
         try {
           localStorage.setItem('linkadda_tg_fleet_bots', JSON.stringify(_tgBotData.bots));
-          const supaUrl = 'https://mkttxqwpbostzmfygpzq.supabase.co';
-          const supaKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1rdHR4cXdwYm9zdHptZnlncHpxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MzM4NzU3MCwiZXhwIjoyMTA4OTYzNTcwfQ.smaw1XT43DLymk4Yx7kw3ReOVGRLflDVVqMHs59GDPQ';
+          const supaUrl = 'https://xazhsjotzoentrkminol.supabase.co';
+          const supaKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhhemhzam90em9lbnRya21pbm9sIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5NDU2MTM2NCwiZXhwIjoyMTEwMTM3MzY0fQ.sO_ZTRbmS7XInvK8YE6XEGz37URqzVmxxtsRABCGfHw';
           const botsMap = {};
           (_tgBotData.bots || []).forEach(b => { if (b && b.botId) botsMap[b.botId] = b; });
           await fetch(`${supaUrl}/rest/v1/site_settings`, {
@@ -13942,8 +13942,8 @@ function attachGlobalHandlers() {
 
         // Direct Supabase service-role sync so addition persists immediately without RLS blocks
         try {
-          const supaUrl = 'https://mkttxqwpbostzmfygpzq.supabase.co';
-          const supaKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1rdHR4cXdwYm9zdHptZnlncHpxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MzM4NzU3MCwiZXhwIjoyMTA4OTYzNTcwfQ.smaw1XT43DLymk4Yx7kw3ReOVGRLflDVVqMHs59GDPQ';
+          const supaUrl = 'https://xazhsjotzoentrkminol.supabase.co';
+          const supaKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhhemhzam90em9lbnRya21pbm9sIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5NDU2MTM2NCwiZXhwIjoyMTEwMTM3MzY0fQ.sO_ZTRbmS7XInvK8YE6XEGz37URqzVmxxtsRABCGfHw';
           localStorage.setItem('linkadda_tg_admins', JSON.stringify(_tgBotData.admins));
           localStorage.setItem('linkadda_tg_admin_profiles', JSON.stringify(_tgBotData.adminProfiles));
           await fetch(`${supaUrl}/rest/v1/site_settings`, {
@@ -14007,8 +14007,8 @@ function attachGlobalHandlers() {
 
         // ⚡ Direct Supabase service-role sync so deletion persists instantly & independently
         try {
-          const supaUrl = 'https://mkttxqwpbostzmfygpzq.supabase.co';
-          const supaKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1rdHR4cXdwYm9zdHptZnlncHpxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MzM4NzU3MCwiZXhwIjoyMTA4OTYzNTcwfQ.smaw1XT43DLymk4Yx7kw3ReOVGRLflDVVqMHs59GDPQ';
+          const supaUrl = 'https://xazhsjotzoentrkminol.supabase.co';
+          const supaKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhhemhzam90em9lbnRya21pbm9sIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5NDU2MTM2NCwiZXhwIjoyMTEwMTM3MzY0fQ.sO_ZTRbmS7XInvK8YE6XEGz37URqzVmxxtsRABCGfHw';
           localStorage.setItem('linkadda_tg_admins', JSON.stringify(_tgBotData.admins));
           localStorage.setItem('linkadda_tg_admin_profiles', JSON.stringify(_tgBotData.adminProfiles));
           await fetch(`${supaUrl}/rest/v1/site_settings`, {
@@ -14073,8 +14073,8 @@ function attachGlobalHandlers() {
 
         // Direct Supabase sync
         try {
-          const supaUrl = 'https://mkttxqwpbostzmfygpzq.supabase.co';
-          const supaKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1rdHR4cXdwYm9zdHptZnlncHpxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMzODc1NzAsImV4cCI6MjEwODk2MzU3MH0.OP6jOD49M16r4uCUZ8pFOZkCaor0mk-0XZh94pjbSaE';
+          const supaUrl = 'https://xazhsjotzoentrkminol.supabase.co';
+          const supaKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhhemhzam90em9lbnRya21pbm9sIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQ1NjEzNjQsImV4cCI6MjExMDEzNzM2NH0.fcPhOQl-nLM5sLxl-elVgzEYmYG_C5-OkIy-rD_vn-0';
           await fetch(`${supaUrl}/rest/v1/site_settings`, {
             method: 'POST',
             headers: { 'apikey': supaKey, 'Authorization': `Bearer ${supaKey}`, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates' },
@@ -15534,8 +15534,8 @@ function attachGlobalHandlers() {
         if (nextSettings.telegram) {
           const cleanTg = String(nextSettings.telegram).trim().replace(/^https?:\/\/t\.me\//i, '').replace(/^@/, '').replace(/\/+$/, '');
           _tgBotData.supportTelegram = cleanTg;
-          const supaKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1rdHR4cXdwYm9zdHptZnlncHpxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MzM4NzU3MCwiZXhwIjoyMTA4OTYzNTcwfQ.smaw1XT43DLymk4Yx7kw3ReOVGRLflDVVqMHs59GDPQ';
-          fetch('https://mkttxqwpbostzmfygpzq.supabase.co/rest/v1/site_settings', {
+          const supaKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhhemhzam90em9lbnRya21pbm9sIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5NDU2MTM2NCwiZXhwIjoyMTEwMTM3MzY0fQ.sO_ZTRbmS7XInvK8YE6XEGz37URqzVmxxtsRABCGfHw';
+          fetch('https://xazhsjotzoentrkminol.supabase.co/rest/v1/site_settings', {
             method: 'POST',
             headers: { 'apikey': supaKey, 'Authorization': `Bearer ${supaKey}`, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates' },
             body: JSON.stringify([{
@@ -15585,8 +15585,8 @@ function attachGlobalHandlers() {
         _tgBotData.supportTelegram = clean;
         if (badge) badge.textContent = `@${clean}`;
 
-        const supaKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1rdHR4cXdwYm9zdHptZnlncHpxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MzM4NzU3MCwiZXhwIjoyMTA4OTYzNTcwfQ.smaw1XT43DLymk4Yx7kw3ReOVGRLflDVVqMHs59GDPQ';
-        const supaUrl = 'https://mkttxqwpbostzmfygpzq.supabase.co';
+        const supaKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhhemhzam90em9lbnRya21pbm9sIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5NDU2MTM2NCwiZXhwIjoyMTEwMTM3MzY0fQ.sO_ZTRbmS7XInvK8YE6XEGz37URqzVmxxtsRABCGfHw';
+        const supaUrl = 'https://xazhsjotzoentrkminol.supabase.co';
 
         // 1. Update tg_support_contact in Supabase
         fetch(`${supaUrl}/rest/v1/site_settings`, {

@@ -1,6 +1,6 @@
 -- ====================================================================
 -- LinkAdda Complete Supabase Schema & Security Setup
--- Project: https://mkttxqwpbostzmfygpzq.supabase.co
+-- Project: https://xazhsjotzoentrkminol.supabase.co
 -- Instructions: Copy all code -> Paste in Supabase Dashboard -> SQL Editor -> Click RUN
 -- ====================================================================
 
