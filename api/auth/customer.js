@@ -1,8 +1,14 @@
 import crypto from 'node:crypto';
 import { deriveCustomerId, handleCors, verifyAdminRequest } from '../_utils.js';
 
+const ACTIVE_SUPABASE_URL = 'https://xazhsjotzoentrkminol.supabase.co';
+const ACTIVE_SERVICE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhhemhzam90em9lbnRya21pbm9sIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5NDU2MTM2NCwiZXhwIjoyMTEwMTM3MzY0fQ.sO_ZTRbmS7XInvK8YE6XEGz37URqzVmxxtsRABCGfHw';
+
 function getSupabaseHeaders() {
-  const supaKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || '').trim();
+  let supaKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || '').trim();
+  if (!supaKey || !supaKey.includes('xazhsjotzoentrkminol')) {
+    supaKey = ACTIVE_SERVICE_KEY;
+  }
   return {
     'apikey': supaKey,
     'Authorization': `Bearer ${supaKey}`,
@@ -11,7 +17,11 @@ function getSupabaseHeaders() {
 }
 
 function getSupabaseUrl() {
-  return (process.env.SUPABASE_URL || 'https://xazhsjotzoentrkminol.supabase.co').replace(/\/+$/, '');
+  let url = (process.env.SUPABASE_URL || '').replace(/\/+$/, '');
+  if (!url || !url.includes('xazhsjotzoentrkminol')) {
+    url = ACTIVE_SUPABASE_URL;
+  }
+  return url;
 }
 
 export const computeCustomerId = deriveCustomerId;

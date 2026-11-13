@@ -5998,7 +5998,7 @@ async function saveOrderToFirebase(amountText, methodName) {
             'apikey': supaKey,
             'Authorization': `Bearer ${supaKey}`,
             'Content-Type': 'application/json',
-            'Prefer': 'resolution=merge-duplicates,return=minimal'
+            'Prefer': 'return=minimal'
           };
 
           // Strip heavy base64 strings from payload to protect Supabase bandwidth & egress quota
@@ -6146,7 +6146,7 @@ function startLiveOrderStatusWatcher(orderId) {
 
   async function checkStatus() {
     try {
-      const res = await fetch(`${supaUrl}/rest/v1/orders?or=(id.eq.${encodeURIComponent(orderId)},order_id.eq.${encodeURIComponent(orderId)})&select=id,status,channel_link,product_id,data`, {
+      const res = await fetch(`${supaUrl}/rest/v1/orders?or=(id.eq.${encodeURIComponent(orderId)},order_id.eq.${encodeURIComponent(orderId)})&select=id,status,product_id,data`, {
         headers,
         cache: 'no-store'
       });
@@ -6166,14 +6166,14 @@ function startLiveOrderStatusWatcher(orderId) {
           orderStatusWatcherTimer = null;
         }
 
-        let link = order.channel_link || data.channelLink || data.downloadLink || data.fileUrl || data.orderLink || '';
+        let link = order.channel_link || data.channel_link || data.channelLink || data.downloadLink || data.fileUrl || data.orderLink || '';
         if (link && (link.includes('VIP_KINK') || link.includes('TRUSTED_BROTHER1234'))) link = '';
         if (!link && order.product_id) {
           try {
-            const pRes = await fetch(`${supaUrl}/rest/v1/products?id=eq.${encodeURIComponent(order.product_id)}&select=id,channel_link,data`, { headers });
+            const pRes = await fetch(`${supaUrl}/rest/v1/products?id=eq.${encodeURIComponent(order.product_id)}&select=id,data`, { headers });
             if (pRes.ok) {
               const pRows = await pRes.json();
-              if (pRows?.[0]) link = pRows[0].channel_link || pRows[0].data?.channelLink || '';
+              if (pRows?.[0]) link = pRows[0].data?.channel_link || pRows[0].data?.channelLink || pRows[0].data?.link || '';
             }
           } catch (_) {}
         }

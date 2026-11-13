@@ -15,11 +15,18 @@ export default async function handler(req, res) {
   }
 
   // 2. Load private Service Role credentials on the server
-  const supaUrl = (process.env.SUPABASE_URL || 'https://xazhsjotzoentrkminol.supabase.co').replace(/\/+$/, '');
-  const serviceKey = (
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhhemhzam90em9lbnRya21pbm9sIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5NDU2MTM2NCwiZXhwIjoyMTEwMTM3MzY0fQ.sO_ZTRbmS7XInvK8YE6XEGz37URqzVmxxtsRABCGfHw'
-  ).trim();
+  const ACTIVE_SUPABASE_URL = 'https://xazhsjotzoentrkminol.supabase.co';
+  const ACTIVE_SERVICE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhhemhzam90em9lbnRya21pbm9sIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5NDU2MTM2NCwiZXhwIjoyMTEwMTM3MzY0fQ.sO_ZTRbmS7XInvK8YE6XEGz37URqzVmxxtsRABCGfHw';
+
+  let supaUrl = (process.env.SUPABASE_URL || '').replace(/\/+$/, '');
+  let serviceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
+
+  if (!supaUrl || !supaUrl.includes('xazhsjotzoentrkminol')) {
+    supaUrl = ACTIVE_SUPABASE_URL;
+  }
+  if (!serviceKey || !serviceKey.includes('xazhsjotzoentrkminol')) {
+    serviceKey = ACTIVE_SERVICE_KEY;
+  }
 
   if (!serviceKey) {
     return res.status(500).json({ error: 'Server configuration error: Service role key missing.' });

@@ -65,7 +65,11 @@ function getEnvConfig() {
     return { type: 's3', endpoint, bucket, region, accessKeyId, secretAccessKey, publicUrl: '' };
   }
 
-  const supabaseUrl = process.env.SUPABASE_URL || 'https://xazhsjotzoentrkminol.supabase.co';
+  const ACTIVE_SUPABASE_URL = 'https://xazhsjotzoentrkminol.supabase.co';
+  let supabaseUrl = (process.env.SUPABASE_URL || '').replace(/\/+$/, '');
+  if (!supabaseUrl || !supabaseUrl.includes('xazhsjotzoentrkminol')) {
+    supabaseUrl = ACTIVE_SUPABASE_URL;
+  }
   return {
     type: 'supabase',
     url: supabaseUrl,
@@ -91,8 +95,12 @@ async function uploadToStorageBackend(key, buffer, contentType, s3Client, config
   }
 
   // 2. Fallback: Supabase Storage
-  const supabaseUrl = (process.env.SUPABASE_URL || 'https://xazhsjotzoentrkminol.supabase.co').replace(/\/+$/, '');
-  const serviceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
+  const ACTIVE_SERVICE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhhemhzam90em9lbnRya21pbm9sIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5NDU2MTM2NCwiZXhwIjoyMTEwMTM3MzY0fQ.sO_ZTRbmS7XInvK8YE6XEGz37URqzVmxxtsRABCGfHw';
+  let supabaseUrl = (process.env.SUPABASE_URL || '').replace(/\/+$/, '');
+  let serviceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
+
+  if (!supabaseUrl || !supabaseUrl.includes('xazhsjotzoentrkminol')) supabaseUrl = ACTIVE_SUPABASE_URL;
+  if (!serviceKey || !serviceKey.includes('xazhsjotzoentrkminol')) serviceKey = ACTIVE_SERVICE_KEY;
   const supabaseBucket = process.env.SUPABASE_BUCKET || 'linkadda-media';
 
   if (supabaseUrl && serviceKey) {
@@ -301,8 +309,10 @@ export default async function handler(req, res) {
       }
 
       const partBuffers = [];
-      const supabaseUrl = process.env.SUPABASE_URL || 'https://xazhsjotzoentrkminol.supabase.co';
-      const serviceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
+      let supabaseUrl = (process.env.SUPABASE_URL || '').replace(/\/+$/, '');
+      let serviceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
+      if (!supabaseUrl || !supabaseUrl.includes('xazhsjotzoentrkminol')) supabaseUrl = ACTIVE_SUPABASE_URL;
+      if (!serviceKey || !serviceKey.includes('xazhsjotzoentrkminol')) serviceKey = ACTIVE_SERVICE_KEY;
       const supabaseBucket = process.env.SUPABASE_BUCKET || 'linkadda-media';
 
       for (let i = 0; i < totalParts; i++) {

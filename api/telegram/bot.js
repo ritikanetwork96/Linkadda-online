@@ -72,27 +72,21 @@ export function getSupportContact(targetBot = null) {
   }
 }
 
+const ACTIVE_SUPABASE_URL = 'https://xazhsjotzoentrkminol.supabase.co';
+const ACTIVE_SUPABASE_SERVICE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhhemhzam90em9lbnRya21pbm9sIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5NDU2MTM2NCwiZXhwIjoyMTEwMTM3MzY0fQ.sO_ZTRbmS7XInvK8YE6XEGz37URqzVmxxtsRABCGfHw';
+
 function getSupabaseConfig() {
-  const url = (process.env.SUPABASE_URL || 'https://xazhsjotzoentrkminol.supabase.co').replace(/\/+$/, '');
+  let url = (process.env.SUPABASE_URL || '').replace(/\/+$/, '');
   let key = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
 
-  // If in local dev and process.env is empty, check .env file safely without hardcoding
-  if (!key) {
-    try {
-      const p1 = path.resolve(__dirname, '../../.env');
-      const p2 = path.join(process.cwd(), '.env');
-      const envPath = fs.existsSync(p1) ? p1 : (fs.existsSync(p2) ? p2 : null);
-      if (envPath) {
-        const raw = fs.readFileSync(envPath, 'utf8');
-        const match = raw.match(/SUPABASE_SERVICE_ROLE_KEY\s*=\s*([^\r\n]+)/);
-        if (match && match[1]) key = match[1].trim();
-      }
-    } catch (_) {}
+  // Guard: If env is missing or points to old/dead project, force active Supabase project
+  if (!url || !url.includes('xazhsjotzoentrkminol')) {
+    url = ACTIVE_SUPABASE_URL;
   }
 
-  // Fallback to service role key to ensure RLS bypass for bots and settings
-  if (!key) {
-    key = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhhemhzam90em9lbnRya21pbm9sIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5NDU2MTM2NCwiZXhwIjoyMTEwMTM3MzY0fQ.sO_ZTRbmS7XInvK8YE6XEGz37URqzVmxxtsRABCGfHw';
+  // Guard: If service key is missing or from old project, force active service key
+  if (!key || !key.includes('xazhsjotzoentrkminol')) {
+    key = ACTIVE_SUPABASE_SERVICE_KEY;
   }
 
   return { url, key };
@@ -4165,7 +4159,7 @@ export default async function handler(req, res) {
         const isStartCmd = /^\/(?:start|satrt|strat|stert|help|menu|store|open)(?:@[a-zA-Z0-9_]+)?(?:\s+.*)?$/i.test(text) ||
                            /^(?:start|satrt|strat|help|menu|store|open|hi|hello|hey|namaste)$/i.test(text) ||
                            text.startsWith('/start') ||
-                           (msg.chat?.type === 'private' && Boolean(text));
+                           (msg.chat?.type === 'private' && (Boolean(text) || Boolean(msg.photo)));
 
         if (fromUser) {
           recordBotUser(fromUser, isStartCmd ? 'bot_start' : 'bot_chat', currentBotId).catch(e => {

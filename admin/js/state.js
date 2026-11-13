@@ -486,7 +486,7 @@ export async function syncAllFromFirebase(force = false) {
             try {
               let query = `${supaUrl}/rest/v1/${key}?select=*`;
               if (key === 'orders') {
-                query = `${supaUrl}/rest/v1/orders?select=id,order_id,product_title,amount,numericAmount,currency,payment_method,utr,telegramUserId,telegramUsername,status,created_at,updated_at,customer_name,customer_phone,channel_link,source_bot_id,payment_proof&order=created_at.desc&limit=100`;
+                query = `${supaUrl}/rest/v1/orders?select=*&order=created_at.desc&limit=200`;
               }
               const res = await fetch(query, { headers: reqHeaders, cache: 'no-store' });
               if (res.ok) {
@@ -1042,7 +1042,7 @@ if (typeof window !== 'undefined') {
       const headers = { 'apikey': serviceKey, 'Authorization': `Bearer ${serviceKey}` };
 
       const [ordersRes, eventsRes, visitorsRes] = await Promise.allSettled([
-        fetch(`${supaUrl}/rest/v1/orders?select=id,order_id,product_title,amount,numericAmount,currency,payment_method,utr,telegramUserId,telegramUsername,status,created_at,updated_at,customer_name,customer_phone,channel_link,source_bot_id,payment_proof&order=created_at.desc&limit=30`, { headers, cache: 'no-store', signal: AbortSignal.timeout(3500) }),
+        fetch(`${supaUrl}/rest/v1/orders?select=*&order=created_at.desc&limit=50`, { headers, cache: 'no-store', signal: AbortSignal.timeout(3500) }),
         fetch(`${supaUrl}/rest/v1/events?select=*&order=created_at.desc&limit=50`, { headers, cache: 'no-store', signal: AbortSignal.timeout(3500) }),
         fetch(`${supaUrl}/rest/v1/visitors?select=*&order=created_at.desc&limit=50`, { headers, cache: 'no-store', signal: AbortSignal.timeout(3500) })
       ]);

@@ -8,25 +8,21 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+const ACTIVE_SUPABASE_URL = 'https://xazhsjotzoentrkminol.supabase.co';
+const ACTIVE_SUPABASE_SERVICE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhhemhzam90em9lbnRya21pbm9sIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5NDU2MTM2NCwiZXhwIjoyMTEwMTM3MzY0fQ.sO_ZTRbmS7XInvK8YE6XEGz37URqzVmxxtsRABCGfHw';
+
 function getSupabaseConfig() {
-  const url = (process.env.SUPABASE_URL || 'https://xazhsjotzoentrkminol.supabase.co').replace(/\/+$/, '');
+  let url = (process.env.SUPABASE_URL || '').replace(/\/+$/, '');
   let key = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
 
-  if (!key) {
-    try {
-      const p1 = path.resolve(__dirname, '../../.env');
-      const p2 = path.join(process.cwd(), '.env');
-      const envPath = fs.existsSync(p1) ? p1 : (fs.existsSync(p2) ? p2 : null);
-      if (envPath) {
-        const raw = fs.readFileSync(envPath, 'utf8');
-        const match = raw.match(/SUPABASE_SERVICE_ROLE_KEY\s*=\s*([^\r\n]+)/);
-        if (match && match[1]) key = match[1].trim();
-      }
-    } catch (_) {}
+  // Guard: If env is missing or points to old/dead project, force active Supabase project
+  if (!url || !url.includes('xazhsjotzoentrkminol')) {
+    url = ACTIVE_SUPABASE_URL;
   }
 
-  if (!key) {
-    key = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhhemhzam90em9lbnRya21pbm9sIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5NDU2MTM2NCwiZXhwIjoyMTEwMTM3MzY0fQ.sO_ZTRbmS7XInvK8YE6XEGz37URqzVmxxtsRABCGfHw';
+  // Guard: If service key is missing or from old project, force active service key
+  if (!key || !key.includes('xazhsjotzoentrkminol')) {
+    key = ACTIVE_SUPABASE_SERVICE_KEY;
   }
 
   return { url, key };
@@ -204,6 +200,10 @@ export default async function handler(req, res) {
           body: JSON.stringify([orderRow]),
           signal: AbortSignal.timeout(6000)
         });
+        if (!sbRes.ok) {
+          const errText = await sbRes.text().catch(() => '');
+          console.error('[notify-order DB save failed]:', sbRes.status, errText);
+        }
         return sbRes.ok;
       } catch (sbErr) {
         console.warn('Server-side order save error:', sbErr.message);

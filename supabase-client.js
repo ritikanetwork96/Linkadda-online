@@ -204,7 +204,7 @@ export async function set(refObj, data) {
       };
       await fetch(`${supaUrl}/rest/v1/orders`, {
         method: 'POST',
-        headers: { ...defaultHeaders, 'Prefer': 'resolution=merge-duplicates' },
+        headers: { ...defaultHeaders, 'Prefer': 'return=minimal' },
         body: JSON.stringify([row])
       });
       return;
