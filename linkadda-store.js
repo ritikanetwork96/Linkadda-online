@@ -645,10 +645,15 @@
         stage.innerHTML = `
           ${bgHtml}
           ${zoomBadge}
-          <img src="${item.url}" alt="Preview" style="max-width:100%;max-height:460px;object-fit:contain;margin:0 auto;display:block;border-radius:10px;" onclick="window.openFkLightbox(${idx})" onerror="window.handleFkMediaImgError ? window.handleFkMediaImgError(this, '${prodTitleSafe}') : null;" />
+          <img src="${item.url}" alt="Preview" draggable="false" oncontextmenu="return false;" style="max-width:100%;max-height:460px;object-fit:contain;margin:0 auto;display:block;border-radius:10px;pointer-events:none;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;" onerror="window.handleFkMediaImgError ? window.handleFkMediaImgError(this, '${prodTitleSafe}') : null;" />
         `;
       }
     }
+
+    stage.onclick = (e) => {
+      if (e.target.closest('.fk-stage-zoom-btn') || e.target.tagName === 'VIDEO') return;
+      window.openFkLightbox(activeMediaIndex);
+    };
 
     window.__fkActiveMediaList = mediaList;
     setStage(0);

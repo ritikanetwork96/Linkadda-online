@@ -3,6 +3,14 @@
    Active on Mobile & Tablet Devices (Desktop PC > 991px remains unaffected)
    ========================================================================== */
 
+/* ── GLOBAL MOBILE & TELEGRAM MINI APP IMAGE PROTECTION ── */
+/* Prevents native Android/iOS long-press action sheets (Open in, Download, Copy Link) */
+img, video {
+  -webkit-touch-callout: none !important;
+  -webkit-user-select: none !important;
+  user-select: none !important;
+}
+
 /* ━━ 1. FULL-PAGE NATIVE APP ACCOUNT VIEW (LINKADDA NATIVE STANDARD) ━━ */
 #appAccountView {
   display: none;
