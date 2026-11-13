@@ -7646,23 +7646,6 @@ function renderActiveSessionsSection(sessions = []) {
   `;
 }
 
-let _tgCachedUsers = [];
-try {
-  const _raw = localStorage.getItem('tg_cached_bot_users');
-  if (_raw) {
-    const _parsed = JSON.parse(_raw);
-    if (Array.isArray(_parsed) && _parsed.length) {
-      _tgCachedUsers = _parsed.filter(u => {
-        if (!u || !u.id || String(u.id).startsWith('cust_')) return false;
-        if (_tgCachedBots && _tgCachedBots.length > 0) {
-          return _tgCachedBots.some(b => userBelongsToBot(u, b));
-        }
-        return true;
-      });
-    }
-  }
-} catch (_) {}
-
 let _tgCachedBots = [];
 try {
   const _rawBots = localStorage.getItem('linkadda_tg_fleet_bots');
@@ -7689,6 +7672,55 @@ try {
   if (_rawProfiles) {
     const _parsedProfiles = JSON.parse(_rawProfiles);
     if (_parsedProfiles && typeof _parsedProfiles === 'object') _tgCachedAdminProfiles = _parsedProfiles;
+  }
+} catch (_) {}
+
+// Universal helper to check if a user belongs to a specific bot (supports users in multiple bots)
+function userBelongsToBot(u, targetBot) {
+  if (!u || !targetBot) return false;
+  const bId = String(targetBot.botId || `bot_${targetBot.id}` || targetBot.id || '');
+  const rawId = String(targetBot.id || '');
+  const bUname = String(targetBot.username || '').toLowerCase();
+
+  // 1. Check user.bots dictionary
+  if (u.bots && typeof u.bots === 'object') {
+    if (u.bots[bId] || (rawId && u.bots[`bot_${rawId}`]) || (rawId && u.bots[rawId])) return true;
+    if (bUname && u.bots[bUname]) return true;
+    for (const [k, v] of Object.entries(u.bots)) {
+      if (k === bId || k === rawId || k === `bot_${rawId}`) return true;
+      if (v && ((v.botId && (v.botId === bId || v.botId === rawId)) || (v.username && v.username.toLowerCase() === bUname) || (v.botUsername && v.botUsername.toLowerCase() === bUname))) return true;
+    }
+  }
+
+  // 2. Check sourceBotIds array
+  if (Array.isArray(u.sourceBotIds)) {
+    if (u.sourceBotIds.includes(bId) || (rawId && u.sourceBotIds.includes(rawId)) || (rawId && u.sourceBotIds.includes(`bot_${rawId}`))) return true;
+  }
+
+  // 3. Check scalar sourceBotId or lastBotId
+  const uBotId = String(u.sourceBotId || u.lastBotId || '');
+  if (uBotId && (uBotId === bId || uBotId === rawId || (rawId && uBotId === `bot_${rawId}`))) return true;
+
+  // 4. Check sourceBotUsername
+  const uBotUname = String(u.sourceBotUsername || '').toLowerCase();
+  if (uBotUname && bUname && uBotUname === bUname) return true;
+  return false;
+}
+
+let _tgCachedUsers = [];
+try {
+  const _raw = localStorage.getItem('tg_cached_bot_users');
+  if (_raw) {
+    const _parsed = JSON.parse(_raw);
+    if (Array.isArray(_parsed) && _parsed.length) {
+      _tgCachedUsers = _parsed.filter(u => {
+        if (!u || !u.id || String(u.id).startsWith('cust_')) return false;
+        if (_tgCachedBots && _tgCachedBots.length > 0) {
+          return _tgCachedBots.some(b => userBelongsToBot(u, b));
+        }
+        return true;
+      });
+    }
   }
 } catch (_) {}
 
@@ -7845,39 +7877,6 @@ function getUserBotRecord(u, targetBotOrFilter) {
     }
   }
   return null;
-}
-
-// Universal helper to check if a user belongs to a specific bot (supports users in multiple bots)
-function userBelongsToBot(u, targetBot) {
-  if (!u || !targetBot) return false;
-  const bId = String(targetBot.botId || `bot_${targetBot.id}` || targetBot.id || '');
-  const rawId = String(targetBot.id || '');
-  const bUname = String(targetBot.username || '').toLowerCase();
-
-  // 1. Check user.bots dictionary
-  if (u.bots && typeof u.bots === 'object') {
-    if (u.bots[bId] || (rawId && u.bots[`bot_${rawId}`]) || (rawId && u.bots[rawId])) return true;
-    if (bUname && u.bots[bUname]) return true;
-    for (const [k, v] of Object.entries(u.bots)) {
-      if (k === bId || k === rawId || k === `bot_${rawId}`) return true;
-      if (v && ((v.botId && (v.botId === bId || v.botId === rawId)) || (v.username && v.username.toLowerCase() === bUname) || (v.botUsername && v.botUsername.toLowerCase() === bUname))) return true;
-    }
-  }
-
-  // 2. Check sourceBotIds array
-  if (Array.isArray(u.sourceBotIds)) {
-    if (u.sourceBotIds.includes(bId) || (rawId && u.sourceBotIds.includes(rawId)) || (rawId && u.sourceBotIds.includes(`bot_${rawId}`))) return true;
-  }
-
-  // 3. Check scalar sourceBotId or lastBotId
-  const uBotId = String(u.sourceBotId || u.lastBotId || '');
-  if (uBotId && (uBotId === bId || uBotId === rawId || (rawId && uBotId === `bot_${rawId}`))) return true;
-
-  // 4. Check sourceBotUsername
-  const uBotUname = String(u.sourceBotUsername || '').toLowerCase();
-  if (uBotUname && bUname && uBotUname === bUname) return true;
-
-  return false;
 }
 
 function getAdminAuthHeaders() {
@@ -8107,6 +8106,7 @@ async function loadTelegramBotAdminFullData(force = false) {
         b.subscribersCount = unifiedList.filter(u => userBelongsToBot(u, b)).length;
       });
 
+      _tgCachedUsers = unifiedList;
       try { localStorage.setItem('tg_cached_bot_users', JSON.stringify(unifiedList)); } catch (_) {}
     }
 
@@ -16390,27 +16390,27 @@ function formatWelcomePreviewText(raw) {
   let out = escapeHtml(raw)
     .replace(/\{name\}/gi, 'Alex (VIP Member)')
     .replace(/\{first_name\}/gi, 'Alex')
-    .replace(/\{chat_id\}/gi, '<code>8770964308</code>')
-    .replace(/\{bot_name\}/gi, '<b>@' + escapeHtml(bUname) + '</b>')
-    .replace(/\{bot_username\}/gi, '<b>@' + escapeHtml(bUname) + '</b>')
-    .replace(/\{store_name\}/gi, '<b>LinkAdda Online Store</b>')
-    .replace(/\{support\}/gi, '<a href="https://t.me/support" target="_blank" style="color: #38bdf8;">@support</a>');
+    .replace(/\{chat_id\}/gi, '<code style="color: #38bdf8 !important; background: rgba(0,0,0,0.5) !important; padding: 2px 6px; border-radius: 4px;">8770964308</code>')
+    .replace(/\{bot_name\}/gi, '<b style="color: #ffffff !important;">@' + escapeHtml(bUname) + '</b>')
+    .replace(/\{bot_username\}/gi, '<b style="color: #ffffff !important;">@' + escapeHtml(bUname) + '</b>')
+    .replace(/\{store_name\}/gi, '<b style="color: #ffffff !important;">LinkAdda Online Store</b>')
+    .replace(/\{support\}/gi, '<a href="https://t.me/support" target="_blank" style="color: #38bdf8 !important;">@support</a>');
 
   // Re-enable safe Telegram tags that user typed
   out = out
-    .replace(/&lt;b&gt;/gi, '<b>')
+    .replace(/&lt;b&gt;/gi, '<b style="color: #ffffff !important;">')
     .replace(/&lt;\/b&gt;/gi, '</b>')
-    .replace(/&lt;strong&gt;/gi, '<strong>')
+    .replace(/&lt;strong&gt;/gi, '<strong style="color: #ffffff !important;">')
     .replace(/&lt;\/strong&gt;/gi, '</strong>')
-    .replace(/&lt;i&gt;/gi, '<i>')
+    .replace(/&lt;i&gt;/gi, '<i style="color: #f1f5f9 !important;">')
     .replace(/&lt;\/i&gt;/gi, '</i>')
-    .replace(/&lt;em&gt;/gi, '<em>')
+    .replace(/&lt;em&gt;/gi, '<em style="color: #f1f5f9 !important;">')
     .replace(/&lt;\/em&gt;/gi, '</em>')
-    .replace(/&lt;code&gt;/gi, '<code>')
+    .replace(/&lt;code&gt;/gi, '<code style="color: #38bdf8 !important; background: rgba(0,0,0,0.5) !important; padding: 2px 6px; border-radius: 4px;">')
     .replace(/&lt;\/code&gt;/gi, '</code>')
-    .replace(/&lt;u&gt;/gi, '<u>')
+    .replace(/&lt;u&gt;/gi, '<u style="color: #ffffff !important;">')
     .replace(/&lt;\/u&gt;/gi, '</u>')
-    .replace(/&lt;s&gt;/gi, '<s>')
+    .replace(/&lt;s&gt;/gi, '<s style="color: #94a3b8 !important;">')
     .replace(/&lt;\/s&gt;/gi, '</s>')
     .replace(/\n/g, '<br>');
 
@@ -16590,8 +16590,8 @@ function renderTelegramWelcomeSection() {
                 <span style="font-size: 10px; background: rgba(0,0,0,0.4); padding: 2px 8px; border-radius: 999px; color: #94a3b8;">Today</span>
               </div>
               
-              <div class="tg-chat-bubble">
-                <div id="tgWelcomePreviewBubble">
+              <div class="tg-chat-bubble" style="background: #182533 !important; color: #ffffff !important; box-shadow: 0 4px 14px rgba(0,0,0,0.35) !important;">
+                <div id="tgWelcomePreviewBubble" style="color: #ffffff !important; font-size: 13px; line-height: 1.55;">
                   ${formatWelcomePreviewText(currentGlobal)}
                 </div>
                 <div class="tg-chat-meta">

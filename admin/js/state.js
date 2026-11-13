@@ -420,7 +420,7 @@ export async function syncAllFromFirebase(force = false) {
   lastSyncFirebaseTime = now;
 
   try {
-    const targets = ['visitors', 'events', 'orders', 'products', 'categories', 'customers', 'payment', 'settings'];
+    const targets = ['visitors', 'events', 'orders', 'products', 'categories', 'customers', 'payment', 'settings', 'media', 'hero', 'banner'];
 
     // 1. Try Firebase SDK get() on active connection
     let hasSdkChange = false;
@@ -526,7 +526,8 @@ export async function syncAllFromFirebase(force = false) {
                   d.verified = r.status === 'approved' || r.status === 'paid';
                   d.isPaid = r.status === 'approved' || r.status === 'paid';
                 }
-                data[r.id] = { ...d, ...r, id: r.id };
+                const parsedTime = d.timestamp || (r.created_at ? new Date(r.created_at).getTime() : Date.now());
+                data[r.id] = { ...d, ...r, id: r.id, timestamp: parsedTime };
               });
             }
             return { key, data };
@@ -926,21 +927,20 @@ export function stats() {
   const today = formatLocalDate(new Date());
   const isOrderClick = (item) => {
     if (!item) return false;
-    const t = String(item.type || '').toLowerCase();
+    const t = String(item.type || item.eventType || item.event_type || '').toLowerCase();
     if (t === 'telegram_click' || t === 'review_submission' || t === 'visitor') return false;
-    return t.includes('order') || t.includes('click') || Boolean(item.productId || item.package || item.productName);
+    return t.includes('order') || t.includes('click') || Boolean(item.productId || item.package || item.productName || item.product_id);
   };
 
   const matchesDate = (item, targetDate) => {
     if (!item) return false;
-    if (item.date) {
-      const d = String(item.date).trim();
-      if (d.slice(0, 10) === targetDate || formatLocalDate(d) === targetDate) return true;
+    const rawDate = item.date || item.created_at || item.createdAt || item.updated_at || item.updatedAt;
+    if (rawDate) {
+      if (typeof rawDate === 'string' && rawDate.slice(0, 10) === targetDate) return true;
+      if (formatLocalDate(rawDate) === targetDate) return true;
     }
-    const stamp = Number(item.timestamp || item.createdAt || item.updatedAt || 0);
-    if (stamp > 0) {
-      if (formatLocalDate(stamp) === targetDate) return true;
-    }
+    const stamp = Number(item.timestamp || 0);
+    if (stamp > 0 && formatLocalDate(stamp) === targetDate) return true;
     return false;
   };
 
@@ -962,7 +962,11 @@ export function stats() {
 export function recentOrders(limit = 6) {
   return Object.values(STORE.orders || {})
     .filter(Boolean)
-    .sort((a, b) => Number(b.timestamp || b.createdAt || b.updatedAt || 0) - Number(a.timestamp || a.createdAt || a.updatedAt || 0))
+    .sort((a, b) => {
+      const ta = Number(a.timestamp) || (a.created_at ? new Date(a.created_at).getTime() : 0);
+      const tb = Number(b.timestamp) || (b.created_at ? new Date(b.created_at).getTime() : 0);
+      return tb - ta;
+    })
     .slice(0, limit);
 }
 
@@ -973,36 +977,37 @@ export function recentProducts(limit = 6) {
     .slice(0, limit);
 }
 
-export function recentActivity(limit = 10) {
+export function recentActivity(limit = 12) {
   const prettyPage = (page) => {
     const value = String(page || 'Visit').toLowerCase();
-    if (value === 'index' || value === 'home' || value === 'homepage') return 'Homepage';
+    if (value === 'index' || value === 'home' || value === 'homepage' || value === '/') return 'Storefront Home';
+    if (value.includes('payment')) return 'Checkout / Payment';
     return page || 'Visit';
   };
   const orders = recentOrders(limit).map((item) => ({
     type: 'order',
-    title: item.package || item.title || 'Order',
+    title: item.package || item.title || item.product_title || 'Order',
     meta: item.status || 'pending',
-    timestamp: item.timestamp || item.updatedAt || Date.now(),
+    timestamp: Number(item.timestamp) || (item.created_at ? new Date(item.created_at).getTime() : Date.now()),
   }));
   const events = listCollection('events')
-    .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
-    .slice(0, limit)
     .map((item) => ({
-      type: item.type || 'event',
-      title: item.package || item.title || item.label || 'Event',
-      meta: item.page || item.source || item.path || '',
-      timestamp: item.timestamp || Date.now(),
-    }));
-  const visitors = listCollection('visitors')
+      type: item.type || item.eventType || item.event_type || 'event',
+      title: item.product_title || item.productTitle || item.package || item.title || item.label || 'Order Click',
+      meta: item.page || item.source || item.path || 'index',
+      timestamp: Number(item.timestamp) || (item.created_at ? new Date(item.created_at).getTime() : Date.now()),
+    }))
     .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
-    .slice(0, limit)
+    .slice(0, limit);
+  const visitors = listCollection('visitors')
     .map((item) => ({
       type: 'visitor',
       title: prettyPage(item.page),
-      meta: item.date || '',
-      timestamp: item.timestamp || Date.now(),
-    }));
+      meta: item.date || (item.created_at ? String(item.created_at).slice(0, 10) : ''),
+      timestamp: Number(item.timestamp) || (item.created_at ? new Date(item.created_at).getTime() : Date.now()),
+    }))
+    .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
+    .slice(0, limit);
   return [...orders, ...events, ...visitors]
     .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
     .slice(0, limit);
@@ -1038,8 +1043,8 @@ if (typeof window !== 'undefined') {
 
       const [ordersRes, eventsRes, visitorsRes] = await Promise.allSettled([
         fetch(`${supaUrl}/rest/v1/orders?select=id,order_id,product_title,amount,numericAmount,currency,payment_method,utr,telegramUserId,telegramUsername,status,created_at,updated_at,customer_name,customer_phone,channel_link,source_bot_id,payment_proof&order=created_at.desc&limit=30`, { headers, cache: 'no-store', signal: AbortSignal.timeout(3500) }),
-        fetch(`${supaUrl}/rest/v1/events?select=id,event_type,product_id,product_title,visitor_id,created_at&order=created_at.desc&limit=30`, { headers, cache: 'no-store', signal: AbortSignal.timeout(3500) }),
-        fetch(`${supaUrl}/rest/v1/visitors?select=id,ip,user_agent,city,country,created_at,last_seen&order=created_at.desc&limit=30`, { headers, cache: 'no-store', signal: AbortSignal.timeout(3500) })
+        fetch(`${supaUrl}/rest/v1/events?select=*&order=created_at.desc&limit=50`, { headers, cache: 'no-store', signal: AbortSignal.timeout(3500) }),
+        fetch(`${supaUrl}/rest/v1/visitors?select=*&order=created_at.desc&limit=50`, { headers, cache: 'no-store', signal: AbortSignal.timeout(3500) })
       ]);
 
       let hasStateChange = false;
