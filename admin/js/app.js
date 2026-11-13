@@ -415,8 +415,14 @@ function showToast(message, type = 'info') {
 }
 
 function setTheme(theme) {
-  document.body.dataset.theme = theme;
-  localStorage.setItem(APP_CONFIG.themeKey, theme);
+  const t = theme === 'light' ? 'light' : 'dark';
+  document.body.dataset.theme = t;
+  document.body.setAttribute('data-theme', t);
+  if (document.documentElement) {
+    document.documentElement.dataset.theme = t;
+    document.documentElement.setAttribute('data-theme', t);
+  }
+  localStorage.setItem(APP_CONFIG.themeKey, t);
 }
 
 function getTheme() {
