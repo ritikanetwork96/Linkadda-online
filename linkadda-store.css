@@ -1442,6 +1442,11 @@ body.linkadda-store {
   object-fit: cover;
   border-radius: 16px;
   transition: transform 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
+  pointer-events: none !important;
+  -webkit-touch-callout: none !important;
+  -webkit-user-select: none !important;
+  user-select: none !important;
+  -webkit-user-drag: none !important;
 }
 
 .fk-card:hover .fk-card-media img {
@@ -2178,21 +2183,45 @@ body.linkadda-store {
   pointer-events: none !important;
 }
 
-.fk-thumb-item img,
-.fk-thumb-item video {
+.fk-stage-media-wrap {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 10px;
   -webkit-touch-callout: none !important;
   -webkit-user-select: none !important;
   user-select: none !important;
-  -webkit-user-drag: none !important;
-  pointer-events: none !important;
 }
 
+/* 100% Transparent Touch Shields that block Android Chrome Long-Press Image Context Sheets */
+.fk-touch-blocker-shield,
+.fk-thumb-shield,
+.fk-lightbox-shield {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  background: rgba(0, 0, 0, 0.001);
+  pointer-events: auto !important;
+  -webkit-touch-callout: none !important;
+  -webkit-user-select: none !important;
+  user-select: none !important;
+  touch-action: manipulation;
+}
+
+.fk-stage-media-wrap img,
+.fk-thumb-item img,
+.fk-thumb-item video,
 .fk-lightbox-content img,
 .fk-lightbox-content video {
   -webkit-touch-callout: none !important;
   -webkit-user-select: none !important;
   user-select: none !important;
   -webkit-user-drag: none !important;
+  pointer-events: none !important;
 }
 
 .fk-gallery-stage:hover img {

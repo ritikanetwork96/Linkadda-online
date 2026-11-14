@@ -122,14 +122,36 @@
           window.history.replaceState(null, '', cleanPath + window.location.search + window.location.hash);
         }
 
-        // Anti-Copy & Anti-Theft Client Safeguards
-        document.addEventListener('contextmenu', function(e) {
+        // Anti-Copy & Anti-Theft Client Safeguards (Capture Phase to block Android Chrome native URL sheets)
+        ['contextmenu', 'selectstart', 'dragstart'].forEach(function(evt) {
+          window.addEventListener(evt, function(e) {
+            var t = (e.target && e.target.tagName || '').toLowerCase();
+            if (t !== 'input' && t !== 'textarea') {
+              e.preventDefault();
+              e.stopPropagation();
+              return false;
+            }
+          }, { capture: true, passive: false });
+          document.addEventListener(evt, function(e) {
+            var t = (e.target && e.target.tagName || '').toLowerCase();
+            if (t !== 'input' && t !== 'textarea') {
+              e.preventDefault();
+              e.stopPropagation();
+              return false;
+            }
+          }, { capture: true, passive: false });
+        });
+
+        // Cancel mobile touch selection callout
+        window.addEventListener('touchstart', function(e) {
           var t = (e.target && e.target.tagName || '').toLowerCase();
-          if (t !== 'input' && t !== 'textarea') {
-            e.preventDefault();
-            return false;
+          if (t === 'img' || t === 'video' || e.target.closest('.fk-gallery-stage') || e.target.closest('.fk-thumb-item') || e.target.closest('.fk-card-media')) {
+            if (window.getSelection) {
+              var sel = window.getSelection();
+              if (sel.removeAllRanges) sel.removeAllRanges();
+            }
           }
-        }, false);
+        }, { capture: true, passive: true });
 
         document.addEventListener('keydown', function(e) {
           var k = (e.key || '').toLowerCase();
@@ -181,7 +203,7 @@
   </noscript>
   <link rel="icon" type="image/svg+xml" href="favicon.svg" />
   <link rel="stylesheet" href="style.css?v=20261011_v9" />
-  <link rel="stylesheet" href="linkadda-store.css?v=20261114_r2_protect_v1" />
+  <link rel="stylesheet" href="linkadda-store.css?v=20261114_shield_v2" />
   <link rel="stylesheet" href="auth-modal.css?v=20261011_v9" />
   <link rel="stylesheet" href="mobile-app.css?v=20261114_r2_protect_v1" />
   <script src="preload.js?v=20261011_v8" charset="UTF-8"></script>
@@ -2661,11 +2683,12 @@
     const pId = card ? (card.dataset.productId || card.dataset.fbId || '') : '';
     const title = card ? (card.querySelector('.fk-card-title, .pcard-title')?.textContent || '') : '';
     const badge = card ? (card.querySelector('.fk-card-badge-vip, .pcard-pill')?.textContent || '') : '';
+    const R2_ROOT = 'https://pub-81f10c1135f54a719e5d96e8d7896960.r2.dev';
 
     // 1. Try local exact file if not tried yet
     if (!img._triedExact && pId) {
       img._triedExact = true;
-      img.src = `images/prod_${pId}.jpg`;
+      img.src = `${R2_ROOT}/images/prod_${pId}.jpg`;
       return;
     }
 
@@ -2673,17 +2696,17 @@
     if (!img._triedCategory) {
       img._triedCategory = true;
       const fullText = `${title} ${badge}`.toLowerCase();
-      if (fullText.includes('tango') || fullText.includes('stripchat')) img.src = 'images/category21.jpg';
-      else if (fullText.includes('jav') || fullText.includes('japanese')) img.src = 'images/category8.jpg';
-      else if (fullText.includes('chinese')) img.src = 'images/category14.jpg';
-      else if (fullText.includes('desi') || fullText.includes('punjabi') || fullText.includes('indian')) img.src = 'images/category11.jpg';
-      else if (fullText.includes('tamil') || fullText.includes('mallu')) img.src = 'images/category12.jpg';
-      else if (fullText.includes('hijabi') || fullText.includes('arab')) img.src = 'images/category18.jpg';
-      else if (fullText.includes('shemale') || fullText.includes('black')) img.src = 'images/category17.jpg';
-      else if (fullText.includes('hidden') || fullText.includes('cam')) img.src = 'images/category6.jpg';
-      else if (fullText.includes('snap') || fullText.includes('insta')) img.src = 'images/category7.jpg';
-      else if (fullText.includes('college') || fullText.includes('pickup')) img.src = 'images/category13.jpg';
-      else img.src = 'images/category20.jpg';
+      if (fullText.includes('tango') || fullText.includes('stripchat')) img.src = `${R2_ROOT}/category21.jpg`;
+      else if (fullText.includes('jav') || fullText.includes('japanese')) img.src = `${R2_ROOT}/category8.jpg`;
+      else if (fullText.includes('chinese')) img.src = `${R2_ROOT}/category14.jpg`;
+      else if (fullText.includes('desi') || fullText.includes('punjabi') || fullText.includes('indian')) img.src = `${R2_ROOT}/category11.jpg`;
+      else if (fullText.includes('tamil') || fullText.includes('mallu')) img.src = `${R2_ROOT}/category12.jpg`;
+      else if (fullText.includes('hijabi') || fullText.includes('arab')) img.src = `${R2_ROOT}/category18.jpg`;
+      else if (fullText.includes('shemale') || fullText.includes('black')) img.src = `${R2_ROOT}/category17.jpg`;
+      else if (fullText.includes('hidden') || fullText.includes('cam')) img.src = `${R2_ROOT}/category6.jpg`;
+      else if (fullText.includes('snap') || fullText.includes('insta')) img.src = `${R2_ROOT}/category7.jpg`;
+      else if (fullText.includes('college') || fullText.includes('pickup')) img.src = `${R2_ROOT}/category13.jpg`;
+      else img.src = `${R2_ROOT}/category20.jpg`;
       return;
     }
 
@@ -2916,10 +2939,10 @@
         return clean;
       }
       if (clean.startsWith('images/') || clean.startsWith('/images/')) {
-        return clean.startsWith('/') ? clean.substring(1) : clean;
+        return `${R2_CDN_ROOT}/${clean.replace(/^\/+/, '')}`;
       }
       if (/^photo_\d+/.test(clean)) {
-        return `images/${clean}`;
+        return `${R2_CDN_ROOT}/${clean}`;
       }
       if (clean.startsWith('products/') || clean.startsWith('categories/')) {
         return `${R2_CDN_ROOT}/${clean}`;
@@ -7210,7 +7233,7 @@
 
   <script type="module" src="media-resolver.js?v=20261013_v1"></script>
   <script src="live-ticker.js?v=20261013_v1"></script>
-  <script src="linkadda-store.js?v=20261114_r2_protect_v1"></script>
+  <script src="linkadda-store.js?v=20261114_shield_v2"></script>
   <script type="module" src="auth-modal.js?v=20261104_dynamic_tg_v2"></script>
 </body>
 </html>

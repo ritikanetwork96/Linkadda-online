@@ -18,6 +18,37 @@
   window.__fkActiveVariantIdx = 0;
   window.__currentCurrency = localStorage.getItem('linkadda_currency') || 'INR';
 
+  // 100% Mobile Long-Press / Native Image Action Sheet Blocker (Capture Phase)
+  ['contextmenu', 'selectstart', 'dragstart'].forEach(function(evt) {
+    window.addEventListener(evt, function(e) {
+      const tag = (e.target && e.target.tagName || '').toLowerCase();
+      if (tag !== 'input' && tag !== 'textarea') {
+        e.preventDefault();
+        e.stopPropagation();
+        return false;
+      }
+    }, { capture: true, passive: false });
+    document.addEventListener(evt, function(e) {
+      const tag = (e.target && e.target.tagName || '').toLowerCase();
+      if (tag !== 'input' && tag !== 'textarea') {
+        e.preventDefault();
+        e.stopPropagation();
+        return false;
+      }
+    }, { capture: true, passive: false });
+  });
+
+  // Cancel Android Chrome selection/callout on touchstart
+  window.addEventListener('touchstart', function(e) {
+    const tag = (e.target && e.target.tagName || '').toLowerCase();
+    if (tag === 'img' || tag === 'video' || e.target.closest('.fk-gallery-stage') || e.target.closest('.fk-thumb-item') || e.target.closest('.fk-card-media')) {
+      if (window.getSelection) {
+        const sel = window.getSelection();
+        if (sel.removeAllRanges) sel.removeAllRanges();
+      }
+    }
+  }, { capture: true, passive: true });
+
   // Helper string hash for deterministic fallback stats
   function hashStr(str) {
     if (typeof window.hashId === 'function') return window.hashId(str);
@@ -639,13 +670,18 @@
         stage.innerHTML = `
           ${bgHtml}
           ${zoomBadge}
-          <video src="${item.url}" autoplay muted loop playsinline controls style="max-width:100%;max-height:460px;margin:0 auto;display:block;border-radius:10px;" onerror="window.handleFkVideoError ? window.handleFkVideoError(this, '${fallbackPoster}', ${idx}, '${prodTitleSafe}') : null;"></video>
+          <div class="fk-stage-media-wrap" style="position:relative;width:100%;height:100%;display:flex;align-items:center;justify-content:center;overflow:hidden;border-radius:10px;">
+            <video src="${item.url}" autoplay muted loop playsinline controls style="max-width:100%;max-height:460px;margin:0 auto;display:block;border-radius:10px;" onerror="window.handleFkVideoError ? window.handleFkVideoError(this, '${fallbackPoster}', ${idx}, '${prodTitleSafe}') : null;"></video>
+          </div>
         `;
       } else {
         stage.innerHTML = `
           ${bgHtml}
           ${zoomBadge}
-          <img src="${item.url}" alt="Preview" draggable="false" oncontextmenu="return false;" style="max-width:100%;max-height:460px;object-fit:contain;margin:0 auto;display:block;border-radius:10px;pointer-events:none;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;" onerror="window.handleFkMediaImgError ? window.handleFkMediaImgError(this, '${prodTitleSafe}') : null;" />
+          <div class="fk-stage-media-wrap" style="position:relative;width:100%;height:100%;display:flex;align-items:center;justify-content:center;overflow:hidden;border-radius:10px;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;" oncontextmenu="return false;">
+            <img src="${item.url}" alt="Preview" draggable="false" oncontextmenu="return false;" style="max-width:100%;max-height:460px;object-fit:contain;margin:0 auto;display:block;border-radius:10px;pointer-events:none;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;-webkit-user-drag:none;" onerror="window.handleFkMediaImgError ? window.handleFkMediaImgError(this, '${prodTitleSafe}') : null;" />
+            <div class="fk-touch-blocker-shield" style="position:absolute;inset:0;z-index:4;background:rgba(0,0,0,0.001);-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;touch-action:manipulation;" oncontextmenu="return false;"></div>
+          </div>
         `;
       }
     }
@@ -660,10 +696,10 @@
 
     // Always render thumbnail strip whenever media exists
     thumbs.innerHTML = mediaList.map((m, idx) => `
-      <div class="fk-thumb-item ${idx === 0 ? 'active' : ''}" data-idx="${idx}">
+      <div class="fk-thumb-item ${idx === 0 ? 'active' : ''}" data-idx="${idx}" style="position:relative;overflow:hidden;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;" oncontextmenu="return false;">
         ${m.type === 'vid'
           ? '<div style="width:100%;height:100%;background:#090a12;display:flex;align-items:center;justify-content:center;color:#e11d48;"><i class="fa-solid fa-play"></i></div>'
-          : `<img src="${m.url}" alt="Thumb" loading="lazy" onerror="window.handleFkMediaImgError ? window.handleFkMediaImgError(this, '${prodTitleSafe}') : null;" />`}
+          : `<img src="${m.url}" alt="Thumb" loading="lazy" draggable="false" style="pointer-events:none;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;-webkit-user-drag:none;" onerror="window.handleFkMediaImgError ? window.handleFkMediaImgError(this, '${prodTitleSafe}') : null;" /><div class="fk-thumb-shield" style="position:absolute;inset:0;z-index:3;background:rgba(0,0,0,0.001);" oncontextmenu="return false;"></div>`}
       </div>
     `).join('');
 
@@ -700,7 +736,12 @@
     if (current.type === 'vid') {
       content.innerHTML = `<video src="${current.url}" autoplay controls loop playsinline class="fk-lightbox-item" onerror="window.handleFkVideoError ? window.handleFkVideoError(this, '', window.__fkLightboxIndex, '') : null;"></video>`;
     } else {
-      content.innerHTML = `<img src="${current.url}" alt="Fullscreen 4K Preview" class="fk-lightbox-item" onerror="window.handleFkMediaImgError ? window.handleFkMediaImgError(this, '') : null;" />`;
+      content.innerHTML = `
+        <div style="position:relative;display:flex;align-items:center;justify-content:center;width:100%;height:100%;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;" oncontextmenu="return false;">
+          <img src="${current.url}" alt="Fullscreen 4K Preview" class="fk-lightbox-item" draggable="false" style="pointer-events:none;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;-webkit-user-drag:none;" onerror="window.handleFkMediaImgError ? window.handleFkMediaImgError(this, '') : null;" />
+          <div class="fk-lightbox-shield" style="position:absolute;inset:0;z-index:10;background:rgba(0,0,0,0.001);-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;touch-action:manipulation;" oncontextmenu="return false;"></div>
+        </div>
+      `;
     }
 
     if (counter) {
