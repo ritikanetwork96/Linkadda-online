@@ -13805,8 +13805,8 @@ body[data-theme="light"] {
   color: #64748b !important;
 }
 
-[data-theme="light"] strong,
-[data-theme="light"] b {
+[data-theme="light"] strong:not(.tg-phone-frame *):not(.tg-chat-bubble *),
+[data-theme="light"] b:not(.tg-phone-frame *):not(.tg-chat-bubble *) {
   color: #0f172a !important;
 }
 

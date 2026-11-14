@@ -254,8 +254,13 @@ export async function syncBotsFromSupabase(force = false) {
             }
           }
           if (row.key === 'tg_connected_bots' && row.value && typeof row.value === 'object') {
-            store.bots = { ...row.value };
-            changed = true;
+            const remoteBots = Array.isArray(row.value)
+              ? row.value.reduce((acc, b) => { if (b && (b.id || b.botId)) acc[`bot_${String(b.id || b.botId).replace(/^bot_/, '')}`] = b; return acc; }, {})
+              : row.value;
+            if (Object.keys(remoteBots).length > 0) {
+              store.bots = { ...(store.bots || {}), ...remoteBots };
+              changed = true;
+            }
           }
           if (row.key === 'tg_admin_chat_ids' && Array.isArray(row.value)) {
             store.admins = row.value.map(s => String(s).trim()).filter(Boolean);

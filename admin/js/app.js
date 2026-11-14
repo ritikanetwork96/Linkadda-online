@@ -10512,7 +10512,7 @@ function renderOrdersManagementView(data = {}, fullData = {}) {
           
           <div style="background: rgba(99, 102, 241, 0.06); border: 1px solid rgba(99, 102, 241, 0.2); border-radius: 14px; padding: 16px 18px;">
             <div style="font-size: 11px; font-weight: 700; color: #818cf8; text-transform: uppercase; letter-spacing: 0.05em;">Total Orders</div>
-            <div style="font-size: 26px; font-weight: 800; color: #fff; margin-top: 4px;">${totals.total}</div>
+            <div style="font-size: 26px; font-weight: 800; color: var(--text); margin-top: 4px;">${totals.total}</div>
             <div style="font-size: 12px; color: var(--muted); margin-top: 2px;">All customer records</div>
           </div>
 
@@ -10534,7 +10534,7 @@ function renderOrdersManagementView(data = {}, fullData = {}) {
               <span style="font-size: 10px; font-weight: 700; color: #34d399; background: rgba(16, 185, 129, 0.15); padding: 1px 6px; border-radius: 4px;">APPROVED ONLY</span>
             </div>
             <div style="margin-top: 6px; display: flex; flex-direction: column; gap: 3px;">
-              <div style="font-size: 22px; font-weight: 850; color: #fff; line-height: 1.2;">₹${formatNumber(totals.totalReceivedINR)} <span style="font-size: 11px; font-weight: 700; color: #818cf8;">INR</span></div>
+              <div style="font-size: 22px; font-weight: 850; color: var(--text); line-height: 1.2;">₹${formatNumber(totals.totalReceivedINR)} <span style="font-size: 11px; font-weight: 700; color: #818cf8;">INR</span></div>
               <div style="font-size: 15px; font-weight: 750; color: #34d399; line-height: 1.2;">$${formatNumber(totals.totalReceivedUSDT)} <span style="font-size: 11px; font-weight: 700; color: #34d399;">USDT</span></div>
             </div>
             <div style="font-size: 12px; color: var(--muted); margin-top: 4px;">${totals.paid} verified order${totals.paid === 1 ? '' : 's'}</div>

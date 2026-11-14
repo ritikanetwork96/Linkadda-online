@@ -9,6 +9,8 @@ img, video {
   -webkit-touch-callout: none !important;
   -webkit-user-select: none !important;
   user-select: none !important;
+  -webkit-user-drag: none !important;
+  pointer-events: none !important;
 }
 
 /* ━━ 1. FULL-PAGE NATIVE APP ACCOUNT VIEW (LINKADDA NATIVE STANDARD) ━━ */

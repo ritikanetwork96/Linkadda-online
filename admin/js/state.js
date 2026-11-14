@@ -849,6 +849,27 @@ export async function deleteRecord(node, id) {
         await remove(nodeRef(node, alternateId));
       } catch (_) {}
     }
+
+    // ⚡ Guaranteed Permanent Supabase REST DELETE (bypasses cache & prevents polling resurgence)
+    try {
+      const supaUrl = 'https://xazhsjotzoentrkminol.supabase.co';
+      const supaKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhhemhzam90em9lbnRya21pbm9sIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5NDU2MTM2NCwiZXhwIjoyMTEwMTM3MzY0fQ.sO_ZTRbmS7XInvK8YE6XEGz37URqzVmxxtsRABCGfHw';
+      const hdrs = { 'apikey': supaKey, 'Authorization': `Bearer ${supaKey}` };
+      if (node === 'orders') {
+        await Promise.allSettled([
+          fetch(`${supaUrl}/rest/v1/orders?id=eq.${encodeURIComponent(targetKey)}`, { method: 'DELETE', headers: hdrs }),
+          fetch(`${supaUrl}/rest/v1/orders?order_id=eq.${encodeURIComponent(targetKey)}`, { method: 'DELETE', headers: hdrs }),
+          ...(alternateId ? [
+            fetch(`${supaUrl}/rest/v1/orders?id=eq.${encodeURIComponent(alternateId)}`, { method: 'DELETE', headers: hdrs }),
+            fetch(`${supaUrl}/rest/v1/orders?order_id=eq.${encodeURIComponent(alternateId)}`, { method: 'DELETE', headers: hdrs })
+          ] : [])
+        ]);
+      } else if (node === 'products' || node === 'categories' || node === 'events' || node === 'visitors') {
+        await fetch(`${supaUrl}/rest/v1/${node}?id=eq.${encodeURIComponent(targetKey)}`, { method: 'DELETE', headers: hdrs }).catch(() => {});
+      }
+    } catch (supaErr) {
+      console.warn(`Supabase permanent DELETE error for ${node}:`, supaErr);
+    }
   }
 }
 
@@ -1054,7 +1075,18 @@ if (typeof window !== 'undefined') {
         const rows = await ordersRes.value.json().catch(() => []);
         if (Array.isArray(rows) && rows.length) {
           if (!STORE.orders || typeof STORE.orders !== 'object') STORE.orders = {};
+          const deletedIds = getDeletedOrderIds();
           rows.forEach(r => {
+            const orderIdStr = String(r.id || '');
+            const rawOrderId = String(r.order_id || (r.data && (r.data.orderId || r.data.id)) || '');
+            // Filter out locally or previously deleted orders immediately
+            if (deletedIds.has(orderIdStr) || (rawOrderId && deletedIds.has(rawOrderId))) {
+              if (STORE.orders[r.id]) {
+                delete STORE.orders[r.id];
+                hasStateChange = true;
+              }
+              return;
+            }
             const d = { ...(r.data || {}) };
             if (r.status === 'approved' || r.status === 'rejected' || r.status === 'paid' || r.status === 'completed') {
               d.status = r.status;
