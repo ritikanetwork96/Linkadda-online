@@ -640,13 +640,30 @@
     const fallbackPoster = images[0] || (prod.image ? String(prod.image).trim() : '') || '';
     const prodTitleSafe = String(prod.title || prod.name || 'Pack').replace(/'/g, "\\'");
 
+    // Deduplicate media by file key to ensure zero duplicates
     const mediaList = [];
-    videos.forEach((v) => mediaList.push({ type: 'vid', url: v }));
-    images.forEach((img) => mediaList.push({ type: 'img', url: img }));
+    const seenMediaKeys = new Set();
+
+    videos.forEach((v) => {
+      const k = String(v).split('?')[0].split('/').pop().toLowerCase();
+      if (k && !seenMediaKeys.has(k)) {
+        seenMediaKeys.add(k);
+        mediaList.push({ type: 'vid', url: v });
+      }
+    });
+
+    images.forEach((img) => {
+      const k = String(img).split('?')[0].split('/').pop().toLowerCase();
+      if (k && !seenMediaKeys.has(k)) {
+        seenMediaKeys.add(k);
+        mediaList.push({ type: 'img', url: img });
+      }
+    });
 
     if (!mediaList.length) {
       stage.innerHTML = '<div style="color:#737289;font-size:14px;display:flex;flex-direction:column;align-items:center;gap:8px;"><i class="fa-solid fa-film" style="font-size:32px;color:#e11d48;"></i><span>4K VIP Media Preview</span></div>';
       thumbs.innerHTML = '';
+      thumbs.style.display = 'none';
       return;
     }
 
@@ -694,23 +711,29 @@
     window.__fkActiveMediaList = mediaList;
     setStage(0);
 
-    // Always render thumbnail strip whenever media exists
-    thumbs.innerHTML = mediaList.map((m, idx) => `
-      <div class="fk-thumb-item ${idx === 0 ? 'active' : ''}" data-idx="${idx}" style="position:relative;overflow:hidden;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;" oncontextmenu="return false;">
-        ${m.type === 'vid'
-          ? '<div style="width:100%;height:100%;background:#090a12;display:flex;align-items:center;justify-content:center;color:#e11d48;"><i class="fa-solid fa-play"></i></div>'
-          : `<img src="${m.url}" alt="Thumb" loading="lazy" draggable="false" style="pointer-events:none;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;-webkit-user-drag:none;" onerror="window.handleFkMediaImgError ? window.handleFkMediaImgError(this, '${prodTitleSafe}') : null;" /><div class="fk-thumb-shield" style="position:absolute;inset:0;z-index:3;background:rgba(0,0,0,0.001);" oncontextmenu="return false;"></div>`}
-      </div>
-    `).join('');
+    // Only render thumbnail strip when there are multiple media items (2+)
+    if (mediaList.length <= 1) {
+      thumbs.innerHTML = '';
+      thumbs.style.display = 'none';
+    } else {
+      thumbs.style.display = 'flex';
+      thumbs.innerHTML = mediaList.map((m, idx) => `
+        <div class="fk-thumb-item ${idx === 0 ? 'active' : ''}" data-idx="${idx}" style="position:relative;overflow:hidden;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;" oncontextmenu="return false;">
+          ${m.type === 'vid'
+            ? '<div style="width:100%;height:100%;background:#090a12;display:flex;align-items:center;justify-content:center;color:#e11d48;"><i class="fa-solid fa-play"></i></div>'
+            : `<img src="${m.url}" alt="Thumb" loading="lazy" draggable="false" style="pointer-events:none;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;-webkit-user-drag:none;" onerror="window.handleFkMediaImgError ? window.handleFkMediaImgError(this, '${prodTitleSafe}') : null;" /><div class="fk-thumb-shield" style="position:absolute;inset:0;z-index:3;background:rgba(0,0,0,0.001);" oncontextmenu="return false;"></div>`}
+        </div>
+      `).join('');
 
-    thumbs.onclick = (e) => {
-      const thumb = e.target.closest('.fk-thumb-item');
-      if (!thumb) return;
-      thumbs.querySelectorAll('.fk-thumb-item').forEach(t => t.classList.remove('active'));
-      thumb.classList.add('active');
-      const idx = Number(thumb.dataset.idx || 0);
-      setStage(idx);
-    };
+      thumbs.onclick = (e) => {
+        const thumb = e.target.closest('.fk-thumb-item');
+        if (!thumb) return;
+        thumbs.querySelectorAll('.fk-thumb-item').forEach(t => t.classList.remove('active'));
+        thumb.classList.add('active');
+        const idx = Number(thumb.dataset.idx || 0);
+        setStage(idx);
+      };
+    }
   }
 
   // --- FULLSCREEN 4K LIGHTBOX MODAL (MULTI-IMAGE SLIDER) ---

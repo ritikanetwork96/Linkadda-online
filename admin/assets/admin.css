@@ -14191,26 +14191,26 @@ body[data-theme="light"] {
   padding: 24px 28px;
   border-radius: 18px;
   margin-bottom: 24px;
-  border: 1px solid rgba(99, 102, 241, 0.35);
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, rgba(15, 23, 42, 0.8) 100%);
+  border: 1px solid var(--border);
+  background: var(--card-bg, #111827);
 }
 
 .tg-hero-metric-card {
-  background: linear-gradient(135deg, rgba(255,255,255,0.04) 0%, rgba(15,23,42,0.7) 100%);
-  backdrop-filter: blur(14px);
-  border: 1px solid rgba(255,255,255,0.08);
+  background: var(--card-bg, #111827);
+  border: 1px solid var(--border, rgba(255,255,255,0.08));
   border-radius: 14px;
-  padding: 14px 16px;
+  padding: 16px 18px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  gap: 6px;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+  gap: 8px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.15);
   transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 
 .tg-hero-metric-card:hover {
   transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.2);
 }
 
 .tg-metric-title {
@@ -14222,9 +14222,9 @@ body[data-theme="light"] {
 }
 
 .tg-metric-icon {
-  width: 26px;
-  height: 26px;
-  border-radius: 7px;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -14239,7 +14239,7 @@ body[data-theme="light"] {
   border-radius: 16px;
   border: 1px solid var(--border);
   margin-bottom: 24px;
-  background: linear-gradient(180deg, rgba(99, 102, 241, 0.03) 0%, rgba(15, 23, 42, 0.6) 100%);
+  background: var(--card-bg, #111827);
 }
 
 .tg-channel-deck-wrapper {
@@ -14384,46 +14384,67 @@ body[data-theme="light"] {
 }
 
 .tg-placeholder-box {
-  background: rgba(0, 0, 0, 0.22);
+  background: var(--panel-soft, rgba(0, 0, 0, 0.22));
   border-radius: 12px;
-  padding: 12px 16px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  padding: 14px 18px;
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.08));
   margin-bottom: 18px;
 }
 
 .tg-placeholder-title {
-  font-size: 11px;
+  font-size: 11.5px;
   font-weight: 700;
   text-transform: uppercase;
-  color: var(--muted);
+  color: var(--text-secondary, var(--muted));
   letter-spacing: 0.05em;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
+}
+
+.tg-tag-pill {
+  font-size: 12px;
+  padding: 5px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  background: var(--card-bg, rgba(255, 255, 255, 0.05));
+  color: var(--text, #f8fafc);
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.tg-tag-pill:hover {
+  background: #6366f1;
+  color: #ffffff;
+  border-color: #6366f1;
+  transform: translateY(-1px);
 }
 
 .tg-bot-welcome-card {
-  background: rgba(15, 23, 42, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--card-bg, #111827);
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.08));
   border-radius: 14px;
-  padding: 16px 18px;
+  padding: 18px 20px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   gap: 12px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
   transition: all 0.2s ease;
 }
 
 .tg-bot-welcome-card.is-custom {
   border-color: rgba(168, 85, 247, 0.4);
-  background: linear-gradient(135deg, rgba(168, 85, 247, 0.06) 0%, rgba(15, 23, 42, 0.7) 100%);
 }
 
 .tg-bot-welcome-snippet {
-  background: rgba(0, 0, 0, 0.25);
+  background: var(--panel-soft, rgba(0, 0, 0, 0.25));
   border-radius: 8px;
   padding: 10px 12px;
   font-size: 12px;
-  color: var(--muted);
-  border: 1px solid rgba(255, 255, 255, 0.04);
+  color: var(--text-secondary, var(--muted));
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.04));
   margin-bottom: 12px;
   max-height: 80px;
   overflow: hidden;
@@ -14470,7 +14491,18 @@ body[data-theme="light"] {
 .tg-chat-bubble strong,
 .tg-chat-bubble span,
 .tg-chat-bubble div,
-.tg-chat-bubble p {
+.tg-chat-bubble p,
+[data-theme="light"] .tg-phone-frame,
+[data-theme="light"] .tg-phone-frame *:not(.tg-phone-avatar):not(.tg-mockup-btn *):not(code):not(a),
+[data-theme="light"] .tg-phone-topbar *,
+[data-theme="light"] .tg-phone-screen-body *,
+[data-theme="light"] .tg-chat-bubble,
+[data-theme="light"] .tg-chat-bubble *,
+[data-theme="light"] .tg-chat-bubble b,
+[data-theme="light"] .tg-chat-bubble strong,
+[data-theme="light"] .tg-chat-bubble span,
+[data-theme="light"] .tg-chat-bubble div,
+[data-theme="light"] .tg-chat-bubble p {
   color: #ffffff !important;
 }
 
@@ -14540,6 +14572,19 @@ body[data-theme="light"] {
   background: #ffffff !important;
   border: 1px solid #e2e8f0 !important;
   box-shadow: 0 4px 16px -2px rgba(15, 23, 42, 0.06), 0 1px 3px rgba(15, 23, 42, 0.04) !important;
+}
+
+[data-theme="light"] .tg-metric-fleet {
+  border-left: 3.5px solid #0284c7 !important;
+}
+[data-theme="light"] .tg-metric-webhook {
+  border-left: 3.5px solid #059669 !important;
+}
+[data-theme="light"] .tg-metric-audience {
+  border-left: 3.5px solid #d97706 !important;
+}
+[data-theme="light"] .tg-metric-admins {
+  border-left: 3.5px solid #7c3aed !important;
 }
 
 [data-theme="light"] .tg-hero-metric-card:hover {

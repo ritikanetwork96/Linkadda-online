@@ -9238,16 +9238,6 @@ function renderTelegramBotPageView(data = {}) {
           </div>
 
         </div>
-                <i data-lucide="shield-check" style="width: 14px; height: 14px;"></i>
-              </div>
-            </div>
-            <div style="font-size: 16px; font-weight: 800; color: #a855f7; display: flex; align-items: center; gap: 6px;">
-              <span id="tgAdminsStatCount">${admins.length}</span> <span>Authorized Admins</span>
-            </div>
-            <small style="display: block; color: var(--muted); font-size: 11px;">Live order proof & approval alerts</small>
-          </div>
-
-        </div>
       </section>
 
       <!-- Prominent Quick Navigation Tabs (Active state preserved across re-renders!) -->

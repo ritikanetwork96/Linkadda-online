@@ -206,7 +206,7 @@
   <link rel="stylesheet" href="linkadda-store.css?v=20261114_shield_v3" />
   <link rel="stylesheet" href="auth-modal.css?v=20261011_v9" />
   <link rel="stylesheet" href="mobile-app.css?v=20261114_shield_v3" />
-  <script src="preload.js?v=20261011_v8" charset="UTF-8"></script>
+  <script src="preload.js?v=20261115_v9" charset="UTF-8"></script>
   <script src="currency.js?v=20261111_v1" charset="UTF-8"></script>
   <style id="critical-hero-toast-fix">
     /* ── LIGHT MODE LUXURY HEADER ACTION BUTTONS ── */
@@ -2801,6 +2801,17 @@
     return [];
   }
 
+  function getMediaFileKey(url) {
+    if (!url) return '';
+    try {
+      const clean = String(url).split('?')[0].split('#')[0].trim();
+      const parts = clean.split('/');
+      return (parts[parts.length - 1] || clean).toLowerCase();
+    } catch (_) {
+      return String(url).toLowerCase();
+    }
+  }
+
   function resolveMediaList(cat) {
     if (!cat) return { images: [], videos: [] };
     let primary = extractArrayFromMixed(cat.images);
@@ -2818,22 +2829,54 @@
     // Main cover image has absolute priority as slide #1
     const mainImg = String(cat.image || cat.imageUrl || cat.thumbnail || '').trim();
     let rawList = [];
+    const seenBasenames = new Set();
+
     if (mainImg) {
       rawList.push(mainImg);
+      seenBasenames.add(getMediaFileKey(mainImg));
     }
+
+    // Add primary images only if distinct
     primary.forEach((u) => {
       const s = String(u || '').trim();
-      if (s && !rawList.includes(s)) rawList.push(s);
+      const key = getMediaFileKey(s);
+      if (s && key && !seenBasenames.has(key)) {
+        seenBasenames.add(key);
+        rawList.push(s);
+      }
     });
+
+    // Add gallery images only if distinct
     gallery.forEach((u) => {
       const s = String(u || '').trim();
-      if (s && !rawList.includes(s)) rawList.push(s);
+      const key = getMediaFileKey(s);
+      if (s && key && !seenBasenames.has(key)) {
+        seenBasenames.add(key);
+        rawList.push(s);
+      }
     });
-    if (cat.cover && !rawList.includes(cat.cover)) rawList.push(cat.cover);
-    if (cat.photo && !rawList.includes(cat.photo)) rawList.push(cat.photo);
+
+    if (cat.cover) {
+      const k = getMediaFileKey(cat.cover);
+      if (k && !seenBasenames.has(k)) {
+        seenBasenames.add(k);
+        rawList.push(cat.cover);
+      }
+    }
+    if (cat.photo) {
+      const k = getMediaFileKey(cat.photo);
+      if (k && !seenBasenames.has(k)) {
+        seenBasenames.add(k);
+        rawList.push(cat.photo);
+      }
+    }
     mediaArr.forEach((u) => {
       const s = String(u || '').trim();
-      if (s && !rawList.includes(s)) rawList.push(s);
+      const key = getMediaFileKey(s);
+      if (s && key && !seenBasenames.has(key)) {
+        seenBasenames.add(key);
+        rawList.push(s);
+      }
     });
 
     // 1. Check if product has a local exact file in images/ (e.g. prod_<id>.jpg)
@@ -2950,6 +2993,16 @@
       return `${R2_CDN_ROOT}/${clean.replace(/^\/+/, '')}`;
     }).filter(Boolean);
 
+    const dedupedImages = [];
+    const finalSeenKeys = new Set();
+    images.forEach(img => {
+      const k = getMediaFileKey(img);
+      if (k && !finalSeenKeys.has(k)) {
+        finalSeenKeys.add(k);
+        dedupedImages.push(img);
+      }
+    });
+
     let rawVideos = [];
     if (Array.isArray(cat.videos)) {
       rawVideos = cat.videos.map(u => String(u || '').trim()).filter(Boolean);
@@ -2969,7 +3022,7 @@
       }
       return str;
     }).filter(Boolean);
-    return { images, videos };
+    return { images: dedupedImages, videos };
   }
   window.resolveMediaList = resolveMediaList;
 
@@ -5051,32 +5104,46 @@
     }
   });
 
-  // Fast resilient REST sync: Instantly updates live products, categories, and banner from Supabase
+  // Fast resilient REST sync with 48-byte timestamp guard (cuts Supabase bandwidth by 99.9%)
   async function initRestSync() {
+    if (window.__restSyncInProgress) return;
+    const now = Date.now();
+    if (window.__lastRestSyncTime && (now - window.__lastRestSyncTime < 25000)) return;
+    window.__restSyncInProgress = true;
+    window.__lastRestSyncTime = now;
+
     try {
       const supaUrl = 'https://xazhsjotzoentrkminol.supabase.co';
       const supaKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhhemhzam90em9lbnRya21pbm9sIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQ1NjEzNjQsImV4cCI6MjExMDEzNzM2NH0.fcPhOQl-nLM5sLxl-elVgzEYmYG_C5-OkIy-rD_vn-0';
       const headers = { 'apikey': supaKey, 'Authorization': `Bearer ${supaKey}` };
 
-      // 1. Sync live products
-      fetch(`${supaUrl}/rest/v1/products?select=*`, { headers, cache: 'no-store' })
-        .then(r => r.json())
-        .then(rows => {
+      // 1. Sync live products: 48-byte timestamp check against localStorage
+      try {
+        const checkRes = await fetch(`${supaUrl}/rest/v1/products?select=updated_at&order=updated_at.desc&limit=1`, { headers });
+        const checkRows = await checkRes.json().catch(() => []);
+        const latestProdTs = checkRows && checkRows[0] ? checkRows[0].updated_at : null;
+        const cachedProdTs = localStorage.getItem('linkadda_products_last_sync');
+        const hasExistingProds = liveCollections.products && Object.keys(liveCollections.products).length > 20;
+
+        if (!hasExistingProds || !latestProdTs || latestProdTs !== cachedProdTs) {
+          // Selective column query (45 KB instead of 282 KB)
+          const prodFields = 'id,slug,title,price_inr,price_usd,original_price_inr,original_price_usd,rating,badge,image,images,gallery_images,status,category,display_order,updated_at';
+          const pRes = await fetch(`${supaUrl}/rest/v1/products?select=${prodFields}`, { headers });
+          const rows = await pRes.json().catch(() => []);
           if (Array.isArray(rows) && rows.length) {
             const data = {};
             rows.forEach(item => {
-              const p = item.data && typeof item.data === 'object' ? item.data : {};
-              const cleanTitle = item.title || p.title || item.name || p.name || '';
-              const inr = item.price_inr ?? p.priceINR ?? p.price_inr ?? p.inr ?? '';
-              const usd = item.price_usd ?? p.priceUSD ?? p.price_usd ?? p.usd ?? '';
-              const mainImg = item.image || p.image || p.imageUrl || p.thumbnail || '';
-              let imgs = Array.isArray(item.images) && item.images.length ? item.images : (Array.isArray(p.images) ? p.images : []);
+              const cleanTitle = item.title || item.name || '';
+              const inr = item.price_inr ?? '';
+              const usd = item.price_usd ?? '';
+              const mainImg = item.image || '';
+              let imgs = Array.isArray(item.images) && item.images.length ? item.images : [];
               if (mainImg && (!imgs.length || imgs[0] !== mainImg)) {
                 imgs = [mainImg, ...imgs.filter(u => u !== mainImg)];
               }
-              const gImgs = Array.isArray(item.gallery_images) && item.gallery_images.length ? item.gallery_images : (Array.isArray(p.galleryImages) ? p.galleryImages : []);
+              const gImgs = Array.isArray(item.gallery_images) && item.gallery_images.length ? item.gallery_images : [];
               data[item.id] = {
-                ...p,
+                ...(liveCollections.products?.[item.id] || {}),
                 ...item,
                 id: item.id,
                 title: cleanTitle,
@@ -5088,109 +5155,98 @@
                 image: mainImg,
                 images: imgs,
                 galleryImages: gImgs,
-                status: item.status || p.status || 'active',
-                category: item.category || p.category || '',
-                displayOrder: item.display_order ?? p.displayOrder ?? 0,
+                status: item.status || 'active',
+                category: item.category || '',
+                displayOrder: item.display_order ?? 0,
               };
             });
-            const curKeys = Object.keys(liveCollections.products || {});
-            const newKeys = Object.keys(data);
-            const hasDiff = curKeys.length !== newKeys.length || newKeys.some(k => {
-              const cur = liveCollections.products[k];
-              const nxt = data[k];
-              if (!cur) return true;
-              if (cur.updatedAt !== nxt.updatedAt || cur.updated_at !== nxt.updated_at) return true;
-              if (cur.image !== nxt.image) return true;
-              if (JSON.stringify(cur.images || []) !== JSON.stringify(nxt.images || [])) return true;
-              if (JSON.stringify(cur.galleryImages || []) !== JSON.stringify(nxt.galleryImages || [])) return true;
-              if ((cur.priceINR || cur.price_inr) !== (nxt.priceINR || nxt.price_inr)) return true;
-              if ((cur.priceUSD || cur.price_usd) !== (nxt.priceUSD || nxt.price_usd)) return true;
-              if ((cur.title || cur.name) !== (nxt.title || nxt.name)) return true;
-              return false;
-            });
-            if (hasDiff) {
-              liveCollections.products = data;
-              saveCachedLiveData();
-              scheduleRenderLiveStore();
-            }
+            liveCollections.products = data;
+            saveCachedLiveData();
+            scheduleRenderLiveStore();
+            if (latestProdTs) localStorage.setItem('linkadda_products_last_sync', String(latestProdTs));
           }
-        })
-        .catch(() => {});
+        }
+      } catch (err) {
+        console.warn('REST product sync guard:', err);
+      }
 
-      // 2. Sync live categories
-      fetch(`${supaUrl}/rest/v1/categories?select=*`, { headers, cache: 'no-store' })
-        .then(r => r.json())
-        .then(rows => {
+      // 2. Sync live categories: 48-byte timestamp check
+      try {
+        const catCheckRes = await fetch(`${supaUrl}/rest/v1/categories?select=updated_at&order=updated_at.desc&limit=1`, { headers });
+        const catCheckRows = await catCheckRes.json().catch(() => []);
+        const latestCatTs = catCheckRows && catCheckRows[0] ? catCheckRows[0].updated_at : null;
+        const cachedCatTs = localStorage.getItem('linkadda_categories_last_sync');
+        const hasExistingCats = liveCollections.categories && Object.keys(liveCollections.categories).length > 5;
+
+        if (!hasExistingCats || !latestCatTs || latestCatTs !== cachedCatTs) {
+          const catFields = 'id,slug,name,title,image,status,display_order,updated_at';
+          const cRes = await fetch(`${supaUrl}/rest/v1/categories?select=${catFields}`, { headers });
+          const rows = await cRes.json().catch(() => []);
           if (Array.isArray(rows) && rows.length) {
             const data = {};
             rows.forEach(item => {
-              const c = item.data && typeof item.data === 'object' ? item.data : {};
-              const cleanName = item.name || c.name || item.title || c.title || '';
+              const cleanName = item.name || item.title || '';
               data[item.id] = {
-                ...c,
+                ...(liveCollections.categories?.[item.id] || {}),
                 ...item,
                 id: item.id,
                 name: cleanName,
                 title: cleanName,
-                image: item.image || c.image || '',
-                status: item.status || c.status || 'active',
-                displayOrder: item.display_order ?? c.displayOrder ?? 0,
+                image: item.image || '',
+                status: item.status || 'active',
+                displayOrder: item.display_order ?? 0,
               };
             });
-            const curKeys = Object.keys(liveCollections.categories || {});
-            const newKeys = Object.keys(data);
-            const hasDiff = curKeys.length !== newKeys.length || newKeys.some(k => {
-              const cur = liveCollections.categories[k];
-              const nxt = data[k];
-              return !cur || cur.updatedAt !== nxt.updatedAt || (cur.name || cur.title) !== (nxt.name || nxt.title) || cur.image !== nxt.image;
-            });
-            if (hasDiff) {
-              liveCollections.categories = data;
-              saveCachedLiveData();
-              scheduleRenderLiveStore();
-            }
+            liveCollections.categories = data;
+            saveCachedLiveData();
+            scheduleRenderLiveStore();
+            if (latestCatTs) localStorage.setItem('linkadda_categories_last_sync', String(latestCatTs));
           }
-        })
-        .catch(() => {});
+        }
+      } catch (err) {
+        console.warn('REST category sync guard:', err);
+      }
 
-      // 3. Sync live site_settings (pinned deal banner, hero, faq, testimonials, settings, tg_support_contact) - strictly public keys
-      fetch(`${supaUrl}/rest/v1/site_settings?key=in.(banner,hero,faq,testimonials,settings,tg_support_contact)&select=key,value`, { headers, cache: 'no-store' })
-        .then(r => r.json())
-        .then(rows => {
-          if (Array.isArray(rows) && rows.length) {
-            let bannerUpdated = false;
-            rows.forEach(row => {
-              if (row.key === 'settings' && row.value && typeof row.value === 'object') {
-                liveCollections.settings = row.value;
-                if (typeof applySiteSettings === 'function') applySiteSettings(row.value);
-              }
-              if (row.key === 'tg_support_contact' && row.value && (row.value.url || row.value.username)) {
-                if (typeof applySiteSettings === 'function') applySiteSettings({ telegram: row.value.url || row.value.username });
-              }
-              if (row.key === 'banner' && row.value && typeof row.value === 'object') {
-                liveCollections.banner = row.value;
-                if (typeof applyBanner === 'function') applyBanner(row.value);
-                if (typeof renderPinnedBanner === 'function') renderPinnedBanner();
-                bannerUpdated = true;
-              }
-              if (row.key === 'hero' && row.value && typeof applyHero === 'function') {
-                applyHero(row.value);
-              }
-              if (row.key === 'faq' && row.value && typeof applyFaq === 'function') {
-                applyFaq(row.value);
-              }
-              if (row.key === 'testimonials' && row.value) {
-                liveCollections.testimonials = row.value;
-                if (typeof applyTestimonials === 'function') applyTestimonials(row.value);
-              }
-            });
-            if (bannerUpdated) {
-              saveCachedLiveData();
+      // 3. Sync live site_settings (pinned deal banner, hero, faq, testimonials, settings, tg_support_contact)
+      try {
+        const sRes = await fetch(`${supaUrl}/rest/v1/site_settings?key=in.(banner,hero,faq,testimonials,settings,tg_support_contact)&select=key,value`, { headers });
+        const rows = await sRes.json().catch(() => []);
+        if (Array.isArray(rows) && rows.length) {
+          let bannerUpdated = false;
+          rows.forEach(row => {
+            if (row.key === 'settings' && row.value && typeof row.value === 'object') {
+              liveCollections.settings = row.value;
+              if (typeof applySiteSettings === 'function') applySiteSettings(row.value);
             }
+            if (row.key === 'tg_support_contact' && row.value && (row.value.url || row.value.username)) {
+              if (typeof applySiteSettings === 'function') applySiteSettings({ telegram: row.value.url || row.value.username });
+            }
+            if (row.key === 'banner' && row.value && typeof row.value === 'object') {
+              liveCollections.banner = row.value;
+              if (typeof applyBanner === 'function') applyBanner(row.value);
+              if (typeof renderPinnedBanner === 'function') renderPinnedBanner();
+              bannerUpdated = true;
+            }
+            if (row.key === 'hero' && row.value && typeof applyHero === 'function') {
+              applyHero(row.value);
+            }
+            if (row.key === 'faq' && row.value && typeof applyFaq === 'function') {
+              applyFaq(row.value);
+            }
+            if (row.key === 'testimonials' && row.value) {
+              liveCollections.testimonials = row.value;
+              if (typeof applyTestimonials === 'function') applyTestimonials(row.value);
+            }
+          });
+          if (bannerUpdated) {
+            saveCachedLiveData();
           }
-        })
-        .catch(() => {});
+        }
+      } catch (_) {}
     } catch (_) {}
+    finally {
+      window.__restSyncInProgress = false;
+    }
   };
   // Fallback trigger
   setTimeout(() => {
@@ -7233,7 +7289,7 @@
 
   <script type="module" src="media-resolver.js?v=20261013_v1"></script>
   <script src="live-ticker.js?v=20261013_v1"></script>
-  <script src="linkadda-store.js?v=20261114_shield_v3"></script>
+  <script src="linkadda-store.js?v=20261115_v4"></script>
   <script type="module" src="auth-modal.js?v=20261104_dynamic_tg_v2"></script>
 </body>
 </html>

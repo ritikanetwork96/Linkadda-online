@@ -1054,7 +1054,7 @@ if (typeof window !== 'undefined') {
     }
   });
 
-  // 2. High-speed 8s lightweight orders, events & visitors sync (paused when tab hidden to save bandwidth)
+  // 2. High-speed bandwidth-optimized lightweight orders, events & visitors sync (paused when tab hidden)
   setInterval(async () => {
     if (typeof document !== 'undefined' && document.hidden) return;
     try {
@@ -1063,9 +1063,9 @@ if (typeof window !== 'undefined') {
       const headers = { 'apikey': serviceKey, 'Authorization': `Bearer ${serviceKey}` };
 
       const [ordersRes, eventsRes, visitorsRes] = await Promise.allSettled([
-        fetch(`${supaUrl}/rest/v1/orders?select=*&order=created_at.desc&limit=50`, { headers, cache: 'no-store', signal: AbortSignal.timeout(3500) }),
-        fetch(`${supaUrl}/rest/v1/events?select=*&order=created_at.desc&limit=50`, { headers, cache: 'no-store', signal: AbortSignal.timeout(3500) }),
-        fetch(`${supaUrl}/rest/v1/visitors?select=*&order=created_at.desc&limit=50`, { headers, cache: 'no-store', signal: AbortSignal.timeout(3500) })
+        fetch(`${supaUrl}/rest/v1/orders?select=id,order_id,status,created_at,updated_at,customer_name,data&order=created_at.desc&limit=30`, { headers, cache: 'no-store', signal: AbortSignal.timeout(4000) }),
+        fetch(`${supaUrl}/rest/v1/events?select=id,event_type,product_id,product_title,visitor_id,created_at,data&order=created_at.desc&limit=25`, { headers, cache: 'no-store', signal: AbortSignal.timeout(4000) }),
+        fetch(`${supaUrl}/rest/v1/visitors?select=id,visitor_id,created_at,data&order=created_at.desc&limit=25`, { headers, cache: 'no-store', signal: AbortSignal.timeout(4000) })
       ]);
 
       let hasStateChange = false;
@@ -1172,12 +1172,12 @@ if (typeof window !== 'undefined') {
         emitImmediate();
       }
     } catch (_) {}
-  }, 4000);
+  }, 15000);
 
-  // 3. Calm 15s background sync for full catalog & site settings
+  // 3. Calm 60s background sync for full catalog & site settings
   setInterval(async () => {
     syncAllFromFirebase().catch(() => {});
-  }, 15000);
+  }, 60000);
 
   // 4. Instant full sync whenever admin focuses the browser window or changes tab
   window.addEventListener('focus', () => {
