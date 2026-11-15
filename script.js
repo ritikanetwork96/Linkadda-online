@@ -579,7 +579,7 @@ if (heroSection && pointerEffectsEnabled()) {
     try {
       let b = window.liveCollections?.banner;
       if (!b) {
-        const cached = localStorage.getItem('linkadda_cached_live_data_v4') || localStorage.getItem('linkadda_cached_live_data');
+        const cached = localStorage.getItem('linkadda_cached_live_data_v6') || localStorage.getItem('linkadda_cached_live_data_v5') || localStorage.getItem('linkadda_cached_live_data');
         if (cached) {
           const parsed = JSON.parse(cached);
           if (parsed && parsed.banner) b = parsed.banner;

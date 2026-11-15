@@ -863,33 +863,44 @@ function resolveAdminMediaUrl(url) {
   if (!clean) return '';
   if (clean.includes('rustfs-mi5c.srv1942099.hstgr.cloud') || clean.includes('supabase.co/storage/v1/object/public/')) {
     const pathPart = clean.split('/linkadda-media/').pop() || clean.split('/media/').pop() || clean.split('/').pop();
-    return `${R2_CDN_ROOT}/${pathPart.replace(/^\/+/, '')}`;
+    clean = pathPart.replace(/^\/+/, '');
+  }
+  if (clean.includes('/categories/category') || clean.startsWith('categories/category')) {
+    clean = clean.replace(/^(https?:\/\/[^\/]+)?\/?categories\//, 'images/');
+  }
+  if (clean.includes('/products/photo_') || clean.startsWith('products/photo_')) {
+    clean = clean.replace(/^(https?:\/\/[^\/]+)?\/?products\//, 'images/');
   }
   if (clean.startsWith('http://') || clean.startsWith('https://') || clean.startsWith('data:') || clean.startsWith('blob:')) {
     return clean;
+  }
+  if (clean.startsWith('/images/')) {
+    return `${R2_CDN_ROOT}${clean}`;
   }
   if (clean.startsWith('/')) {
     return clean;
   }
   if (clean.startsWith('images/')) {
-    return `/${clean}`;
-  }
-  if (clean.startsWith('products/') || clean.startsWith('categories/')) {
     return `${R2_CDN_ROOT}/${clean}`;
   }
-  return `${R2_CDN_ROOT}/products/${clean}`;
+  if (/^photo_\d+/.test(clean)) {
+    return `${R2_CDN_ROOT}/images/${clean}`;
+  }
+  if (/^category\d+\.(jpg|png|webp)/i.test(clean)) {
+    return `${R2_CDN_ROOT}/images/${clean}`;
+  }
+  if (clean.startsWith('products/') || clean.startsWith('categories/') || clean.startsWith('productsgallery/')) {
+    return `${R2_CDN_ROOT}/${clean}`;
+  }
+  return `${R2_CDN_ROOT}/${clean.replace(/^\/+/, '')}`;
 }
 
 function normalizeProductMedia(record = {}) {
   const rawImages = (Array.isArray(record.images) ? record.images : normalizeEditorList(record.images || '')).map((u) => String(u || '').trim()).filter(Boolean);
-  let allImages = [];
-  if (rawImages.length > 0) {
-    allImages = rawImages;
-  } else {
-    const rawImage = String(record.image || record.imageUrl || record.thumbnail || record.photo || '').trim();
-    const rawGallery = (Array.isArray(record.galleryImages) ? record.galleryImages : normalizeEditorList(record.galleryImages || '')).map((u) => String(u || '').trim()).filter(Boolean);
-    allImages = [...new Set([rawImage, ...rawGallery].filter(Boolean))];
-  }
+  const rawImage = String(record.image || record.imageUrl || record.thumbnail || record.photo || '').trim();
+  const gList = record.galleryImages || record.gallery_images || '';
+  const rawGallery = (Array.isArray(gList) ? gList : normalizeEditorList(gList)).map((u) => String(u || '').trim()).filter(Boolean);
+  const allImages = [...new Set([rawImage, ...rawImages, ...rawGallery].filter(Boolean))];
   const mainImage = String((record.image && allImages.includes(record.image)) ? record.image : (allImages[0] || '')).trim();
   const galleryImages = allImages.filter((u) => u !== mainImage);
 

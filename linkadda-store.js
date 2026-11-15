@@ -77,8 +77,8 @@
     if (!img._triedLocal) {
       img._triedLocal = true;
       const cleanFn = String(img.src || '').split('/').pop().split('?')[0];
-      if (cleanFn && (/^category\d+\.jpg$|^prod_|^photo_/.test(cleanFn))) {
-        img.src = 'images/' + cleanFn;
+      if (cleanFn && (/^category\d+\.(jpg|png|webp)$|^prod_|^photo_/.test(cleanFn))) {
+        img.src = 'https://pub-81f10c1135f54a719e5d96e8d7896960.r2.dev/images/' + cleanFn;
         return;
       }
     }

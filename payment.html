@@ -3147,7 +3147,7 @@ function findDefaultCatalogProduct(targetId) {
 
   // 2. Check cached live data from localStorage
   try {
-    const rawLive = localStorage.getItem('linkadda_cached_live_data_v5') || localStorage.getItem('linkadda_cached_live_data');
+    const rawLive = localStorage.getItem('linkadda_cached_live_data_v6') || localStorage.getItem('linkadda_cached_live_data_v5') || localStorage.getItem('linkadda_cached_live_data');
     if (rawLive) {
       const parsed = JSON.parse(rawLive);
       const prods = parsed?.products || {};
@@ -3243,7 +3243,7 @@ function findDefaultCatalogProduct(targetId) {
       }
       if (!Number.isFinite(liveBannerInr) || liveBannerInr <= 0) {
         try {
-          const rawLive = localStorage.getItem('linkadda_cached_live_data_v5') || localStorage.getItem('linkadda_cached_live_data');
+          const rawLive = localStorage.getItem('linkadda_cached_live_data_v6') || localStorage.getItem('linkadda_cached_live_data_v5') || localStorage.getItem('linkadda_cached_live_data');
           if (rawLive) {
             const pLive = JSON.parse(rawLive);
             if (pLive?.banner) {
@@ -3329,7 +3329,7 @@ function findDefaultCatalogProduct(targetId) {
       }
       if (!Number.isFinite(liveBannerInr) || liveBannerInr <= 0) {
         try {
-          const rawLive = localStorage.getItem('linkadda_cached_live_data_v5') || localStorage.getItem('linkadda_cached_live_data');
+          const rawLive = localStorage.getItem('linkadda_cached_live_data_v6') || localStorage.getItem('linkadda_cached_live_data_v5') || localStorage.getItem('linkadda_cached_live_data');
           if (rawLive) {
             const pLive = JSON.parse(rawLive);
             if (pLive?.banner) {
@@ -4285,7 +4285,7 @@ async function loadProductsCatalog() {
   productCatalogPromise = (async () => {
     // 1. Instant 0ms catalog from localStorage cache
     try {
-      const cachedLive = localStorage.getItem('linkadda_cached_live_data_v5') || localStorage.getItem('linkadda_cached_live_data');
+      const cachedLive = localStorage.getItem('linkadda_cached_live_data_v6') || localStorage.getItem('linkadda_cached_live_data_v5') || localStorage.getItem('linkadda_cached_live_data');
       if (cachedLive) {
         const parsed = JSON.parse(cachedLive);
         if (parsed?.products && Object.keys(parsed.products).length > 0) {

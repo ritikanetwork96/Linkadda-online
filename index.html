@@ -2682,35 +2682,29 @@
     const card = img.closest('.fk-card, .pcard');
     const pId = card ? (card.dataset.productId || card.dataset.fbId || '') : '';
     const title = card ? (card.querySelector('.fk-card-title, .pcard-title')?.textContent || '') : '';
-    const badge = card ? (card.querySelector('.fk-card-badge-vip, .pcard-pill')?.textContent || '') : '';
     const R2_ROOT = 'https://pub-81f10c1135f54a719e5d96e8d7896960.r2.dev';
 
-    // 1. Try local exact file if not tried yet
+    // 1. Try URL path correction for photo_ or category assets
+    if (!img._triedUrlFix) {
+      img._triedUrlFix = true;
+      if (img.src.includes('/products/photo_')) {
+        img.src = img.src.replace('/products/photo_', '/images/photo_');
+        return;
+      }
+      if (img.src.includes('/categories/category')) {
+        img.src = img.src.replace('/categories/category', '/images/category');
+        return;
+      }
+    }
+
+    // 2. Try local exact file if not tried yet
     if (!img._triedExact && pId) {
       img._triedExact = true;
       img.src = `${R2_ROOT}/images/prod_${pId}.jpg`;
       return;
     }
 
-    // 2. Try category-matched local cover
-    if (!img._triedCategory) {
-      img._triedCategory = true;
-      const fullText = `${title} ${badge}`.toLowerCase();
-      if (fullText.includes('tango') || fullText.includes('stripchat')) img.src = `${R2_ROOT}/category21.jpg`;
-      else if (fullText.includes('jav') || fullText.includes('japanese')) img.src = `${R2_ROOT}/category8.jpg`;
-      else if (fullText.includes('chinese')) img.src = `${R2_ROOT}/category14.jpg`;
-      else if (fullText.includes('desi') || fullText.includes('punjabi') || fullText.includes('indian')) img.src = `${R2_ROOT}/category11.jpg`;
-      else if (fullText.includes('tamil') || fullText.includes('mallu')) img.src = `${R2_ROOT}/category12.jpg`;
-      else if (fullText.includes('hijabi') || fullText.includes('arab')) img.src = `${R2_ROOT}/category18.jpg`;
-      else if (fullText.includes('shemale') || fullText.includes('black')) img.src = `${R2_ROOT}/category17.jpg`;
-      else if (fullText.includes('hidden') || fullText.includes('cam')) img.src = `${R2_ROOT}/category6.jpg`;
-      else if (fullText.includes('snap') || fullText.includes('insta')) img.src = `${R2_ROOT}/category7.jpg`;
-      else if (fullText.includes('college') || fullText.includes('pickup')) img.src = `${R2_ROOT}/category13.jpg`;
-      else img.src = `${R2_ROOT}/category20.jpg`;
-      return;
-    }
-
-    // 3. Ultimate fallback: styled luxury SVG cover with product title
+    // 3. Ultimate fallback: styled luxury SVG cover with product title (Never invent fake category images)
     if (!img._failedSvg) {
       img._failedSvg = true;
       const cleanTitle = (title || 'LINKADDA VIP').replace(/[<>&"]/g, '').substring(0, 24);
@@ -2814,8 +2808,8 @@
 
   function resolveMediaList(cat) {
     if (!cat) return { images: [], videos: [] };
-    let primary = extractArrayFromMixed(cat.images);
-    let gallery = extractArrayFromMixed(cat.galleryImages);
+    let primary = extractArrayFromMixed(cat.images || (cat.data && cat.data.images));
+    let gallery = extractArrayFromMixed(cat.galleryImages || cat.gallery_images || (cat.data && (cat.data.galleryImages || cat.data.gallery_images)));
     let mediaArr = [];
     if (cat.media) {
       extractArrayFromMixed(cat.media).forEach(m => {
@@ -2827,7 +2821,13 @@
     }
 
     // Main cover image has absolute priority as slide #1
-    const mainImg = String(cat.image || cat.imageUrl || cat.thumbnail || '').trim();
+    let mainImg = String(cat.image || cat.imageUrl || cat.thumbnail || (cat.data && (cat.data.image || cat.data.imageUrl || cat.data.thumbnail)) || '').trim();
+
+    // Guard: Standard products must never display accidental/hardcoded category covers (category20.jpg, category11.jpg, etc.)
+    const isCatItem = String(cat.id || '').startsWith('cat_') || String(cat.type || '') === 'category';
+    if (!isCatItem && /(?:images\/|categories\/|^|\/)category\d+\.(?:jpg|png|webp|jpeg)/i.test(mainImg)) {
+      mainImg = '';
+    }
     let rawList = [];
     const seenBasenames = new Set();
 
@@ -2840,6 +2840,7 @@
     primary.forEach((u) => {
       const s = String(u || '').trim();
       const key = getMediaFileKey(s);
+      if (!isCatItem && /(?:images\/|categories\/|^|\/)category\d+\.(?:jpg|png|webp|jpeg)/i.test(s)) return;
       if (s && key && !seenBasenames.has(key)) {
         seenBasenames.add(key);
         rawList.push(s);
@@ -2850,6 +2851,7 @@
     gallery.forEach((u) => {
       const s = String(u || '').trim();
       const key = getMediaFileKey(s);
+      if (!isCatItem && /(?:images\/|categories\/|^|\/)category\d+\.(?:jpg|png|webp|jpeg)/i.test(s)) return;
       if (s && key && !seenBasenames.has(key)) {
         seenBasenames.add(key);
         rawList.push(s);
@@ -2908,74 +2910,31 @@
       }
     }
 
-    // 2. Only if product has no images at all, check its assigned category or title keywords for a curated category cover
-    if (!rawList.length) {
-      const titleLower = String(cat.title || '').toLowerCase();
-      const badgeLower = String(cat.badge || '').toLowerCase();
-      const catKey = String(cat.category || '').toLowerCase();
-      const fullText = `${titleLower} ${badgeLower} ${catKey}`;
-
-      if (fullText.includes('tango') || fullText.includes('stripchat')) {
-        rawList = ['images/category21.jpg'];
-      } else if (fullText.includes('jav') || fullText.includes('japanese')) {
-        rawList = ['images/category8.jpg'];
-      } else if (fullText.includes('chinese') || fullText.includes('cuckold')) {
-        rawList = ['images/category14.jpg'];
-      } else if (fullText.includes('desi') || fullText.includes('punjabi') || fullText.includes('bengali') || fullText.includes('marathi') || fullText.includes('indian')) {
-        rawList = ['images/category11.jpg'];
-      } else if (fullText.includes('tamil') || fullText.includes('mallu') || fullText.includes('south indian') || fullText.includes('telegu')) {
-        rawList = ['images/category12.jpg'];
-      } else if (fullText.includes('hijabi') || fullText.includes('arab')) {
-        rawList = ['images/category18.jpg'];
-      } else if (fullText.includes('shemale')) {
-        rawList = ['images/category17.jpg'];
-      } else if (fullText.includes('lesbian')) {
-        rawList = ['images/category19.jpg'];
-      } else if (fullText.includes('bhabhi')) {
-        rawList = ['images/category22.jpg'];
-      } else if (fullText.includes('teen')) {
-        rawList = ['images/category5.jpg'];
-      } else if (fullText.includes('hidden') || fullText.includes('camera') || fullText.includes('spy') || fullText.includes('outdoor') || fullText.includes('nude in public')) {
-        rawList = ['images/category6.jpg'];
-      } else if (fullText.includes('snap') || fullText.includes('insta') || fullText.includes('instagram')) {
-        rawList = ['images/category7.jpg'];
-      } else if (fullText.includes('college') || fullText.includes('pickup')) {
-        rawList = ['images/category13.jpg'];
-      } else if (fullText.includes('international') || fullText.includes('myanmar') || fullText.includes('thai')) {
-        rawList = ['images/category15.jpg'];
-      } else if (fullText.includes('fake taxi') || fullText.includes('p0rn') || fullText.includes('porn') || fullText.includes('english')) {
-        rawList = ['images/category23.jpg'];
-      } else if (fullText.includes('monster') || fullText.includes('mix') || fullText.includes('private') || fullText.includes('incest') || fullText.includes('rare') || fullText.includes('blacked')) {
-        rawList = ['images/category20.jpg'];
-      } else if (fullText.includes('hot')) {
-        rawList = ['images/category2.jpg'];
-      } else if (cat.category && window.liveCollections && liveCollections.categories) {
-        const matchedCategory = Object.values(liveCollections.categories).find(c => 
-          String(c.id || '').toLowerCase() === catKey || 
-          String(c.slug || '').toLowerCase() === catKey || 
-          String(c.title || '').toLowerCase() === catKey
-        );
-        if (matchedCategory) {
-          const catImg = (Array.isArray(matchedCategory.images) && matchedCategory.images[0]) || matchedCategory.image || '';
-          if (catImg && !catImg.includes('category1') && !catImg.includes('eiasnjx')) {
-            rawList = [catImg];
-          }
-        }
-      }
-      if (!rawList.length) {
-        rawList = ['images/category20.jpg'];
-      }
-    }
+    // NOTE: Fallback category keyword injection (category20.jpg, category11.jpg, etc.) removed.
+    // Products without images will gracefully render the luxury SVG VIP placeholder.
 
     const R2_CDN_ROOT = 'https://pub-81f10c1135f54a719e5d96e8d7896960.r2.dev';
     const images = rawList.map(u => {
       let clean = String(u || '').trim();
       if (!clean) return '';
       if (clean.includes('rustfs-mi5c.srv1942099.hstgr.cloud') || clean.includes('dsleaglxbedljdxrikdn') || clean.includes('supabase.co')) {
-        const pathPart = clean.split('/linkadda-media/').pop() || clean.split('/public/').pop() || clean.split('/').pop();
-        return `${R2_CDN_ROOT}/${pathPart.replace(/^\/+/, '')}`;
+        let pathPart = clean.split('/linkadda-media/').pop() || clean.split('/public/').pop() || clean.split('/').pop();
+        pathPart = pathPart.replace(/^\/+/, '');
+        if (pathPart.startsWith('categories/category')) {
+          pathPart = pathPart.replace('categories/category', 'images/category');
+        }
+        if (pathPart.startsWith('products/photo_')) {
+          pathPart = pathPart.replace('products/photo_', 'images/photo_');
+        }
+        return `${R2_CDN_ROOT}/${pathPart}`;
       }
       if (clean.startsWith('https://pub-81f10c1135f54a719e5d96e8d7896960.r2.dev/')) {
+        if (clean.includes('/categories/category')) {
+          clean = clean.replace('/categories/category', '/images/category');
+        }
+        if (clean.includes('/products/photo_')) {
+          clean = clean.replace('/products/photo_', '/images/photo_');
+        }
         return clean;
       }
       if (/^(https?:)?\/\//i.test(clean) || clean.startsWith('data:') || clean.startsWith('blob:')) {
@@ -2985,9 +2944,18 @@
         return `${R2_CDN_ROOT}/${clean.replace(/^\/+/, '')}`;
       }
       if (/^photo_\d+/.test(clean)) {
-        return `${R2_CDN_ROOT}/${clean}`;
+        return `${R2_CDN_ROOT}/images/${clean}`;
       }
-      if (clean.startsWith('products/') || clean.startsWith('categories/')) {
+      if (/^category\d+/.test(clean)) {
+        return `${R2_CDN_ROOT}/images/${clean}`;
+      }
+      if (clean.startsWith('categories/category')) {
+        return `${R2_CDN_ROOT}/${clean.replace('categories/category', 'images/category')}`;
+      }
+      if (clean.startsWith('products/photo_')) {
+        return `${R2_CDN_ROOT}/${clean.replace('products/photo_', 'images/photo_')}`;
+      }
+      if (clean.startsWith('products/')) {
         return `${R2_CDN_ROOT}/${clean}`;
       }
       return `${R2_CDN_ROOT}/${clean.replace(/^\/+/, '')}`;
@@ -4151,7 +4119,7 @@
     // Check local storage cache if data is not yet in memory
     if (!data || Object.keys(data).length === 0) {
       try {
-        const rawLive = localStorage.getItem('linkadda_cached_live_data_v5') || localStorage.getItem('linkadda_cached_live_data');
+        const rawLive = localStorage.getItem('linkadda_cached_live_data_v6') || localStorage.getItem('linkadda_cached_live_data_v5') || localStorage.getItem('linkadda_cached_live_data');
         if (rawLive) {
           const parsed = JSON.parse(rawLive);
           if (parsed && parsed.banner && Object.keys(parsed.banner).length > 0) {
@@ -4959,20 +4927,12 @@
   // -- INSTANT 0ms CATALOG BOOTSTRAP (Zero Waiting, Zero Lag) --
   try {
     const preCatalog = window.__preloadedCatalog || {};
-    const rawAdmin = localStorage.getItem('linkadda_cached_live_data');
-    const rawV5 = localStorage.getItem('linkadda_cached_live_data_v5');
-    const rawV4 = localStorage.getItem('linkadda_cached_live_data_v4');
+    const rawV6 = localStorage.getItem('linkadda_cached_live_data_v6');
     let localData = null;
     try {
-      const pAdmin = rawAdmin ? JSON.parse(rawAdmin) : null;
-      const pV5 = rawV5 ? JSON.parse(rawV5) : null;
-      const pV4 = rawV4 ? JSON.parse(rawV4) : null;
-      if (pV5 && pV5.products && Object.keys(pV5.products).length > 0) {
-        localData = pV5;
-      } else if (pAdmin && pAdmin.products && Object.keys(pAdmin.products).length > 0) {
-        localData = pAdmin;
-      } else if (pV4 && pV4.products && Object.keys(pV4.products).length > 0) {
-        localData = pV4;
+      const pV6 = rawV6 ? JSON.parse(rawV6) : null;
+      if (pV6 && pV6.products && Object.keys(pV6.products).length > 0) {
+        localData = pV6;
       }
     } catch (_) {}
 
@@ -4996,6 +4956,10 @@
       if (preCatalog.banner && Object.keys(preCatalog.banner).length) {
         liveCollections.banner = Object.assign({}, preCatalog.banner);
       }
+      try {
+        localStorage.removeItem('linkadda_cached_live_data_v5');
+        localStorage.removeItem('linkadda_cached_live_data_v4');
+      } catch (_) {}
     }
 
     renderCategoryFilters();
@@ -5025,6 +4989,7 @@
         banner: liveCollections.banner,
         timestamp: Date.now()
       });
+      localStorage.setItem('linkadda_cached_live_data_v6', payload);
       localStorage.setItem('linkadda_cached_live_data_v5', payload);
       localStorage.setItem('linkadda_cached_live_data', payload);
     } catch (_) {}
@@ -5089,7 +5054,7 @@
 
   // Instant cross-tab sync: updates storefront in 0ms when admin saves changes in another tab
   window.addEventListener('storage', (e) => {
-    if ((e.key === 'linkadda_cached_live_data' || e.key === 'linkadda_cached_live_data_v5' || e.key === 'linkadda_cached_live_data_v4') && e.newValue) {
+    if ((e.key === 'linkadda_cached_live_data' || e.key === 'linkadda_cached_live_data_v6' || e.key === 'linkadda_cached_live_data_v5' || e.key === 'linkadda_cached_live_data_v4') && e.newValue) {
       try {
         const parsed = JSON.parse(e.newValue);
         if (parsed.categories && typeof parsed.categories === 'object') liveCollections.categories = parsed.categories;

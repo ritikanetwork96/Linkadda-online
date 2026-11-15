@@ -105,26 +105,28 @@ function getLocalFallback(value, el = null) {
 
 function initPreseededTable() {
   LOCAL_ASSETS_LIST.forEach((file) => {
-    let folder = 'images';
-    if (file.startsWith('category')) folder = 'categories';
-    else if (file.includes('binance') || file.includes('paypal') || file.includes('logo')) folder = 'logos';
-
-    const supabaseUrl = `${STORAGE_BASE}/${folder}/${file}`;
-    const legacyRustfs = `https://rustfs-mi5c.srv1942099.hstgr.cloud/linkadda-media/${folder}/${file}`;
+    const r2Url = `${STORAGE_BASE}/images/${file}`;
+    const r2RootUrl = `${STORAGE_BASE}/${file}`;
+    const legacyRustfs = `https://rustfs-mi5c.srv1942099.hstgr.cloud/linkadda-media/images/${file}`;
     const localPath = `images/${file}`;
 
     normalizeKeys(file).forEach((k) => {
-      mediaMap.set(k, supabaseUrl);
+      mediaMap.set(k, r2Url);
       fallbackMap.set(k, localPath);
     });
 
-    normalizeKeys(supabaseUrl).forEach((k) => {
-      mediaMap.set(k, supabaseUrl);
+    normalizeKeys(r2Url).forEach((k) => {
+      mediaMap.set(k, r2Url);
+      fallbackMap.set(k, localPath);
+    });
+
+    normalizeKeys(r2RootUrl).forEach((k) => {
+      mediaMap.set(k, r2Url);
       fallbackMap.set(k, localPath);
     });
 
     normalizeKeys(legacyRustfs).forEach((k) => {
-      mediaMap.set(k, supabaseUrl);
+      mediaMap.set(k, r2Url);
       fallbackMap.set(k, localPath);
     });
   });
@@ -141,6 +143,12 @@ function indexRecord(record) {
   if (primaryUrl.includes('supabase.co/storage/v1/object/public/') && !primaryUrl.includes('dsleaglxbedljdxrikdn')) {
     const pathPart = primaryUrl.split('/public/').pop().split('/').slice(1).join('/');
     primaryUrl = `${STORAGE_BASE}/${pathPart.replace(/^\/+/, '')}`;
+  }
+  if (primaryUrl.includes('/categories/category')) {
+    primaryUrl = primaryUrl.replace('/categories/category', '/images/category');
+  }
+  if (primaryUrl.includes('/products/photo_')) {
+    primaryUrl = primaryUrl.replace('/products/photo_', '/images/photo_');
   }
 
   const localUrl = getLocalFallback(primaryUrl) || getLocalFallback(record.sourcePath) || getLocalFallback(record.name);
