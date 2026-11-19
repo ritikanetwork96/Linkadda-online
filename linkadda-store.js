@@ -347,6 +347,41 @@
     } catch (_) {}
   }
 
+  function trackProductShare(productId, productTitle) {
+    if (!productId) return;
+    const pid = String(productId);
+    const title = String(productTitle || '');
+
+    let p = window.liveCollections?.products?.[pid];
+    if (!p && window.liveCollections?.products) {
+      p = Object.values(window.liveCollections.products).find(item => String(item?.id) === pid);
+    }
+    if (p) {
+      p.shares = (Number(p.shares) || 0) + 1;
+    }
+
+    if (window.__productMetrics) {
+      if (!window.__productMetrics[pid]) {
+        window.__productMetrics[pid] = { views: 0, likes: 0, shares: 0, orderClicks: 0 };
+      }
+      window.__productMetrics[pid].shares = (window.__productMetrics[pid].shares || 0) + 1;
+    }
+
+    try {
+      fetch('/api/products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'track_share', productId: pid, productTitle: title }),
+      }).catch(() => {});
+      fetch('/api/track/event', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'product_share', event_type: 'product_share', productId: pid, product_id: pid, productTitle: title, product_title: title }),
+      }).catch(() => {});
+    } catch (_) {}
+  }
+  window.trackProductShare = trackProductShare;
+
   // --- OPEN PRODUCT DETAILS OVERLAY ---
   window.openFkProductPage = function (id) {
     const prod = resolveProductData(id);
@@ -1516,6 +1551,9 @@
     const slugify = (str) => String(str || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
     const cleanParam = prod.slug || slugify(prodTitle) || prodId;
     const shareUrl = `${origin}${path}?product=${encodeURIComponent(cleanParam)}`;
+
+    // Track product share in analytics / discovery engine
+    trackProductShare(prodId, prodTitle);
 
     // Visual button click feedback on #fkPvShareBtn
     const shareBtn = document.getElementById('fkPvShareBtn');

@@ -3715,17 +3715,25 @@ function summarizeDashboard(range = ui.dashboardRange) {
     return type === 'product_hide' || type.includes('hide');
   };
 
+  const isShareEvent = (item) => {
+    if (!item) return false;
+    const type = String(item.type || item.event_type || (item.data && item.data.type) || '').toLowerCase();
+    return type === 'product_share' || type.includes('share');
+  };
+
   const allProductLikes = products.reduce((acc, p) => acc + (Number(p.likes) || 0), 0);
   const allProductViews = products.reduce((acc, p) => acc + (Number(p.views) || 0), 0);
 
   const currentLikes = isAllRange ? (allProductLikes + events.filter(isLikeEvent).length) : countInWindow(events, currentWindow.start, currentWindow.end, isLikeEvent);
   const currentViews = isAllRange ? (allProductViews + events.filter(isViewEvent).length) : countInWindow(events, currentWindow.start, currentWindow.end, isViewEvent);
+  const currentShares = isAllRange ? events.filter(isShareEvent).length : countInWindow(events, currentWindow.start, currentWindow.end, isShareEvent);
   const currentAffiliateClicks = isAllRange ? events.filter(isAffiliateEvent).length : countInWindow(events, currentWindow.start, currentWindow.end, isAffiliateEvent);
   const hiddenProductsCount = products.filter(p => p.status === 'hidden').length;
   const visitorHiddenCount = events.filter(isHideEvent).length;
 
   const prevLikes = countInWindow(events, previousWindow.start, previousWindow.end, isLikeEvent);
   const prevViews = countInWindow(events, previousWindow.start, previousWindow.end, isViewEvent);
+  const prevShares = countInWindow(events, previousWindow.start, previousWindow.end, isShareEvent);
 
   const topProducts = buildTopProducts({ range, clicks: currentClicks });
   const top = topProducts[0] ? [topProducts[0].title || topProducts[0].name, topProducts[0].clicks] : [];
@@ -3763,6 +3771,9 @@ function summarizeDashboard(range = ui.dashboardRange) {
     totalViews: currentViews,
     totalViewsPrev: prevViews,
     viewsTrend: percentChange(currentViews, prevViews),
+    totalShares: currentShares,
+    totalSharesPrev: prevShares,
+    sharesTrend: percentChange(currentShares, prevShares),
     affiliateClicks: currentAffiliateClicks,
     hiddenProductsCount,
     visitorHiddenCount,

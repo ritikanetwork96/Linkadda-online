@@ -78,6 +78,30 @@ export default async function handler(req, res) {
       return res.status(200).json({ success: true, productId });
     }
 
+    if (action === 'track_share' || action === 'share') {
+      const productTitle = String(body.productTitle || body.product_title || '').trim();
+      const payload = {
+        event_type: 'product_share',
+        product_id: productId || null,
+        product_title: productTitle || null,
+        data: {
+          eventType: 'product_share',
+          action: 'track_share',
+          productId,
+          productTitle,
+          timestamp: Date.now()
+        }
+      };
+      await fetch(`${url}/rest/v1/events`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify([payload]),
+        signal: AbortSignal.timeout(3000)
+      }).catch(() => {});
+
+      return res.status(200).json({ success: true, productId });
+    }
+
     return res.status(200).json({ success: true, action: action || 'ok' });
   } catch (err) {
     return res.status(200).json({ success: false, error: err.message });

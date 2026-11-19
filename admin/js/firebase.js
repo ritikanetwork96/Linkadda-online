@@ -503,7 +503,7 @@ export function onValue(refObj, callback) {
     }
   }).catch(() => {});
 
-  // Calm throttled polling (30s) ONLY for dynamic transactions (orders, visitors)
+  // Calm throttled polling (60s) ONLY for dynamic transactions (orders, visitors)
   // Static catalog and settings only change when the admin saves changes
   const { table } = parsePath(refObj.path);
   let timer = null;
@@ -513,7 +513,7 @@ export function onValue(refObj, callback) {
       get(refObj).then(snap => {
         if (snap && snap.exists && snap.exists()) callback(snap);
       }).catch(() => {});
-    }, 30000);
+    }, 60000);
   }
 
   return () => {

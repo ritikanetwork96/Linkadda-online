@@ -68,9 +68,11 @@ export async function get(refObj) {
     const orderParam = table === 'products'
       ? '&order=display_order.asc'
       : (table === 'orders' || table === 'visitors' || table === 'events' ? '&order=created_at.desc' : '');
-    const res = await fetch(`${supaUrl}/rest/v1/${table}?select=*${orderParam}`, {
-      headers: defaultHeaders,
-      cache: 'no-store'
+    const selectFields = table === 'products'
+      ? 'id,slug,title,price_inr,price_usd,original_price_inr,original_price_usd,rating,badge,image,images,gallery_images,status,category,display_order,created_at,updated_at'
+      : (table === 'categories' ? 'id,slug,name,title,image,status,display_order,updated_at' : '*');
+    const res = await fetch(`${supaUrl}/rest/v1/${table}?select=${selectFields}${orderParam}`, {
+      headers: defaultHeaders
     });
     if (!res.ok) return { exists: () => false, val: () => null };
     const rows = await res.json();
@@ -299,10 +301,58 @@ export function child(refObj, subPath) {
 export function onValue(refObj, callback, errorCallback) {
   let isCancelled = false;
   let lastJson = null;
+  const { table, id, isSingleton } = parsePath(refObj?.path || '');
+  const isStaticCatalogNode = isSingleton || table === 'products' || table === 'categories' || table === 'site_settings' || !table;
+
+  function tryGetCached() {
+    if (typeof localStorage === 'undefined') return null;
+    try {
+      if (isSingleton || table === 'site_settings') {
+        const raw = localStorage.getItem('linkadda_cached_settings');
+        if (raw) {
+          const s = JSON.parse(raw);
+          if (s && s[id] !== undefined) return s[id];
+        }
+      }
+      if (table === 'products') {
+        const raw = localStorage.getItem('linkadda_cached_live_data_v6') || localStorage.getItem('linkadda_cached_live_data') || localStorage.getItem('linkadda_cached_live_data_v5');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed?.products && Object.keys(parsed.products).length > 0) {
+            if (id) return parsed.products[id] || null;
+            return parsed.products;
+          }
+        }
+      }
+      if (table === 'categories') {
+        const raw = localStorage.getItem('linkadda_cached_live_data_v6') || localStorage.getItem('linkadda_cached_live_data') || localStorage.getItem('linkadda_cached_live_data_v5');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed?.categories && Object.keys(parsed.categories).length > 0) {
+            if (id) return parsed.categories[id] || null;
+            return parsed.categories;
+          }
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
 
   async function poll() {
     if (isCancelled) return;
+    if (typeof document !== 'undefined' && document.hidden) return;
     try {
+      // 1. If static catalog node and we haven't loaded yet, check local cache first (0 KB network egress!)
+      if (isStaticCatalogNode && lastJson === null) {
+        const cached = tryGetCached();
+        if (cached !== null) {
+          lastJson = JSON.stringify(cached);
+          callback({ exists: () => true, val: () => cached, key: id });
+          return;
+        }
+      }
+
+      // 2. Fallback to network get
       const snap = await get(refObj);
       if (isCancelled) return;
       const jsonStr = JSON.stringify(snap.val() || null);
@@ -315,15 +365,64 @@ export function onValue(refObj, callback, errorCallback) {
     }
   }
 
-  // Initial immediate call
+  // Initial immediate call (loads from localStorage cache if available, 0 KB egress)
   poll();
 
-  // Polling every 5 seconds for live sync
-  const timer = setInterval(poll, 5000);
+  // Instant cross-tab & local update sync for static catalog nodes (0 KB network egress!)
+  let storageHandler = null;
+  let localUpdateHandler = null;
+  if (typeof window !== 'undefined') {
+    storageHandler = (e) => {
+      if (isCancelled) return;
+      if (e.key && (e.key.includes('cached_live_data') || e.key.includes('cached_settings') || e.key.includes('linkadda_'))) {
+        if (isStaticCatalogNode) {
+          const cached = tryGetCached();
+          if (cached !== null) {
+            const jsonStr = JSON.stringify(cached);
+            if (jsonStr !== lastJson) {
+              lastJson = jsonStr;
+              callback({ exists: () => true, val: () => cached, key: id });
+              return;
+            }
+          }
+        }
+        poll();
+      }
+    };
+    window.addEventListener('storage', storageHandler);
+
+    localUpdateHandler = () => {
+      if (isCancelled) return;
+      if (isStaticCatalogNode) {
+        const cached = tryGetCached();
+        if (cached !== null) {
+          const jsonStr = JSON.stringify(cached);
+          if (jsonStr !== lastJson) {
+            lastJson = jsonStr;
+            callback({ exists: () => true, val: () => cached, key: id });
+          }
+        }
+      }
+    };
+    window.addEventListener('linkadda:catalog_updated', localUpdateHandler);
+  }
+
+  // Calm background polling ONLY for dynamic transactional tables (e.g., active orders/visitors)
+  // NEVER spam 5-second polls for static catalog or settings (prevents 150MB+ daily egress bleed)
+  let timer = null;
+  if (!isStaticCatalogNode) {
+    timer = setInterval(poll, 45000);
+  }
 
   return () => {
     isCancelled = true;
-    clearInterval(timer);
+    if (timer) clearInterval(timer);
+    if (storageHandler && typeof window !== 'undefined') {
+      window.removeEventListener('storage', storageHandler);
+    }
+    if (localUpdateHandler && typeof window !== 'undefined') {
+      window.removeEventListener('linkadda:catalog_updated', localUpdateHandler);
+    }
   };
 }
 

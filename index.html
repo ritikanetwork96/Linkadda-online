@@ -1459,6 +1459,9 @@
       </button>
       <div class="fk-pv-title-bar" id="fkPvTitleBar">Product Details</div>
       <div class="fk-pv-top-actions">
+        <button type="button" class="fk-pv-action-btn" id="fkPvShareBtn" onclick="window.shareCurrentFkProduct(event)" title="Share this pack" aria-label="Share pack">
+          <i class="fa-solid fa-share-nodes"></i>
+        </button>
         <button type="button" class="fk-pv-action-btn" id="fkPvWishlistBtn" onclick="window.toggleFkWishlist(event, window.__fkActiveProduct ? window.__fkActiveProduct.id : '')" title="Like this pack">
           <i class="fa-solid fa-heart"></i>
         </button>
@@ -2270,6 +2273,69 @@
     },
   };
 
+  // --- POPULAR & TRENDING RANKING & SMART CATALOG ENGINE ---
+  window.__productOrdersCount = window.__productOrdersCount || {};
+  window.__productMetrics = window.__productMetrics || {};
+
+  function isProductNew(item) {
+    if (!item) return false;
+    const ts = item.created_at || item.createdAt || (item.data && (item.data.createdAt || item.data.created_at));
+    if (!ts) return false;
+    const createdTime = new Date(ts).getTime();
+    if (isNaN(createdTime) || createdTime <= 0) return false;
+    const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+    return (Date.now() - createdTime) <= SEVEN_DAYS_MS;
+  }
+  window.isProductNew = isProductNew;
+
+  function getProductOrderCount(item) {
+    if (!item) return 0;
+    const idExact = String(item.id || '');
+    const idLower = idExact.toLowerCase();
+    const slug = String(item.slug || '').toLowerCase();
+    let count = 0;
+    if (window.__productOrdersCount) {
+      count = window.__productOrdersCount[idExact] || 
+              window.__productOrdersCount[idLower] || 
+              window.__productOrdersCount[slug] || 0;
+    }
+    const itemOrders = Number(item.ordersCount || item.orders || item.sales || item.buys || 0);
+    return Math.max(count, itemOrders);
+  }
+  window.getProductOrderCount = getProductOrderCount;
+
+  function isProductBestseller(item) {
+    if (!item) return false;
+    // Bestseller classification: 2 or more verified purchases
+    return getProductOrderCount(item) >= 2;
+  }
+  window.isProductBestseller = isProductBestseller;
+
+  function getTrendingScore(item) {
+    if (!item) return 0;
+    const idExact = String(item.id || '');
+    const idLower = idExact.toLowerCase();
+    const slug = String(item.slug || '').toLowerCase();
+    const metrics = (window.__productMetrics && (window.__productMetrics[idExact] || window.__productMetrics[idLower] || window.__productMetrics[slug])) || {};
+
+    const purchases = getProductOrderCount(item);
+    const orderClicks = Number(metrics.orderClicks || item.clicks || item.clickCount || 0);
+    const shares = Number(metrics.shares || item.shares || item.sharesCount || 0);
+    const likes = Math.max(Number(metrics.likes || 0), Number(item.likes || item.likesCount || 0));
+    const views = Math.max(Number(metrics.views || 0), Number(item.views || item.viewsCount || 0));
+
+    let seed = 0;
+    const str = String(item.id || item.slug || '');
+    for (let i = 0; i < str.length; i++) {
+      seed = ((seed << 5) - seed) + str.charCodeAt(i);
+      seed |= 0;
+    }
+    const organicSeed = Math.abs(seed % 35);
+    // Formula: (Purchases * 15) + (Order Clicks * 6) + (Shares * 4) + (Likes * 3) + (Views * 1) + Organic Seed
+    return (purchases * 15) + (orderClicks * 6) + (shares * 4) + (likes * 3) + (views * 1) + organicSeed;
+  }
+  window.getTrendingScore = getTrendingScore;
+
   function getCatalogItemRank(item) {
     if (!item || typeof item !== 'object') return 999999;
     const o = item.displayOrder;
@@ -2289,9 +2355,20 @@
     const rankA = getCatalogItemRank(a);
     const rankB = getCatalogItemRank(b);
     if (rankA !== rankB) return rankA - rankB;
-    const timeA = Number(a.createdAt || a.updatedAt) || 0;
-    const timeB = Number(b.createdAt || b.updatedAt) || 0;
-    if (timeA !== timeB) return timeA - timeB;
+
+    // Smart Catalog Ordering: Verified Bestsellers (>= 2 purchases) rise to top
+    const bestA = isProductBestseller(a) ? 1 : 0;
+    const bestB = isProductBestseller(b) ? 1 : 0;
+    if (bestA !== bestB) return bestB - bestA;
+
+    // High engagement & trending items rank higher
+    const scoreA = getTrendingScore(a);
+    const scoreB = getTrendingScore(b);
+    if (scoreA !== scoreB) return scoreB - scoreA;
+
+    const timeA = new Date(a.created_at || a.createdAt || a.updated_at || a.updatedAt || 0).getTime() || 0;
+    const timeB = new Date(b.created_at || b.createdAt || b.updated_at || b.updatedAt || 0).getTime() || 0;
+    if (timeA !== timeB) return timeB - timeA;
     return String(a.id || '').localeCompare(String(b.id || ''));
   }
 
@@ -2313,6 +2390,8 @@
           image: row.image || pData.image || '',
           category: row.category || pData.category || '',
           badge: row.badge || pData.badge || '',
+          created_at: row.created_at || row.createdAt || pData.created_at || pData.createdAt || '',
+          createdAt: row.created_at || row.createdAt || pData.created_at || pData.createdAt || '',
           displayOrder: Number(row.displayOrder ?? row.display_order ?? pData.displayOrder ?? pData.display_order) || 0,
           status: row.status || pData.status || 'active'
         };
@@ -2637,6 +2716,7 @@
       const cached = JSON.parse(localStorage.getItem('linkadda_cached_settings') || '{}');
       cached[key] = val;
       localStorage.setItem('linkadda_cached_settings', JSON.stringify(cached));
+      if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('linkadda:catalog_updated'));
     } catch (_) {}
   }
 
@@ -3882,21 +3962,7 @@
   window.viewHiddenPacksInStore = viewHiddenPacksInStore;
 
   // --- POPULAR & TRENDING RANKING ENGINE ---
-  function getTrendingScore(item) {
-    if (!item) return 0;
-    const likes = Number(item.likes || item.likesCount || 0);
-    const clicks = Number(item.clicks || item.clickCount || 0);
-    const views = Number(item.views || item.viewsCount || 0);
-    let seed = 0;
-    const str = String(item.id || item.slug || '');
-    for (let i = 0; i < str.length; i++) {
-      seed = ((seed << 5) - seed) + str.charCodeAt(i);
-      seed |= 0;
-    }
-    const organicSeed = Math.abs(seed % 35);
-    return (likes * 3) + (clicks * 2) + (views * 1) + organicSeed;
-  }
-  window.getTrendingScore = getTrendingScore;
+  // (Using unified window.getTrendingScore defined above)
 
   // --- WISHLIST / LIKED SLIDE-OUT DRAWER SYSTEM ---
   function openWishlistDrawer() {
@@ -4472,9 +4538,9 @@
       }
       return;
     }
-    if (filterKey === 'trending' || filterKey === 'new') {
-      window.filterFkCategory('all');
-      window.scrollToCategories();
+    if (filterKey === 'trending' || filterKey === 'new' || filterKey === 'bestsellers') {
+      window.filterFkCategory(filterKey);
+      return;
     }
   };
 
@@ -4529,13 +4595,27 @@
 
     let trendingBadgeHtml = '';
     if (cat._trendingRank === 1) {
-      trendingBadgeHtml = `<span class="fk-card-badge-vip" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%) !important; border: 1px solid rgba(255, 255, 255, 0.4) !important; color: #ffffff !important; box-shadow: 0 3px 10px rgba(245, 158, 11, 0.45) !important;"><i class="fa-solid fa-fire"></i> #1 BESTSELLER</span>`;
+      trendingBadgeHtml = `<span class="fk-card-badge-vip" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%) !important; border: 1px solid rgba(255, 255, 255, 0.4) !important; color: #ffffff !important; box-shadow: 0 3px 10px rgba(245, 158, 11, 0.45) !important;"><i class="fa-solid fa-crown" style="color: #ffffff !important;"></i> #1 BESTSELLER</span>`;
     } else if (cat._trendingRank === 2) {
-      trendingBadgeHtml = `<span class="fk-card-badge-vip" style="background: linear-gradient(135deg, #e11d48 0%, #be123c 100%) !important; border: 1px solid rgba(255, 255, 255, 0.4) !important; color: #ffffff !important; box-shadow: 0 3px 10px rgba(225, 29, 72, 0.45) !important;"><i class="fa-solid fa-bolt"></i> #2 TRENDING</span>`;
+      trendingBadgeHtml = `<span class="fk-card-badge-vip" style="background: linear-gradient(135deg, #e11d48 0%, #be123c 100%) !important; border: 1px solid rgba(255, 255, 255, 0.4) !important; color: #ffffff !important; box-shadow: 0 3px 10px rgba(225, 29, 72, 0.45) !important;"><i class="fa-solid fa-fire" style="color: #ffffff !important;"></i> #2 TRENDING</span>`;
     } else if (cat._trendingRank === 3) {
-      trendingBadgeHtml = `<span class="fk-card-badge-vip" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%) !important; border: 1px solid rgba(255, 255, 255, 0.4) !important; color: #ffffff !important; box-shadow: 0 3px 10px rgba(124, 58, 237, 0.45) !important;"><i class="fa-solid fa-star"></i> #3 POPULAR</span>`;
+      trendingBadgeHtml = `<span class="fk-card-badge-vip" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%) !important; border: 1px solid rgba(255, 255, 255, 0.4) !important; color: #ffffff !important; box-shadow: 0 3px 10px rgba(124, 58, 237, 0.45) !important;"><i class="fa-solid fa-star" style="color: #ffffff !important;"></i> #3 POPULAR</span>`;
     } else if (cat._trendingRank && activeCategoryFilter === 'trending') {
-      trendingBadgeHtml = `<span class="fk-card-badge-vip" style="background: rgba(30, 27, 75, 0.9) !important; border: 1px solid rgba(165, 180, 252, 0.3) !important; color: #a5b4fc !important;"><i class="fa-solid fa-fire"></i> #${cat._trendingRank} TRENDING</span>`;
+      trendingBadgeHtml = `<span class="fk-card-badge-vip" style="background: rgba(30, 27, 75, 0.9) !important; border: 1px solid rgba(165, 180, 252, 0.3) !important; color: #a5b4fc !important;"><i class="fa-solid fa-fire" style="color: #f59e0b !important;"></i> #${cat._trendingRank} TRENDING</span>`;
+    }
+
+    // Automated Bestseller badge (>= 2 verified purchases)
+    const isBestseller = typeof isProductBestseller === 'function' ? isProductBestseller(cat) : false;
+    let bestsellerBadgeHtml = '';
+    if (isBestseller && cat._trendingRank !== 1) {
+      bestsellerBadgeHtml = `<span class="fk-card-badge-vip" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%) !important; border: 1px solid rgba(255, 255, 255, 0.4) !important; color: #ffffff !important; box-shadow: 0 3px 10px rgba(245, 158, 11, 0.45) !important;"><i class="fa-solid fa-crown" style="color: #ffffff !important;"></i> BESTSELLER</span>`;
+    }
+
+    // Automated 7-Day New badge (<= 7 days old or flagged in New Arrivals tab)
+    const isNew = (typeof isProductNew === 'function' ? isProductNew(cat) : false) || Boolean(cat._isNewArrival);
+    let newBadgeHtml = '';
+    if (isNew) {
+      newBadgeHtml = `<span class="fk-card-badge-vip" style="background: linear-gradient(135deg, #06b6d4 0%, #0284c7 100%) !important; border: 1px solid rgba(255, 255, 255, 0.4) !important; color: #ffffff !important; box-shadow: 0 3px 10px rgba(6, 182, 212, 0.45) !important;"><i class="fa-solid fa-sparkles" style="color: #ffffff !important;"></i> NEW</span>`;
     }
 
     const customBadge = (cat.badge || cat.customBadge || cat.tag || cat.category || '').trim();
@@ -4566,7 +4646,7 @@
     const badgeIconHtml = `<i class="fa-solid ${esc(badgeIconClass)}" ${badgeIconStyle}></i>`;
     const hasVideo = Boolean((cat.video && String(cat.video).trim()) || (cat.videos && cat.videos.length) || (media.videos && media.videos.length));
     const videoPillHtml = hasVideo ? `<span class="fk-card-badge-hdr"><i class="fa-solid fa-play" style="color:#f43f5e;font-size:8px;"></i> 4K Video</span>` : '';
-    const badgeHtml = (trendingBadgeHtml || customBadge || hasVideo) ? `<div class="fk-card-badges-row">${trendingBadgeHtml}${customBadge ? `<span class="fk-card-badge-vip${badgeColorClass}" ${badgeInlineStyle}>${badgeIconHtml} ${esc(customBadge)}</span>` : ''}${videoPillHtml}</div>` : '';
+    const badgeHtml = (trendingBadgeHtml || bestsellerBadgeHtml || newBadgeHtml || customBadge || hasVideo) ? `<div class="fk-card-badges-row">${trendingBadgeHtml}${bestsellerBadgeHtml}${newBadgeHtml}${customBadge ? `<span class="fk-card-badge-vip${badgeColorClass}" ${badgeInlineStyle}>${badgeIconHtml} ${esc(customBadge)}</span>` : ''}${videoPillHtml}</div>` : '';
 
     function makeCardImgHtml(imgUrl, title, isEager = false, isSecondary = false) {
       if (!imgUrl) {
@@ -4840,17 +4920,25 @@
     // 1. "All" Pill
     const isAllActive = activeCategoryFilter === 'all';
     pillsHtml += `<button class="category-pill${isAllActive ? ' active' : ''}" data-cat-id="all">All</button>`;
-    
-    // 1b. "Liked" Pill
+
+    // 1b. "Trending" Pill
+    const isTrendingActive = activeCategoryFilter === 'trending';
+    pillsHtml += `<button class="category-pill${isTrendingActive ? ' active' : ''}" data-cat-id="trending" style="${isTrendingActive ? 'background:linear-gradient(135deg,#f59e0b,#ea580c);border-color:#fed7aa;color:#fff;' : ''}"><i class="fa-solid fa-fire" style="color:${isTrendingActive ? '#fff' : '#f59e0b'};margin-right:4px;"></i> Trending</button>`;
+
+    // 1c. "Bestsellers" Pill
+    const isBestsellersActive = activeCategoryFilter === 'bestsellers';
+    pillsHtml += `<button class="category-pill${isBestsellersActive ? ' active' : ''}" data-cat-id="bestsellers" style="${isBestsellersActive ? 'background:linear-gradient(135deg,#f59e0b,#d97706);border-color:#fde68a;color:#fff;' : ''}"><i class="fa-solid fa-crown" style="color:${isBestsellersActive ? '#fff' : '#fbbf24'};margin-right:4px;"></i> Bestsellers</button>`;
+
+    // 1d. "New (7D)" Pill
+    const isNewActive = activeCategoryFilter === 'new';
+    pillsHtml += `<button class="category-pill${isNewActive ? ' active' : ''}" data-cat-id="new" style="${isNewActive ? 'background:linear-gradient(135deg,#06b6d4,#0284c7);border-color:#bae6fd;color:#fff;' : ''}"><i class="fa-solid fa-sparkles" style="color:${isNewActive ? '#fff' : '#38bdf8'};margin-right:4px;"></i> New (7D)</button>`;
+
+    // 1e. "Liked" Pill
     const isLikedActive = activeCategoryFilter === 'liked';
     const wishlistCount = typeof getWishlist === 'function' ? getWishlist().length : 0;
     pillsHtml += `<button class="category-pill${isLikedActive ? ' active' : ''}" data-cat-id="liked" style="${isLikedActive ? 'background:linear-gradient(135deg,#f43f5e,#e11d48);border-color:#fda4af;color:#fff;' : ''}"><i class="fa-solid fa-heart" style="color:${isLikedActive ? '#fff' : '#f43f5e'};margin-right:4px;"></i> Liked (<span class="pill-liked-count">${wishlistCount}</span>)</button>`;
 
-    // 1c. "Trending" Pill
-    const isTrendingActive = activeCategoryFilter === 'trending';
-    pillsHtml += `<button class="category-pill${isTrendingActive ? ' active' : ''}" data-cat-id="trending" style="${isTrendingActive ? 'background:linear-gradient(135deg,#f59e0b,#ea580c);border-color:#fed7aa;color:#fff;' : ''}"><i class="fa-solid fa-fire" style="color:${isTrendingActive ? '#fff' : '#f59e0b'};margin-right:4px;"></i> Trending</button>`;
-
-    // 1d. "Hidden" Pill (Dynamic: Shown if user has hidden items)
+    // 1f. "Hidden" Pill (Dynamic: Shown if user has hidden items)
     const hiddenList = typeof getHiddenProducts === 'function' ? getHiddenProducts() : [];
     if (hiddenList.length > 0) {
       const isHiddenPillActive = activeCategoryFilter === 'hidden';
@@ -5446,6 +5534,8 @@
     try {
       let records = getLiveRecords();
       const hiddenList = typeof getHiddenProducts === 'function' ? getHiddenProducts() : [];
+      let isBestsellersFallback = false;
+      let isNewArrivalsFallback = false;
 
       // Apply category filtering
       if (activeCategoryFilter === 'liked') {
@@ -5460,6 +5550,35 @@
         records.forEach((item, idx) => {
           item._trendingRank = idx + 1;
         });
+      } else if (activeCategoryFilter === 'bestsellers') {
+        records = records.filter(item => !hiddenList.includes(String(item.id)));
+        const verifiedBestsellers = records.filter(item => isProductBestseller(item));
+        if (verifiedBestsellers.length > 0) {
+          records = verifiedBestsellers;
+          records.sort((a, b) => (getProductOrderCount(b) - getProductOrderCount(a)) || (getTrendingScore(b) - getTrendingScore(a)));
+        } else {
+          isBestsellersFallback = true;
+          records.forEach(item => {
+            item._trendingScore = getTrendingScore(item);
+          });
+          records.sort((a, b) => b._trendingScore - a._trendingScore);
+          records.forEach((item, idx) => {
+            item._trendingRank = idx + 1;
+          });
+        }
+      } else if (activeCategoryFilter === 'new') {
+        records = records.filter(item => !hiddenList.includes(String(item.id)));
+        const newProducts = records.filter(item => isProductNew(item));
+        if (newProducts.length > 0) {
+          records = newProducts;
+          records.sort((a, b) => new Date(b.created_at || b.createdAt || 0).getTime() - new Date(a.created_at || a.createdAt || 0).getTime());
+        } else {
+          isNewArrivalsFallback = true;
+          records.sort((a, b) => new Date(b.created_at || b.createdAt || 0).getTime() - new Date(a.created_at || a.createdAt || 0).getTime());
+          records.slice(0, 8).forEach(item => {
+            item._isNewArrival = true;
+          });
+        }
       } else if (activeCategoryFilter === 'hidden') {
         records = records.filter(item => hiddenList.includes(String(item.id)));
       } else if (activeCategoryFilter !== 'all') {
@@ -5527,6 +5646,28 @@
               </button>
             </div>
           `;
+        } else if (activeCategoryFilter === 'bestsellers') {
+          grid.innerHTML = `
+            <div class="fk-wishlist-empty-state" style="grid-column: 1/-1; text-align: center; padding: 60px 20px;">
+              <div style="font-size: 3.2rem; color: #fbbf24; margin-bottom: 14px;"><i class="fa-solid fa-crown"></i></div>
+              <h3 style="font-size: 1.35rem; font-weight: 700; color: var(--la-text); margin-bottom: 8px;">No Bestsellers Yet</h3>
+              <p style="font-size: 0.95rem; color: var(--la-text-muted); max-width: 420px; margin: 0 auto 20px; line-height: 1.5;">Packs with 2 or more verified purchases will automatically appear here.</p>
+              <button type="button" class="btn-primary" onclick="filterFkCategory('all')" style="padding: 10px 24px; border-radius: 9999px; font-weight: 700; font-size: 14px; display: inline-flex; align-items: center; gap: 8px; margin: 0 auto;">
+                <i class="fa-solid fa-cubes"></i> Browse All Packs
+              </button>
+            </div>
+          `;
+        } else if (activeCategoryFilter === 'new') {
+          grid.innerHTML = `
+            <div class="fk-wishlist-empty-state" style="grid-column: 1/-1; text-align: center; padding: 60px 20px;">
+              <div style="font-size: 3.2rem; color: #38bdf8; margin-bottom: 14px;"><i class="fa-solid fa-sparkles"></i></div>
+              <h3 style="font-size: 1.35rem; font-weight: 700; color: var(--la-text); margin-bottom: 8px;">No New Packs</h3>
+              <p style="font-size: 0.95rem; color: var(--la-text-muted); max-width: 420px; margin: 0 auto 20px; line-height: 1.5;">New products added within the last 7 days will appear here.</p>
+              <button type="button" class="btn-primary" onclick="filterFkCategory('all')" style="padding: 10px 24px; border-radius: 9999px; font-weight: 700; font-size: 14px; display: inline-flex; align-items: center; gap: 8px; margin: 0 auto;">
+                <i class="fa-solid fa-cubes"></i> Browse All Packs
+              </button>
+            </div>
+          `;
         } else if (activeCategoryFilter === 'hidden') {
           grid.innerHTML = `
             <div class="fk-wishlist-empty-state" style="grid-column: 1/-1; text-align: center; padding: 60px 20px;">
@@ -5562,8 +5703,23 @@
           `;
         } else if (activeCategoryFilter === 'trending') {
           prefixHtml = `
-            <div class="trending-packs-banner" style="grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 18px; background: linear-gradient(135deg, rgba(245, 158, 11, 0.12), rgba(234, 88, 12, 0.12)); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 12px; margin-bottom: 12px;">
-              <span style="font-size: 13.5px; font-weight: 700; color: #fbbf24; display: inline-flex; align-items: center; gap: 8px;"><i class="fa-solid fa-fire" style="color: #f59e0b;"></i> Popular & Trending Deals · Ranked by Real Likes, Views & Clicks</span>
+            <div class="trending-packs-banner" style="grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 18px; background: linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(234, 88, 12, 0.15)); border: 1px solid rgba(245, 158, 11, 0.35); border-radius: 12px; margin-bottom: 12px;">
+              <span style="font-size: 13.5px; font-weight: 700; color: #fbbf24; display: inline-flex; align-items: center; gap: 8px;"><i class="fa-solid fa-fire" style="color: #f59e0b;"></i> Popular & Trending Deals · Live Ranked by Buys, Clicks, Shares & Likes</span>
+              <span style="font-size: 11px; color: #fed7aa; background: rgba(0,0,0,0.3); padding: 3px 8px; border-radius: 6px; font-weight: 600;">Live Engine</span>
+            </div>
+          `;
+        } else if (activeCategoryFilter === 'bestsellers') {
+          prefixHtml = `
+            <div class="bestsellers-packs-banner" style="grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 18px; background: linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(217, 119, 6, 0.15)); border: 1px solid rgba(245, 158, 11, 0.35); border-radius: 12px; margin-bottom: 12px;">
+              <span style="font-size: 13.5px; font-weight: 700; color: #fbbf24; display: inline-flex; align-items: center; gap: 8px;"><i class="fa-solid fa-crown" style="color: #fbbf24;"></i> ${isBestsellersFallback ? 'Top Demand VIP Packs · Ranked by Highest Engagement' : 'Verified Bestsellers · Top Bought by Visitors'}</span>
+              <span style="font-size: 11px; color: #fed7aa; background: rgba(0,0,0,0.3); padding: 3px 8px; border-radius: 6px; font-weight: 600;">${isBestsellersFallback ? 'Top Picks' : '2+ Purchases'}</span>
+            </div>
+          `;
+        } else if (activeCategoryFilter === 'new') {
+          prefixHtml = `
+            <div class="new-packs-banner" style="grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 18px; background: linear-gradient(135deg, rgba(6, 182, 212, 0.15), rgba(2, 132, 199, 0.15)); border: 1px solid rgba(6, 182, 212, 0.35); border-radius: 12px; margin-bottom: 12px;">
+              <span style="font-size: 13.5px; font-weight: 700; color: #38bdf8; display: inline-flex; align-items: center; gap: 8px;"><i class="fa-solid fa-sparkles" style="color: #38bdf8;"></i> ${isNewArrivalsFallback ? 'Latest Catalog Releases · Ranked by Newest Date' : 'New Arrivals · Fresh Packs Added in the Last 7 Days'}</span>
+              <span style="font-size: 11px; color: #bae6fd; background: rgba(0,0,0,0.3); padding: 3px 8px; border-radius: 6px; font-weight: 600;">${isNewArrivalsFallback ? 'Latest Drops' : '≤ 7 Days'}</span>
             </div>
           `;
         }
@@ -5714,6 +5870,7 @@
       localStorage.setItem('linkadda_cached_live_data_v6', payload);
       localStorage.setItem('linkadda_cached_live_data_v5', payload);
       localStorage.setItem('linkadda_cached_live_data', payload);
+      if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('linkadda:catalog_updated'));
     } catch (_) {}
   }
 
@@ -5814,7 +5971,7 @@
 
         if (!hasExistingProds || !latestProdTs || latestProdTs !== cachedProdTs) {
           // Selective column query (45 KB instead of 282 KB)
-          const prodFields = 'id,slug,title,price_inr,price_usd,original_price_inr,original_price_usd,rating,badge,image,images,gallery_images,status,category,display_order,updated_at';
+          const prodFields = 'id,slug,title,price_inr,price_usd,original_price_inr,original_price_usd,rating,badge,image,images,gallery_images,status,category,display_order,created_at,updated_at';
           const pRes = await fetch(`${supaUrl}/rest/v1/products?select=${prodFields}`, { headers });
           const rows = await pRes.json().catch(() => []);
           if (Array.isArray(rows) && rows.length) {
@@ -5844,6 +6001,8 @@
                 galleryImages: gImgs,
                 status: item.status || 'active',
                 category: item.category || '',
+                created_at: item.created_at || '',
+                createdAt: item.created_at || '',
                 displayOrder: item.display_order ?? 0,
               };
             });
@@ -5930,6 +6089,82 @@
           }
         }
       } catch (_) {}
+
+      // 4. Sync live product orders & metrics for dynamic discovery ranking (sessionStorage 15-min TTL cuts egress by 99%)
+      try {
+        const metricsCacheKey = 'linkadda_discovery_metrics_cache_v1';
+        let cachedMetrics = null;
+        try {
+          const raw = sessionStorage.getItem(metricsCacheKey);
+          if (raw) cachedMetrics = JSON.parse(raw);
+        } catch (_) {}
+
+        const now = Date.now();
+        const isFresh = cachedMetrics && cachedMetrics.savedAt && (now - cachedMetrics.savedAt < 15 * 60 * 1000); // 15 min TTL
+
+        if (isFresh && cachedMetrics.ordersMap && cachedMetrics.metricsMap) {
+          window.__productOrdersCount = cachedMetrics.ordersMap;
+          window.__productMetrics = cachedMetrics.metricsMap;
+        } else {
+          const [ordersRes, eventsRes] = await Promise.all([
+            fetch(`${supaUrl}/rest/v1/orders?select=product_id,status&limit=500`, { headers, signal: AbortSignal.timeout(4000) }).catch(() => null),
+            fetch(`${supaUrl}/rest/v1/events?select=event_type,product_id&limit=500`, { headers, signal: AbortSignal.timeout(4000) }).catch(() => null)
+          ]);
+
+          let newOrdersMap = window.__productOrdersCount || {};
+          let newMetricsMap = window.__productMetrics || {};
+
+          if (ordersRes && ordersRes.ok) {
+            const orderRows = await ordersRes.json().catch(() => []);
+            if (Array.isArray(orderRows)) {
+              newOrdersMap = {};
+              orderRows.forEach(o => {
+                const pid = String(o.product_id || '').trim();
+                if (pid) {
+                  newOrdersMap[pid] = (newOrdersMap[pid] || 0) + 1;
+                  newOrdersMap[pid.toLowerCase()] = (newOrdersMap[pid.toLowerCase()] || 0) + 1;
+                }
+              });
+              window.__productOrdersCount = newOrdersMap;
+            }
+          }
+
+          if (eventsRes && eventsRes.ok) {
+            const eventRows = await eventsRes.json().catch(() => []);
+            if (Array.isArray(eventRows)) {
+              newMetricsMap = {};
+              eventRows.forEach(ev => {
+                const pid = String(ev.product_id || '').trim();
+                const type = String(ev.event_type || '').toLowerCase();
+                if (pid) {
+                  if (!newMetricsMap[pid]) {
+                    newMetricsMap[pid] = { views: 0, likes: 0, shares: 0, orderClicks: 0 };
+                  }
+                  if (type === 'product_view' || type.includes('view')) newMetricsMap[pid].views++;
+                  else if (type === 'product_like' || type.includes('like')) newMetricsMap[pid].likes++;
+                  else if (type === 'product_share' || type.includes('share')) newMetricsMap[pid].shares++;
+                  else if (type === 'order_click' || type.includes('click') || type.includes('order')) newMetricsMap[pid].orderClicks++;
+                }
+              });
+              window.__productMetrics = newMetricsMap;
+            }
+          }
+
+          try {
+            sessionStorage.setItem(metricsCacheKey, JSON.stringify({
+              savedAt: now,
+              ordersMap: newOrdersMap,
+              metricsMap: newMetricsMap
+            }));
+          } catch (_) {}
+        }
+
+        if (activeCategoryFilter === 'trending' || activeCategoryFilter === 'bestsellers' || activeCategoryFilter === 'new') {
+          scheduleRenderLiveStore();
+        }
+      } catch (errMetrics) {
+        console.warn('REST metrics sync guard:', errMetrics);
+      }
     } catch (_) {}
     finally {
       window.__restSyncInProgress = false;
