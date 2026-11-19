@@ -3107,6 +3107,7 @@ window.openProductBroadcastModal = function(recordOrId, node = 'products') {
           const res = await telegramApiFetch('/api/telegram/broadcast', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', ...getAdminAuthHeaders() },
+            signal: AbortSignal.timeout(120000),
             body: JSON.stringify({
               type: 'product',
               product: item,
@@ -3132,14 +3133,26 @@ window.openProductBroadcastModal = function(recordOrId, node = 'products') {
             throw new Error(data?.error || 'Broadcast failed to dispatch');
           }
         } catch (err) {
+          const isTimeout = err.name === 'TimeoutError' || String(err.message || '').includes('timed out');
           if (feedback) {
             feedback.style.display = 'block';
-            feedback.style.background = 'rgba(239, 68, 68, 0.15)';
-            feedback.style.border = '1px solid rgba(239, 68, 68, 0.3)';
-            feedback.style.color = '#fca5a5';
-            feedback.innerHTML = `❌ <strong>Broadcast Error:</strong> ${escapeHtml(err.message || 'Failed')}`;
+            if (isTimeout) {
+              feedback.style.background = 'rgba(245, 158, 11, 0.15)';
+              feedback.style.border = '1px solid rgba(245, 158, 11, 0.3)';
+              feedback.style.color = '#fde68a';
+              feedback.innerHTML = `⏳ <strong>Broadcast Dispatched:</strong> The broadcast was queued and bots are delivering messages in the background.`;
+            } else {
+              feedback.style.background = 'rgba(239, 68, 68, 0.15)';
+              feedback.style.border = '1px solid rgba(239, 68, 68, 0.3)';
+              feedback.style.color = '#fca5a5';
+              feedback.innerHTML = `❌ <strong>Broadcast Error:</strong> ${escapeHtml(err.message || 'Failed')}`;
+            }
           }
-          showToast('Broadcast failed: ' + err.message, 'danger');
+          if (isTimeout) {
+            showToast('Broadcast queued and sending in background...', 'warning');
+          } else {
+            showToast('Broadcast failed: ' + err.message, 'danger');
+          }
         } finally {
           sendBtn.disabled = false;
           sendBtn.innerHTML = originalHtml;
@@ -7892,7 +7905,9 @@ async function telegramApiFetch(endpoint, options = {}) {
   }
 
   if (!opts.signal) {
-    try { opts.signal = AbortSignal.timeout(12000); } catch (_) {}
+    const isBroadcast = clean.includes('broadcast');
+    const timeoutMs = isBroadcast ? 120000 : 25000;
+    try { opts.signal = AbortSignal.timeout(timeoutMs); } catch (_) {}
   }
 
   let res = await fetch(fullUrl, opts);

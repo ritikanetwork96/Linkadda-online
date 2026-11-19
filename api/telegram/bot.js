@@ -2819,58 +2819,64 @@ export async function broadcastNewProduct(rawProduct, targetBotIds = ['all']) {
     const recipients = Array.from(recipientMap.values());
     totalRecipients += recipients.length;
 
-    for (const target of recipients) {
-      const chatId = target.id;
-      if (!chatId) continue;
-      // Skip non-admins if already successfully delivered by an earlier bot in this multi-bot run
-      if (isAll && target.role !== 'admin' && deliveredChatIds.has(chatId)) {
-        continue;
-      }
-      let delivered = false;
+    const BATCH_SIZE = 6;
+    for (let i = 0; i < recipients.length; i += BATCH_SIZE) {
+      const batch = recipients.slice(i, i + BATCH_SIZE);
+      await Promise.allSettled(batch.map(async (target) => {
+        const chatId = target.id;
+        if (!chatId) return;
+        // Skip non-admins if already successfully delivered by an earlier bot in this multi-bot run
+        if (isAll && target.role !== 'admin' && deliveredChatIds.has(chatId)) {
+          return;
+        }
+        let delivered = false;
 
-      if (image && (image.startsWith('http://') || image.startsWith('https://'))) {
-        try {
-          const photoRes = await callTelegram('sendPhoto', {
-            chat_id: chatId,
-            photo: image,
-            caption: messageText,
-            parse_mode: 'HTML',
-            reply_markup: botKeyboard
-          }, currentBot.token);
-          if (photoRes && photoRes.ok) delivered = true;
-        } catch (_) {}
-      }
+        if (image && (image.startsWith('http://') || image.startsWith('https://'))) {
+          try {
+            const photoRes = await callTelegram('sendPhoto', {
+              chat_id: chatId,
+              photo: image,
+              caption: messageText,
+              parse_mode: 'HTML',
+              reply_markup: botKeyboard
+            }, currentBot.token);
+            if (photoRes && photoRes.ok) delivered = true;
+          } catch (_) {}
+        }
 
-      if (!delivered) {
-        try {
-          const msgRes = await callTelegram('sendMessage', {
-            chat_id: chatId,
-            text: messageText,
-            parse_mode: 'HTML',
-            reply_markup: botKeyboard
-          }, currentBot.token);
-          if (msgRes && msgRes.ok) {
-            delivered = true;
-          } else if (sampleErrors.length < 5) {
-            sampleErrors.push(`${chatId} (@${currentBot.username}): ${msgRes?.description || 'failed'}`);
-          }
-        } catch (msgErr) {
-          if (sampleErrors.length < 5) {
-            sampleErrors.push(`${chatId}: ${msgErr.message}`);
+        if (!delivered) {
+          try {
+            const msgRes = await callTelegram('sendMessage', {
+              chat_id: chatId,
+              text: messageText,
+              parse_mode: 'HTML',
+              reply_markup: botKeyboard
+            }, currentBot.token);
+            if (msgRes && msgRes.ok) {
+              delivered = true;
+            } else if (sampleErrors.length < 5) {
+              sampleErrors.push(`${chatId} (@${currentBot.username}): ${msgRes?.description || 'failed'}`);
+            }
+          } catch (msgErr) {
+            if (sampleErrors.length < 5) {
+              sampleErrors.push(`${chatId}: ${msgErr.message}`);
+            }
           }
         }
-      }
 
-      if (delivered) {
-        sentCount++;
-        deliveredChatIds.add(chatId);
-        botBreakdown[botKey].sent++;
-      } else {
-        failCount++;
-        botBreakdown[botKey].failed++;
-      }
+        if (delivered) {
+          sentCount++;
+          deliveredChatIds.add(chatId);
+          botBreakdown[botKey].sent++;
+        } else {
+          failCount++;
+          botBreakdown[botKey].failed++;
+        }
+      }));
 
-      await new Promise(r => setTimeout(r, 45));
+      if (i + BATCH_SIZE < recipients.length) {
+        await new Promise(r => setTimeout(r, 80));
+      }
     }
   }
 
@@ -2964,58 +2970,64 @@ export async function broadcastCustomMessage({ message, photo, buttonText, butto
     const recipients = Array.from(recipientMap.values());
     totalRecipients += recipients.length;
 
-    for (const target of recipients) {
-      const chatId = target.id;
-      if (!chatId) continue;
-      // Skip non-admins if already successfully delivered by an earlier bot in this multi-bot run
-      if (isAll && target.role !== 'admin' && deliveredChatIds.has(chatId)) {
-        continue;
-      }
-      let delivered = false;
+    const BATCH_SIZE = 6;
+    for (let i = 0; i < recipients.length; i += BATCH_SIZE) {
+      const batch = recipients.slice(i, i + BATCH_SIZE);
+      await Promise.allSettled(batch.map(async (target) => {
+        const chatId = target.id;
+        if (!chatId) return;
+        // Skip non-admins if already successfully delivered by an earlier bot in this multi-bot run
+        if (isAll && target.role !== 'admin' && deliveredChatIds.has(chatId)) {
+          return;
+        }
+        let delivered = false;
 
-      if (cleanPhoto) {
-        try {
-          const photoRes = await callTelegram('sendPhoto', {
-            chat_id: chatId,
-            photo: cleanPhoto,
-            caption: cleanMsg,
-            parse_mode: 'HTML',
-            ...(replyMarkup ? { reply_markup: replyMarkup } : {})
-          }, currentBot.token);
-          if (photoRes && photoRes.ok) delivered = true;
-        } catch (_) {}
-      }
+        if (cleanPhoto) {
+          try {
+            const photoRes = await callTelegram('sendPhoto', {
+              chat_id: chatId,
+              photo: cleanPhoto,
+              caption: cleanMsg,
+              parse_mode: 'HTML',
+              ...(replyMarkup ? { reply_markup: replyMarkup } : {})
+            }, currentBot.token);
+            if (photoRes && photoRes.ok) delivered = true;
+          } catch (_) {}
+        }
 
-      if (!delivered) {
-        try {
-          const msgRes = await callTelegram('sendMessage', {
-            chat_id: chatId,
-            text: cleanMsg,
-            parse_mode: 'HTML',
-            ...(replyMarkup ? { reply_markup: replyMarkup } : {})
-          }, currentBot.token);
-          if (msgRes && msgRes.ok) {
-            delivered = true;
-          } else if (sampleErrors.length < 5) {
-            sampleErrors.push(`${chatId} (@${currentBot.username}): ${msgRes?.description || 'failed'}`);
-          }
-        } catch (msgErr) {
-          if (sampleErrors.length < 5) {
-            sampleErrors.push(`${chatId}: ${msgErr.message}`);
+        if (!delivered) {
+          try {
+            const msgRes = await callTelegram('sendMessage', {
+              chat_id: chatId,
+              text: cleanMsg,
+              parse_mode: 'HTML',
+              ...(replyMarkup ? { reply_markup: replyMarkup } : {})
+            }, currentBot.token);
+            if (msgRes && msgRes.ok) {
+              delivered = true;
+            } else if (sampleErrors.length < 5) {
+              sampleErrors.push(`${chatId} (@${currentBot.username}): ${msgRes?.description || 'failed'}`);
+            }
+          } catch (msgErr) {
+            if (sampleErrors.length < 5) {
+              sampleErrors.push(`${chatId}: ${msgErr.message}`);
+            }
           }
         }
-      }
 
-      if (delivered) {
-        sentCount++;
-        deliveredChatIds.add(chatId);
-        botBreakdown[botKey].sent++;
-      } else {
-        failCount++;
-        botBreakdown[botKey].failed++;
-      }
+        if (delivered) {
+          sentCount++;
+          deliveredChatIds.add(chatId);
+          botBreakdown[botKey].sent++;
+        } else {
+          failCount++;
+          botBreakdown[botKey].failed++;
+        }
+      }));
 
-      await new Promise(r => setTimeout(r, 45));
+      if (i + BATCH_SIZE < recipients.length) {
+        await new Promise(r => setTimeout(r, 80));
+      }
     }
   }
 
