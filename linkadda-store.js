@@ -307,6 +307,11 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'track_view', productId: pid }),
       }).catch(() => {});
+      fetch('/api/track/event', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'product_view', event_type: 'product_view', productId: pid, product_id: pid, page: 'modal' }),
+      }).catch(() => {});
     } catch (_) {}
   }
   window.trackProductView = trackProductView;
@@ -333,6 +338,11 @@
           if (p) p.likes = data.likes;
           window.dispatchEvent(new CustomEvent('product_likes_updated', { detail: { productId: pid, likes: data.likes } }));
         }
+      }).catch(() => {});
+      fetch('/api/track/event', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'product_like', event_type: 'product_like', productId: pid, product_id: pid, isLiked: Boolean(isLiked) }),
       }).catch(() => {});
     } catch (_) {}
   }

@@ -68,6 +68,8 @@ export default async function handler(req, res) {
       botUsername,
       page,
       button,
+      isLiked: data.isLiked !== undefined ? Boolean(data.isLiked) : undefined,
+      action: data.action || undefined,
       timestamp: Date.now()
     }
   };
@@ -80,8 +82,8 @@ export default async function handler(req, res) {
       signal: AbortSignal.timeout(4000)
     });
 
-    return res.status(200).json({ ok: true, eventType, productId, source });
+    return res.status(200).json({ ok: true, success: true, eventType, productId, source });
   } catch (err) {
-    return res.status(200).json({ ok: false, error: err.message });
+    return res.status(200).json({ ok: false, success: false, error: err.message });
   }
 }

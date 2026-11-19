@@ -3676,6 +3676,44 @@ function summarizeDashboard(range = ui.dashboardRange) {
   const prevVisitors = countInWindow(visitors, previousWindow.start, previousWindow.end);
   const prevOrders = countInWindow(orders, previousWindow.start, previousWindow.end);
   const prevClicks = countInWindow(events, previousWindow.start, previousWindow.end, clickPredicate);
+
+  // --- NEW KPI METRICS: Views, Likes, Affiliate Clicks, Hidden Products ---
+  const isViewEvent = (item) => {
+    if (!item) return false;
+    const type = String(item.type || item.event_type || (item.data && item.data.type) || '').toLowerCase();
+    return type === 'product_view' || type.includes('view');
+  };
+
+  const isLikeEvent = (item) => {
+    if (!item) return false;
+    const type = String(item.type || item.event_type || (item.data && item.data.type) || '').toLowerCase();
+    return type === 'product_like' || type.includes('like');
+  };
+
+  const isAffiliateEvent = (item) => {
+    if (!item) return false;
+    const type = String(item.type || item.event_type || (item.data && item.data.type) || '').toLowerCase();
+    return type === 'affiliate_click' || type === 'telegram_click' || type.includes('affiliate');
+  };
+
+  const isHideEvent = (item) => {
+    if (!item) return false;
+    const type = String(item.type || item.event_type || (item.data && item.data.type) || '').toLowerCase();
+    return type === 'product_hide' || type.includes('hide');
+  };
+
+  const allProductLikes = products.reduce((acc, p) => acc + (Number(p.likes) || 0), 0);
+  const allProductViews = products.reduce((acc, p) => acc + (Number(p.views) || 0), 0);
+
+  const currentLikes = isAllRange ? (allProductLikes + events.filter(isLikeEvent).length) : countInWindow(events, currentWindow.start, currentWindow.end, isLikeEvent);
+  const currentViews = isAllRange ? (allProductViews + events.filter(isViewEvent).length) : countInWindow(events, currentWindow.start, currentWindow.end, isViewEvent);
+  const currentAffiliateClicks = isAllRange ? events.filter(isAffiliateEvent).length : countInWindow(events, currentWindow.start, currentWindow.end, isAffiliateEvent);
+  const hiddenProductsCount = products.filter(p => p.status === 'hidden').length;
+  const visitorHiddenCount = events.filter(isHideEvent).length;
+
+  const prevLikes = countInWindow(events, previousWindow.start, previousWindow.end, isLikeEvent);
+  const prevViews = countInWindow(events, previousWindow.start, previousWindow.end, isViewEvent);
+
   const topProducts = buildTopProducts({ range, clicks: currentClicks });
   const top = topProducts[0] ? [topProducts[0].title || topProducts[0].name, topProducts[0].clicks] : [];
 
@@ -3706,6 +3744,15 @@ function summarizeDashboard(range = ui.dashboardRange) {
     orders: currentOrders,
     ordersPrev: prevOrders,
     ordersTrend: percentChange(currentOrders, prevOrders),
+    totalLikes: currentLikes,
+    totalLikesPrev: prevLikes,
+    likesTrend: percentChange(currentLikes, prevLikes),
+    totalViews: currentViews,
+    totalViewsPrev: prevViews,
+    viewsTrend: percentChange(currentViews, prevViews),
+    affiliateClicks: currentAffiliateClicks,
+    hiddenProductsCount,
+    visitorHiddenCount,
     paidOrdersCount: currentWindowPaidOrders.length,
     allPaidOrdersCount: paidOrders.length,
     pendingOrdersCount: currentWindowPendingOrders.length,
@@ -3727,6 +3774,9 @@ function summarizeDashboard(range = ui.dashboardRange) {
     ctr,
     visitorSeries: buildSeries(visitors, range),
     clickSeries: buildSeries(events, range, clickPredicate),
+    viewSeries: buildSeries(events, range, isViewEvent),
+    likeSeries: buildSeries(events, range, isLikeEvent),
+    affiliateSeries: buildSeries(events, range, isAffiliateEvent),
     orderSeries: buildSeries(orders, range),
     revenueSeries: buildValueSeries(paidOrders, range, (item) => {
       const info = getOrderCurrencyAndAmount(item);
@@ -3840,6 +3890,8 @@ function renderDashboardMetricSwitch(summary) {
   const options = [
     { key: 'visitors', label: 'Visitors', value: summary.visitorSeries, tone: 'primary' },
     { key: 'clicks', label: 'Clicks', value: summary.clickSeries, tone: 'secondary' },
+    { key: 'views', label: 'Views', value: summary.viewSeries, tone: 'purple' },
+    { key: 'likes', label: 'Likes', value: summary.likeSeries, tone: 'accent' },
     { key: 'orders', label: 'Orders', value: summary.orderSeries, tone: 'success' },
   ];
   return `
@@ -3870,6 +3922,22 @@ function renderTrafficChart(summary = summarizeDashboard()) {
       series: summary.clickSeries,
       tone: 'secondary',
       copy: 'Product card interactions recorded from the live site.',
+    },
+    views: {
+      label: 'Product Views',
+      value: summary.totalViews,
+      trend: summary.viewsTrend,
+      series: summary.viewSeries,
+      tone: 'purple',
+      copy: 'Catalog and product details impressions in the selected range.',
+    },
+    likes: {
+      label: 'Likes',
+      value: summary.totalLikes,
+      trend: summary.likesTrend,
+      series: summary.likeSeries,
+      tone: 'accent',
+      copy: 'Heart likes recorded across the catalog in the selected range.',
     },
     orders: {
       label: 'Orders',
@@ -4059,6 +4127,7 @@ function buildTopProducts(summary = {}) {
 
   const matchedEvents = new Set();
 
+  const allEvents = listCollection('events').filter((item) => isInRange(recordTimestamp(item), range));
   const productsWithStats = products.map((prod) => {
     const matchedEvs = events.filter((ev) => {
       const match = doesEventMatchProduct(ev, prod, allOrders);
@@ -4070,13 +4139,27 @@ function buildTopProducts(summary = {}) {
     const prodRevenue = matchedOrders.filter(isPaidOrder).reduce((acc, ord) => acc + (getOrderCurrencyAndAmount(ord).amount || 0), 0);
     const clicksCount = matchedEvs.length;
 
+    const viewsCount = allEvents.filter((ev) => {
+      const type = String(ev.type || ev.event_type || (ev.data && ev.data.type) || '').toLowerCase();
+      return type.includes('view') && (String(ev.productId || ev.product_id) === String(prod.id));
+    }).length + Number(prod.views || 0);
+
+    const likesCount = allEvents.filter((ev) => {
+      const type = String(ev.type || ev.event_type || (ev.data && ev.data.type) || '').toLowerCase();
+      return type.includes('like') && (String(ev.productId || ev.product_id) === String(prod.id));
+    }).length + Number(prod.likes || 0);
+
+    const rankingScore = (likesCount * 3) + (orderCount * 8) + (clicksCount * 2) + (viewsCount * 1) + (typeof prod.display_order === 'number' ? (50 - prod.display_order) : 0);
+
     return {
       ...prod,
       image: prod.image || (Array.isArray(prod.galleryImages) ? prod.galleryImages[0] : '') || '',
       clicks: clicksCount,
+      views: viewsCount,
+      likes: likesCount,
       orders: orderCount,
       revenue: prodRevenue,
-      score: (orderCount * 8) + clicksCount + (typeof prod.display_order === 'number' ? (50 - prod.display_order) : 0),
+      score: rankingScore,
     };
   });
 
@@ -5932,11 +6015,13 @@ function renderDashboard(data) {
               `,
             })}
           </div>
-          <div class="dashboard-secondary-grid">
+          <div class="dashboard-secondary-grid" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)) !important;">
             ${renderCompactStatCard('Products', summary.totals.products, 'Live product records', 'package', 'primary')}
             ${renderCompactStatCard('Categories', summary.totals.categories, 'Live category records', 'layers-3', 'secondary')}
-            ${renderCompactStatCard('Media Assets', summary.mediaAssets, 'Cloudflare R2 Edge CDN', 'image', 'accent')}
-            ${renderCompactStatCard("Today's Visitors", summary.totals.todaysVisitors || 0, 'Visitors tracked today', 'calendar-days', 'success')}
+            ${renderCompactStatCard('Product Views', summary.totalViews, 'Catalog views 👁️', 'eye', 'purple')}
+            ${renderCompactStatCard('Total Likes', summary.totalLikes, 'Product likes ❤️', 'heart', 'accent')}
+            ${renderCompactStatCard('Affiliate Clicks', summary.affiliateClicks, 'External & Bot clicks', 'send', 'success')}
+            ${renderCompactStatCard('Hidden Products', summary.hiddenProductsCount, `${summary.visitorHiddenCount} visitor hides`, 'eye-off', 'secondary')}
           </div>
         </div>
 

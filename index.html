@@ -405,6 +405,186 @@
       filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.95)) !important;
     }
 
+    /* ── DEDICATED HIDE & UNHIDE ACTION BUTTONS (Neutral & Clear) ── */
+    .fk-card-hide-btn {
+      background: rgba(15, 23, 42, 0.75) !important;
+      border: 1.5px solid rgba(148, 163, 184, 0.3) !important;
+      color: #94a3b8 !important;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25) !important;
+      backdrop-filter: blur(8px) !important;
+    }
+    .fk-card-hide-btn i {
+      color: #94a3b8 !important;
+      font-size: 13.5px !important;
+      filter: none !important;
+    }
+    .fk-card-hide-btn:hover {
+      background: rgba(239, 68, 68, 0.22) !important;
+      border-color: rgba(239, 68, 68, 0.5) !important;
+      transform: scale(1.1) !important;
+      box-shadow: 0 6px 16px rgba(239, 68, 68, 0.25) !important;
+    }
+    .fk-card-hide-btn:hover i {
+      color: #f87171 !important;
+    }
+
+    [data-theme="light"] .fk-card-hide-btn {
+      background: rgba(255, 255, 255, 0.94) !important;
+      border: 1.5px solid rgba(148, 163, 184, 0.35) !important;
+      color: #64748b !important;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08) !important;
+    }
+    [data-theme="light"] .fk-card-hide-btn i {
+      color: #64748b !important;
+      filter: none !important;
+    }
+    [data-theme="light"] .fk-card-hide-btn:hover {
+      background: #fef2f2 !important;
+      border-color: rgba(239, 68, 68, 0.45) !important;
+      color: #dc2626 !important;
+      box-shadow: 0 6px 16px rgba(239, 68, 68, 0.18) !important;
+    }
+    [data-theme="light"] .fk-card-hide-btn:hover i {
+      color: #dc2626 !important;
+    }
+
+    /* ── LUXURY 5-SEC UNDO TOAST WITH ANIMATED PROGRESS BAR ── */
+    .linkadda-undo-toast {
+      position: fixed;
+      bottom: 84px;
+      left: 50%;
+      transform: translate(-50%, 35px) scale(0.96);
+      z-index: 100010;
+      background: linear-gradient(135deg, rgba(22, 16, 34, 0.96) 0%, rgba(10, 8, 18, 0.98) 100%);
+      border: 1px solid rgba(255, 42, 141, 0.4);
+      box-shadow: 0 16px 45px rgba(0, 0, 0, 0.75), 0 0 28px rgba(255, 42, 141, 0.25);
+      border-radius: 16px;
+      padding: 13px 18px 15px 18px;
+      color: #ffffff;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      width: 360px;
+      max-width: calc(100vw - 24px);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+      transition: transform 0.32s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.28s, visibility 0.28s;
+      overflow: hidden;
+    }
+    @media (min-width: 768px) {
+      .linkadda-undo-toast {
+        bottom: 32px;
+        width: 380px;
+      }
+    }
+    .linkadda-undo-toast.show {
+      opacity: 1;
+      visibility: visible;
+      pointer-events: auto;
+      transform: translate(-50%, 0) scale(1);
+    }
+    .undo-toast-body {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .undo-toast-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex: 1;
+      min-width: 0;
+    }
+    .undo-toast-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 11px;
+      background: rgba(239, 68, 68, 0.16);
+      border: 1px solid rgba(239, 68, 68, 0.35);
+      color: #f87171;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 15px;
+      flex-shrink: 0;
+    }
+    .undo-toast-text {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      overflow: hidden;
+    }
+    .undo-toast-title {
+      font-size: 13px;
+      font-weight: 750;
+      color: #ffffff;
+      line-height: 1.25;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .undo-toast-sub {
+      font-size: 11px;
+      color: #94a3b8;
+      font-weight: 500;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .undo-toast-btn {
+      background: linear-gradient(135deg, #ff2a8d 0%, #e11244 100%);
+      color: #ffffff;
+      border: none;
+      border-radius: 9px;
+      padding: 7px 15px;
+      font-size: 12.5px;
+      font-weight: 800;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      box-shadow: 0 4px 16px rgba(225, 18, 68, 0.45);
+      transition: transform 0.15s, box-shadow 0.15s;
+      flex-shrink: 0;
+    }
+    .undo-toast-btn:hover {
+      transform: scale(1.05);
+      box-shadow: 0 6px 20px rgba(225, 18, 68, 0.6);
+    }
+    .undo-toast-btn:active {
+      transform: scale(0.96);
+    }
+    .undo-progress-track {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 3.5px;
+      background: rgba(255, 255, 255, 0.1);
+      overflow: hidden;
+    }
+    .undo-progress-fill {
+      height: 100%;
+      width: 100%;
+      background: linear-gradient(90deg, #ff2a8d 0%, #f59e0b 50%, #10b981 100%);
+      transform-origin: left;
+    }
+    .linkadda-undo-toast.animating .undo-progress-fill {
+      animation: undoProgressAnim 5000ms linear forwards;
+    }
+    @keyframes undoProgressAnim {
+      0% {
+        width: 100%;
+      }
+      100% {
+        width: 0%;
+      }
+    }
+
     /* ── FLOATING CART DOCK ── */
     .floating-cart-left {
       border-radius: 9999px !important;
@@ -1223,6 +1403,52 @@
 
   <!-- Cart Toast Notifications -->
   <div class="cart-toast-container" id="cartToastContainer"></div>
+
+  <!-- ===== LUXURY 5-SECOND UNDO TOAST WITH ANIMATED PROGRESS BAR ===== -->
+  <aside class="linkadda-undo-toast" id="linkaddaUndoToast" aria-live="assertive" role="alert">
+    <div class="undo-toast-body">
+      <div class="undo-toast-left">
+        <div class="undo-toast-icon">
+          <i class="fa-solid fa-eye-slash"></i>
+        </div>
+        <div class="undo-toast-text">
+          <span class="undo-toast-title" id="undoToastTitle">Pack hidden from feed</span>
+          <span class="undo-toast-sub">Reverting in <strong id="undoToastSecs" style="color: #fbbf24; font-weight: 800;">5</strong>s...</span>
+        </div>
+      </div>
+      <button type="button" class="undo-toast-btn" id="btnUndoHide" aria-label="Undo hide pack">
+        <i class="fa-solid fa-rotate-left"></i> Undo
+      </button>
+    </div>
+    <div class="undo-progress-track">
+      <div class="undo-progress-fill" id="undoProgressFill"></div>
+    </div>
+  </aside>
+
+  <!-- ===== HIDDEN PACKS MANAGER DRAWER (Settings & Direct Access) ===== -->
+  <div class="wishlist-backdrop" id="hiddenPacksBackdrop" onclick="closeHiddenPacksDrawer()"></div>
+  <aside class="wishlist-drawer hidden-packs-drawer" id="hiddenPacksDrawer" aria-label="Hidden Packs Manager">
+    <div class="sheet-drag-handle"></div>
+    <div class="wishlist-drawer-header">
+      <div class="wishlist-drawer-title">
+        <i class="fa-solid fa-eye-slash" style="color:#94a3b8;"></i>
+        <span>Hidden Packs (<span id="hiddenPacksDrawerCount">0</span>)</span>
+      </div>
+      <div class="wishlist-drawer-actions">
+        <button type="button" class="wishlist-close-btn" onclick="closeHiddenPacksDrawer()" aria-label="Close Hidden Packs">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+    </div>
+    <div class="wishlist-drawer-body" id="hiddenPacksDrawerBody">
+      <!-- Injected via JavaScript -->
+    </div>
+    <div class="wishlist-drawer-footer" id="hiddenPacksDrawerFooter">
+      <button type="button" class="btn-clear-wishlist" onclick="window.restoreAllHiddenProducts(event); closeHiddenPacksDrawer();" style="border-color: rgba(16, 185, 129, 0.4); color: #10b981; font-weight: 700; width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;">
+        <i class="fa-solid fa-rotate-left"></i> Restore All Hidden Packs
+      </button>
+    </div>
+  </aside>
 
   <!-- ===== LINKADDA LUXURY DARK FULL-SCREEN PRODUCT DETAILS VIEW ===== -->
   <div class="fk-product-view-overlay" id="fkProductPageOverlay" aria-label="Product Details Page">
@@ -3284,13 +3510,48 @@
       if (icon) icon.className = nowLiked ? 'fa-solid fa-heart' : 'fa-regular fa-heart';
     }
 
-    if (typeof showCartToast === 'function') {
-      showCartToast(nowLiked ? 'Pack saved to Liked collection ❤️' : 'Removed from Liked collection', false);
-    } else if (typeof window.showToast === 'function') {
-      window.showToast(nowLiked ? 'Pack saved to Liked collection ❤️' : 'Removed from Liked collection');
-    }
+    // Dedicated Storefront Toast for Likes, Hides & System Actions (Separate from Cart)
+    function showStoreToast(message, icon = 'fa-solid fa-circle-check', actionBtn = null) {
+      const container = document.getElementById('cartToastContainer');
+      if (!container) return;
 
-    // Persist real-time like in database
+      const toast = document.createElement('div');
+      toast.className = 'cart-toast store-action-toast';
+      toast.innerHTML = `
+        <div class="cart-toast-icon"><i class="${icon}"></i></div>
+        <div class="cart-toast-msg" style="flex:1; font-weight:600; line-height:1.4;">${message}</div>
+        ${actionBtn ? `<button type="button" class="toast-action-btn" style="background:rgba(255,255,255,0.18); border:1px solid rgba(255,255,255,0.3); color:#fff; padding:5px 12px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer; margin-left:8px; white-space:nowrap;">${actionBtn.text}</button>` : ''}
+      `;
+      container.appendChild(toast);
+
+      if (actionBtn && typeof actionBtn.onClick === 'function') {
+        toast.querySelector('.toast-action-btn')?.addEventListener('click', (e) => {
+          e.stopPropagation();
+          actionBtn.onClick();
+          toast.remove();
+        });
+      }
+
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          toast.classList.add('show');
+        });
+      });
+
+      setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => toast.remove(), 400);
+      }, 3000);
+    }
+    window.showStoreToast = showStoreToast;
+    window.showToast = showStoreToast;
+
+    showStoreToast(
+      nowLiked ? 'Pack saved to Liked collection ❤️' : 'Removed from Liked collection',
+      nowLiked ? 'fa-solid fa-heart' : 'fa-regular fa-heart'
+    );
+
+    // Persist real-time like in database (both /api/products and /api/track/event)
     try {
       fetch('/api/products', {
         method: 'POST',
@@ -3303,6 +3564,11 @@
           }
         }
       }).catch(() => {});
+      fetch('/api/track/event', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'product_like', event_type: 'product_like', productId: pid, product_id: pid, isLiked: nowLiked })
+      }).catch(() => {});
     } catch (_) {}
 
     // Re-render if currently filtered to liked tab
@@ -3314,6 +3580,323 @@
       renderWishlistDrawer();
     }
   };
+
+  // --- VISITOR HIDDEN PRODUCTS ENGINE ---
+  const HIDDEN_PRODUCTS_KEY = 'linkadda_hidden_products_v1';
+
+  function getHiddenProducts() {
+    try {
+      const raw = localStorage.getItem(HIDDEN_PRODUCTS_KEY);
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed.map(String) : [];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  function saveHiddenProducts(list) {
+    try {
+      const unique = Array.from(new Set((list || []).map(String)));
+      localStorage.setItem(HIDDEN_PRODUCTS_KEY, JSON.stringify(unique));
+      updateHiddenUI();
+    } catch (_) {}
+  }
+
+  function isProductHidden(productId) {
+    return getHiddenProducts().includes(String(productId));
+  }
+
+  function updateHiddenUI() {
+    const list = getHiddenProducts();
+    const count = list.length;
+    document.querySelectorAll('.pill-hidden-count').forEach(el => {
+      const badge = el.querySelector('#hiddenCountBadge');
+      if (badge) badge.textContent = count;
+      el.style.display = count > 0 ? '' : 'none';
+    });
+    const profileBadge = document.getElementById('profileHiddenCount');
+    if (profileBadge) profileBadge.textContent = `${count} Hidden`;
+    const settingsPill = document.getElementById('settingsHiddenPill');
+    if (settingsPill) settingsPill.textContent = `${count} Hidden`;
+    const drawerCount = document.getElementById('hiddenPacksDrawerCount');
+    if (drawerCount) drawerCount.textContent = count;
+  }
+
+  window.getHiddenProducts = getHiddenProducts;
+  window.saveHiddenProducts = saveHiddenProducts;
+  window.isProductHidden = isProductHidden;
+  window.updateHiddenUI = updateHiddenUI;
+
+  // --- LUXURY 5-SECOND COUNTDOWN UNDO TOAST CONTROLLER ---
+  let undoTimeoutId = null;
+  let undoIntervalId = null;
+
+  function showUndoHideToast(productId, productTitle) {
+    const toast = document.getElementById('linkaddaUndoToast');
+    if (!toast) return;
+
+    if (undoTimeoutId) clearTimeout(undoTimeoutId);
+    if (undoIntervalId) clearInterval(undoIntervalId);
+
+    const titleEl = toast.querySelector('#undoToastTitle');
+    const timerEl = toast.querySelector('#undoToastSecs');
+    const fillEl = toast.querySelector('#undoProgressFill');
+    const undoBtn = toast.querySelector('#btnUndoHide');
+
+    const cleanTitle = (productTitle || 'Pack').trim();
+    if (titleEl) {
+      titleEl.textContent = `"${cleanTitle}" hidden from feed`;
+      titleEl.title = cleanTitle;
+    }
+
+    let remainingSecs = 5;
+    if (timerEl) timerEl.textContent = remainingSecs;
+
+    if (fillEl) {
+      fillEl.style.animation = 'none';
+      void fillEl.offsetWidth; // Force CSS reflow
+      fillEl.style.animation = 'undoProgressAnim 5000ms linear forwards';
+    }
+
+    toast.classList.add('animating');
+    toast.classList.add('show');
+
+    // Live 1-second countdown ticker
+    undoIntervalId = setInterval(() => {
+      remainingSecs -= 1;
+      if (timerEl && remainingSecs >= 0) {
+        timerEl.textContent = remainingSecs;
+      }
+      if (remainingSecs <= 0) {
+        clearInterval(undoIntervalId);
+      }
+    }, 1000);
+
+    // Auto-dismiss smoothly after 5 seconds
+    undoTimeoutId = setTimeout(() => {
+      hideUndoToast();
+    }, 5000);
+
+    // Undo action handler
+    if (undoBtn) {
+      undoBtn.onclick = function(e) {
+        if (e) {
+          e.stopPropagation();
+          e.preventDefault();
+        }
+        clearTimeout(undoTimeoutId);
+        clearInterval(undoIntervalId);
+        hideUndoToast();
+
+        // Immediately restore the pack back to the feed
+        window.restoreSingleProduct(null, productId);
+        showStoreToast('Pack restored to your feed ✨', 'fa-solid fa-rotate-left');
+      };
+    }
+  }
+
+  function hideUndoToast() {
+    const toast = document.getElementById('linkaddaUndoToast');
+    if (!toast) return;
+    toast.classList.remove('show');
+    toast.classList.remove('animating');
+  }
+  window.showUndoHideToast = showUndoHideToast;
+  window.hideUndoToast = hideUndoToast;
+
+  window.toggleHideProduct = function(e, productId) {
+    if (e) {
+      e.stopPropagation();
+      e.preventDefault();
+    }
+    const pid = String(productId);
+    let list = getHiddenProducts();
+    if (!list.includes(pid)) {
+      list.push(pid);
+      saveHiddenProducts(list);
+    }
+
+    const card = document.getElementById(`product-${pid}`);
+    let pTitle = 'Pack';
+    if (card) {
+      pTitle = card.querySelector('.fk-card-title, .pcard-title')?.textContent || 'Pack';
+      card.style.transition = 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)';
+      card.style.opacity = '0';
+      card.style.transform = 'scale(0.92)';
+      setTimeout(() => {
+        if (activeCategoryFilter !== 'hidden') {
+          renderLiveGrid();
+        }
+        renderCategoryFilters();
+      }, 250);
+    }
+
+    try {
+      fetch('/api/track/event', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'product_hide',
+          event_type: 'product_hide',
+          productId: pid,
+          product_id: pid,
+          page: 'index'
+        })
+      }).catch(() => {});
+    } catch (_) {}
+
+    // Trigger Luxury 5-second Undo Popup with progress bar
+    showUndoHideToast(pid, pTitle);
+  };
+
+  window.restoreSingleProduct = function(e, productId) {
+    if (e) {
+      e.stopPropagation();
+      e.preventDefault();
+    }
+    const pid = String(productId);
+    let list = getHiddenProducts().filter(id => id !== pid);
+    saveHiddenProducts(list);
+
+    showStoreToast('Pack restored to your catalog ✨', 'fa-solid fa-rotate-left');
+
+    renderCategoryFilters();
+    renderLiveGrid();
+    if (typeof renderHiddenPacksDrawer === 'function') {
+      renderHiddenPacksDrawer();
+    }
+  };
+
+  window.restoreAllHiddenProducts = function(e) {
+    if (e) {
+      e.stopPropagation();
+      e.preventDefault();
+    }
+    saveHiddenProducts([]);
+    showStoreToast('All hidden packs restored to catalog ✨', 'fa-solid fa-circle-check');
+    activeCategoryFilter = 'all';
+    renderCategoryFilters();
+    renderLiveGrid();
+    if (typeof renderHiddenPacksDrawer === 'function') {
+      renderHiddenPacksDrawer();
+    }
+  };
+
+  // --- HIDDEN PACKS DRAWER (Settings & Direct View) ---
+  function openHiddenPacksDrawer() {
+    renderHiddenPacksDrawer();
+    const drawer = document.getElementById('hiddenPacksDrawer');
+    const backdrop = document.getElementById('hiddenPacksBackdrop');
+    if (drawer) drawer.classList.add('open');
+    if (backdrop) backdrop.classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeHiddenPacksDrawer() {
+    const drawer = document.getElementById('hiddenPacksDrawer');
+    const backdrop = document.getElementById('hiddenPacksBackdrop');
+    if (drawer) drawer.classList.remove('open');
+    if (backdrop) backdrop.classList.remove('open');
+    document.body.style.overflow = '';
+  }
+
+  function viewHiddenPacksInStore() {
+    closeHiddenPacksDrawer();
+    if (typeof window.hideProfilePage === 'function') {
+      window.hideProfilePage();
+    }
+    activeCategoryFilter = 'hidden';
+    renderCategoryFilters();
+    renderLiveGrid();
+    const target = document.getElementById('services') || document.querySelector('.fk-section-main');
+    if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function renderHiddenPacksDrawer() {
+    const body = document.getElementById('hiddenPacksDrawerBody');
+    const countEl = document.getElementById('hiddenPacksDrawerCount');
+    const footer = document.getElementById('hiddenPacksDrawerFooter');
+    if (!body) return;
+
+    const hiddenIds = getHiddenProducts();
+    if (countEl) countEl.textContent = hiddenIds.length;
+
+    if (!hiddenIds.length) {
+      body.innerHTML = `
+        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 48px 20px; text-align: center; gap: 14px;">
+          <div style="width: 60px; height: 60px; border-radius: 50%; background: rgba(16, 185, 129, 0.15); border: 1.5px solid rgba(16, 185, 129, 0.35); display: flex; align-items: center; justify-content: center; font-size: 24px; color: #10b981;">
+            <i class="fa-solid fa-eye"></i>
+          </div>
+          <h3 style="font-size: 1.15rem; font-weight: 800; color: #ffffff; margin: 0;">No Hidden Packs</h3>
+          <p style="font-size: 0.85rem; color: #94a3b8; margin: 0; max-width: 280px; line-height: 1.45;">
+            You have not hidden any packs yet. All deals in the store are currently visible to you.
+          </p>
+        </div>
+      `;
+      if (footer) footer.style.display = 'none';
+      return;
+    }
+
+    if (footer) footer.style.display = 'block';
+
+    const allProducts = getLiveRecords();
+    const items = hiddenIds.map(id => {
+      return allProducts.find(p => String(p.id) === String(id)) || (window.liveCollections?.products?.[id] ? { id, ...window.liveCollections.products[id] } : null);
+    }).filter(Boolean);
+
+    body.innerHTML = `
+      <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: rgba(30, 41, 59, 0.5); border-radius: 10px; margin-bottom: 12px; border: 1px solid rgba(148, 163, 184, 0.2);">
+        <span style="font-size: 12.5px; font-weight: 600; color: #e2e8f0; display: inline-flex; align-items: center; gap: 6px;">
+          <i class="fa-solid fa-eye-slash" style="color: #94a3b8;"></i> <strong>${items.length}</strong> hidden pack(s)
+        </span>
+        <button type="button" onclick="window.viewHiddenPacksInStore()" style="background: transparent; border: 1px solid rgba(255, 42, 141, 0.4); color: #ff65a3; font-size: 11.5px; font-weight: 700; padding: 4px 10px; border-radius: 6px; cursor: pointer;">
+          Browse in Feed <i class="fa-solid fa-arrow-right"></i>
+        </button>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 10px;">
+        ${items.map(item => {
+          const img = (item.galleryImages && item.galleryImages[0]) || item.image || item.thumbnail || '';
+          const title = item.title || item.name || 'Pack #' + item.id;
+          const price = item.price || item.inrPrice || item.finalPrice || '599';
+          return `
+            <div style="display: flex; align-items: center; gap: 12px; padding: 10px 12px; background: rgba(18, 14, 28, 0.7); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 12px;">
+              <img src="${img}" alt="${esc(title)}" style="width: 48px; height: 48px; border-radius: 8px; object-fit: cover; background: #1e1b2e;" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=\\'http://www.w3.org/2000/svg\\' width=\\'48\\' height=\\'48\\' fill=\\'%231e1b2e\\'%3E%3C/svg%3E'" />
+              <div style="flex: 1; min-width: 0;">
+                <div style="font-size: 13px; font-weight: 750; color: #ffffff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${esc(title)}</div>
+                <div style="font-size: 12px; font-weight: 800; color: #10b981; margin-top: 2px;">₹${price}</div>
+              </div>
+              <button type="button" onclick="window.restoreSingleProduct(event, '${esc(item.id)}');" style="background: rgba(16, 185, 129, 0.16); border: 1px solid rgba(16, 185, 129, 0.4); color: #34d399; font-size: 11.5px; font-weight: 750; padding: 6px 12px; border-radius: 8px; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0;">
+                <i class="fa-solid fa-rotate-left"></i> Unhide
+              </button>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    `;
+  }
+
+  window.openHiddenPacksDrawer = openHiddenPacksDrawer;
+  window.closeHiddenPacksDrawer = closeHiddenPacksDrawer;
+  window.renderHiddenPacksDrawer = renderHiddenPacksDrawer;
+  window.viewHiddenPacksInStore = viewHiddenPacksInStore;
+
+  // --- POPULAR & TRENDING RANKING ENGINE ---
+  function getTrendingScore(item) {
+    if (!item) return 0;
+    const likes = Number(item.likes || item.likesCount || 0);
+    const clicks = Number(item.clicks || item.clickCount || 0);
+    const views = Number(item.views || item.viewsCount || 0);
+    let seed = 0;
+    const str = String(item.id || item.slug || '');
+    for (let i = 0; i < str.length; i++) {
+      seed = ((seed << 5) - seed) + str.charCodeAt(i);
+      seed |= 0;
+    }
+    const organicSeed = Math.abs(seed % 35);
+    return (likes * 3) + (clicks * 2) + (views * 1) + organicSeed;
+  }
+  window.getTrendingScore = getTrendingScore;
 
   // --- WISHLIST / LIKED SLIDE-OUT DRAWER SYSTEM ---
   function openWishlistDrawer() {
@@ -3420,6 +4003,16 @@
         </div>
       `;
     }).join('');
+
+    const hiddenList = typeof getHiddenProducts === 'function' ? getHiddenProducts() : [];
+    if (hiddenList.length > 0) {
+      body.innerHTML += `
+        <div class="wishlist-hidden-info-strip" style="margin-top:14px;padding:12px 14px;background:rgba(255,255,255,0.03);border:1px dashed rgba(255,255,255,0.14);border-radius:10px;display:flex;align-items:center;justify-content:space-between;gap:8px;">
+          <span style="font-size:12px;color:var(--la-text-muted);"><i class="fa-solid fa-eye-slash" style="color:#94a3b8;margin-right:6px;"></i> ${hiddenList.length} hidden pack(s)</span>
+          <button type="button" onclick="closeWishlistDrawer(); window.restoreAllHiddenProducts(event);" style="background:rgba(99,102,241,0.15);border:1px solid rgba(99,102,241,0.3);color:#a5b4fc;font-size:11px;font-weight:700;border-radius:6px;cursor:pointer;padding:4px 10px;">Restore All</button>
+        </div>
+      `;
+    }
   }
 
   window.addLikedItemToCart = function(id, btn) {
@@ -3654,6 +4247,16 @@
         </div>
       `;
     }).join('');
+
+    const hiddenList = typeof getHiddenProducts === 'function' ? getHiddenProducts() : [];
+    if (hiddenList.length > 0) {
+      body.innerHTML += `
+        <div class="wishlist-hidden-info-strip" style="margin-top:14px;padding:12px 14px;background:rgba(255,255,255,0.03);border:1px dashed rgba(255,255,255,0.14);border-radius:10px;display:flex;align-items:center;justify-content:space-between;gap:8px;">
+          <span style="font-size:12px;color:var(--la-text-muted);"><i class="fa-solid fa-eye-slash" style="color:#94a3b8;margin-right:6px;"></i> ${hiddenList.length} hidden pack(s)</span>
+          <button type="button" onclick="closeWishlistDrawer(); window.restoreAllHiddenProducts(event);" style="background:rgba(99,102,241,0.15);border:1px solid rgba(99,102,241,0.3);color:#a5b4fc;font-size:11px;font-weight:700;border-radius:6px;cursor:pointer;padding:4px 10px;">Restore All</button>
+        </div>
+      `;
+    }
   }
 
   if (!window.copyOrderLink) {
@@ -3922,6 +4525,18 @@
       usd: cleanUSD
     });
     const isLiked = isWishlisted(id);
+    const isHidden = isProductHidden(id);
+
+    let trendingBadgeHtml = '';
+    if (cat._trendingRank === 1) {
+      trendingBadgeHtml = `<span class="fk-card-badge-vip" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%) !important; border: 1px solid rgba(255, 255, 255, 0.4) !important; color: #ffffff !important; box-shadow: 0 3px 10px rgba(245, 158, 11, 0.45) !important;"><i class="fa-solid fa-fire"></i> #1 BESTSELLER</span>`;
+    } else if (cat._trendingRank === 2) {
+      trendingBadgeHtml = `<span class="fk-card-badge-vip" style="background: linear-gradient(135deg, #e11d48 0%, #be123c 100%) !important; border: 1px solid rgba(255, 255, 255, 0.4) !important; color: #ffffff !important; box-shadow: 0 3px 10px rgba(225, 29, 72, 0.45) !important;"><i class="fa-solid fa-bolt"></i> #2 TRENDING</span>`;
+    } else if (cat._trendingRank === 3) {
+      trendingBadgeHtml = `<span class="fk-card-badge-vip" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%) !important; border: 1px solid rgba(255, 255, 255, 0.4) !important; color: #ffffff !important; box-shadow: 0 3px 10px rgba(124, 58, 237, 0.45) !important;"><i class="fa-solid fa-star"></i> #3 POPULAR</span>`;
+    } else if (cat._trendingRank && activeCategoryFilter === 'trending') {
+      trendingBadgeHtml = `<span class="fk-card-badge-vip" style="background: rgba(30, 27, 75, 0.9) !important; border: 1px solid rgba(165, 180, 252, 0.3) !important; color: #a5b4fc !important;"><i class="fa-solid fa-fire"></i> #${cat._trendingRank} TRENDING</span>`;
+    }
 
     const customBadge = (cat.badge || cat.customBadge || cat.tag || cat.category || '').trim();
     const badgeStyleRaw = String(cat.badgeStyle || cat.badgeColor || cat.badge_style || cat.badge_color || '').trim().toLowerCase();
@@ -3951,7 +4566,7 @@
     const badgeIconHtml = `<i class="fa-solid ${esc(badgeIconClass)}" ${badgeIconStyle}></i>`;
     const hasVideo = Boolean((cat.video && String(cat.video).trim()) || (cat.videos && cat.videos.length) || (media.videos && media.videos.length));
     const videoPillHtml = hasVideo ? `<span class="fk-card-badge-hdr"><i class="fa-solid fa-play" style="color:#f43f5e;font-size:8px;"></i> 4K Video</span>` : '';
-    const badgeHtml = (customBadge || hasVideo) ? `<div class="fk-card-badges-row">${customBadge ? `<span class="fk-card-badge-vip${badgeColorClass}" ${badgeInlineStyle}>${badgeIconHtml} ${esc(customBadge)}</span>` : ''}${videoPillHtml}</div>` : '';
+    const badgeHtml = (trendingBadgeHtml || customBadge || hasVideo) ? `<div class="fk-card-badges-row">${trendingBadgeHtml}${customBadge ? `<span class="fk-card-badge-vip${badgeColorClass}" ${badgeInlineStyle}>${badgeIconHtml} ${esc(customBadge)}</span>` : ''}${videoPillHtml}</div>` : '';
 
     function makeCardImgHtml(imgUrl, title, isEager = false, isSecondary = false) {
       if (!imgUrl) {
@@ -3971,9 +4586,18 @@
       return `<img src="${cleanUrl}" alt="${esc(title)}" loading="${isEager ? 'eager' : 'lazy'}" decoding="async" fetchpriority="${isEager ? 'high' : 'low'}" draggable="false" class="fk-card-img"${localFallback ? ` data-fallback="${esc(localFallback)}"` : ''} onload="this.classList.add('is-loaded'); var m=this.closest('.fk-card-media'); if(m) m.classList.add('is-media-loaded');" onerror="window.handleCardImgError(this);" />`;
     }
 
-    return `<div class="fk-card" data-fb-id="${esc(id)}" data-slug="${esc(cat.slug||'')}" data-product-id="${esc(id)}" id="product-${esc(id)}">
+    return `<div class="fk-card${isHidden ? ' is-hidden-card' : ''}" data-fb-id="${esc(id)}" data-slug="${esc(cat.slug||'')}" data-product-id="${esc(id)}" id="product-${esc(id)}">
       ${badgeHtml}
       <div class="fk-card-top-actions">
+        ${isHidden ? `
+        <button type="button" class="fk-card-action-circle fk-card-unhide-btn" data-id="${esc(id)}" onclick="window.restoreSingleProduct(event, '${esc(id)}')" aria-label="Unhide pack" title="Unhide this pack" style="background: linear-gradient(135deg, #10b981, #059669) !important; border: 1.5px solid #34d399 !important;">
+          <i class="fa-solid fa-eye" style="color: #ffffff !important;"></i>
+        </button>
+        ` : `
+        <button type="button" class="fk-card-action-circle fk-card-hide-btn" data-id="${esc(id)}" onclick="window.toggleHideProduct(event, '${esc(id)}')" aria-label="Hide pack" title="Hide pack from feed">
+          <i class="fa-solid fa-eye-slash"></i>
+        </button>
+        `}
         <button type="button" class="fk-card-action-circle fk-card-wishlist-btn${isLiked ? ' active' : ''}" data-id="${esc(id)}" onclick="window.toggleFkWishlist(event, '${esc(id)}')" aria-label="${isLiked ? 'Remove from Liked' : 'Save to Liked'}" title="${isLiked ? 'Liked Pack' : 'Like this Pack'}">
           <i class="${isLiked ? 'fa-solid' : 'fa-regular'} fa-heart"></i>
         </button>
@@ -4023,6 +4647,11 @@
           </div>
         </div>
         <div class="fk-card-actions-row">
+          ${isHidden ? `
+          <button type="button" class="btn-primary" style="flex:1;padding:8px 12px;font-size:12px;font-weight:700;border-radius:8px;background:linear-gradient(135deg,#10b981,#059669);display:inline-flex;align-items:center;justify-content:center;gap:6px;" onclick="window.restoreSingleProduct(event, '${esc(id)}')">
+            <i class="fa-solid fa-rotate-left"></i> Unhide / Restore Pack
+          </button>
+          ` : `
           <button type="button" class="${(typeof window.getCart === 'function' && window.getCart().some(i => String(i.id).toLowerCase() === String(id).toLowerCase())) ? 'fk-card-btn-cart btn-add-cart added in-cart' : 'fk-card-btn-cart btn-add-cart'}" 
             data-product-id="${esc(id)}" 
             data-name="${esc(baseTitle)}" 
@@ -4041,6 +4670,7 @@
             onclick="window.handleCardBuyNow(event, this, '${esc(orderLink)}');">
             <i class="fa-solid fa-bolt"></i> Buy Now
           </a>
+          `}
         </div>
       </div>
     </div>`;
@@ -4215,6 +4845,17 @@
     const isLikedActive = activeCategoryFilter === 'liked';
     const wishlistCount = typeof getWishlist === 'function' ? getWishlist().length : 0;
     pillsHtml += `<button class="category-pill${isLikedActive ? ' active' : ''}" data-cat-id="liked" style="${isLikedActive ? 'background:linear-gradient(135deg,#f43f5e,#e11d48);border-color:#fda4af;color:#fff;' : ''}"><i class="fa-solid fa-heart" style="color:${isLikedActive ? '#fff' : '#f43f5e'};margin-right:4px;"></i> Liked (<span class="pill-liked-count">${wishlistCount}</span>)</button>`;
+
+    // 1c. "Trending" Pill
+    const isTrendingActive = activeCategoryFilter === 'trending';
+    pillsHtml += `<button class="category-pill${isTrendingActive ? ' active' : ''}" data-cat-id="trending" style="${isTrendingActive ? 'background:linear-gradient(135deg,#f59e0b,#ea580c);border-color:#fed7aa;color:#fff;' : ''}"><i class="fa-solid fa-fire" style="color:${isTrendingActive ? '#fff' : '#f59e0b'};margin-right:4px;"></i> Trending</button>`;
+
+    // 1d. "Hidden" Pill (Dynamic: Shown if user has hidden items)
+    const hiddenList = typeof getHiddenProducts === 'function' ? getHiddenProducts() : [];
+    if (hiddenList.length > 0) {
+      const isHiddenPillActive = activeCategoryFilter === 'hidden';
+      pillsHtml += `<button class="category-pill pill-hidden-count${isHiddenPillActive ? ' active' : ''}" data-cat-id="hidden" style="${isHiddenPillActive ? 'background:linear-gradient(135deg,#64748b,#475569);border-color:#cbd5e1;color:#fff;' : ''}"><i class="fa-solid fa-eye-slash" style="color:${isHiddenPillActive ? '#fff' : '#94a3b8'};margin-right:4px;"></i> Hidden (<span id="hiddenCountBadge">${hiddenList.length}</span>)</button>`;
+    }
     
     // 2. Visible Categories Pills
     visibleCats.forEach(cat => {
@@ -4804,12 +5445,25 @@
     
     try {
       let records = getLiveRecords();
+      const hiddenList = typeof getHiddenProducts === 'function' ? getHiddenProducts() : [];
 
       // Apply category filtering
       if (activeCategoryFilter === 'liked') {
         const wishlist = getWishlist();
         records = records.filter(item => wishlist.includes(String(item.id)));
+      } else if (activeCategoryFilter === 'trending') {
+        records = records.filter(item => !hiddenList.includes(String(item.id)));
+        records.forEach(item => {
+          item._trendingScore = getTrendingScore(item);
+        });
+        records.sort((a, b) => b._trendingScore - a._trendingScore);
+        records.forEach((item, idx) => {
+          item._trendingRank = idx + 1;
+        });
+      } else if (activeCategoryFilter === 'hidden') {
+        records = records.filter(item => hiddenList.includes(String(item.id)));
       } else if (activeCategoryFilter !== 'all') {
+        records = records.filter(item => !hiddenList.includes(String(item.id)));
         const selectedCat = (liveCollections.categories && liveCollections.categories[activeCategoryFilter]) || {};
         const catTitleLower = String(selectedCat.title || activeCategoryFilter).trim().toLowerCase();
         const catSlugLower = String(selectedCat.slug || activeCategoryFilter).trim().toLowerCase();
@@ -4857,6 +5511,8 @@
         }
 
         records = filtered;
+      } else {
+        records = records.filter(item => !hiddenList.includes(String(item.id)));
       }
 
       if (!records.length) {
@@ -4871,9 +5527,20 @@
               </button>
             </div>
           `;
+        } else if (activeCategoryFilter === 'hidden') {
+          grid.innerHTML = `
+            <div class="fk-wishlist-empty-state" style="grid-column: 1/-1; text-align: center; padding: 60px 20px;">
+              <div style="font-size: 3.2rem; color: #94a3b8; margin-bottom: 14px;"><i class="fa-solid fa-eye"></i></div>
+              <h3 style="font-size: 1.35rem; font-weight: 700; color: var(--la-text); margin-bottom: 8px;">No Hidden Packs</h3>
+              <p style="font-size: 0.95rem; color: var(--la-text-muted); max-width: 420px; margin: 0 auto 20px; line-height: 1.5;">All packs are currently visible in your store catalog.</p>
+              <button type="button" class="btn-primary" onclick="filterFkCategory('all')" style="padding: 10px 24px; border-radius: 9999px; font-weight: 700; font-size: 14px; display: inline-flex; align-items: center; gap: 8px; margin: 0 auto;">
+                <i class="fa-solid fa-cubes"></i> Browse All Packs
+              </button>
+            </div>
+          `;
         } else {
           // If a category has no products, fallback to showing all products with a friendly hint
-          records = getLiveRecords();
+          records = getLiveRecords().filter(item => !hiddenList.includes(String(item.id)));
           if (records.length) {
             grid.innerHTML = records.map((item, idx) => {
               try { return buildCard(item.id, item, idx); } catch (e) { return ''; }
@@ -4883,7 +5550,24 @@
           }
         }
       } else {
-        const nextHtml = records.map((item, idx) => {
+        let prefixHtml = '';
+        if (activeCategoryFilter === 'hidden') {
+          prefixHtml = `
+            <div class="hidden-packs-banner" style="grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 18px; background: rgba(30, 41, 59, 0.7); border: 1px solid rgba(148, 163, 184, 0.25); border-radius: 12px; margin-bottom: 12px;">
+              <span style="font-size: 13.5px; font-weight: 600; color: #e2e8f0; display: inline-flex; align-items: center; gap: 8px;"><i class="fa-solid fa-eye-slash" style="color: #94a3b8;"></i> You have <strong>${records.length}</strong> hidden pack(s)</span>
+              <button type="button" onclick="window.restoreAllHiddenProducts(event)" style="background: linear-gradient(135deg, #10b981, #059669); color: #ffffff; border: none; border-radius: 8px; padding: 6px 14px; font-size: 12px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">
+                <i class="fa-solid fa-rotate-left"></i> Restore All Packs
+              </button>
+            </div>
+          `;
+        } else if (activeCategoryFilter === 'trending') {
+          prefixHtml = `
+            <div class="trending-packs-banner" style="grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 18px; background: linear-gradient(135deg, rgba(245, 158, 11, 0.12), rgba(234, 88, 12, 0.12)); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 12px; margin-bottom: 12px;">
+              <span style="font-size: 13.5px; font-weight: 700; color: #fbbf24; display: inline-flex; align-items: center; gap: 8px;"><i class="fa-solid fa-fire" style="color: #f59e0b;"></i> Popular & Trending Deals · Ranked by Real Likes, Views & Clicks</span>
+            </div>
+          `;
+        }
+        const nextHtml = prefixHtml + records.map((item, idx) => {
           try {
             return buildCard(item.id, item, idx);
           } catch (e) {
@@ -4892,11 +5576,6 @@
           }
         }).join('');
 
-        if (grid._lastRenderedHtml === nextHtml && grid.children.length === records.length) {
-          initSlideshows();
-          return;
-        }
-
         grid._lastRenderedHtml = nextHtml;
         grid.innerHTML = nextHtml;
       }
@@ -4904,6 +5583,7 @@
       initSlideshows();
       initVidTiers();
       syncCheckoutLinks();
+      initProductViewObserver();
 
       grid.querySelectorAll('.pcard').forEach(card => {
         if (!card.querySelector('.shine')) {
@@ -4922,6 +5602,48 @@
     } catch (err) {
       console.error('Failed to render live grid:', err);
     }
+  }
+
+  function initProductViewObserver() {
+    if (typeof IntersectionObserver === 'undefined') return;
+    if (window.__pvObserver) {
+      try { window.__pvObserver.disconnect(); } catch (_) {}
+    }
+    window.__pvObserver = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting && entry.intersectionRatio >= 0.5) {
+          const card = entry.target;
+          const pid = card.dataset.productId || card.dataset.fbId;
+          if (!pid) return;
+          const sKey = `session_v_${pid}`;
+          if (sessionStorage.getItem(sKey)) return;
+          sessionStorage.setItem(sKey, '1');
+
+          try {
+            fetch('/api/track/event', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                type: 'product_view',
+                event_type: 'product_view',
+                product_id: pid,
+                productId: pid,
+                productTitle: card.querySelector('.fk-card-title')?.textContent || '',
+                page: 'index'
+              })
+            }).catch(() => {});
+          } catch (_) {}
+
+          if (window.liveCollections?.products?.[pid]) {
+            window.liveCollections.products[pid].views = (Number(window.liveCollections.products[pid].views || 0) + 1);
+          }
+        }
+      });
+    }, { threshold: 0.5 });
+
+    document.querySelectorAll('.fk-card[data-product-id]').forEach(card => {
+      window.__pvObserver.observe(card);
+    });
   }
 
   // -- INSTANT 0ms CATALOG BOOTSTRAP (Zero Waiting, Zero Lag) --
@@ -6807,6 +7529,17 @@
             </div>
             <span class="fk-hub-arrow"><i class="fa-solid fa-arrow-up-right-from-square"></i></span>
           </a>
+
+          <div class="fk-hub-card hidden-tile" id="profileHiddenCard" onclick="window.openHiddenPacksDrawer && window.openHiddenPacksDrawer()" role="button" tabindex="0">
+            <div class="fk-hub-icon-wrap" style="background: rgba(148, 163, 184, 0.16); color: #94a3b8; border: 1px solid rgba(148, 163, 184, 0.25);">
+              <i class="fa-solid fa-eye-slash"></i>
+            </div>
+            <div class="fk-hub-content">
+              <div class="fk-hub-title">Hidden Packs</div>
+              <div class="fk-hub-badge" id="profileHiddenCount" style="color: #cbd5e1;">0 Hidden</div>
+            </div>
+            <span class="fk-hub-arrow"><i class="fa-solid fa-arrow-right"></i></span>
+          </div>
         </div>
 
 
@@ -6872,6 +7605,23 @@
               </div>
               <div class="profile-option-right">
                 <span class="profile-currency-pill">₹ INR</span>
+                <i class="fa-solid fa-chevron-right opt-chevron"></i>
+              </div>
+            </div>
+
+            <!-- Option 4: Hidden Packs & Privacy -->
+            <div class="profile-option-item clickable" id="settingsHiddenOption" onclick="window.openHiddenPacksDrawer && window.openHiddenPacksDrawer()" role="button" tabindex="0">
+              <div class="profile-option-left">
+                <div class="profile-opt-icon-wrap" style="background: rgba(148, 163, 184, 0.16); color: #94a3b8; border: 1px solid rgba(148, 163, 184, 0.25);">
+                  <i class="fa-solid fa-eye-slash"></i>
+                </div>
+                <div class="profile-option-text">
+                  <strong class="opt-title">Hidden Packs & Privacy</strong>
+                  <span class="opt-sub">Review hidden products or restore them to catalog</span>
+                </div>
+              </div>
+              <div class="profile-option-right">
+                <span class="profile-currency-pill" id="settingsHiddenPill" style="background: rgba(148, 163, 184, 0.16); color: #cbd5e1; border: 1px solid rgba(148, 163, 184, 0.25);">0 Hidden</span>
                 <i class="fa-solid fa-chevron-right opt-chevron"></i>
               </div>
             </div>
