@@ -513,7 +513,7 @@ export function onValue(refObj, callback) {
       get(refObj).then(snap => {
         if (snap && snap.exists && snap.exists()) callback(snap);
       }).catch(() => {});
-    }, 60000);
+    }, 15000);
   }
 
   return () => {

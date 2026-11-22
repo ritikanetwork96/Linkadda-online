@@ -341,6 +341,8 @@ export function showProfilePage() {
   const searchView = document.getElementById('appSearchView');
   const notifsView = document.getElementById('appNotificationsView');
   const ordersView = document.getElementById('appOrdersView');
+  const catHubView = document.getElementById('appCategoriesHubView');
+  const catDetailView = document.getElementById('appCategoryDetailView');
   if (!accountView) return;
 
   // 1. Switch View in normal document flow (100% native scrolling!)
@@ -348,6 +350,8 @@ export function showProfilePage() {
   if (searchView) searchView.style.display = 'none';
   if (notifsView) notifsView.style.display = 'none';
   if (ordersView) ordersView.style.display = 'none';
+  if (catHubView) catHubView.style.display = 'none';
+  if (catDetailView) catDetailView.style.display = 'none';
   accountView.style.display = 'block';
   document.body.style.overflow = '';
   window.scrollTo(0, 0);
@@ -457,26 +461,52 @@ export function hideProfilePage(preventHistoryBack = false) {
   const storefrontView = document.getElementById('appStorefrontView');
   const accountView = document.getElementById('appAccountView');
   const ordersView = document.getElementById('appOrdersView');
+  const catHubView = document.getElementById('appCategoriesHubView');
+  const catDetailView = document.getElementById('appCategoryDetailView');
 
   if (accountView) accountView.style.display = 'none';
   if (ordersView) ordersView.style.display = 'none';
-  if (storefrontView) storefrontView.style.display = 'block';
+
+  // If currently in categories hub or detail view, preserve it!
+  const isCatHub = (window.location.hash === '#categories') || (catHubView && catHubView.style.display === 'block');
+  const isCatDetail = (window.location.hash.startsWith('#category/')) || (catDetailView && catDetailView.style.display === 'block');
+
+  if (isCatHub && catHubView) {
+    catHubView.style.display = 'block';
+    if (catDetailView) catDetailView.style.display = 'none';
+    if (storefrontView) storefrontView.style.display = 'none';
+    document.querySelectorAll('.fk-appbar-item').forEach(el => el.classList.remove('active'));
+    const catTab = document.getElementById('appbarCategoriesTab');
+    if (catTab) catTab.classList.add('active');
+  } else if (isCatDetail && catDetailView) {
+    catDetailView.style.display = 'block';
+    if (catHubView) catHubView.style.display = 'none';
+    if (storefrontView) storefrontView.style.display = 'none';
+    document.querySelectorAll('.fk-appbar-item').forEach(el => el.classList.remove('active'));
+    const catTab = document.getElementById('appbarCategoriesTab');
+    if (catTab) catTab.classList.add('active');
+  } else {
+    if (catHubView) catHubView.style.display = 'none';
+    if (catDetailView) catDetailView.style.display = 'none';
+    if (storefrontView) storefrontView.style.display = 'block';
+
+    // Restore storefront header, marquee review ticker, and floating cart
+    const fkHeader = document.getElementById('fkHeader');
+    const fkHeaderSpacer = document.getElementById('fkHeaderSpacer');
+    const marqueeWrap = document.querySelector('.marquee-wrap');
+    const floatingCart = document.getElementById('leftFloatingCart');
+    if (fkHeader) fkHeader.style.display = '';
+    if (fkHeaderSpacer) fkHeaderSpacer.style.display = '';
+    if (marqueeWrap) marqueeWrap.style.display = '';
+    if (floatingCart) floatingCart.style.display = '';
+
+    // Restore Home tab highlight
+    document.querySelectorAll('.fk-appbar-item').forEach(el => el.classList.remove('active'));
+    const homeTab = document.getElementById('appbarHomeTab');
+    if (homeTab) homeTab.classList.add('active');
+  }
+
   document.body.style.overflow = '';
-
-  // Restore storefront header, marquee review ticker, and floating cart
-  const fkHeader = document.getElementById('fkHeader');
-  const fkHeaderSpacer = document.getElementById('fkHeaderSpacer');
-  const marqueeWrap = document.querySelector('.marquee-wrap');
-  const floatingCart = document.getElementById('leftFloatingCart');
-  if (fkHeader) fkHeader.style.display = '';
-  if (fkHeaderSpacer) fkHeaderSpacer.style.display = '';
-  if (marqueeWrap) marqueeWrap.style.display = '';
-  if (floatingCart) floatingCart.style.display = '';
-
-  // Restore Home tab highlight
-  document.querySelectorAll('.fk-appbar-item').forEach(el => el.classList.remove('active'));
-  const homeTab = document.getElementById('appbarHomeTab');
-  if (homeTab) homeTab.classList.add('active');
 
   if (!preventHistoryBack && window.location.hash === '#profile') {
     try {
@@ -741,6 +771,9 @@ function initAuthModalEvents() {
     appbarHomeTab.addEventListener('click', () => {
       document.querySelectorAll('.fk-appbar-item').forEach(el => el.classList.remove('active'));
       appbarHomeTab.classList.add('active');
+      if (typeof window.hideCategoriesHub === 'function') {
+        window.hideCategoriesHub(true);
+      }
       hideProfilePage();
       closeUserOrdersModal();
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -750,13 +783,16 @@ function initAuthModalEvents() {
   // Mobile Bottom App Bar Categories Tab click
   const appbarCategoriesTab = document.getElementById('appbarCategoriesTab');
   if (appbarCategoriesTab) {
-    appbarCategoriesTab.addEventListener('click', () => {
+    appbarCategoriesTab.addEventListener('click', (e) => {
+      if (e && e.preventDefault) e.preventDefault();
       document.querySelectorAll('.fk-appbar-item').forEach(el => el.classList.remove('active'));
       appbarCategoriesTab.classList.add('active');
-      hideProfilePage();
       closeUserOrdersModal();
-      const sec = document.getElementById('categoryFilterPills') || document.getElementById('services');
-      if (sec) sec.scrollIntoView({ behavior: 'smooth' });
+      if (typeof window.showCategoriesHub === 'function') {
+        window.showCategoriesHub('store');
+      } else {
+        window.location.hash = '#categories';
+      }
     });
   }
 
@@ -1610,12 +1646,16 @@ export function showNotificationsPage(fromScreen = 'profile') {
   const notifsView = document.getElementById('appNotificationsView');
   const ordersView = document.getElementById('appOrdersView');
   const searchView = document.getElementById('appSearchView');
+  const catHubView = document.getElementById('appCategoriesHubView');
+  const catDetailView = document.getElementById('appCategoryDetailView');
   if (!notifsView) return;
 
   if (storefrontView) storefrontView.style.display = 'none';
   if (accountView) accountView.style.display = 'none';
   if (ordersView) ordersView.style.display = 'none';
   if (searchView) searchView.style.display = 'none';
+  if (catHubView) catHubView.style.display = 'none';
+  if (catDetailView) catDetailView.style.display = 'none';
   notifsView.style.display = 'block';
 
   // Responsive device view: on desktop (laptop/PC > 991px), keep main store header active
@@ -1675,12 +1715,16 @@ export function showOrdersPage(fromScreen = 'profile') {
   const notifsView = document.getElementById('appNotificationsView');
   const searchView = document.getElementById('appSearchView');
   const ordersView = document.getElementById('appOrdersView');
+  const catHubView = document.getElementById('appCategoriesHubView');
+  const catDetailView = document.getElementById('appCategoryDetailView');
   if (!ordersView) return;
 
   if (storefrontView) storefrontView.style.display = 'none';
   if (accountView) accountView.style.display = 'none';
   if (notifsView) notifsView.style.display = 'none';
   if (searchView) searchView.style.display = 'none';
+  if (catHubView) catHubView.style.display = 'none';
+  if (catDetailView) catDetailView.style.display = 'none';
   ordersView.style.display = 'block';
 
   // Responsive device view: on desktop (laptop/PC > 991px), keep main store header & floating cart active

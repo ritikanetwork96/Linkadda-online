@@ -3592,9 +3592,9 @@ function summarizeDashboard(range = ui.dashboardRange) {
   const previousWindow = getRangeWindow(range, 1);
   const clickPredicate = (item) => {
     if (!item) return false;
-    const type = String(item.type || item.event_type || (item.data && item.data.type) || '').toLowerCase();
-    if (type === 'telegram_click' || type === 'review_submission' || type === 'visitor') return false;
-    return type.includes('order') || type.includes('click') || Boolean(item.productId || item.product_id || item.package || item.productName || (item.data && (item.data.productId || item.data.product_id)));
+    const type = String(item.type || item.eventType || item.event_type || (item.data && (item.data.type || item.data.eventType)) || '').toLowerCase();
+    if (type === 'telegram_click' || type === 'review_submission' || type === 'visitor' || type.includes('view') || type.includes('like') || type.includes('hide') || type.includes('share')) return false;
+    return type === 'order_click' || type.includes('order') || type.includes('click') || type.includes('buy');
   };
   const isAllRange = range === 'all';
   const allVisitorsCount = Math.max(visitors.length, stats().visitors || 0);
@@ -3699,8 +3699,9 @@ function summarizeDashboard(range = ui.dashboardRange) {
 
   const isLikeEvent = (item) => {
     if (!item) return false;
-    const type = String(item.type || item.event_type || (item.data && item.data.type) || '').toLowerCase();
-    return type === 'product_like' || type.includes('like');
+    const type = String(item.type || item.eventType || item.event_type || (item.data && (item.data.type || item.data.eventType)) || '').toLowerCase();
+    if (!type.includes('like')) return false;
+    return item.isLiked !== undefined ? item.isLiked !== false : (item.data ? item.data.isLiked !== false : true);
   };
 
   const isAffiliateEvent = (item) => {
@@ -3735,6 +3736,9 @@ function summarizeDashboard(range = ui.dashboardRange) {
   const prevViews = countInWindow(events, previousWindow.start, previousWindow.end, isViewEvent);
   const prevShares = countInWindow(events, previousWindow.start, previousWindow.end, isShareEvent);
 
+  const todayWindow = getRangeWindow('today', 0);
+  const todaysLikes = countInWindow(events, todayWindow.start, todayWindow.end, isLikeEvent);
+
   const topProducts = buildTopProducts({ range, clicks: currentClicks });
   const top = topProducts[0] ? [topProducts[0].title || topProducts[0].name, topProducts[0].clicks] : [];
 
@@ -3766,6 +3770,7 @@ function summarizeDashboard(range = ui.dashboardRange) {
     ordersPrev: prevOrders,
     ordersTrend: percentChange(currentOrders, prevOrders),
     totalLikes: currentLikes,
+    todaysLikes,
     totalLikesPrev: prevLikes,
     likesTrend: percentChange(currentLikes, prevLikes),
     totalViews: currentViews,
@@ -4140,9 +4145,9 @@ function buildTopProducts(summary = {}) {
   const range = summary.range || ui.dashboardRange;
   const isOrderClick = (item) => {
     if (!item) return false;
-    const type = String(item.type || item.event_type || (item.data && item.data.type) || '').toLowerCase();
-    if (type === 'telegram_click' || type === 'review_submission' || type === 'visitor') return false;
-    return type.includes('order') || type.includes('click') || Boolean(item.productId || item.product_id || item.package || item.productName || (item.data && (item.data.productId || item.data.product_id)));
+    const type = String(item.type || item.eventType || item.event_type || (item.data && (item.data.type || item.data.eventType)) || '').toLowerCase();
+    if (type === 'telegram_click' || type === 'review_submission' || type === 'visitor' || type.includes('view') || type.includes('like') || type.includes('hide') || type.includes('share')) return false;
+    return type === 'order_click' || type.includes('order') || type.includes('click') || type.includes('buy');
   };
   const events = listCollection('events').filter((item) => isInRange(recordTimestamp(item), range) && isOrderClick(item));
   const orders = listCollection('orders').filter((item) => isInRange(recordTimestamp(item), range));
@@ -4420,6 +4425,19 @@ function renderAnalyticsKpis(summary) {
           <span>Buyer orders</span>
         </div>
         <div class="kpi-sparkline">${renderSparkline(summary.orderSeries, 'success')}</div>
+      </div>
+
+      <div class="kpi-card glass kpi-card-dynamic">
+        <div class="kpi-card-top">
+          <span class="kpi-label">Total Likes</span>
+          <span class="kpi-icon accent" style="background: rgba(244, 63, 94, 0.15); color: #f43f5e;"><i data-lucide="heart"></i></span>
+        </div>
+        <div class="kpi-value" style="color: #fda4af;">${formatNumber(summary.totalLikes || 0)}</div>
+        <div class="kpi-meta" style="flex-wrap: wrap; gap: 4px;">
+          <span class="kpi-change up" style="font-size: 10.5px; padding: 2px 6px; background: rgba(244, 63, 94, 0.15); color: #fb7185;"><span class="pulse-dot" style="background: #f43f5e;"></span> Live</span>
+          <span style="font-size: 11px; color: #fb7185; font-weight: 600;">❤️ ${summary.todaysLikes || (typeof stats === 'function' ? stats().todaysLikes : 0) || 0} Today · Product Likes</span>
+        </div>
+        <div class="kpi-sparkline">${renderSparkline(summary.likeSeries, 'accent')}</div>
       </div>
 
       <div class="kpi-card glass kpi-card-dynamic">
@@ -6043,7 +6061,7 @@ function renderDashboard(data) {
             ${renderCompactStatCard('Products', summary.totals.products, 'Live product records', 'package', 'primary')}
             ${renderCompactStatCard('Categories', summary.totals.categories, 'Live category records', 'layers-3', 'secondary')}
             ${renderCompactStatCard('Product Views', summary.totalViews, 'Catalog views 👁️', 'eye', 'purple')}
-            ${renderCompactStatCard('Total Likes', summary.totalLikes, 'Product likes ❤️', 'heart', 'accent')}
+            ${renderCompactStatCard('Total Likes', summary.totalLikes, `❤️ ${summary.todaysLikes || (typeof stats === 'function' ? stats().todaysLikes : 0) || 0} today · Live likes`, 'heart', 'accent')}
             ${renderCompactStatCard('Affiliate Clicks', summary.affiliateClicks, 'External & Bot clicks', 'send', 'success')}
             ${renderCompactStatCard('Hidden Products', summary.hiddenProductsCount, `${summary.visitorHiddenCount} visitor hides`, 'eye-off', 'secondary')}
           </div>
@@ -12739,7 +12757,16 @@ function computeRouteDigest(route, data) {
     }
     const oCount = data.orders ? Object.keys(data.orders).length : 0;
     const vCount = data.visitors ? Object.keys(data.visitors).length : 0;
-    return `${route}_${oCount}_${vCount}`;
+    const eCount = data.events ? Object.keys(data.events).length : 0;
+    let latestEventSig = '';
+    if (data.events) {
+      const eKeys = Object.keys(data.events);
+      if (eKeys.length > 0) {
+        const lastE = data.events[eKeys[eKeys.length - 1]];
+        latestEventSig = `${lastE?.id || ''}:${lastE?.type || lastE?.eventType || ''}:${lastE?.timestamp || lastE?.created_at || ''}`;
+      }
+    }
+    return `${route}_${oCount}_${vCount}_${eCount}_${latestEventSig}`;
   } catch (_) {
     return String(Date.now());
   }

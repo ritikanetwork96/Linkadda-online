@@ -1283,7 +1283,7 @@
           <input type="search" class="fk-search-input" id="fkSearchInput" placeholder="Search videos, creators, categories..." readonly style="cursor: pointer;" />
           <button type="button" class="fk-search-btn" id="fkSearchBtn" aria-label="Search"><i class="fa-solid fa-magnifying-glass"></i></button>
         </div>
-        <button type="button" class="fk-filter-btn" id="fkFilterBtn" onclick="window.scrollToCategories()" title="Categories Filter" aria-label="Categories Filter">
+        <button type="button" class="fk-filter-btn" id="fkFilterBtn" onclick="window.showCategoriesHub ? window.showCategoriesHub('store') : window.scrollToCategories()" title="All Categories" aria-label="All Categories">
           <i class="fa-solid fa-sliders"></i>
         </button>
       </div>
@@ -3631,23 +3631,26 @@
       nowLiked ? 'fa-solid fa-heart' : 'fa-regular fa-heart'
     );
 
-    // Persist real-time like in database (both /api/products and /api/track/event)
+    // Persist real-time like in database with visitor and product metadata
     try {
-      fetch('/api/products', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'toggle_like', productId: pid, isLiked: nowLiked }),
-      }).then(res => res.json()).then(data => {
-        if (data && data.success && data.likes !== undefined) {
-          if (window.liveCollections?.products?.[pid]) {
-            window.liveCollections.products[pid].likes = data.likes;
-          }
-        }
-      }).catch(() => {});
+      const cardEl = document.querySelector(`[data-product-id="${pid}"], [data-fb-id="${pid}"]`);
+      const prodTitle = (cardEl ? cardEl.querySelector('.fk-card-title, .pcard-title, h3')?.textContent : '') || (window.liveCollections?.products?.[pid]?.title || '');
+      const vId = (typeof getVisitorId === 'function' ? getVisitorId() : '') || localStorage.getItem('linkadda_visitor_id') || '';
+
       fetch('/api/track/event', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'product_like', event_type: 'product_like', productId: pid, product_id: pid, isLiked: nowLiked })
+        body: JSON.stringify({
+          type: 'product_like',
+          event_type: 'product_like',
+          productId: pid,
+          product_id: pid,
+          productTitle: prodTitle,
+          product_title: prodTitle,
+          visitorId: vId,
+          visitor_id: vId,
+          isLiked: nowLiked
+        })
       }).catch(() => {});
     } catch (_) {}
 
@@ -4510,6 +4513,10 @@
   };
 
   window.scrollToCategories = function() {
+    if (typeof window.showCategoriesHub === 'function') {
+      window.showCategoriesHub('store');
+      return;
+    }
     const grid = document.getElementById('categoryFilterPills') || document.getElementById('categoriesGrid') || document.getElementById('services');
     if (grid) {
       grid.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -4521,7 +4528,11 @@
     if (btn) btn.classList.add('active');
 
     if (filterKey === 'categories') {
-      window.scrollToCategories();
+      if (typeof window.showCategoriesHub === 'function') {
+        window.showCategoriesHub('store');
+      } else {
+        window.scrollToCategories();
+      }
       return;
     }
     if (filterKey === 'all') {
@@ -4920,6 +4931,7 @@
     // 1. "All" Pill
     const isAllActive = activeCategoryFilter === 'all';
     pillsHtml += `<button class="category-pill${isAllActive ? ' active' : ''}" data-cat-id="all">All</button>`;
+    pillsHtml += `<button type="button" class="category-pill pill-all-categories-hub" onclick="window.showCategoriesHub && window.showCategoriesHub('store')" style="background: rgba(255, 42, 141, 0.12); border-color: rgba(255, 42, 141, 0.35); color: #ff65a3; font-weight: 750;"><i class="fa-solid fa-layer-group" style="margin-right: 4px;"></i> All Categories ⊞</button>`;
 
     // 1b. "Trending" Pill
     const isTrendingActive = activeCategoryFilter === 'trending';
@@ -5030,6 +5042,9 @@
       renderCategoryFilters();
       renderLiveGrid();
       renderPinnedBanner();
+      if (typeof window.renderCategoriesHubGrid === 'function') {
+        window.renderCategoriesHubGrid();
+      }
       if (typeof window.openFkProductPage === 'function' && window.__fkActiveProduct && document.getElementById('fkProductPageOverlay')?.classList.contains('active')) {
         const activeId = window.__fkActiveProduct.id || window.__fkActiveProduct.slug;
         const fresh = liveCollections.products && (liveCollections.products[activeId] || Object.values(liveCollections.products).find(p => String(p?.id) === String(activeId)));
@@ -5526,6 +5541,106 @@
     });
   }
 
+  const LIVE_GRID_CHUNK_SIZE = 24;
+  window._currentLiveRecords = [];
+  window._liveGridRenderedCount = 0;
+  let liveGridSentinelObserver = null;
+
+  function setupLiveGridInfiniteScroll() {
+    if (typeof IntersectionObserver === 'undefined') return;
+    if (liveGridSentinelObserver) {
+      try { liveGridSentinelObserver.disconnect(); } catch (_) {}
+    }
+    const sentinel = document.getElementById('liveGridSentinel');
+    if (!sentinel) return;
+
+    liveGridSentinelObserver = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          loadMoreLiveGridProducts();
+        }
+      });
+    }, {
+      rootMargin: '600px 0px',
+      threshold: 0.01
+    });
+
+    liveGridSentinelObserver.observe(sentinel);
+  }
+
+  function loadMoreLiveGridProducts() {
+    const grid = document.getElementById('categoriesGrid');
+    const records = window._currentLiveRecords || [];
+    const currentCount = window._liveGridRenderedCount || 0;
+    const sentinel = document.getElementById('liveGridSentinel');
+
+    if (currentCount >= records.length) {
+      if (liveGridSentinelObserver) liveGridSentinelObserver.disconnect();
+      if (sentinel) sentinel.remove();
+      return;
+    }
+
+    const nextBatch = records.slice(currentCount, currentCount + LIVE_GRID_CHUNK_SIZE);
+    if (!nextBatch.length) return;
+
+    const newCardsHtml = nextBatch.map((item, idx) => {
+      try { return buildCard(item.id, item, currentCount + idx); } catch (e) { return ''; }
+    }).join('');
+
+    if (sentinel && sentinel.parentNode) {
+      sentinel.insertAdjacentHTML('beforebegin', newCardsHtml);
+    } else if (grid) {
+      grid.insertAdjacentHTML('beforeend', newCardsHtml);
+    }
+
+    window._liveGridRenderedCount = currentCount + nextBatch.length;
+
+    initSlideshows();
+    initVidTiers();
+    syncCheckoutLinks();
+    initProductViewObserver();
+
+    if (typeof updateLastSoldBadges === 'function') {
+      updateLastSoldBadges();
+    }
+
+    if (window._liveGridRenderedCount >= records.length) {
+      if (liveGridSentinelObserver) liveGridSentinelObserver.disconnect();
+      if (sentinel) sentinel.remove();
+    }
+  }
+
+  window.renderLiveGridUpToIndex = function(targetIndex) {
+    const records = window._currentLiveRecords || [];
+    let currentCount = window._liveGridRenderedCount || 0;
+    const grid = document.getElementById('categoriesGrid');
+    const sentinel = document.getElementById('liveGridSentinel');
+    if (targetIndex < currentCount || !records.length || !grid) return;
+
+    const neededBatch = records.slice(currentCount, Math.min(records.length, targetIndex + LIVE_GRID_CHUNK_SIZE));
+    if (!neededBatch.length) return;
+
+    const newCardsHtml = neededBatch.map((item, idx) => {
+      try { return buildCard(item.id, item, currentCount + idx); } catch (e) { return ''; }
+    }).join('');
+
+    if (sentinel && sentinel.parentNode) {
+      sentinel.insertAdjacentHTML('beforebegin', newCardsHtml);
+    } else {
+      grid.insertAdjacentHTML('beforeend', newCardsHtml);
+    }
+    window._liveGridRenderedCount = currentCount + neededBatch.length;
+
+    initSlideshows();
+    initVidTiers();
+    syncCheckoutLinks();
+    initProductViewObserver();
+    if (window._liveGridRenderedCount >= records.length && sentinel) {
+      if (liveGridSentinelObserver) liveGridSentinelObserver.disconnect();
+      sentinel.remove();
+    }
+  };
+
   function renderLiveGrid() {
     if (!USE_LIVE_GRID) return;
     const grid = document.getElementById('categoriesGrid');
@@ -5683,9 +5798,19 @@
           // If a category has no products, fallback to showing all products with a friendly hint
           records = getLiveRecords().filter(item => !hiddenList.includes(String(item.id)));
           if (records.length) {
-            grid.innerHTML = records.map((item, idx) => {
+            window._currentLiveRecords = records;
+            window._liveGridRenderedCount = 0;
+            const initialBatch = records.slice(0, LIVE_GRID_CHUNK_SIZE);
+            const initialCardsHtml = initialBatch.map((item, idx) => {
               try { return buildCard(item.id, item, idx); } catch (e) { return ''; }
             }).join('');
+            let sentinelHtml = '';
+            if (records.length > LIVE_GRID_CHUNK_SIZE) {
+              sentinelHtml = `<div id="liveGridSentinel" style="grid-column: 1 / -1; height: 36px; display: flex; align-items: center; justify-content: center; padding: 18px 0; color: #94a3b8; font-size: 13px; font-weight: 600;"><i class="fa-solid fa-spinner fa-spin" style="margin-right: 8px; color: #f43f5e;"></i> Loading more packs...</div>`;
+            }
+            grid.innerHTML = initialCardsHtml + sentinelHtml;
+            window._liveGridRenderedCount = initialBatch.length;
+            setupLiveGridInfiniteScroll();
           } else {
             grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 40px; color: var(--muted); font-size: 14px;">No products found in this category.</div>';
           }
@@ -5723,7 +5848,11 @@
             </div>
           `;
         }
-        const nextHtml = prefixHtml + records.map((item, idx) => {
+        window._currentLiveRecords = records;
+        window._liveGridRenderedCount = 0;
+
+        const initialBatch = records.slice(0, LIVE_GRID_CHUNK_SIZE);
+        const initialCardsHtml = initialBatch.map((item, idx) => {
           try {
             return buildCard(item.id, item, idx);
           } catch (e) {
@@ -5732,8 +5861,16 @@
           }
         }).join('');
 
+        let sentinelHtml = '';
+        if (records.length > LIVE_GRID_CHUNK_SIZE) {
+          sentinelHtml = `<div id="liveGridSentinel" style="grid-column: 1 / -1; height: 36px; display: flex; align-items: center; justify-content: center; padding: 18px 0; color: #94a3b8; font-size: 13px; font-weight: 600;"><i class="fa-solid fa-spinner fa-spin" style="margin-right: 8px; color: #f43f5e;"></i> Loading more packs...</div>`;
+        }
+
+        const nextHtml = prefixHtml + initialCardsHtml + sentinelHtml;
         grid._lastRenderedHtml = nextHtml;
         grid.innerHTML = nextHtml;
+        window._liveGridRenderedCount = initialBatch.length;
+        setupLiveGridInfiniteScroll();
       }
 
       initSlideshows();
@@ -6025,22 +6162,25 @@
         const hasExistingCats = liveCollections.categories && Object.keys(liveCollections.categories).length > 5;
 
         if (!hasExistingCats || !latestCatTs || latestCatTs !== cachedCatTs) {
-          const catFields = 'id,slug,name,title,image,status,display_order,updated_at';
+          const catFields = 'id,slug,name,image,badge,display_order,updated_at,data';
           const cRes = await fetch(`${supaUrl}/rest/v1/categories?select=${catFields}`, { headers });
           const rows = await cRes.json().catch(() => []);
           if (Array.isArray(rows) && rows.length) {
             const data = {};
             rows.forEach(item => {
-              const cleanName = item.name || item.title || '';
+              const pData = (item.data && typeof item.data === 'object') ? item.data : {};
+              const cleanName = item.name || pData.title || pData.name || '';
               data[item.id] = {
                 ...(liveCollections.categories?.[item.id] || {}),
+                ...pData,
                 ...item,
                 id: item.id,
                 name: cleanName,
                 title: cleanName,
-                image: item.image || '',
-                status: item.status || 'active',
-                displayOrder: item.display_order ?? 0,
+                image: item.image || pData.image || '',
+                badge: item.badge || pData.badge || '',
+                status: pData.status || item.status || 'active',
+                displayOrder: item.display_order ?? pData.displayOrder ?? 0,
               };
             });
             liveCollections.categories = data;
@@ -6244,6 +6384,17 @@
         renderLiveGrid();
         targetCard = findCardInDOM();
       }
+
+      // If product is in live records but not yet in DOM because of progressive lazy chunking, expand up to it!
+      if (!targetCard && foundProdId && window._currentLiveRecords && window._currentLiveRecords.length) {
+        const targetIdx = window._currentLiveRecords.findIndex(item => {
+          return String(item.id).toLowerCase() === foundProdId.toLowerCase() || String(item.slug || '').toLowerCase() === queryId;
+        });
+        if (targetIdx !== -1 && typeof window.renderLiveGridUpToIndex === 'function') {
+          window.renderLiveGridUpToIndex(targetIdx);
+          targetCard = findCardInDOM();
+        }
+      }
     }
 
     if (targetCard && !foundProdId) {
@@ -6298,7 +6449,8 @@
     const urlParams = new URLSearchParams(window.location.search);
     let raw = urlParams.get('category') || urlParams.get('cat') || urlParams.get('c') || urlParams.get('categorySlug') || urlParams.get('categoryId') || '';
     if (!raw && window.location.hash) {
-      const match = window.location.hash.match(/#\/?(?:category|cat|c)[\/=-]?([^&]+)/i);
+      if (window.location.hash === '#categories') return '';
+      const match = window.location.hash.match(/#\/?category\/([^&]+)/i) || window.location.hash.match(/#\/?(?:cat|c)[\/=-]([^&]+)/i);
       if (match) raw = match[1] || match[2];
     }
     try {
@@ -7444,12 +7596,16 @@
       const storefrontView = document.getElementById('appStorefrontView');
       const accountView = document.getElementById('appAccountView');
       const notifsView = document.getElementById('appNotificationsView');
+      const catHubView = document.getElementById('appCategoriesHubView');
+      const catDetailView = document.getElementById('appCategoryDetailView');
       const searchView = document.getElementById('appSearchView');
       if (!searchView) return;
 
       if (storefrontView) storefrontView.style.display = 'none';
       if (accountView) accountView.style.display = 'none';
       if (notifsView) notifsView.style.display = 'none';
+      if (catHubView) catHubView.style.display = 'none';
+      if (catDetailView) catDetailView.style.display = 'none';
       searchView.style.display = 'block';
 
       // Hide storefront header, header spacer, marquee and floating cart on ALL devices during dedicated search
@@ -7499,6 +7655,14 @@
         if (typeof window.showProfilePage === 'function') window.showProfilePage();
       } else if (searchPreviousScreen === 'notifications') {
         if (typeof window.showNotificationsPage === 'function') window.showNotificationsPage('store');
+      } else if (searchPreviousScreen === 'categories') {
+        if (typeof window.showCategoriesHub === 'function') window.showCategoriesHub('store', true);
+      } else if (searchPreviousScreen === 'category-detail' || searchPreviousScreen === 'category') {
+        if (typeof window.showCategoryProducts === 'function' && window._lastActiveCategoryDetailId) {
+          window.showCategoryProducts(window._lastActiveCategoryDetailId, 'store', true);
+        } else if (typeof window.showCategoriesHub === 'function') {
+          window.showCategoriesHub('store', true);
+        }
       } else {
         const storefrontView = document.getElementById('appStorefrontView');
         if (storefrontView) storefrontView.style.display = 'block';
@@ -7652,6 +7816,782 @@
   </script>
   </main>
   <!-- ===== END APP STOREFRONT VIEW ===== -->
+
+  <!-- ===== DEDICATED AMAZON/FLIPKART STYLE CATEGORY HUB VIEW ===== -->
+  <div id="appCategoriesHubView" class="cat-hub-view" style="display: none;">
+    <!-- Sticky Top Bar -->
+    <div class="app-cat-topbar">
+      <button type="button" class="btn-app-screen-back" id="btnBackFromCatHub" onclick="window.hideCategoriesHub && window.hideCategoriesHub()">
+        <i class="fa-solid fa-arrow-left"></i>
+        <span>Store</span>
+      </button>
+      <div class="cat-topbar-title-wrap">
+        <h1 class="cat-topbar-title">All Categories</h1>
+        <span class="cat-total-badge" id="catHubCountBadge">32 Categories</span>
+      </div>
+      <div class="cat-topbar-actions">
+        <button type="button" class="btn-app-screen-icon" onclick="window.openCartDrawer && window.openCartDrawer()" aria-label="Cart" title="Shopping Cart" style="position: relative;">
+          <i class="fa-solid fa-cart-shopping"></i>
+          <span class="appbar-cart-badge" id="cartBadgeCatHub" style="display: none;">0</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="cat-hub-container">
+      <!-- Search Input -->
+      <div class="cat-hub-search-wrapper">
+        <i class="fa-solid fa-magnifying-glass cat-search-icon-left"></i>
+        <input type="search" id="catHubSearchInput" class="cat-hub-search-input" placeholder="Search 30+ categories..." oninput="window.filterCategoriesHubSearch && window.filterCategoriesHubSearch(this.value)" autocomplete="off">
+        <button type="button" id="catHubSearchClear" class="cat-search-clear-btn" style="display: none;" onclick="window.clearCategoryHubSearch && window.clearCategoryHubSearch()">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <!-- Quick Curated Highlights Chips -->
+      <div class="cat-hub-curated-chips">
+        <button type="button" class="cat-curated-chip" onclick="window.openCuratedCategory && window.openCuratedCategory('trending')">
+          <i class="fa-solid fa-fire" style="color: #f59e0b;"></i> 🔥 Trending Deals
+        </button>
+        <button type="button" class="cat-curated-chip" onclick="window.openCuratedCategory && window.openCuratedCategory('bestsellers')">
+          <i class="fa-solid fa-crown" style="color: #fbbf24;"></i> 👑 Bestsellers
+        </button>
+        <button type="button" class="cat-curated-chip" onclick="window.openCuratedCategory && window.openCuratedCategory('new')">
+          <i class="fa-solid fa-sparkles" style="color: #38bdf8;"></i> 🆕 New Arrivals
+        </button>
+        <button type="button" class="cat-curated-chip" onclick="window.openCuratedCategory && window.openCuratedCategory('liked')">
+          <i class="fa-solid fa-heart" style="color: #f43f5e;"></i> ❤️ Liked Items
+        </button>
+        <button type="button" class="cat-curated-chip" onclick="window.openCuratedCategory && window.openCuratedCategory('all-in-one-1')">
+          <i class="fa-solid fa-gem" style="color: #a855f7;"></i> 💎 Mega Bundles
+        </button>
+      </div>
+
+      <!-- Category Cards Grid -->
+      <div class="cat-hub-grid" id="catHubGrid">
+        <!-- Rendered dynamically -->
+      </div>
+
+      <!-- Empty State for Search -->
+      <div id="catHubEmptySearchState" style="display: none; text-align: center; padding: 50px 20px;">
+        <div style="font-size: 2.8rem; color: #94a3b8; margin-bottom: 12px;"><i class="fa-solid fa-box-open"></i></div>
+        <h3 style="font-size: 1.15rem; font-weight: 800; color: #ffffff; margin-bottom: 6px;">No Matching Categories</h3>
+        <p style="font-size: 0.88rem; color: #94a3b8; margin-bottom: 16px;">Try typing a different keyword or view all collections.</p>
+        <button type="button" class="btn-primary" onclick="window.clearCategoryHubSearch && window.clearCategoryHubSearch()" style="padding: 8px 20px; border-radius: 9999px; font-weight: 700; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; margin: 0 auto;">
+          <i class="fa-solid fa-rotate-left"></i> View All Categories
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== DEDICATED AMAZON/FLIPKART STYLE CATEGORY DETAIL VIEW ===== -->
+  <div id="appCategoryDetailView" class="cat-detail-view" style="display: none;">
+    <!-- Sticky Top Bar -->
+    <div class="app-cat-topbar">
+      <button type="button" class="btn-app-screen-back" id="btnBackFromCatDetail" onclick="window.showCategoriesHub ? window.showCategoriesHub('detail') : window.hideCategoryProducts()">
+        <i class="fa-solid fa-arrow-left"></i>
+        <span>All Categories</span>
+      </button>
+      <div class="cat-topbar-title-wrap">
+        <h1 class="cat-topbar-title" id="catDetailTopTitle">Category</h1>
+      </div>
+      <div class="cat-topbar-actions">
+        <button type="button" class="btn-cat-share" onclick="window.shareCategoryPage && window.shareCategoryPage()" title="Share Category">
+          <i class="fa-solid fa-arrow-up-from-bracket"></i>
+          <span>Share</span>
+        </button>
+        <button type="button" class="btn-app-screen-icon" onclick="window.openCartDrawer && window.openCartDrawer()" aria-label="Cart" title="Shopping Cart" style="position: relative;">
+          <i class="fa-solid fa-cart-shopping"></i>
+          <span class="appbar-cart-badge" id="cartBadgeCatDetail" style="display: none;">0</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="cat-detail-container">
+      <!-- Category Hero Banner -->
+      <div class="cat-detail-hero" id="catDetailHeroBanner">
+        <div class="cat-detail-hero-icon" id="catDetailHeroIcon">
+          <i class="fa-solid fa-layer-group"></i>
+        </div>
+        <div class="cat-detail-hero-info">
+          <h2 class="cat-detail-hero-title" id="catDetailHeroTitle">Category Name</h2>
+          <p class="cat-detail-hero-desc" id="catDetailHeroDesc">Explore hand-picked premium channels and mega collection packs.</p>
+          <div class="cat-detail-stats-pill" id="catDetailStatsPill">
+            <i class="fa-solid fa-box-open"></i> <span id="catDetailCountText">0 Available Packs</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Sorting & Filter Bar -->
+      <div class="cat-detail-sort-bar" id="catDetailSortBar">
+        <button type="button" class="cat-sort-pill active" data-sort="popular" onclick="window.sortCategoryDetailProducts && window.sortCategoryDetailProducts('popular')">
+          <i class="fa-solid fa-fire"></i> Popular
+        </button>
+        <button type="button" class="cat-sort-pill" data-sort="price-asc" onclick="window.sortCategoryDetailProducts && window.sortCategoryDetailProducts('price-asc')">
+          <i class="fa-solid fa-arrow-up-1-9"></i> Price: Low to High
+        </button>
+        <button type="button" class="cat-sort-pill" data-sort="price-desc" onclick="window.sortCategoryDetailProducts && window.sortCategoryDetailProducts('price-desc')">
+          <i class="fa-solid fa-arrow-down-9-1"></i> Price: High to Low
+        </button>
+        <button type="button" class="cat-sort-pill" data-sort="bestsellers" onclick="window.sortCategoryDetailProducts && window.sortCategoryDetailProducts('bestsellers')">
+          <i class="fa-solid fa-crown"></i> Bestsellers
+        </button>
+        <button type="button" class="cat-sort-pill" data-sort="newest" onclick="window.sortCategoryDetailProducts && window.sortCategoryDetailProducts('newest')">
+          <i class="fa-solid fa-sparkles"></i> Newest
+        </button>
+      </div>
+
+      <!-- Category Products Grid -->
+      <div class="category-grid" id="catDetailProductsGrid" style="width: 100%;">
+        <!-- Rendered dynamically via buildCard -->
+      </div>
+
+      <!-- Empty State -->
+      <div id="catDetailEmptyState" style="display: none; text-align: center; padding: 60px 20px;">
+        <div style="font-size: 3rem; color: #94a3b8; margin-bottom: 14px;"><i class="fa-solid fa-box-open"></i></div>
+        <h3 style="font-size: 1.25rem; font-weight: 800; color: #ffffff; margin-bottom: 8px;">No Products Found</h3>
+        <p style="font-size: 0.92rem; color: #94a3b8; max-width: 420px; margin: 0 auto 20px; line-height: 1.5;">There are currently no separate items listed under this category.</p>
+        <button type="button" class="btn-primary" onclick="window.showCategoriesHub ? window.showCategoriesHub('detail') : window.hideCategoryProducts()" style="padding: 10px 24px; border-radius: 9999px; font-weight: 700; font-size: 14px; display: inline-flex; align-items: center; gap: 8px; margin: 0 auto;">
+          <i class="fa-solid fa-layer-group"></i> Browse Other Categories
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  (function initCategoryHubSystem() {
+    let activeCatDetailId = null;
+    let activeSortType = 'popular';
+    let catHubFilterQuery = '';
+
+    function safeHtml(str) {
+      return String(str ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    // Helper: Get matching products for a category
+    function getCategoryProductsList(catId) {
+      if (!catId) return [];
+      const allProds = typeof window.getLiveRecords === 'function' ? window.getLiveRecords() : [];
+      const hiddenList = typeof window.getHiddenProducts === 'function' ? window.getHiddenProducts() : [];
+      const visibleProds = allProds.filter(item => !hiddenList.includes(String(item.id)));
+
+      // Handle curated shortcuts
+      if (catId === 'trending') {
+        const list = [...visibleProds];
+        list.forEach(p => p._trendingScore = (typeof window.getTrendingScore === 'function') ? window.getTrendingScore(p) : 0);
+        return list.sort((a, b) => b._trendingScore - a._trendingScore);
+      }
+      if (catId === 'bestsellers') {
+        const best = visibleProds.filter(p => typeof window.isProductBestseller === 'function' && window.isProductBestseller(p));
+        if (best.length) return best.sort((a, b) => (typeof window.getProductOrderCount === 'function' ? (window.getProductOrderCount(b) - window.getProductOrderCount(a)) : 0));
+        return [...visibleProds].slice(0, 8);
+      }
+      if (catId === 'new') {
+        return [...visibleProds].sort((a, b) => new Date(b.created_at || b.createdAt || 0).getTime() - new Date(a.created_at || a.createdAt || 0).getTime());
+      }
+      if (catId === 'liked') {
+        const wishlist = typeof window.getWishlist === 'function' ? window.getWishlist() : [];
+        return visibleProds.filter(p => wishlist.includes(String(p.id)));
+      }
+
+      const categories = window.liveCollections?.categories || {};
+      const cat = categories[catId] || Object.values(categories).find(c => String(c?.id) === String(catId) || String(c?.slug) === String(catId)) || {};
+
+      const catTitleLower = String(cat.title || cat.name || catId).trim().toLowerCase();
+      const catSlugLower = String(cat.slug || catId).trim().toLowerCase();
+      const catIdLower = String(catId).trim().toLowerCase();
+      const catRefLower = String(cat.productRef || cat.data?.productRef || '').trim().toLowerCase();
+      const catDescLower = String(cat.description || cat.data?.description || '').trim().toLowerCase();
+
+      let matches = visibleProds.filter(item => {
+        if (String(item.id) === String(catId)) return true;
+        if (catRefLower && (
+          String(item.id).toLowerCase() === catRefLower ||
+          String(item.slug || '').toLowerCase() === catRefLower ||
+          String(item.category || '').toLowerCase() === catRefLower
+        )) return true;
+
+        const itemCatLower = String(item.category || '').trim().toLowerCase();
+        const itemTitleLower = String(item.title || '').trim().toLowerCase();
+        const itemSlugLower = String(item.slug || '').trim().toLowerCase();
+
+        if (itemCatLower && (
+          itemCatLower === catTitleLower ||
+          itemCatLower === catSlugLower ||
+          itemCatLower === catIdLower ||
+          (catRefLower && itemCatLower === catRefLower) ||
+          (catDescLower && (itemCatLower === catDescLower || catDescLower.includes(itemCatLower) || itemCatLower.includes(catDescLower))) ||
+          itemCatLower.includes(catTitleLower) ||
+          catTitleLower.includes(itemCatLower)
+        )) return true;
+
+        if (itemSlugLower && (
+          itemSlugLower === catSlugLower ||
+          itemSlugLower === catIdLower ||
+          (catRefLower && itemSlugLower === catRefLower)
+        )) return true;
+
+        if (catTitleLower && itemTitleLower.includes(catTitleLower)) return true;
+        if (catDescLower && itemTitleLower.includes(catDescLower)) return true;
+
+        return false;
+      });
+
+      // Fallback: If no sub-products exist, display the category pack itself as a product card
+      if (!matches.length && (cat.title || cat.name || cat.id)) {
+        matches = [Object.assign({ id: catId, title: cat.title || cat.name || 'Special Pack', category: cat.title || cat.name }, cat)];
+      }
+
+      return matches;
+    }
+
+    // Render Category Hub Card Grid
+    function renderCategoriesHubGrid(filterQuery = '') {
+      const grid = document.getElementById('catHubGrid');
+      const emptyState = document.getElementById('catHubEmptySearchState');
+      const countBadge = document.getElementById('catHubCountBadge');
+      if (!grid) return;
+
+      const rawCats = window.liveCollections?.categories || {};
+      let categories = typeof window.normalizeRecords === 'function' ? window.normalizeRecords(rawCats) : Object.values(rawCats);
+      if (!categories.length && window.liveCollections?.categories) {
+        categories = Object.entries(window.liveCollections.categories).map(([id, c]) => ({ id, ...c }));
+      }
+
+      // Resilient Fallback 1: Check localStorage cache
+      if (!categories.length) {
+        try {
+          const rawV6 = localStorage.getItem('linkadda_cached_live_data_v6') || localStorage.getItem('linkadda_cached_live_data_v5') || localStorage.getItem('linkadda_cached_live_data');
+          if (rawV6) {
+            const parsed = JSON.parse(rawV6);
+            if (parsed && parsed.categories && Object.keys(parsed.categories).length) {
+              window.liveCollections.categories = Object.assign({}, parsed.categories);
+              categories = typeof window.normalizeRecords === 'function' ? window.normalizeRecords(parsed.categories) : Object.values(parsed.categories);
+            }
+          }
+        } catch (_) {}
+      }
+
+      // Resilient Fallback 2: Derive categories dynamically from products if empty
+      if (!categories.length && window.liveCollections?.products) {
+        const prodList = Object.values(window.liveCollections.products);
+        const catMap = {};
+        prodList.forEach(p => {
+          const cName = String(p.category || p.data?.category || '').trim();
+          if (cName) {
+            const slug = cName.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+            if (!catMap[slug]) {
+              catMap[slug] = {
+                id: slug,
+                slug: slug,
+                title: cName,
+                name: cName,
+                image: p.image || (Array.isArray(p.images) ? p.images[0] : ''),
+                displayOrder: 10
+              };
+            }
+          }
+        });
+        if (Object.keys(catMap).length) {
+          categories = Object.values(catMap);
+        }
+      }
+
+      // Sort categories by displayOrder
+      categories.sort((a, b) => (Number(a.displayOrder ?? a.display_order ?? 999) - Number(b.displayOrder ?? b.display_order ?? 999)));
+
+      if (countBadge) {
+        countBadge.textContent = `${categories.length} Categories`;
+      }
+
+      const query = String(filterQuery || '').trim().toLowerCase();
+      let displayCats = categories;
+      if (query) {
+        displayCats = categories.filter(c => {
+          const title = String(c.title || c.name || '').toLowerCase();
+          const slug = String(c.slug || '').toLowerCase();
+          const desc = String(c.description || c.data?.description || '').toLowerCase();
+          const badge = String(c.badge || '').toLowerCase();
+          return title.includes(query) || slug.includes(query) || desc.includes(query) || badge.includes(query);
+        });
+      }
+
+      if (!displayCats.length) {
+        grid.innerHTML = '';
+        if (emptyState) emptyState.style.display = 'block';
+        return;
+      }
+
+      if (emptyState) emptyState.style.display = 'none';
+
+      // Aesthetic theme gradient palette for fallback art
+      const artGradients = [
+        'linear-gradient(135deg, #4f46e5, #7c3aed)',
+        'linear-gradient(135deg, #e11d48, #be123c)',
+        'linear-gradient(135deg, #059669, #0d9488)',
+        'linear-gradient(135deg, #d97706, #b45309)',
+        'linear-gradient(135deg, #0284c7, #2563eb)',
+        'linear-gradient(135deg, #7c2d12, #9a3412)',
+        'linear-gradient(135deg, #831843, #9d174d)',
+        'linear-gradient(135deg, #312e81, #1e1b4b)'
+      ];
+
+      const artIcons = ['fa-layer-group', 'fa-crown', 'fa-fire', 'fa-sparkles', 'fa-gem', 'fa-bolt', 'fa-star', 'fa-heart'];
+
+      const cardsHtml = displayCats.map((cat, idx) => {
+        const catId = cat.id || cat.slug;
+        const catName = cat.title || cat.name || 'Collection Pack';
+        const prodList = getCategoryProductsList(catId);
+        const prodCount = prodList.length;
+        const countLabel = prodCount === 1 ? '1 Pack' : `${prodCount} Packs`;
+        const catBadge = cat.badge || (cat.displayOrder <= 3 ? 'HOT' : '');
+
+        let imgUrl = cat.image || cat.icon || cat.thumbnail || cat.cover || '';
+        if (typeof window.resolveMediaUrl === 'function' && imgUrl) {
+          imgUrl = window.resolveMediaUrl(imgUrl);
+        }
+
+        const grad = artGradients[idx % artGradients.length];
+        const icon = artIcons[idx % artIcons.length];
+
+        return `
+          <div class="cat-hub-card" onclick="window.showCategoryProducts('${safeHtml(catId)}')" role="button" tabindex="0">
+            <div class="cat-card-media-wrap">
+              ${imgUrl ? `
+                <img src="${imgUrl}" alt="${safeHtml(catName)}" class="cat-card-cover-img" loading="lazy" onerror="this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.style.display='flex';" />
+              ` : ''}
+              <div class="cat-card-art-fallback" style="${imgUrl ? 'display: none;' : 'display: flex;'} background: ${grad};">
+                <i class="fa-solid ${icon} cat-card-art-icon" style="-webkit-text-fill-color: initial; color: #ffffff;"></i>
+                <span style="font-size: 0.75rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.9;">${safeHtml(catName)}</span>
+              </div>
+              <span class="cat-card-product-badge">
+                <i class="fa-solid fa-box-open"></i> ${countLabel}
+              </span>
+              ${catBadge ? `<span class="cat-card-label-badge">${safeHtml(catBadge)}</span>` : ''}
+            </div>
+            <div class="cat-card-info-wrap">
+              <h3 class="cat-card-title">${safeHtml(catName)}</h3>
+              <div class="cat-card-action-row">
+                <span>Explore Collection</span>
+                <i class="fa-solid fa-chevron-right" style="font-size: 0.7rem;"></i>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      grid.innerHTML = cardsHtml;
+    }
+
+    // Open Categories Hub
+    function showCategoriesHub(fromScreen = 'store', preventPush = false) {
+      const hubView = document.getElementById('appCategoriesHubView');
+      const catDetailView = document.getElementById('appCategoryDetailView');
+      const storefrontView = document.getElementById('appStorefrontView');
+      const accountView = document.getElementById('appAccountView');
+      const searchView = document.getElementById('appSearchView');
+      const notifsView = document.getElementById('appNotificationsView');
+      const ordersView = document.getElementById('appOrdersView');
+      if (!hubView) return;
+
+      if (storefrontView) storefrontView.style.display = 'none';
+      if (accountView) accountView.style.display = 'none';
+      if (searchView) searchView.style.display = 'none';
+      if (notifsView) notifsView.style.display = 'none';
+      if (ordersView) ordersView.style.display = 'none';
+      if (catDetailView) catDetailView.style.display = 'none';
+      hubView.style.display = 'block';
+
+      const isDesktop = window.innerWidth > 991;
+      const fkHeader = document.getElementById('fkHeader');
+      const fkHeaderSpacer = document.getElementById('fkHeaderSpacer');
+      const marqueeWrap = document.querySelector('.marquee-wrap');
+      const floatingCart = document.getElementById('leftFloatingCart');
+      const appbar = document.getElementById('fkMobileAppbar');
+      if (fkHeader) fkHeader.style.display = isDesktop ? '' : 'none';
+      if (fkHeaderSpacer) fkHeaderSpacer.style.display = isDesktop ? '' : 'none';
+      if (marqueeWrap) marqueeWrap.style.display = 'none';
+      if (floatingCart) floatingCart.style.display = 'none';
+      if (appbar) appbar.style.display = '';
+
+      // Update bottom navigation bar active state
+      document.querySelectorAll('.fk-appbar-item').forEach(el => el.classList.remove('active'));
+      const catTab = document.getElementById('appbarCategoriesTab');
+      if (catTab) catTab.classList.add('active');
+
+      // Update Cart Badges in Topbars
+      if (typeof window.updateCartBadges === 'function') window.updateCartBadges();
+
+      // Render cards
+      renderCategoriesHubGrid(catHubFilterQuery);
+      window.scrollTo(0, 0);
+
+      if (!preventPush && window.location.hash !== '#categories') {
+        window.history.pushState({ screen: 'categories' }, '', '#categories');
+      }
+    }
+
+    // Hide Categories Hub
+    function hideCategoriesHub(preventHistoryBack = false) {
+      const hubView = document.getElementById('appCategoriesHubView');
+      const catDetailView = document.getElementById('appCategoryDetailView');
+      if (hubView) hubView.style.display = 'none';
+      if (catDetailView) catDetailView.style.display = 'none';
+
+      const storefrontView = document.getElementById('appStorefrontView');
+      if (storefrontView) storefrontView.style.display = 'block';
+
+      const fkHeader = document.getElementById('fkHeader');
+      const fkHeaderSpacer = document.getElementById('fkHeaderSpacer');
+      const marqueeWrap = document.querySelector('.marquee-wrap');
+      const floatingCart = document.getElementById('leftFloatingCart');
+      if (fkHeader) fkHeader.style.display = '';
+      if (fkHeaderSpacer) fkHeaderSpacer.style.display = '';
+      if (marqueeWrap) marqueeWrap.style.display = '';
+      if (floatingCart) floatingCart.style.display = '';
+      if (typeof window.syncSpacer === 'function') window.syncSpacer();
+
+      // Restore Home tab highlight
+      document.querySelectorAll('.fk-appbar-item').forEach(el => el.classList.remove('active'));
+      const homeTab = document.getElementById('appbarHomeTab');
+      if (homeTab) homeTab.classList.add('active');
+
+      if (!preventHistoryBack && (window.location.hash === '#categories' || window.location.hash.startsWith('#category/'))) {
+        window.history.back();
+      }
+    }
+
+    // Show Category Products Detail Screen
+    function showCategoryProducts(catId, fromScreen = 'categories', preventPush = false) {
+      if (!catId) return;
+      activeCatDetailId = catId;
+      window._lastActiveCategoryDetailId = catId;
+      activeSortType = 'popular';
+
+      const hubView = document.getElementById('appCategoriesHubView');
+      const catDetailView = document.getElementById('appCategoryDetailView');
+      const storefrontView = document.getElementById('appStorefrontView');
+      const accountView = document.getElementById('appAccountView');
+      const searchView = document.getElementById('appSearchView');
+      const notifsView = document.getElementById('appNotificationsView');
+      const ordersView = document.getElementById('appOrdersView');
+      if (!catDetailView) return;
+
+      if (storefrontView) storefrontView.style.display = 'none';
+      if (hubView) hubView.style.display = 'none';
+      if (accountView) accountView.style.display = 'none';
+      if (searchView) searchView.style.display = 'none';
+      if (notifsView) notifsView.style.display = 'none';
+      if (ordersView) ordersView.style.display = 'none';
+      catDetailView.style.display = 'block';
+
+      const isDesktop = window.innerWidth > 991;
+      const fkHeader = document.getElementById('fkHeader');
+      const fkHeaderSpacer = document.getElementById('fkHeaderSpacer');
+      const marqueeWrap = document.querySelector('.marquee-wrap');
+      const floatingCart = document.getElementById('leftFloatingCart');
+      const appbar = document.getElementById('fkMobileAppbar');
+      if (fkHeader) fkHeader.style.display = isDesktop ? '' : 'none';
+      if (fkHeaderSpacer) fkHeaderSpacer.style.display = isDesktop ? '' : 'none';
+      if (marqueeWrap) marqueeWrap.style.display = 'none';
+      if (floatingCart) floatingCart.style.display = 'none';
+      if (appbar) appbar.style.display = '';
+
+      // Active bottom tab
+      document.querySelectorAll('.fk-appbar-item').forEach(el => el.classList.remove('active'));
+      const catTab = document.getElementById('appbarCategoriesTab');
+      if (catTab) catTab.classList.add('active');
+
+      // Retrieve Category details
+      const categories = window.liveCollections?.categories || {};
+      const cat = categories[catId] || Object.values(categories).find(c => String(c?.id) === String(catId) || String(c?.slug) === String(catId)) || {};
+      let catTitle = cat.title || cat.name || catId;
+      let catDesc = cat.description || cat.data?.description || 'Browse high demand exclusive channels, complete collections & verified packs.';
+
+      if (catId === 'trending') {
+        catTitle = 'Trending Deals';
+        catDesc = 'Live popular & trending packs ranked by orders, clicks, shares & likes.';
+      } else if (catId === 'bestsellers') {
+        catTitle = 'Verified Bestsellers';
+        catDesc = 'Top chosen packs with 2+ purchases by community members.';
+      } else if (catId === 'new') {
+        catTitle = 'New Arrivals';
+        catDesc = 'Freshly released channels and leaked video packs updated within the last 7 days.';
+      } else if (catId === 'liked') {
+        catTitle = 'Your Liked Items';
+        catDesc = 'All the packs you have saved to your personal favorites.';
+      }
+
+      const topTitle = document.getElementById('catDetailTopTitle');
+      const heroTitle = document.getElementById('catDetailHeroTitle');
+      const heroDesc = document.getElementById('catDetailHeroDesc');
+      const countText = document.getElementById('catDetailCountText');
+      if (topTitle) topTitle.textContent = catTitle;
+      if (heroTitle) heroTitle.textContent = catTitle;
+      if (heroDesc) heroDesc.textContent = catDesc;
+
+      // Reset sort pills UI
+      document.querySelectorAll('.cat-sort-pill').forEach(pill => {
+        pill.classList.toggle('active', pill.dataset.sort === 'popular');
+      });
+
+      renderCategoryDetailProducts();
+      if (typeof window.updateCartBadges === 'function') window.updateCartBadges();
+      window.scrollTo(0, 0);
+
+      const targetHash = `#category/${catId}`;
+      if (!preventPush && window.location.hash !== targetHash) {
+        window.history.pushState({ screen: 'category', catId }, '', targetHash);
+      }
+    }
+
+    // Render & Sort Category Detail Products
+    function renderCategoryDetailProducts() {
+      const grid = document.getElementById('catDetailProductsGrid');
+      const emptyState = document.getElementById('catDetailEmptyState');
+      const countText = document.getElementById('catDetailCountText');
+      if (!grid || !activeCatDetailId) return;
+
+      let products = getCategoryProductsList(activeCatDetailId);
+
+      // Apply sorting
+      if (activeSortType === 'price-asc') {
+        products.sort((a, b) => {
+          const pA = Number(String(a.priceINR || a.price_inr || a.inr || 0).replace(/[^\d.]/g, '')) || 0;
+          const pB = Number(String(b.priceINR || b.price_inr || b.inr || 0).replace(/[^\d.]/g, '')) || 0;
+          return pA - pB;
+        });
+      } else if (activeSortType === 'price-desc') {
+        products.sort((a, b) => {
+          const pA = Number(String(a.priceINR || a.price_inr || a.inr || 0).replace(/[^\d.]/g, '')) || 0;
+          const pB = Number(String(b.priceINR || b.price_inr || b.inr || 0).replace(/[^\d.]/g, '')) || 0;
+          return pB - pA;
+        });
+      } else if (activeSortType === 'bestsellers') {
+        products.sort((a, b) => {
+          const oA = (typeof window.getProductOrderCount === 'function') ? window.getProductOrderCount(a) : 0;
+          const oB = (typeof window.getProductOrderCount === 'function') ? window.getProductOrderCount(b) : 0;
+          return oB - oA;
+        });
+      } else if (activeSortType === 'newest') {
+        products.sort((a, b) => new Date(b.created_at || b.createdAt || 0).getTime() - new Date(a.created_at || a.createdAt || 0).getTime());
+      } else {
+        // Popular (Trending score)
+        products.sort((a, b) => {
+          const sA = (typeof window.getTrendingScore === 'function') ? window.getTrendingScore(a) : 0;
+          const sB = (typeof window.getTrendingScore === 'function') ? window.getTrendingScore(b) : 0;
+          return sB - sA;
+        });
+      }
+
+      if (countText) {
+        countText.textContent = `${products.length} Available Pack${products.length === 1 ? '' : 's'}`;
+      }
+
+      if (!products.length) {
+        grid.innerHTML = '';
+        if (emptyState) emptyState.style.display = 'block';
+        return;
+      }
+
+      if (emptyState) emptyState.style.display = 'none';
+
+      window._currentCatDetailProducts = products;
+      window._catDetailRenderedCount = 0;
+
+      const initialBatch = products.slice(0, LIVE_GRID_CHUNK_SIZE);
+      const initialCardsHtml = initialBatch.map((item, idx) => {
+        try {
+          if (typeof window.buildCard === 'function') {
+            return window.buildCard(item.id, item, idx);
+          }
+          return '';
+        } catch (e) {
+          console.warn('Error building category product card:', e);
+          return '';
+        }
+      }).join('');
+
+      let sentinelHtml = '';
+      if (products.length > LIVE_GRID_CHUNK_SIZE) {
+        sentinelHtml = `<div id="catDetailSentinel" style="grid-column: 1 / -1; height: 36px; display: flex; align-items: center; justify-content: center; padding: 18px 0; color: #94a3b8; font-size: 13px; font-weight: 600;"><i class="fa-solid fa-spinner fa-spin" style="margin-right: 8px; color: #f43f5e;"></i> Loading more category packs...</div>`;
+      }
+
+      grid.innerHTML = initialCardsHtml + sentinelHtml;
+      window._catDetailRenderedCount = initialBatch.length;
+
+      setupCatDetailInfiniteScroll();
+
+      // Trigger image sliders and interactive elements
+      if (typeof window.observeCardMediaVisibility === 'function') {
+        window.observeCardMediaVisibility();
+      }
+    }
+
+    let catDetailSentinelObserver = null;
+    function setupCatDetailInfiniteScroll() {
+      if (typeof IntersectionObserver === 'undefined') return;
+      if (catDetailSentinelObserver) {
+        try { catDetailSentinelObserver.disconnect(); } catch (_) {}
+      }
+      const sentinel = document.getElementById('catDetailSentinel');
+      if (!sentinel) return;
+
+      catDetailSentinelObserver = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            loadMoreCatDetailProducts();
+          }
+        });
+      }, {
+        rootMargin: '600px 0px',
+        threshold: 0.01
+      });
+
+      catDetailSentinelObserver.observe(sentinel);
+    }
+
+    function loadMoreCatDetailProducts() {
+      const grid = document.getElementById('catDetailProductsGrid');
+      const products = window._currentCatDetailProducts || [];
+      const currentCount = window._catDetailRenderedCount || 0;
+      const sentinel = document.getElementById('catDetailSentinel');
+
+      if (currentCount >= products.length) {
+        if (catDetailSentinelObserver) catDetailSentinelObserver.disconnect();
+        if (sentinel) sentinel.remove();
+        return;
+      }
+
+      const nextBatch = products.slice(currentCount, currentCount + LIVE_GRID_CHUNK_SIZE);
+      if (!nextBatch.length) return;
+
+      const newCardsHtml = nextBatch.map((item, idx) => {
+        try {
+          if (typeof window.buildCard === 'function') {
+            return window.buildCard(item.id, item, currentCount + idx);
+          }
+          return '';
+        } catch (e) {
+          return '';
+        }
+      }).join('');
+
+      if (sentinel && sentinel.parentNode) {
+        sentinel.insertAdjacentHTML('beforebegin', newCardsHtml);
+      } else if (grid) {
+        grid.insertAdjacentHTML('beforeend', newCardsHtml);
+      }
+
+      window._catDetailRenderedCount = currentCount + nextBatch.length;
+
+      if (typeof window.observeCardMediaVisibility === 'function') {
+        window.observeCardMediaVisibility();
+      }
+
+      if (window._catDetailRenderedCount >= products.length) {
+        if (catDetailSentinelObserver) catDetailSentinelObserver.disconnect();
+        if (sentinel) sentinel.remove();
+      }
+    }
+
+    // Sort Category Detail
+    function sortCategoryDetailProducts(sortType) {
+      activeSortType = sortType;
+      document.querySelectorAll('.cat-sort-pill').forEach(pill => {
+        pill.classList.toggle('active', pill.dataset.sort === sortType);
+      });
+      renderCategoryDetailProducts();
+    }
+
+    // Filter Category Hub Search
+    function filterCategoriesHubSearch(query) {
+      catHubFilterQuery = query;
+      const clearBtn = document.getElementById('catHubSearchClear');
+      if (clearBtn) {
+        clearBtn.style.display = query ? 'flex' : 'none';
+      }
+      renderCategoriesHubGrid(query);
+    }
+
+    function clearCategoryHubSearch() {
+      catHubFilterQuery = '';
+      const input = document.getElementById('catHubSearchInput');
+      if (input) input.value = '';
+      const clearBtn = document.getElementById('catHubSearchClear');
+      if (clearBtn) clearBtn.style.display = 'none';
+      renderCategoriesHubGrid('');
+      if (input) input.focus();
+    }
+
+    // Open Curated Category
+    function openCuratedCategory(curatedKey) {
+      showCategoryProducts(curatedKey, 'hub');
+    }
+
+    // Share Category Page
+    function shareCategoryPage() {
+      const title = document.getElementById('catDetailTopTitle')?.textContent || 'LinkAdda Category';
+      const url = window.location.href;
+      if (navigator.share) {
+        navigator.share({
+          title: `${title} - LinkAdda`,
+          text: `Check out ${title} on LinkAdda Marketplace:`,
+          url: url
+        }).catch(() => {});
+      } else {
+        if (navigator.clipboard) {
+          navigator.clipboard.writeText(url).then(() => {
+            if (typeof window.showToastNotification === 'function') {
+              window.showToastNotification(`📋 Link copied for ${title}!`);
+            } else {
+              alert(`Link copied: ${url}`);
+            }
+          });
+        }
+      }
+    }
+
+    // Hash & Popstate router integration
+    function handleCategoryHashRoute() {
+      const hash = window.location.hash || '';
+      if (hash === '#categories') {
+        showCategoriesHub('store', true);
+      } else if (hash.startsWith('#category/')) {
+        const catId = hash.replace('#category/', '').split('?')[0];
+        if (catId) showCategoryProducts(catId, 'store', true);
+      } else if (hash === '#home' || hash === '') {
+        const hubView = document.getElementById('appCategoriesHubView');
+        const catDetailView = document.getElementById('appCategoryDetailView');
+        if ((hubView && hubView.style.display === 'block') || (catDetailView && catDetailView.style.display === 'block')) {
+          hideCategoriesHub(true);
+        }
+      }
+    }
+
+    window.addEventListener('hashchange', handleCategoryHashRoute);
+    window.addEventListener('popstate', handleCategoryHashRoute);
+
+    // Expose global methods
+    window.showCategoriesHub = showCategoriesHub;
+    window.hideCategoriesHub = hideCategoriesHub;
+    window.showCategoryProducts = showCategoryProducts;
+    window.hideCategoryProducts = hideCategoriesHub;
+    window.renderCategoriesHubGrid = renderCategoriesHubGrid;
+    window.filterCategoriesHubSearch = filterCategoriesHubSearch;
+    window.clearCategoryHubSearch = clearCategoryHubSearch;
+    window.sortCategoryDetailProducts = sortCategoryDetailProducts;
+    window.openCuratedCategory = openCuratedCategory;
+    window.shareCategoryPage = shareCategoryPage;
+    window.getCategoryProductsList = getCategoryProductsList;
+
+    // On page ready, check initial hash route
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', () => setTimeout(handleCategoryHashRoute, 200));
+    } else {
+      setTimeout(handleCategoryHashRoute, 200);
+    }
+  })();
+  </script>
 
 
 
@@ -7939,14 +8879,14 @@
 
   <!-- ===== LINKADDA MOBILE STICKY APP BAR (5 NATIVE TABS - PERSISTENT ACROSS APP) ===== -->
   <nav class="fk-mobile-appbar" id="fkMobileAppbar" aria-label="Mobile Navigation">
-    <a href="#home" class="fk-appbar-item active" id="appbarHomeTab" onclick="window.hideProfilePage && window.hideProfilePage()">
+    <a href="#home" class="fk-appbar-item active" id="appbarHomeTab" onclick="(window.hideCategoriesHub && window.hideCategoriesHub()) || (window.hideProfilePage && window.hideProfilePage())">
       <i class="fa-solid fa-house"></i>
       <span>Home</span>
     </a>
-    <a href="#categoryFilterPills" class="fk-appbar-item" id="appbarCategoriesTab" onclick="window.hideProfilePage && window.hideProfilePage()">
+    <button type="button" class="fk-appbar-item" id="appbarCategoriesTab" aria-label="Categories" onclick="window.showCategoriesHub ? window.showCategoriesHub('store') : (window.location.hash = '#categories')">
       <i class="fa-solid fa-layer-group"></i>
       <span>Categories</span>
-    </a>
+    </button>
     <button type="button" class="fk-appbar-item" id="fkAppbarWishlistBtn" onclick="openWishlistDrawer()" aria-label="Liked Items">
       <i class="fa-solid fa-heart" style="color:#f43f5e;"></i>
       <span class="fk-appbar-badge" id="fkAppbarWishlistBadge" style="display:none;background:#e11d48;">0</span>

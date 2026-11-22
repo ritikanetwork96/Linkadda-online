@@ -486,11 +486,11 @@ export async function syncAllFromFirebase(force = false) {
             try {
               let query = `${supaUrl}/rest/v1/${key}?select=*`;
               if (key === 'orders') {
-                query = `${supaUrl}/rest/v1/orders?select=id,order_id,status,created_at,updated_at,amount,currency,customer_name,customer_phone,customer_email,customer_telegram,product_id,product_title,utr,source,data&order=created_at.desc&limit=50`;
+                query = `${supaUrl}/rest/v1/orders?select=id,order_id,customer_name,customer_email,customer_phone,product_id,product_title,amount,currency,payment_method,payment_proof,utr,status,created_at,updated_at,data&order=created_at.desc&limit=500`;
               } else if (key === 'products') {
-                query = `${supaUrl}/rest/v1/products?select=id,slug,title,price_inr,price_usd,original_price_inr,original_price_usd,rating,badge,image,images,gallery_images,status,category,display_order,created_at,updated_at`;
+                query = `${supaUrl}/rest/v1/products?select=id,slug,title,price_inr,price_usd,original_price_inr,original_price_usd,rating,badge,image,images,gallery_images,status,category,display_order,created_at,updated_at,data&limit=1000`;
               } else if (key === 'categories') {
-                query = `${supaUrl}/rest/v1/categories?select=id,slug,name,title,image,status,display_order,updated_at`;
+                query = `${supaUrl}/rest/v1/categories?select=id,slug,name,image,badge,display_order,updated_at,data&limit=500`;
               }
               const res = await fetch(query, { headers: reqHeaders, cache: 'no-store' });
               if (res.ok) {
@@ -536,54 +536,70 @@ export async function syncAllFromFirebase(force = false) {
             }
             return { key, data };
           }
-          if (key === 'visitors' || key === 'events') {
-            const queryFields = key === 'visitors'
-              ? 'id,visitor_id,created_at,page,source,referrer,data'
-              : 'id,event_type,product_id,product_title,visitor_id,created_at,data';
-            const res = await fetch(`${supaUrl}/rest/v1/${key}?select=${queryFields}&order=created_at.desc&limit=40`, { headers: reqHeaders, cache: 'no-store' });
+          if (key === 'visitors') {
+            const queryFields = 'id,visitor_id,page,referrer,created_at,data';
+            const res = await fetch(`${supaUrl}/rest/v1/visitors?select=${queryFields}&order=created_at.desc&limit=1000`, { headers: reqHeaders, cache: 'no-store' });
             if (!res.ok) return null;
-            const rows = await res.json();
+            const rows = await res.json().catch(() => []);
             const data = {};
             if (Array.isArray(rows)) {
               rows.forEach(r => {
                 const p = (r.data && typeof r.data === 'object') ? r.data : {};
-                if (key === 'visitors') {
-                  data[r.id] = {
-                    ...p,
-                    ...r,
-                    id: r.id,
-                    visitorId: p.visitorId || r.visitor_id || p.visitor_id || r.id,
-                    source: p.source || (p.isTg ? 'mini_app' : 'website'),
-                    name: p.name || p.tgName || '',
-                    username: p.username || p.tgUsername || '',
-                    tgUserId: p.tgUserId || null,
-                    botId: p.botId || null,
-                    botUsername: p.botUsername || null,
-                    timestamp: p.timestamp || (r.created_at ? new Date(r.created_at).getTime() : Date.now()),
-                    page: p.page || r.page || 'index',
-                    referrer: p.referrer || r.referrer || 'direct'
-                  };
-                } else {
-                  data[r.id] = {
-                    ...p,
-                    ...r,
-                    id: r.id,
-                    type: r.event_type || p.type || p.event_type || 'order_click',
-                    eventType: r.event_type || p.eventType || p.event_type || 'order_click',
-                    productId: r.product_id || p.productId || p.product_id || null,
-                    productTitle: r.product_title || p.productTitle || p.product_title || p.title || null,
-                    visitorId: r.visitor_id || p.visitorId || p.visitor_id || null,
-                    source: p.source || (p.isTg ? 'mini_app' : 'website'),
-                    name: p.name || p.tgName || '',
-                    username: p.username || p.tgUsername || '',
-                    botId: p.botId || null,
-                    botUsername: p.botUsername || null,
-                    priceINR: p.priceINR ?? p.price_inr ?? r.price_inr ?? null,
-                    priceUSD: p.priceUSD ?? p.price_usd ?? r.price_usd ?? null,
-                    timestamp: p.timestamp || (r.created_at ? new Date(r.created_at).getTime() : Date.now()),
-                    page: p.page || 'index'
-                  };
-                }
+                data[r.id] = {
+                  ...p,
+                  ...r,
+                  id: r.id,
+                  visitorId: p.visitorId || r.visitor_id || p.visitor_id || r.id,
+                  source: p.source || (p.isTg ? 'mini_app' : 'website'),
+                  name: p.name || p.tgName || '',
+                  username: p.username || p.tgUsername || '',
+                  tgUserId: p.tgUserId || null,
+                  botId: p.botId || null,
+                  botUsername: p.botUsername || null,
+                  timestamp: p.timestamp || (r.created_at ? new Date(r.created_at).getTime() : Date.now()),
+                  date: r.created_at ? r.created_at.slice(0, 10) : new Date().toISOString().slice(0, 10),
+                  page: p.page || r.page || 'index',
+                  referrer: p.referrer || r.referrer || 'direct'
+                };
+              });
+            }
+            return { key, data };
+          }
+          if (key === 'events') {
+            const queryFields = 'id,event_type,product_id,product_title,visitor_id,created_at,data';
+            // Fetch interaction events (order clicks, likes, shares, etc.) with priority, plus recent views
+            const [intRes, viewRes] = await Promise.allSettled([
+              fetch(`${supaUrl}/rest/v1/events?select=${queryFields}&event_type=neq.product_view&order=created_at.desc&limit=1000`, { headers: reqHeaders, cache: 'no-store' }),
+              fetch(`${supaUrl}/rest/v1/events?select=${queryFields}&event_type=eq.product_view&order=created_at.desc&limit=500`, { headers: reqHeaders, cache: 'no-store' })
+            ]);
+            const intRows = (intRes.status === 'fulfilled' && intRes.value.ok) ? await intRes.value.json().catch(() => []) : [];
+            const viewRows = (viewRes.status === 'fulfilled' && viewRes.value.ok) ? await viewRes.value.json().catch(() => []) : [];
+            const rows = [...intRows, ...viewRows];
+            const data = {};
+            if (Array.isArray(rows)) {
+              rows.forEach(r => {
+                const p = (r.data && typeof r.data === 'object') ? r.data : {};
+                data[r.id] = {
+                  ...p,
+                  ...r,
+                  id: r.id,
+                  type: r.event_type || p.type || p.event_type || 'order_click',
+                  eventType: r.event_type || p.eventType || p.event_type || 'order_click',
+                  productId: r.product_id || p.productId || p.product_id || null,
+                  productTitle: r.product_title || p.productTitle || p.product_title || p.title || null,
+                  visitorId: r.visitor_id || p.visitorId || p.visitor_id || null,
+                  source: p.source || (p.isTg ? 'mini_app' : 'website'),
+                  name: p.name || p.tgName || '',
+                  username: p.username || p.tgUsername || '',
+                  botId: p.botId || null,
+                  botUsername: p.botUsername || null,
+                  isLiked: p.isLiked !== undefined ? p.isLiked : (r.data?.isLiked !== undefined ? r.data.isLiked : true),
+                  priceINR: p.priceINR ?? p.price_inr ?? r.price_inr ?? null,
+                  priceUSD: p.priceUSD ?? p.price_usd ?? r.price_usd ?? null,
+                  timestamp: p.timestamp || (r.created_at ? new Date(r.created_at).getTime() : Date.now()),
+                  date: r.created_at ? r.created_at.slice(0, 10) : new Date().toISOString().slice(0, 10),
+                  page: p.page || 'index'
+                };
               });
             }
             return { key, data };
@@ -654,6 +670,66 @@ function nodeRef(node, id = null) {
   return id ? ref(db, `${RTDB_NODES[node]}/${id}`) : ref(db, RTDB_NODES[node]);
 }
 
+async function upsertToSupabase(node, record) {
+  if (node !== 'products' && node !== 'categories') return;
+  try {
+    const supaUrl = 'https://xazhsjotzoentrkminol.supabase.co';
+    const supaKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhhemhzam90em9lbnRya21pbm9sIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5NDU2MTM2NCwiZXhwIjoyMTEwMTM3MzY0fQ.sO_ZTRbmS7XInvK8YE6XEGz37URqzVmxxtsRABCGfHw';
+    const hdrs = {
+      'apikey': supaKey,
+      'Authorization': `Bearer ${supaKey}`,
+      'Content-Type': 'application/json',
+      'Prefer': 'resolution=merge-duplicates'
+    };
+    let payload = null;
+    if (node === 'products') {
+      payload = {
+        id: String(record.id),
+        slug: record.slug || String(record.id),
+        title: record.title || record.name || 'Product',
+        category: record.category || 'all',
+        price_inr: Number(record.priceINR ?? record.price_inr ?? 0),
+        price_usd: Number(record.priceUSD ?? record.price_usd ?? 0),
+        original_price_inr: Number(record.originalPriceINR ?? record.original_price_inr ?? 0) || null,
+        original_price_usd: Number(record.originalPriceUSD ?? record.original_price_usd ?? 0) || null,
+        rating: Number(record.rating || 5.0),
+        reviews_count: Number(record.reviewsCount || record.reviews_count || 0),
+        badge: record.badge || '',
+        image: record.image || (Array.isArray(record.images) ? record.images[0] : '') || '',
+        images: Array.isArray(record.images) ? record.images : (record.image ? [record.image] : []),
+        gallery_images: Array.isArray(record.galleryImages) ? record.galleryImages : (Array.isArray(record.images) ? record.images : []),
+        video: record.video || '',
+        videos: Array.isArray(record.videos) ? record.videos : (record.video ? [record.video] : []),
+        tiers: Array.isArray(record.tiers) ? record.tiers : [],
+        status: record.status || 'active',
+        display_order: Number(record.displayOrder ?? record.display_order ?? 999),
+        data: record,
+        updated_at: new Date().toISOString()
+      };
+    } else if (node === 'categories') {
+      payload = {
+        id: String(record.id),
+        slug: record.slug || String(record.id),
+        name: record.name || record.title || 'Category',
+        image: record.image || '',
+        badge: record.badge || '',
+        display_order: Number(record.displayOrder ?? record.display_order ?? 999),
+        data: record,
+        updated_at: new Date().toISOString()
+      };
+    }
+    if (payload) {
+      await fetch(`${supaUrl}/rest/v1/${node}?on_conflict=id`, {
+        method: 'POST',
+        headers: hdrs,
+        body: JSON.stringify(payload)
+      }).catch(() => {});
+    }
+  } catch (err) {
+    console.warn(`Supabase upsert error for ${node}:`, err);
+  }
+}
+
 export async function saveRecord(node, id, data) {
   const payload = {
     ...data,
@@ -673,6 +749,7 @@ export async function saveRecord(node, id, data) {
   emitImmediate();
   syncWebsiteCache();
   await set(nodeRef(node, payload.id), payload);
+  upsertToSupabase(node, payload);
   return payload;
 }
 
@@ -695,6 +772,7 @@ export async function createRecord(node, data) {
   emitImmediate();
   syncWebsiteCache();
   await set(nodeRef(node, payload.id), payload);
+  upsertToSupabase(node, payload);
   return payload;
 }
 
@@ -722,6 +800,7 @@ export async function updateRecord(node, id, data) {
   emitImmediate();
   syncWebsiteCache();
   await update(nodeRef(node, targetId), { ...data, updatedAt: Date.now() });
+  upsertToSupabase(node, next);
 
   // Direct REST update to Supabase for orders ensures 100% instant sync with bot and client
   if (node === 'orders') {
@@ -773,6 +852,15 @@ export async function updateRecordsBatch(node, batchMap) {
   emitImmediate();
   syncWebsiteCache();
   await update(ref(db, nodeName), batchMap);
+  if (node === 'products' || node === 'categories') {
+    const touchedIds = new Set();
+    for (const key of Object.keys(batchMap || {})) {
+      touchedIds.add(key.includes('/') ? key.slice(0, key.indexOf('/')) : key);
+    }
+    touchedIds.forEach(id => {
+      if (STORE[node]?.[id]) upsertToSupabase(node, STORE[node][id]);
+    });
+  }
 }
 
 export async function deleteRecord(node, id) {
@@ -955,9 +1043,9 @@ export function stats() {
   const today = formatLocalDate(new Date());
   const isOrderClick = (item) => {
     if (!item) return false;
-    const t = String(item.type || item.eventType || item.event_type || '').toLowerCase();
-    if (t === 'telegram_click' || t === 'review_submission' || t === 'visitor') return false;
-    return t.includes('order') || t.includes('click') || Boolean(item.productId || item.package || item.productName || item.product_id);
+    const t = String(item.type || item.eventType || item.event_type || (item.data && (item.data.type || item.data.eventType)) || '').toLowerCase();
+    if (t === 'telegram_click' || t === 'review_submission' || t === 'visitor' || t.includes('view') || t.includes('like') || t.includes('hide') || t.includes('share')) return false;
+    return t === 'order_click' || t.includes('order') || t.includes('click') || t.includes('buy');
   };
 
   const matchesDate = (item, targetDate) => {
@@ -972,9 +1060,18 @@ export function stats() {
     return false;
   };
 
+  const isLike = (item) => {
+    if (!item) return false;
+    const t = String(item.type || item.eventType || item.event_type || (item.data && (item.data.type || item.data.eventType)) || '').toLowerCase();
+    if (!t.includes('like')) return false;
+    return item.isLiked !== undefined ? item.isLiked !== false : (item.data ? item.data.isLiked !== false : true);
+  };
+
   const todaysOrders = orders.filter((item) => matchesDate(item, today)).length;
   const todaysVisitors = visitors.filter((item) => matchesDate(item, today)).length;
   const todaysClicks = events.filter((item) => matchesDate(item, today) && isOrderClick(item)).length;
+  const totalLikes = events.filter(isLike).length;
+  const todaysLikes = events.filter((item) => matchesDate(item, today) && isLike(item)).length;
   return {
     products,
     categories,
@@ -984,6 +1081,8 @@ export function stats() {
     todaysVisitors,
     clicks: events.filter(isOrderClick).length,
     todaysClicks,
+    totalLikes,
+    todaysLikes,
   };
 }
 
@@ -1070,9 +1169,9 @@ if (typeof window !== 'undefined') {
       const headers = { 'apikey': serviceKey, 'Authorization': `Bearer ${serviceKey}` };
 
       const [ordersRes, eventsRes, visitorsRes] = await Promise.allSettled([
-        fetch(`${supaUrl}/rest/v1/orders?select=id,order_id,status,created_at,updated_at,customer_name,data&order=created_at.desc&limit=30`, { headers, cache: 'no-store', signal: AbortSignal.timeout(4000) }),
-        fetch(`${supaUrl}/rest/v1/events?select=id,event_type,product_id,product_title,visitor_id,created_at,data&order=created_at.desc&limit=25`, { headers, cache: 'no-store', signal: AbortSignal.timeout(4000) }),
-        fetch(`${supaUrl}/rest/v1/visitors?select=id,visitor_id,created_at,data&order=created_at.desc&limit=25`, { headers, cache: 'no-store', signal: AbortSignal.timeout(4000) })
+        fetch(`${supaUrl}/rest/v1/orders?select=id,order_id,customer_name,customer_email,customer_phone,product_id,product_title,amount,currency,payment_method,payment_proof,utr,status,created_at,updated_at,data&order=created_at.desc&limit=50`, { headers, cache: 'no-store', signal: AbortSignal.timeout(4000) }),
+        fetch(`${supaUrl}/rest/v1/events?select=id,event_type,product_id,product_title,visitor_id,created_at,data&event_type=neq.product_view&order=created_at.desc&limit=50`, { headers, cache: 'no-store', signal: AbortSignal.timeout(4000) }),
+        fetch(`${supaUrl}/rest/v1/visitors?select=id,visitor_id,page,referrer,created_at,data&order=created_at.desc&limit=50`, { headers, cache: 'no-store', signal: AbortSignal.timeout(4000) })
       ]);
 
       let hasStateChange = false;
@@ -1106,7 +1205,8 @@ if (typeof window !== 'undefined') {
             if (!existing || existing.status !== r.status || existing.updated_at !== r.updated_at) {
               hasStateChange = true;
             }
-            STORE.orders[r.id] = { ...d, ...r, id: r.id };
+            const parsedTime = d.timestamp || (r.created_at ? new Date(r.created_at).getTime() : Date.now());
+            STORE.orders[r.id] = { ...d, ...r, id: r.id, timestamp: parsedTime };
           });
         }
       }
@@ -1138,7 +1238,9 @@ if (typeof window !== 'undefined') {
               botUsername: p.botUsername || null,
               priceINR: p.priceINR ?? p.price_inr ?? r.price_inr ?? null,
               priceUSD: p.priceUSD ?? p.price_usd ?? r.price_usd ?? null,
+              isLiked: p.isLiked !== undefined ? p.isLiked : (r.data?.isLiked !== undefined ? r.data.isLiked : true),
               timestamp: p.timestamp || (r.created_at ? new Date(r.created_at).getTime() : Date.now()),
+              date: r.created_at ? r.created_at.slice(0, 10) : new Date().toISOString().slice(0, 10),
               page: p.page || 'index'
             };
           });
@@ -1168,6 +1270,7 @@ if (typeof window !== 'undefined') {
               botId: p.botId || null,
               botUsername: p.botUsername || null,
               timestamp: p.timestamp || (r.created_at ? new Date(r.created_at).getTime() : Date.now()),
+              date: r.created_at ? r.created_at.slice(0, 10) : new Date().toISOString().slice(0, 10),
               page: p.page || r.page || 'index',
               referrer: p.referrer || r.referrer || 'direct'
             };
@@ -1179,7 +1282,7 @@ if (typeof window !== 'undefined') {
         emitImmediate();
       }
     } catch (_) {}
-  }, 45000);
+  }, 10000);
 
   // 3. Calm 3-minute background sync for full catalog & site settings (paused when tab hidden)
   setInterval(async () => {
@@ -1192,7 +1295,7 @@ if (typeof window !== 'undefined') {
   const throttledFocusSync = () => {
     if (typeof document !== 'undefined' && document.hidden) return;
     const now = Date.now();
-    if (now - lastFocusSyncTime < 90000) return; // Don't re-sync if synced within last 90 seconds
+    if (now - lastFocusSyncTime < 10000) return; // Responsive 10-second sync on focus
     lastFocusSyncTime = now;
     syncAllFromFirebase(false).catch(() => {});
   };
