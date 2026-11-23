@@ -780,20 +780,27 @@ function initAuthModalEvents() {
     });
   }
 
-  // Mobile Bottom App Bar Categories Tab click
+  // Mobile Bottom App Bar Categories Tab click with fast-tap touch support
   const appbarCategoriesTab = document.getElementById('appbarCategoriesTab');
   if (appbarCategoriesTab) {
-    appbarCategoriesTab.addEventListener('click', (e) => {
-      if (e && e.preventDefault) e.preventDefault();
-      document.querySelectorAll('.fk-appbar-item').forEach(el => el.classList.remove('active'));
-      appbarCategoriesTab.classList.add('active');
+    let lastCatTap = 0;
+    const handleCatTap = (e) => {
+      const now = Date.now();
+      if (now - lastCatTap < 250) return;
+      lastCatTap = now;
+      if (e && e.preventDefault && e.type !== 'touchend') e.preventDefault();
+      hideProfilePage(true);
       closeUserOrdersModal();
-      if (typeof window.showCategoriesHub === 'function') {
+      if (typeof window.onCategoriesTabClick === 'function') {
+        window.onCategoriesTabClick(e);
+      } else if (typeof window.showCategoriesHub === 'function') {
         window.showCategoriesHub('store');
       } else {
         window.location.hash = '#categories';
       }
-    });
+    };
+    appbarCategoriesTab.addEventListener('click', handleCatTap);
+    appbarCategoriesTab.addEventListener('touchend', handleCatTap, { passive: true });
   }
 
   // Mobile Bottom App Bar Liked Tab click

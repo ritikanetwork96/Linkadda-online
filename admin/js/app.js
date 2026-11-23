@@ -1641,6 +1641,59 @@ function renderProductEditor(record = {}, schema = null) {
               </div>
             </div>
           </div>
+
+          <!-- Section 8: Telegram Bot Broadcast & Message Auto-Delete Expiry -->
+          <div class="editor-section" style="border: 1px solid rgba(56, 189, 248, 0.35); background: rgba(15, 23, 42, 0.45); border-radius: 14px;">
+            <div class="editor-section-head">
+              <div>
+                <h4><i data-lucide="send" style="color: #38bdf8; width: 18px; height: 18px;"></i> 8. Telegram Bot Broadcast & Message Auto-Delete</h4>
+                <p>Optionally broadcast this pack to Telegram subscribers, and set when the bot message will automatically delete from the chat.</p>
+              </div>
+            </div>
+
+            <div class="field full" style="margin-bottom: 14px;">
+              <label style="display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 12px; cursor: pointer; user-select: none;">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                  <span style="font-size: 22px;">📢</span>
+                  <div>
+                    <strong style="display: block; font-size: 13.5px; color: #e0f2fe;">Send Telegram Bot Broadcast on Save</strong>
+                    <span style="font-size: 11.5px; color: var(--muted);">Dispatches rich preview card with pack photo and Instant Buy buttons to all active bot users.</span>
+                  </div>
+                </div>
+                <input type="checkbox" name="sendTelegramBroadcast" id="sendTelegramBroadcast" ${!isEdit ? 'checked' : ''} style="width: 22px; height: 22px; accent-color: #0284c7; cursor: pointer;" />
+              </label>
+            </div>
+
+            <div class="product-grid-2">
+              <div class="field">
+                <label for="tgMessageExpiry" style="font-weight: 700; color: #38bdf8; display: flex; align-items: center; gap: 6px;">
+                  <i data-lucide="clock" style="width: 14px; height: 14px;"></i> Bot Message Auto-Delete Expiry
+                </label>
+                <select class="select" name="tgMessageExpiry" id="tgMessageExpiry" style="font-weight: 600;">
+                  <option value="0">Never (Keep in Chat Permanently)</option>
+                  <option value="600">10 Minutes (Flash Drop)</option>
+                  <option value="1800">30 Minutes</option>
+                  <option value="3600">1 Hour</option>
+                  <option value="21600">6 Hours</option>
+                  <option value="43200">12 Hours</option>
+                  <option value="86400" selected>24 Hours (1 Day)</option>
+                  <option value="172800">48 Hours (2 Days)</option>
+                  <option value="604800">7 Days</option>
+                </select>
+                <small class="field-hint" style="color: #94a3b8; line-height: 1.4; display: block; margin-top: 4px;">
+                  ⚠️ <strong>Notice:</strong> This timer auto-deletes the message from the user's Telegram chat. The pack remains safe and permanent on your website.
+                </small>
+              </div>
+
+              <div class="field">
+                <label style="color: #94a3b8;">Target Bot Fleet</label>
+                <div style="padding: 10px 14px; border-radius: 10px; background: rgba(0,0,0,0.25); border: 1px solid var(--border); color: #cbd5e1; font-size: 12.5px; display: flex; align-items: center; gap: 8px;">
+                  <i data-lucide="bot" style="width: 16px; height: 16px; color: #38bdf8;"></i> All Active Fleet Bots (${(_tgBotData.bots && _tgBotData.bots.length) || 1} connected)
+                </div>
+                <small class="field-hint">Notification will be dispatched to subscribers across all active fleet bots.</small>
+              </div>
+            </div>
+          </div>
         </section>
       </div>
 
@@ -3038,6 +3091,27 @@ window.openProductBroadcastModal = function(recordOrId, node = 'products') {
         </div>
       </div>
 
+      <!-- Auto-Delete Expiry Option -->
+      <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 10px; padding: 12px 14px; margin-bottom: 18px;">
+        <label for="modalProductBroadcastExpiry" style="font-size: 12px; font-weight: 700; color: #38bdf8; display: flex; align-items: center; gap: 6px; margin-bottom: 6px;">
+          <i data-lucide="clock" style="width: 14px; height: 14px;"></i> Bot Message Auto-Delete Expiry (Chat Deletion Only)
+        </label>
+        <select id="modalProductBroadcastExpiry" class="select" style="width: 100%; font-size: 13px; font-weight: 600;">
+          <option value="0">Never (Keep in Chat Permanently)</option>
+          <option value="600">10 Minutes (Flash Drop)</option>
+          <option value="1800">30 Minutes</option>
+          <option value="3600">1 Hour</option>
+          <option value="21600">6 Hours</option>
+          <option value="43200">12 Hours</option>
+          <option value="86400" selected>24 Hours (1 Day)</option>
+          <option value="172800">48 Hours (2 Days)</option>
+          <option value="604800">7 Days</option>
+        </select>
+        <span style="display: block; font-size: 11px; color: var(--muted); margin-top: 4px;">
+          This timer removes the broadcast message from the Telegram chat only. The pack remains safe in the catalog.
+        </span>
+      </div>
+
       <!-- Live Feedback Box -->
       <div id="modalProductBroadcastFeedback" style="display: none; padding: 10px 14px; border-radius: 8px; font-size: 12.5px; margin-bottom: 16px;"></div>
 
@@ -3103,6 +3177,8 @@ window.openProductBroadcastModal = function(recordOrId, node = 'products') {
           feedback.innerHTML = `Broadcasting "${escapeHtml(title)}" via ${targetBotIds.includes('all') ? 'All Bots' : `${targetBotIds.length} selected bot(s)`}...`;
         }
 
+        const autoDeleteSeconds = Number(document.getElementById('modalProductBroadcastExpiry')?.value || 0);
+
         try {
           const res = await telegramApiFetch('/api/telegram/broadcast', {
             method: 'POST',
@@ -3112,6 +3188,7 @@ window.openProductBroadcastModal = function(recordOrId, node = 'products') {
               type: 'product',
               product: item,
               targetBotIds,
+              autoDeleteSeconds,
               ...item
             })
           });
@@ -15593,16 +15670,30 @@ function attachGlobalHandlers() {
         try {
           if (id) {
             await updateRecord(node, id, next);
-          } else {
-            await createRecord(node, next);
-            if (node === 'products') {
+            if (node === 'products' && form.querySelector('[name="sendTelegramBroadcast"]')?.checked) {
+              const autoDeleteSeconds = Number(form.querySelector('[name="tgMessageExpiry"]')?.value || 0);
               try {
                 telegramApiFetch('/api/telegram/broadcast', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify(next)
+                  body: JSON.stringify({ product: next, autoDeleteSeconds })
                 }).catch(() => {});
               } catch (_) {}
+            }
+          } else {
+            await createRecord(node, next);
+            if (node === 'products') {
+              const shouldBroadcast = form.querySelector('[name="sendTelegramBroadcast"]')?.checked ?? true;
+              if (shouldBroadcast) {
+                const autoDeleteSeconds = Number(form.querySelector('[name="tgMessageExpiry"]')?.value || 0);
+                try {
+                  telegramApiFetch('/api/telegram/broadcast', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ product: next, autoDeleteSeconds })
+                  }).catch(() => {});
+                } catch (_) {}
+              }
             }
           }
           const afterRefs = recordAssetRefs(next);

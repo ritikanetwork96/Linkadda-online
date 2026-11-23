@@ -1604,7 +1604,7 @@ export async function processPendingDeletions() {
           await callTelegram('deleteMessage', {
             chat_id: item.chatId,
             message_id: item.messageId
-          });
+          }, item.botToken || null);
           console.log(`[Auto-Delete Worker] Deleted message #${item.messageId} for chat ${item.chatId} (expired)`);
         } catch (err) {
           console.warn(`[Auto-Delete Worker] Failed deleting #${item.messageId}:`, err.message);
@@ -1649,6 +1649,47 @@ export function scheduleMessageDeletion(chatId, messageId, delaySeconds = 120) {
       console.warn(`[Auto-Delete] Message #${messageId} deletion note:`, err.message);
     }
   }, Math.max(1, delaySeconds) * 1000);
+}
+
+/**
+ * Schedule broadcast message deletion from Telegram chat (Pack remains permanent on website)
+ */
+export function scheduleBroadcastMessageDeletion(chatId, messageId, delaySeconds = 86400, token = null) {
+  if (!chatId || !messageId || !delaySeconds || delaySeconds <= 0) return;
+  try {
+    const store = readBotStore();
+    if (!store.pendingDeletions) store.pendingDeletions = {};
+    const key = `bc_${chatId}_${messageId}_${Date.now()}`;
+    store.pendingDeletions[key] = {
+      chatId: String(chatId),
+      messageId: Number(messageId),
+      deleteAt: Date.now() + (Number(delaySeconds) * 1000),
+      botToken: token || null,
+      type: 'broadcast_auto_delete'
+    };
+    writeBotStore(store);
+
+    if (delaySeconds <= 7200) {
+      setTimeout(async () => {
+        try {
+          await callTelegram('deleteMessage', {
+            chat_id: chatId,
+            message_id: messageId
+          }, token);
+          console.log(`[Auto-Delete] Deleted broadcast message #${messageId} for chat ${chatId}`);
+          const s = readBotStore();
+          if (s && s.pendingDeletions && s.pendingDeletions[key]) {
+            delete s.pendingDeletions[key];
+            writeBotStore(s);
+          }
+        } catch (err) {
+          console.warn(`[Auto-Delete] Broadcast message #${messageId} delete note:`, err.message);
+        }
+      }, delaySeconds * 1000);
+    }
+  } catch (err) {
+    console.warn('scheduleBroadcastMessageDeletion error:', err.message);
+  }
 }
 
 /**
@@ -2646,11 +2687,19 @@ export function telegramEntitiesToHtml(text, entities) {
  * 1. View Product (Full gallery slideshow, video demo, specs, reviews, tiers)
  * 2. Instant Buy Now & Checkout (Direct payment.html sheet)
  */
-export async function broadcastNewProduct(rawProduct, targetBotIds = ['all']) {
+export async function broadcastNewProduct(rawProduct, targetBotIds = ['all'], options = {}) {
   let product = rawProduct?.product || rawProduct || {};
   if (typeof product === 'string') {
     product = { id: product };
   }
+
+  const autoDeleteSeconds = Number(
+    options?.autoDeleteSeconds ?? 
+    product?.autoDeleteSeconds ?? 
+    rawProduct?.autoDeleteSeconds ?? 
+    product?.msgExpirySeconds ?? 
+    0
+  );
 
   // If payload only has an ID or is missing title/price, fetch live from Supabase (Zero hardcoding)
   const lookupId = product.id || product.productId || product.key || product.slug || '';
@@ -2695,11 +2744,17 @@ export async function broadcastNewProduct(rawProduct, targetBotIds = ['all']) {
   const cleanTextDesc = rawDesc.replace(/<[^>]*>?/gm, '').trim();
   const cleanDesc = cleanTextDesc ? escapeTelegramHtml(cleanTextDesc.slice(0, 140)) + (cleanTextDesc.length > 140 ? '...' : '') : '';
 
-  // 4. Image URL normalization
+  // 4. Image Extraction & Robust Normalization
   const r2Public = (process.env.R2_PUBLIC_URL || 'https://pub-81f10c1135f54a719e5d96e8d7896960.r2.dev').replace(/\/+$/, '');
-  let rawImg = product.image || product.thumbnail || product.photo || (Array.isArray(product.images) && product.images.length ? product.images[0] : '') || '';
+  let rawImg = product.image || 
+    product.thumbnail || 
+    product.imageUrl || 
+    product.photo || 
+    (Array.isArray(product.images) && product.images.find(Boolean)) || 
+    (Array.isArray(product.galleryImages) && product.galleryImages.find(Boolean)) || 
+    '';
   let image = String(rawImg || '').trim();
-  if (image && !image.startsWith('http://') && !image.startsWith('https://')) {
+  if (image && !image.startsWith('http://') && !image.startsWith('https://') && !image.startsWith('data:')) {
     const cleanImg = image.replace(/^\/+/, '');
     if (cleanImg.startsWith('media/')) {
       image = `${r2Public}/${cleanImg.replace(/^media\//, '')}`;
@@ -2712,10 +2767,63 @@ export async function broadcastNewProduct(rawProduct, targetBotIds = ['all']) {
     } else {
       image = `${r2Public}/${cleanImg}`;
     }
-  } else if (image && (image.includes('supabase.co') || image.includes('rustfs'))) {
-    const parts = image.split('/linkadda-media/');
-    if (parts[1]) {
-      image = `${r2Public}/${parts[1]}`;
+  }
+
+  // Pre-fetch image buffer in Node.js for guaranteed 100% multipart binary delivery
+  let imageBuffer = null;
+  let imageMime = 'image/jpeg';
+  let imageFileName = 'pack_preview.jpg';
+
+  if (image) {
+    if (image.startsWith('data:')) {
+      try {
+        const mimeMatch = image.match(/^data:([^;]+);base64,/);
+        if (mimeMatch) imageMime = mimeMatch[1];
+        imageBuffer = Buffer.from(image.split(',')[1], 'base64');
+        imageFileName = `pack_${Date.now()}.${imageMime.includes('png') ? 'png' : (imageMime.includes('webp') ? 'webp' : 'jpg')}`;
+      } catch (err) {
+        console.warn('Failed parsing data URL for broadcast:', err.message);
+      }
+    } else if (image.startsWith('http://') || image.startsWith('https://')) {
+      try {
+        const imgRes = await fetch(image, { 
+          signal: AbortSignal.timeout(6000),
+          headers: { 'User-Agent': 'LinkAdda-Bot-Broadcast/1.0' }
+        });
+        if (imgRes.ok) {
+          imageBuffer = Buffer.from(await imgRes.arrayBuffer());
+          const cType = imgRes.headers.get('content-type');
+          if (cType && cType.includes('/')) imageMime = cType.split(';')[0].trim();
+          try {
+            const cleanPath = new URL(image).pathname;
+            imageFileName = path.basename(cleanPath) || `pack_${Date.now()}.jpg`;
+          } catch (_) {
+            imageFileName = `pack_${Date.now()}.jpg`;
+          }
+        } else {
+          console.warn(`Pre-fetch image failed HTTP ${imgRes.status} for ${image}`);
+        }
+      } catch (fetchErr) {
+        console.warn('Pre-fetch image error:', fetchErr.message);
+      }
+    } else {
+      // Local file on disk fallback
+      const localCandidates = [
+        path.resolve(process.cwd(), image.replace(/^\/+/, '')),
+        path.resolve(process.cwd(), 'images', path.basename(image)),
+        path.resolve(process.cwd(), 'public', image.replace(/^\/+/, ''))
+      ];
+      for (const loc of localCandidates) {
+        if (fs.existsSync(loc)) {
+          try {
+            imageBuffer = fs.readFileSync(loc);
+            const ext = path.extname(loc).toLowerCase();
+            imageMime = ext === '.png' ? 'image/png' : (ext === '.webp' ? 'image/webp' : 'image/jpeg');
+            imageFileName = path.basename(loc);
+            break;
+          } catch (_) {}
+        }
+      }
     }
   }
 
@@ -2773,6 +2881,7 @@ export async function broadcastNewProduct(rawProduct, targetBotIds = ['all']) {
   const sampleErrors = [];
   const botBreakdown = {};
   const deliveredChatIds = new Set();
+  const photoCaption = messageText.length > 1020 ? (messageText.slice(0, 1017) + '...') : messageText;
 
   for (let bIndex = 0; bIndex < fleet.length; bIndex++) {
     const currentBot = fleet[bIndex];
@@ -2797,7 +2906,7 @@ export async function broadcastNewProduct(rawProduct, targetBotIds = ['all']) {
 
     const recipientMap = new Map();
 
-    // Admins receive notification on first bot in fleet so admins verify without 5x duplicate spam
+    // Admins receive notification on first bot in fleet so admins verify without duplicate spam
     if (bIndex === 0) {
       for (const adminId of adminIds) {
         if (adminId && String(adminId).trim()) {
@@ -2806,7 +2915,7 @@ export async function broadcastNewProduct(rawProduct, targetBotIds = ['all']) {
       }
     }
 
-    // Subscribers belonging to this bot (supports users enrolled in multiple bots!)
+    // Subscribers belonging to this bot
     for (const user of (botUsers || [])) {
       const uid = String(user?.id || user?.telegramUserId || '').trim();
       if (!uid) continue;
@@ -2830,20 +2939,47 @@ export async function broadcastNewProduct(rawProduct, targetBotIds = ['all']) {
           return;
         }
         let delivered = false;
+        let deliveredMessageId = null;
 
-        if (image && (image.startsWith('http://') || image.startsWith('https://'))) {
+        // 1. Try sendPhoto via multipart FormData if binary buffer is ready (100% reliable)
+        if (imageBuffer && imageBuffer.length > 0) {
+          try {
+            const fd = new FormData();
+            fd.append('chat_id', chatId);
+            const blob = new Blob([imageBuffer], { type: imageMime });
+            fd.append('photo', blob, imageFileName);
+            fd.append('caption', photoCaption);
+            fd.append('parse_mode', 'HTML');
+            fd.append('reply_markup', JSON.stringify(botKeyboard));
+
+            const photoRes = await callTelegram('sendPhoto', fd, currentBot.token);
+            if (photoRes && photoRes.ok && photoRes.result) {
+              delivered = true;
+              deliveredMessageId = photoRes.result.message_id;
+            }
+          } catch (e) {
+            console.warn(`FormData sendPhoto failed for ${chatId}:`, e.message);
+          }
+        }
+
+        // 2. Fallback: try sendPhoto via public URL
+        if (!delivered && image && (image.startsWith('http://') || image.startsWith('https://'))) {
           try {
             const photoRes = await callTelegram('sendPhoto', {
               chat_id: chatId,
               photo: image,
-              caption: messageText,
+              caption: photoCaption,
               parse_mode: 'HTML',
               reply_markup: botKeyboard
             }, currentBot.token);
-            if (photoRes && photoRes.ok) delivered = true;
+            if (photoRes && photoRes.ok && photoRes.result) {
+              delivered = true;
+              deliveredMessageId = photoRes.result.message_id;
+            }
           } catch (_) {}
         }
 
+        // 3. Fallback: sendMessage (text-only)
         if (!delivered) {
           try {
             const msgRes = await callTelegram('sendMessage', {
@@ -2852,8 +2988,9 @@ export async function broadcastNewProduct(rawProduct, targetBotIds = ['all']) {
               parse_mode: 'HTML',
               reply_markup: botKeyboard
             }, currentBot.token);
-            if (msgRes && msgRes.ok) {
+            if (msgRes && msgRes.ok && msgRes.result) {
               delivered = true;
+              deliveredMessageId = msgRes.result.message_id;
             } else if (sampleErrors.length < 5) {
               sampleErrors.push(`${chatId} (@${currentBot.username}): ${msgRes?.description || 'failed'}`);
             }
@@ -2868,6 +3005,11 @@ export async function broadcastNewProduct(rawProduct, targetBotIds = ['all']) {
           sentCount++;
           deliveredChatIds.add(chatId);
           botBreakdown[botKey].sent++;
+
+          // Auto-Delete Scheduling from Telegram Chat (Pack remains permanent on website)
+          if (deliveredMessageId && autoDeleteSeconds > 0) {
+            scheduleBroadcastMessageDeletion(chatId, deliveredMessageId, autoDeleteSeconds, currentBot.token);
+          }
         } else {
           failCount++;
           botBreakdown[botKey].failed++;
@@ -2887,6 +3029,7 @@ export async function broadcastNewProduct(rawProduct, targetBotIds = ['all']) {
     totalRecipients,
     botsCount: fleet.length,
     botBreakdown,
+    autoDeleteSeconds: autoDeleteSeconds > 0 ? autoDeleteSeconds : null,
     error: sentCount === 0 ? (sampleErrors[0] || 'Failed to dispatch to Telegram') : null
   };
 }
@@ -4069,7 +4212,8 @@ export default async function handler(req, res) {
       const body = req.body || {};
       const product = body.product || body;
       const targetBotIds = body.targetBotIds || (body.product && body.product.targetBotIds) || ['all'];
-      const bcRes = await broadcastNewProduct(product, targetBotIds);
+      const autoDeleteSeconds = Number(body.autoDeleteSeconds ?? (body.product && body.product.autoDeleteSeconds) ?? body.msgExpirySeconds ?? 0);
+      const bcRes = await broadcastNewProduct(product, targetBotIds, { autoDeleteSeconds });
       return res.status(200).json(bcRes);
     } catch (e) {
       return res.status(500).json({ error: e.message });

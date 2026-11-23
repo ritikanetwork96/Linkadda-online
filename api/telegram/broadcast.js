@@ -17,15 +17,16 @@ export default async function handler(req, res) {
         (typeof body.message === 'string' && body.message.trim().length > 0 && !body.id && !body.productId && !body.product && !body.badge && !body.priceINR);
 
       const targetBotIds = body.targetBotIds || (body.product && body.product.targetBotIds) || ['all'];
+      const autoDeleteSeconds = Number(body.autoDeleteSeconds ?? (body.product && body.product.autoDeleteSeconds) ?? body.msgExpirySeconds ?? 0);
 
       if (isCustomText) {
-        const result = await broadcastCustomMessage({ ...body, targetBotIds });
+        const result = await broadcastCustomMessage({ ...body, targetBotIds, autoDeleteSeconds });
         return res.status(result.ok ? 200 : 400).json(result);
       }
 
       // Catalog Product Broadcast (handles { type: 'product', ... }, { product: {...} }, or raw product item)
       const productData = body.product || body;
-      const result = await broadcastNewProduct(productData, targetBotIds);
+      const result = await broadcastNewProduct(productData, targetBotIds, { autoDeleteSeconds });
       return res.status(result.ok ? 200 : 400).json(result);
     } catch (e) {
       console.error('Telegram broadcast error:', e);

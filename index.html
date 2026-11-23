@@ -1289,11 +1289,11 @@
       </div>
 
       <div class="fk-quick-pills-bar" id="fkQuickPillsBar">
-        <button type="button" class="fk-quick-pill active" onclick="window.handleQuickPill(this, 'all')"><i class="fa-solid fa-fire"></i> All</button>
-        <button type="button" class="fk-quick-pill" onclick="window.handleQuickPill(this, 'trending')"><i class="fa-solid fa-arrow-trend-up"></i> Trending</button>
-        <button type="button" class="fk-quick-pill" onclick="window.handleQuickPill(this, 'indian')"><span class="fk-flag-emoji">🇮🇳</span> Indian</button>
-        <button type="button" class="fk-quick-pill" onclick="window.handleQuickPill(this, 'new')"><i class="fa-solid fa-star"></i> New</button>
-        <button type="button" class="fk-quick-pill" onclick="window.handleQuickPill(this, 'categories')"><i class="fa-solid fa-table-cells-large"></i> Categories</button>
+        <button type="button" class="fk-quick-pill active" data-quick="all" onclick="window.handleQuickPill(this, 'all')"><i class="fa-solid fa-border-all"></i> All</button>
+        <button type="button" class="fk-quick-pill" data-quick="trending" onclick="window.handleQuickPill(this, 'trending')"><i class="fa-solid fa-fire" style="color: #f97316;"></i> Trending Deals</button>
+        <button type="button" class="fk-quick-pill" data-quick="bestsellers" onclick="window.handleQuickPill(this, 'bestsellers')"><i class="fa-solid fa-crown" style="color: #eab308;"></i> Bestsellers</button>
+        <button type="button" class="fk-quick-pill" data-quick="new" onclick="window.handleQuickPill(this, 'new')"><i class="fa-solid fa-wand-magic-sparkles" style="color: #06b6d4;"></i> New Arrivals</button>
+        <button type="button" class="fk-quick-pill" data-quick="liked" onclick="window.handleQuickPill(this, 'liked')"><i class="fa-solid fa-heart" style="color: #f43f5e;"></i> Liked Items</button>
       </div>
     </div>
   </header>
@@ -4525,31 +4525,18 @@
 
   window.handleQuickPill = function(btn, filterKey) {
     document.querySelectorAll('.fk-quick-pill').forEach(p => p.classList.remove('active'));
-    if (btn) btn.classList.add('active');
-
-    if (filterKey === 'categories') {
-      if (typeof window.showCategoriesHub === 'function') {
-        window.showCategoriesHub('store');
-      } else {
-        window.scrollToCategories();
-      }
-      return;
+    if (btn) {
+      btn.classList.add('active');
+    } else {
+      const matchPill = document.querySelector(`.fk-quick-pill[data-quick="${filterKey}"]`);
+      if (matchPill) matchPill.classList.add('active');
     }
+
     if (filterKey === 'all') {
       window.filterFkCategory('all');
       return;
     }
-    if (filterKey === 'indian') {
-      const cats = normalizeRecords(liveCollections.categories);
-      const match = cats.find(c => /indian|desi|bhabhi/i.test(c.title || c.id));
-      if (match) {
-        window.filterFkCategory(match.id);
-      } else {
-        window.filterFkCategory('all');
-      }
-      return;
-    }
-    if (filterKey === 'trending' || filterKey === 'new' || filterKey === 'bestsellers') {
+    if (filterKey === 'trending' || filterKey === 'bestsellers' || filterKey === 'new' || filterKey === 'liked') {
       window.filterFkCategory(filterKey);
       return;
     }
@@ -4766,6 +4753,7 @@
       </div>
     </div>`;
   }
+  window.buildCard = buildCard;
 
   // Confetti Particle Burst Animation on click
   function createParticleBurst(e) {
@@ -4921,7 +4909,7 @@
     const parentWrapper = pillsWrapper.parentElement; // category-filter-wrapper
 
     const categories = normalizeRecords(liveCollections.categories);
-    const maxVisible = window.innerWidth < 600 ? 3 : (window.innerWidth < 1024 ? 5 : (window.innerWidth < 1360 ? 6 : 8));
+    const maxVisible = window.innerWidth < 600 ? 5 : (window.innerWidth < 1024 ? 7 : (window.innerWidth < 1360 ? 9 : 12));
     
     const visibleCats = categories.slice(0, maxVisible);
     const hiddenCats = categories.slice(maxVisible);
@@ -4931,39 +4919,33 @@
     // 1. "All" Pill
     const isAllActive = activeCategoryFilter === 'all';
     pillsHtml += `<button class="category-pill${isAllActive ? ' active' : ''}" data-cat-id="all">All</button>`;
-    pillsHtml += `<button type="button" class="category-pill pill-all-categories-hub" onclick="window.showCategoriesHub && window.showCategoriesHub('store')" style="background: rgba(255, 42, 141, 0.12); border-color: rgba(255, 42, 141, 0.35); color: #ff65a3; font-weight: 750;"><i class="fa-solid fa-layer-group" style="margin-right: 4px;"></i> All Categories ⊞</button>`;
+    
+    // 2. "All Categories" Hub Launcher
+    pillsHtml += `<button type="button" class="category-pill pill-all-categories-hub" onclick="window.showCategoriesHub && window.showCategoriesHub('store')" style="background: rgba(255, 42, 141, 0.12); border-color: rgba(255, 42, 141, 0.35); color: #ff65a3; font-weight: 750;"><i class="fa-solid fa-layer-group" style="margin-right: 5px;"></i> All Categories ⊞</button>`;
 
-    // 1b. "Trending" Pill
-    const isTrendingActive = activeCategoryFilter === 'trending';
-    pillsHtml += `<button class="category-pill${isTrendingActive ? ' active' : ''}" data-cat-id="trending" style="${isTrendingActive ? 'background:linear-gradient(135deg,#f59e0b,#ea580c);border-color:#fed7aa;color:#fff;' : ''}"><i class="fa-solid fa-fire" style="color:${isTrendingActive ? '#fff' : '#f59e0b'};margin-right:4px;"></i> Trending</button>`;
-
-    // 1c. "Bestsellers" Pill
-    const isBestsellersActive = activeCategoryFilter === 'bestsellers';
-    pillsHtml += `<button class="category-pill${isBestsellersActive ? ' active' : ''}" data-cat-id="bestsellers" style="${isBestsellersActive ? 'background:linear-gradient(135deg,#f59e0b,#d97706);border-color:#fde68a;color:#fff;' : ''}"><i class="fa-solid fa-crown" style="color:${isBestsellersActive ? '#fff' : '#fbbf24'};margin-right:4px;"></i> Bestsellers</button>`;
-
-    // 1d. "New (7D)" Pill
-    const isNewActive = activeCategoryFilter === 'new';
-    pillsHtml += `<button class="category-pill${isNewActive ? ' active' : ''}" data-cat-id="new" style="${isNewActive ? 'background:linear-gradient(135deg,#06b6d4,#0284c7);border-color:#bae6fd;color:#fff;' : ''}"><i class="fa-solid fa-sparkles" style="color:${isNewActive ? '#fff' : '#38bdf8'};margin-right:4px;"></i> New (7D)</button>`;
-
-    // 1e. "Liked" Pill
-    const isLikedActive = activeCategoryFilter === 'liked';
-    const wishlistCount = typeof getWishlist === 'function' ? getWishlist().length : 0;
-    pillsHtml += `<button class="category-pill${isLikedActive ? ' active' : ''}" data-cat-id="liked" style="${isLikedActive ? 'background:linear-gradient(135deg,#f43f5e,#e11d48);border-color:#fda4af;color:#fff;' : ''}"><i class="fa-solid fa-heart" style="color:${isLikedActive ? '#fff' : '#f43f5e'};margin-right:4px;"></i> Liked (<span class="pill-liked-count">${wishlistCount}</span>)</button>`;
-
-    // 1f. "Hidden" Pill (Dynamic: Shown if user has hidden items)
+    // 3. "Hidden" Pill (Dynamic: Shown ONLY if user has hidden items)
     const hiddenList = typeof getHiddenProducts === 'function' ? getHiddenProducts() : [];
     if (hiddenList.length > 0) {
       const isHiddenPillActive = activeCategoryFilter === 'hidden';
       pillsHtml += `<button class="category-pill pill-hidden-count${isHiddenPillActive ? ' active' : ''}" data-cat-id="hidden" style="${isHiddenPillActive ? 'background:linear-gradient(135deg,#64748b,#475569);border-color:#cbd5e1;color:#fff;' : ''}"><i class="fa-solid fa-eye-slash" style="color:${isHiddenPillActive ? '#fff' : '#94a3b8'};margin-right:4px;"></i> Hidden (<span id="hiddenCountBadge">${hiddenList.length}</span>)</button>`;
     }
     
-    // 2. Visible Categories Pills
+    // 4. Pure Content Category Pills (Zero duplication with top highlights!)
     visibleCats.forEach(cat => {
       const isActive = activeCategoryFilter === cat.id;
       pillsHtml += `<button class="category-pill${isActive ? ' active' : ''}" data-cat-id="${esc(cat.id)}">${esc(cat.title)}</button>`;
     });
 
     pillsWrapper.innerHTML = pillsHtml;
+
+    // Sync Top Header Quick Pills active state with activeCategoryFilter
+    document.querySelectorAll('.fk-quick-pill').forEach(p => {
+      const qKey = p.getAttribute('data-quick');
+      if (qKey) {
+        const isQuickActive = qKey === activeCategoryFilter || (qKey === 'all' && !['trending', 'bestsellers', 'new', 'liked'].includes(activeCategoryFilter));
+        p.classList.toggle('active', isQuickActive);
+      }
+    });
 
     // Remove any existing "More" element first
     let moreWrapper = parentWrapper.querySelector('.category-select-wrapper');
@@ -5888,6 +5870,9 @@
       if (typeof updateLastSoldBadges === 'function') {
         updateLastSoldBadges();
       }
+      window.initSlideshows = initSlideshows;
+      window.initVidTiers = initVidTiers;
+      window.initProductViewObserver = initProductViewObserver;
       focusSharedProduct();
       if (typeof focusSharedCategory === 'function') focusSharedCategory();
       if (typeof restoreReturnPosition === 'function') restoreReturnPosition();
@@ -7850,19 +7835,19 @@
       <!-- Quick Curated Highlights Chips -->
       <div class="cat-hub-curated-chips">
         <button type="button" class="cat-curated-chip" onclick="window.openCuratedCategory && window.openCuratedCategory('trending')">
-          <i class="fa-solid fa-fire" style="color: #f59e0b;"></i> 🔥 Trending Deals
+          <i class="fa-solid fa-fire-flame-curved" style="color: #f97316;"></i> Trending Deals
         </button>
         <button type="button" class="cat-curated-chip" onclick="window.openCuratedCategory && window.openCuratedCategory('bestsellers')">
-          <i class="fa-solid fa-crown" style="color: #fbbf24;"></i> 👑 Bestsellers
+          <i class="fa-solid fa-crown" style="color: #eab308;"></i> Bestsellers
         </button>
         <button type="button" class="cat-curated-chip" onclick="window.openCuratedCategory && window.openCuratedCategory('new')">
-          <i class="fa-solid fa-sparkles" style="color: #38bdf8;"></i> 🆕 New Arrivals
+          <i class="fa-solid fa-wand-magic-sparkles" style="color: #06b6d4;"></i> New Arrivals
         </button>
         <button type="button" class="cat-curated-chip" onclick="window.openCuratedCategory && window.openCuratedCategory('liked')">
-          <i class="fa-solid fa-heart" style="color: #f43f5e;"></i> ❤️ Liked Items
+          <i class="fa-solid fa-heart" style="color: #f43f5e;"></i> Liked Items
         </button>
         <button type="button" class="cat-curated-chip" onclick="window.openCuratedCategory && window.openCuratedCategory('all-in-one-1')">
-          <i class="fa-solid fa-gem" style="color: #a855f7;"></i> 💎 Mega Bundles
+          <i class="fa-solid fa-gem" style="color: #a855f7;"></i> Mega Bundles
         </button>
       </div>
 
@@ -7889,16 +7874,12 @@
     <div class="app-cat-topbar">
       <button type="button" class="btn-app-screen-back" id="btnBackFromCatDetail" onclick="window.showCategoriesHub ? window.showCategoriesHub('detail') : window.hideCategoryProducts()">
         <i class="fa-solid fa-arrow-left"></i>
-        <span>All Categories</span>
+        <span>Back</span>
       </button>
       <div class="cat-topbar-title-wrap">
         <h1 class="cat-topbar-title" id="catDetailTopTitle">Category</h1>
       </div>
       <div class="cat-topbar-actions">
-        <button type="button" class="btn-cat-share" onclick="window.shareCategoryPage && window.shareCategoryPage()" title="Share Category">
-          <i class="fa-solid fa-arrow-up-from-bracket"></i>
-          <span>Share</span>
-        </button>
         <button type="button" class="btn-app-screen-icon" onclick="window.openCartDrawer && window.openCartDrawer()" aria-label="Cart" title="Shopping Cart" style="position: relative;">
           <i class="fa-solid fa-cart-shopping"></i>
           <span class="appbar-cart-badge" id="cartBadgeCatDetail" style="display: none;">0</span>
@@ -7962,10 +7943,49 @@
     let activeCatDetailId = null;
     let activeSortType = 'popular';
     let catHubFilterQuery = '';
+    const LIVE_CAT_CHUNK_SIZE = 24;
 
     function safeHtml(str) {
       return String(str ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     }
+
+    function cleanTokenStr(str) {
+      return String(str || '')
+        .toLowerCase()
+        .replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F700}-\u{1F77F}\u{1F780}-\u{1F7FF}\u{1F800}-\u{1F8FF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '')
+        .replace(/[^a-z0-9]+/g, ' ')
+        .trim();
+    }
+
+    function getCleanTokens(str) {
+      const stopWords = new Set(['pack', 'packs', 'video', 'videos', 'collection', 'collections', 'premium', 'leaks', 'leak', 'channel', 'channels', 'unlimited', 'mega', 'the', 'and', 'for', 'with', 'all', 'in', 'one', 'new', 'top', 'vip', 'special', 'group']);
+      return cleanTokenStr(str)
+        .split(/\s+/)
+        .filter(t => t.length >= 3 && !stopWords.has(t) && !/^\d+$/.test(t));
+    }
+
+    const CAT_SYNONYM_MAP = {
+      'japanese': ['jav', 'japan', 'japanese'],
+      'chinese': ['chinese', 'china'],
+      'hidden': ['cam', 'camera', 'cctv', 'ip cam'],
+      'camera': ['cam', 'camera', 'cctv'],
+      'tango': ['tango', 'stripchat'],
+      'shemale': ['shemale', 'trans', 'ladyboy'],
+      'mallu': ['mallu', 'tamil', 'south'],
+      'tamil': ['tamil', 'mallu', 'south'],
+      'bhabhi': ['bhabhi', 'aunty', 'aunties', 'housewife', 'incest'],
+      'desi': ['desi', 'indian', 'mujra', 'punjabi', 'marathi', 'bengali'],
+      'indian': ['desi', 'indian', 'punjabi', 'marathi'],
+      'snap': ['snap', 'snapchat', 'insta', 'instagram'],
+      'insta': ['snap', 'snapchat', 'insta', 'instagram'],
+      'teen': ['teen', 'schoolgirl', 'campus', 'college'],
+      'college': ['college', 'campus', 'hostel', 'student', 'freshers'],
+      'bsdm': ['bsdm', 'bdsm', 'torture', 'blackmail', 'drugged'],
+      'english': ['english', 'foreign', 'western', 'blacked', 'white'],
+      'animal': ['animal', 'zoo', 'dog', 'horse'],
+      'mom': ['mom', 'mother', 'santoor'],
+      'gay': ['gay', 'homo', 'boy']
+    };
 
     // Helper: Get matching products for a category
     function getCategoryProductsList(catId) {
@@ -7983,7 +8003,7 @@
       if (catId === 'bestsellers') {
         const best = visibleProds.filter(p => typeof window.isProductBestseller === 'function' && window.isProductBestseller(p));
         if (best.length) return best.sort((a, b) => (typeof window.getProductOrderCount === 'function' ? (window.getProductOrderCount(b) - window.getProductOrderCount(a)) : 0));
-        return [...visibleProds].slice(0, 8);
+        return [...visibleProds].slice(0, 16);
       }
       if (catId === 'new') {
         return [...visibleProds].sort((a, b) => new Date(b.created_at || b.createdAt || 0).getTime() - new Date(a.created_at || a.createdAt || 0).getTime());
@@ -7996,42 +8016,53 @@
       const categories = window.liveCollections?.categories || {};
       const cat = categories[catId] || Object.values(categories).find(c => String(c?.id) === String(catId) || String(c?.slug) === String(catId)) || {};
 
-      const catTitleLower = String(cat.title || cat.name || catId).trim().toLowerCase();
-      const catSlugLower = String(cat.slug || catId).trim().toLowerCase();
-      const catIdLower = String(catId).trim().toLowerCase();
-      const catRefLower = String(cat.productRef || cat.data?.productRef || '').trim().toLowerCase();
-      const catDescLower = String(cat.description || cat.data?.description || '').trim().toLowerCase();
+      const catIdStr = String(catId || '').toLowerCase();
+      const catIdClean = catIdStr.replace(/-\d+$/, '');
+      const catSlugClean = String(cat.slug || '').toLowerCase().replace(/-\d+$/, '');
+      const catRefClean = String(cat.productRef || cat.data?.productRef || '').toLowerCase().replace(/-\d+$/, '');
+      const catTitleClean = cleanTokenStr(cat.title || cat.name || catId);
+
+      const catTokens = new Set([
+        ...getCleanTokens(cat.title),
+        ...getCleanTokens(cat.slug),
+        ...getCleanTokens(cat.productRef)
+      ]);
+
+      const expandedTokens = new Set(catTokens);
+      catTokens.forEach(t => {
+        if (CAT_SYNONYM_MAP[t]) {
+          CAT_SYNONYM_MAP[t].forEach(a => expandedTokens.add(a));
+        }
+      });
 
       let matches = visibleProds.filter(item => {
-        if (String(item.id) === String(catId)) return true;
-        if (catRefLower && (
-          String(item.id).toLowerCase() === catRefLower ||
-          String(item.slug || '').toLowerCase() === catRefLower ||
-          String(item.category || '').toLowerCase() === catRefLower
+        const pId = String(item.id || '').toLowerCase();
+        const pCat = String(item.category || '').toLowerCase();
+        const pCatClean = cleanTokenStr(pCat);
+        const pSlugClean = cleanTokenStr(item.slug || '');
+        const pTitleClean = cleanTokenStr(item.title || '');
+
+        // 1. Direct ID / Category / Ref match
+        if (pId === catIdStr || pId === catIdClean || pId === catSlugClean) return true;
+        if (catRefClean && (pId === catRefClean || pCat === catRefClean || pCatClean === cleanTokenStr(catRefClean))) return true;
+
+        if (pCatClean && (
+          pCatClean === catTitleClean ||
+          pCatClean === catSlugClean ||
+          pCatClean === catIdClean ||
+          pCatClean.includes(catTitleClean) ||
+          catTitleClean.includes(pCatClean)
         )) return true;
 
-        const itemCatLower = String(item.category || '').trim().toLowerCase();
-        const itemTitleLower = String(item.title || '').trim().toLowerCase();
-        const itemSlugLower = String(item.slug || '').trim().toLowerCase();
-
-        if (itemCatLower && (
-          itemCatLower === catTitleLower ||
-          itemCatLower === catSlugLower ||
-          itemCatLower === catIdLower ||
-          (catRefLower && itemCatLower === catRefLower) ||
-          (catDescLower && (itemCatLower === catDescLower || catDescLower.includes(itemCatLower) || itemCatLower.includes(catDescLower))) ||
-          itemCatLower.includes(catTitleLower) ||
-          catTitleLower.includes(itemCatLower)
-        )) return true;
-
-        if (itemSlugLower && (
-          itemSlugLower === catSlugLower ||
-          itemSlugLower === catIdLower ||
-          (catRefLower && itemSlugLower === catRefLower)
-        )) return true;
-
-        if (catTitleLower && itemTitleLower.includes(catTitleLower)) return true;
-        if (catDescLower && itemTitleLower.includes(catDescLower)) return true;
+        // 2. Token overlap between category keywords & product category/slug/title
+        for (const token of expandedTokens) {
+          if (token.length >= 3) {
+            if (pCatClean && (pCatClean === token || pCatClean.includes(token))) return true;
+            const titleWords = pTitleClean.split(' ');
+            if (titleWords.includes(token) || (token.includes(' ') && pTitleClean.includes(token))) return true;
+            if (pSlugClean && pSlugClean.includes(token)) return true;
+          }
+        }
 
         return false;
       });
@@ -8256,7 +8287,11 @@
       if (homeTab) homeTab.classList.add('active');
 
       if (!preventHistoryBack && (window.location.hash === '#categories' || window.location.hash.startsWith('#category/'))) {
-        window.history.back();
+        try {
+          window.history.replaceState({ screen: 'home' }, '', window.location.pathname + window.location.search);
+        } catch (_) {
+          window.location.hash = '';
+        }
       }
     }
 
@@ -8325,9 +8360,45 @@
       const heroTitle = document.getElementById('catDetailHeroTitle');
       const heroDesc = document.getElementById('catDetailHeroDesc');
       const countText = document.getElementById('catDetailCountText');
+      const heroIcon = document.getElementById('catDetailHeroIcon');
+
       if (topTitle) topTitle.textContent = catTitle;
       if (heroTitle) heroTitle.textContent = catTitle;
       if (heroDesc) heroDesc.textContent = catDesc;
+
+      // Update hero icon dynamically with sleek modern icons & vibrant gradients
+      if (heroIcon) {
+        let catImg = cat.image || cat.icon || cat.thumbnail || cat.cover || '';
+        if (typeof window.resolveMediaUrl === 'function' && catImg) {
+          catImg = window.resolveMediaUrl(catImg);
+        }
+
+        if (catId === 'trending') {
+          heroIcon.style.background = 'linear-gradient(135deg, #f97316 0%, #ef4444 100%)';
+          heroIcon.style.boxShadow = '0 6px 18px rgba(249, 115, 22, 0.45)';
+          heroIcon.innerHTML = '<i class="fa-solid fa-fire-flame-curved" style="color: #ffffff; font-size: 26px;"></i>';
+        } else if (catId === 'bestsellers') {
+          heroIcon.style.background = 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)';
+          heroIcon.style.boxShadow = '0 6px 18px rgba(245, 158, 11, 0.45)';
+          heroIcon.innerHTML = '<i class="fa-solid fa-crown" style="color: #ffffff; font-size: 24px;"></i>';
+        } else if (catId === 'new') {
+          heroIcon.style.background = 'linear-gradient(135deg, #06b6d4 0%, #2563eb 100%)';
+          heroIcon.style.boxShadow = '0 6px 18px rgba(6, 182, 212, 0.45)';
+          heroIcon.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles" style="color: #ffffff; font-size: 24px;"></i>';
+        } else if (catId === 'liked') {
+          heroIcon.style.background = 'linear-gradient(135deg, #f43f5e 0%, #be123c 100%)';
+          heroIcon.style.boxShadow = '0 6px 18px rgba(244, 63, 94, 0.45)';
+          heroIcon.innerHTML = '<i class="fa-solid fa-heart" style="color: #ffffff; font-size: 24px;"></i>';
+        } else if (catImg) {
+          heroIcon.style.background = 'transparent';
+          heroIcon.style.boxShadow = '0 4px 14px rgba(0, 0, 0, 0.25)';
+          heroIcon.innerHTML = `<img src="${catImg}" alt="${safeHtml(catTitle)}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 14px;" onerror="this.onerror=null; this.parentElement.style.background='linear-gradient(135deg, #ff2a8d, #7c3aed)'; this.parentElement.innerHTML='<i class=\\'fa-solid fa-layer-group\\' style=\\'color:#fff;font-size:24px;\\'></i>';" />`;
+        } else {
+          heroIcon.style.background = 'linear-gradient(135deg, #ff2a8d 0%, #7c3aed 100%)';
+          heroIcon.style.boxShadow = '0 6px 18px rgba(255, 42, 141, 0.35)';
+          heroIcon.innerHTML = '<i class="fa-solid fa-layer-group" style="color: #ffffff; font-size: 24px;"></i>';
+        }
+      }
 
       // Reset sort pills UI
       document.querySelectorAll('.cat-sort-pill').forEach(pill => {
@@ -8398,7 +8469,7 @@
       window._currentCatDetailProducts = products;
       window._catDetailRenderedCount = 0;
 
-      const initialBatch = products.slice(0, LIVE_GRID_CHUNK_SIZE);
+      const initialBatch = products.slice(0, LIVE_CAT_CHUNK_SIZE);
       const initialCardsHtml = initialBatch.map((item, idx) => {
         try {
           if (typeof window.buildCard === 'function') {
@@ -8412,7 +8483,7 @@
       }).join('');
 
       let sentinelHtml = '';
-      if (products.length > LIVE_GRID_CHUNK_SIZE) {
+      if (products.length > LIVE_CAT_CHUNK_SIZE) {
         sentinelHtml = `<div id="catDetailSentinel" style="grid-column: 1 / -1; height: 36px; display: flex; align-items: center; justify-content: center; padding: 18px 0; color: #94a3b8; font-size: 13px; font-weight: 600;"><i class="fa-solid fa-spinner fa-spin" style="margin-right: 8px; color: #f43f5e;"></i> Loading more category packs...</div>`;
       }
 
@@ -8421,7 +8492,12 @@
 
       setupCatDetailInfiniteScroll();
 
-      // Trigger image sliders and interactive elements
+      // Trigger image sliders, videos, badges and interactive elements
+      if (typeof window.initSlideshows === 'function') window.initSlideshows();
+      if (typeof window.initVidTiers === 'function') window.initVidTiers();
+      if (typeof window.syncCheckoutLinks === 'function') window.syncCheckoutLinks();
+      if (typeof window.initProductViewObserver === 'function') window.initProductViewObserver();
+      if (typeof window.updateLastSoldBadges === 'function') window.updateLastSoldBadges();
       if (typeof window.observeCardMediaVisibility === 'function') {
         window.observeCardMediaVisibility();
       }
@@ -8462,7 +8538,7 @@
         return;
       }
 
-      const nextBatch = products.slice(currentCount, currentCount + LIVE_GRID_CHUNK_SIZE);
+      const nextBatch = products.slice(currentCount, currentCount + LIVE_CAT_CHUNK_SIZE);
       if (!nextBatch.length) return;
 
       const newCardsHtml = nextBatch.map((item, idx) => {
@@ -8484,6 +8560,11 @@
 
       window._catDetailRenderedCount = currentCount + nextBatch.length;
 
+      if (typeof window.initSlideshows === 'function') window.initSlideshows();
+      if (typeof window.initVidTiers === 'function') window.initVidTiers();
+      if (typeof window.syncCheckoutLinks === 'function') window.syncCheckoutLinks();
+      if (typeof window.initProductViewObserver === 'function') window.initProductViewObserver();
+      if (typeof window.updateLastSoldBadges === 'function') window.updateLastSoldBadges();
       if (typeof window.observeCardMediaVisibility === 'function') {
         window.observeCardMediaVisibility();
       }
@@ -8570,6 +8651,65 @@
 
     window.addEventListener('hashchange', handleCategoryHashRoute);
     window.addEventListener('popstate', handleCategoryHashRoute);
+
+    // Fast-tap instant mobile tab router
+    window.onCategoriesTabClick = function(e) {
+      if (e) {
+        if (typeof e.stopPropagation === 'function') e.stopPropagation();
+      }
+      if (typeof window.hideProfilePage === 'function') {
+        try { window.hideProfilePage(true); } catch (_) {}
+      }
+      if (typeof window.closeUserOrdersModal === 'function') {
+        try { window.closeUserOrdersModal(); } catch (_) {}
+      }
+      if (typeof window.closeCartDrawer === 'function') {
+        try { window.closeCartDrawer(); } catch (_) {}
+      }
+      if (typeof window.closeWishlistDrawer === 'function') {
+        try { window.closeWishlistDrawer(); } catch (_) {}
+      }
+
+      document.querySelectorAll('.fk-appbar-item').forEach(el => el.classList.remove('active'));
+      const catTab = document.getElementById('appbarCategoriesTab');
+      if (catTab) catTab.classList.add('active');
+
+      if (typeof window.showCategoriesHub === 'function') {
+        window.showCategoriesHub('store');
+      } else {
+        window.location.hash = '#categories';
+      }
+    };
+
+    // Fast-tap instant mobile Home tab router (Zero page reload)
+    window.onHomeTabClick = function(e) {
+      if (e) {
+        if (typeof e.preventDefault === 'function') e.preventDefault();
+        if (typeof e.stopPropagation === 'function') e.stopPropagation();
+      }
+      if (typeof window.hideCategoriesHub === 'function') {
+        window.hideCategoriesHub(true);
+      }
+      if (typeof window.hideProfilePage === 'function') {
+        window.hideProfilePage(true);
+      }
+      if (typeof window.closeUserOrdersModal === 'function') {
+        try { window.closeUserOrdersModal(); } catch (_) {}
+      }
+      if (typeof window.closeCartDrawer === 'function') {
+        try { window.closeCartDrawer(); } catch (_) {}
+      }
+      if (typeof window.closeWishlistDrawer === 'function') {
+        try { window.closeWishlistDrawer(); } catch (_) {}
+      }
+      document.querySelectorAll('.fk-appbar-item').forEach(el => el.classList.remove('active'));
+      const homeTab = document.getElementById('appbarHomeTab');
+      if (homeTab) homeTab.classList.add('active');
+      try {
+        window.history.replaceState({ screen: 'home' }, '', window.location.pathname + window.location.search);
+      } catch (_) {}
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
 
     // Expose global methods
     window.showCategoriesHub = showCategoriesHub;
@@ -8879,11 +9019,11 @@
 
   <!-- ===== LINKADDA MOBILE STICKY APP BAR (5 NATIVE TABS - PERSISTENT ACROSS APP) ===== -->
   <nav class="fk-mobile-appbar" id="fkMobileAppbar" aria-label="Mobile Navigation">
-    <a href="#home" class="fk-appbar-item active" id="appbarHomeTab" onclick="(window.hideCategoriesHub && window.hideCategoriesHub()) || (window.hideProfilePage && window.hideProfilePage())">
+    <button type="button" class="fk-appbar-item active" id="appbarHomeTab" aria-label="Home" onclick="window.onHomeTabClick ? window.onHomeTabClick(event) : ((window.hideCategoriesHub && window.hideCategoriesHub(true)) || (window.hideProfilePage && window.hideProfilePage(true)))">
       <i class="fa-solid fa-house"></i>
       <span>Home</span>
-    </a>
-    <button type="button" class="fk-appbar-item" id="appbarCategoriesTab" aria-label="Categories" onclick="window.showCategoriesHub ? window.showCategoriesHub('store') : (window.location.hash = '#categories')">
+    </button>
+    <button type="button" class="fk-appbar-item" id="appbarCategoriesTab" aria-label="Categories" onclick="window.onCategoriesTabClick ? window.onCategoriesTabClick(event) : (window.showCategoriesHub && window.showCategoriesHub('store'))">
       <i class="fa-solid fa-layer-group"></i>
       <span>Categories</span>
     </button>

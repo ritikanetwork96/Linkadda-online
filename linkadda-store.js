@@ -622,16 +622,20 @@
     document.documentElement.style.overflow = 'hidden';
     document.body.classList.add('fk-product-open');
 
-    // Browser history state
+    // Browser history state (SPA Friendly - preserves category routes and enables hardware back button without page reload)
     try {
       const realId = prod.slug || prod.id || id;
-      const cleanUrl = `${window.location.pathname}?product=${encodeURIComponent(realId)}`;
-      window.history.replaceState({ fkProductOpen: true, productId: prod.id || id }, '', cleanUrl);
+      const currentHash = window.location.hash || '';
+      window.__fkReturnHash = currentHash;
+      const cleanUrl = `${window.location.pathname}?product=${encodeURIComponent(realId)}${currentHash}`;
+      if (!window.history.state || !window.history.state.fkProductOpen) {
+        window.history.pushState({ fkProductOpen: true, productId: prod.id || id, returnHash: currentHash }, '', cleanUrl);
+      }
     } catch (_) {}
   };
 
   // --- CLOSE PRODUCT DETAILS ---
-  window.closeFkProductPage = function () {
+  window.closeFkProductPage = function (fromPopstate = false) {
     const overlay = document.getElementById('fkProductPageOverlay');
     if (overlay) {
       overlay.querySelectorAll('video').forEach(v => {
@@ -645,12 +649,21 @@
     window.__fkActiveProduct = null;
 
     try {
+      const returnHash = window.__fkReturnHash || (window.history.state && window.history.state.returnHash) || '';
       const url = new URL(window.location.href);
       if (url.searchParams.has('product') || url.searchParams.has('productId') || url.hash.startsWith('#product-')) {
         url.searchParams.delete('product');
         url.searchParams.delete('productId');
-        url.hash = '';
-        window.history.replaceState(null, '', url.pathname + (url.searchParams.toString() ? '?' + url.searchParams.toString() : ''));
+        const cleanPath = url.pathname + (url.searchParams.toString() ? '?' + url.searchParams.toString() : '');
+        const finalUrl = cleanPath + (returnHash ? (returnHash.startsWith('#') ? returnHash : '#' + returnHash) : '');
+
+        if (fromPopstate) {
+          window.history.replaceState(null, '', finalUrl);
+        } else if (window.history.state && window.history.state.fkProductOpen) {
+          window.history.back();
+        } else {
+          window.history.replaceState(null, '', finalUrl);
+        }
       }
     } catch (_) {}
   };
@@ -659,13 +672,16 @@
   window.addEventListener('popstate', function () {
     const overlay = document.getElementById('fkProductPageOverlay');
     if (overlay && overlay.classList.contains('active')) {
-      closeFkProductPage();
+      closeFkProductPage(true);
     }
   });
 
-  // Pageshow cleanup: Ensure overlay is closed when navigating back
+  // Pageshow cleanup: Ensure overlay is closed when navigating back without altering history
   window.addEventListener('pageshow', function () {
-    closeFkProductPage();
+    const overlay = document.getElementById('fkProductPageOverlay');
+    if (overlay && overlay.classList.contains('active')) {
+      closeFkProductPage(true);
+    }
   });
 
   // --- GALLERY SHOWCASE (VIDEO & IMAGES) ---
