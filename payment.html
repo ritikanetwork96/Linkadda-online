@@ -6373,21 +6373,57 @@ function startLiveOrderStatusWatcher(orderId) {
           clearInterval(orderStatusWatcherTimer);
           orderStatusWatcherTimer = null;
         }
+
+        const rejectionReason = (order.rejectionReason || order.rejection_reason || data.rejectionReason || data.rejection_reason || data.rejectReason || 'Payment verification failed / Screenshot mismatch.').trim();
+        const liveSupportUrl = (CONFIG.telegramUrl && !CONFIG.telegramUrl.includes('VIP_KINK')) ? CONFIG.telegramUrl : 'https://t.me/TRUSTED_BROTHER1234';
+        const liveSupportUsername = liveSupportUrl.replace(/^https?:\/\/t\.me\//i, '').replace(/^@/, '').replace(/\/+$/, '') || 'TRUSTED_BROTHER1234';
+        const rejectTgMsg = `Hi Admin, my order #${orderId} was rejected with reason: "${rejectionReason}". Please help me resolve it.`;
+
         if (statusValEl) {
-          statusValEl.style.color = '#fb7185';
-          statusValEl.innerHTML = '<i class="fa-solid fa-circle-xmark" style="color:#f43f5e;"></i> Verification Note';
+          statusValEl.style.color = '#ef4444';
+          statusValEl.innerHTML = '<i class="fa-solid fa-circle-xmark" style="color:#ef4444;"></i> Order Rejected';
         }
+
+        const safeReason = String(rejectionReason).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[m]);
+
         if (syncContainer) {
           syncContainer.innerHTML = `
-            <div style="margin: 16px 0; padding: 18px; background: rgba(244,63,94,0.12); border: 1px solid rgba(244,63,94,0.35); border-radius: 14px; text-align: center;">
-              <div style="font-size: 16px; font-weight: 800; color: #fb7185; margin-bottom: 6px;">Payment Verification Note</div>
-              <p style="font-size: 12.5px; color: #cbd5e1; margin-bottom: 12px;">Admin was unable to match this payment proof. Tap below to chat with priority support:</p>
-              <a href="${liveSupportUrl}?text=${encodeURIComponent(`Hi Admin, my order #${orderId} was marked rejected. Can you please review?`)}" target="_blank" class="btn-primary" style="display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 18px; border-radius: 10px; font-size: 13px; font-weight: 700; background: #f43f5e; color: #fff; text-decoration: none;">
-                <i class="fa-brands fa-telegram"></i> Message Admin (@${liveSupportUsername})
+            <div class="vip-rejected-card" style="margin: 16px 0; padding: 20px; background: rgba(239,68,68,0.12); border: 1.5px solid rgba(239,68,68,0.4); border-radius: 16px; text-align: left; box-shadow: 0 4px 20px rgba(239,68,68,0.2); animation: vipPopIn 0.3s ease-out;">
+              <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+                <div style="width: 38px; height: 38px; border-radius: 50%; background: #ef4444; display: flex; align-items: center; justify-content: center; font-size: 18px; color: #fff; flex-shrink: 0;">
+                  <i class="fa-solid fa-triangle-exclamation"></i>
+                </div>
+                <div>
+                  <div style="font-size: 11px; font-weight: 800; color: #ef4444; text-transform: uppercase; letter-spacing: 1px;">VERIFICATION ISSUE</div>
+                  <div style="font-size: 16px; font-weight: 800; color: #ffffff;">Order Rejected by Admin</div>
+                </div>
+              </div>
+              <div style="background: rgba(0,0,0,0.3); border: 1px solid rgba(239,68,68,0.25); border-radius: 10px; padding: 12px; margin-bottom: 14px;">
+                <div style="font-size: 11px; font-weight: 700; color: #fca5a5; text-transform: uppercase; margin-bottom: 3px;">Rejection Reason:</div>
+                <div style="font-size: 13.5px; color: #fecaca; line-height: 1.45; font-weight: 600;">${safeReason}</div>
+              </div>
+              <p style="font-size: 12.5px; color: #cbd5e1; margin-bottom: 14px; line-height: 1.4;">Need help or have the correct transaction receipt? Chat directly with admin on Telegram to verify:</p>
+              <a href="${liveSupportUrl}?text=${encodeURIComponent(rejectTgMsg)}" target="_blank" class="btn-primary" style="display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; padding: 13px 18px; border-radius: 12px; font-size: 14px; font-weight: 700; background: linear-gradient(135deg, #ef4444, #dc2626); color: #fff; text-decoration: none; box-shadow: 0 4px 14px rgba(239,68,68,0.35);">
+                <i class="fa-brands fa-telegram"></i> Chat with Admin to Resolve (@${liveSupportUsername})
               </a>
             </div>
           `;
         }
+
+        // Update local order storage & broadcast
+        try {
+          const raw = localStorage.getItem('linkadda_user_orders');
+          if (raw) {
+            const list = JSON.parse(raw);
+            const found = list.find(o => String(o.orderId) === String(orderId));
+            if (found) {
+              found.status = 'rejected';
+              found.rejectionReason = rejectionReason;
+              localStorage.setItem('linkadda_user_orders', JSON.stringify(list));
+              localStorage.setItem('linkadda_order_rejected_event', JSON.stringify({ orderId, reason: rejectionReason, timestamp: Date.now() }));
+            }
+          }
+        } catch (_) {}
       }
     } catch (_) {}
   }
@@ -6396,7 +6432,7 @@ function startLiveOrderStatusWatcher(orderId) {
   orderStatusWatcherTimer = setInterval(checkStatus, 3000);
 
   window.addEventListener('storage', (e) => {
-    if (e.key === 'linkadda_order_approved_event' || e.key === 'linkadda_user_orders') {
+    if (e.key === 'linkadda_order_approved_event' || e.key === 'linkadda_order_rejected_event' || e.key === 'linkadda_user_orders') {
       checkStatus();
     }
   });

@@ -801,14 +801,14 @@ export async function updateRecord(node, id, data) {
   if (node === 'orders') {
     try {
       const supaUrl = 'https://xazhsjotzoentrkminol.supabase.co';
-      const supaKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhhemhzam90em9lbnRya21pbm9sIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQ1NjEzNjQsImV4cCI6MjExMDEzNzM2NH0.fcPhOQl-nLM5sLxl-elVgzEYmYG_C5-OkIy-rD_vn-0';
-      const hdrs = { 'apikey': supaKey, 'Authorization': `Bearer ${supaKey}`, 'Content-Type': 'application/json' };
+      const serviceKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhhemhzam90em9lbnRya21pbm9sIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5NDU2MTM2NCwiZXhwIjoyMTEwMTM3MzY0fQ.sO_ZTRbmS7XInvK8YE6XEGz37URqzVmxxtsRABCGfHw';
+      const hdrs = { 'apikey': serviceKey, 'Authorization': `Bearer ${serviceKey}`, 'Content-Type': 'application/json' };
       const patchBody = {
         status: data.status || next.status || 'approved',
         updated_at: new Date().toISOString(),
         data: next
       };
-      fetch(`${supaUrl}/rest/v1/orders?id=eq.${encodeURIComponent(targetId)}`, {
+      fetch(`${supaUrl}/rest/v1/orders?or=(id.eq.${encodeURIComponent(targetId)},order_id.eq.${encodeURIComponent(targetId)})`, {
         method: 'PATCH',
         headers: hdrs,
         body: JSON.stringify(patchBody)

@@ -4427,13 +4427,17 @@
     }
 
     body.innerHTML = orders.map(ord => {
-      const isConfirmed = ord.status === 'confirmed' || ord.status === 'completed' || ord.status === 'paid' || ord.status === 'approved';
+      const isRejected = ord.status === 'rejected' || ord.status === 'failed';
+      const isConfirmed = !isRejected && (ord.status === 'confirmed' || ord.status === 'completed' || ord.status === 'paid' || ord.status === 'approved');
       const orderId = esc(String(ord.orderId || 'VIP-ORDER').slice(-10).toUpperCase());
       const accessLink = ord.downloadLink || ord.fileUrl || ord.orderLink || '';
+      const rejectionReason = (ord.rejectionReason || ord.rejection_reason || 'Payment verification failed. Screenshot or UTR mismatch.').trim();
       const liveTgUrl = window.__LINKADDA_SUPPORT_TG || (defaultSiteState && defaultSiteState.payment && defaultSiteState.payment.telegramUrl) || 'https://t.me/TRUSTED_BROTHER1234';
       const liveTgUname = window.__LINKADDA_SUPPORT_USERNAME || liveTgUrl.replace(/^https?:\/\/t\.me\//i, '').replace(/^@/, '').replace(/\/+$/, '') || 'TRUSTED_BROTHER1234';
       const tgMsg = `Hi Admin, I have placed order #${orderId} (${ord.productName || 'VIP Content Pack'}). Please verify and approve my payment.`;
       const tgUrl = `${liveTgUrl}?text=${encodeURIComponent(tgMsg)}`;
+      const rejectTgMsg = `Hi Admin, my order #${orderId} (${ord.productName || 'VIP Content Pack'}) was rejected with reason: "${rejectionReason}". Please help me resolve it.`;
+      const rejectTgUrl = `${liveTgUrl}?text=${encodeURIComponent(rejectTgMsg)}`;
 
       const thumbImg = findProductMediaForOrder(ord);
       const thumbHtml = thumbImg
@@ -4441,15 +4445,15 @@
         : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.06);border-radius:10px;color:#10b981;font-size:18px;"><i class="fa-solid fa-receipt"></i></div>`;
 
       return `
-        <div class="order-item-card ${isConfirmed ? 'confirmed' : 'pending'}">
+        <div class="order-item-card ${isConfirmed ? 'confirmed' : isRejected ? 'rejected' : 'pending'}" style="${isRejected ? 'border-color: rgba(239,68,68,0.35); background: rgba(239,68,68,0.04);' : ''}">
           <div class="order-card-header">
             <div class="order-card-id-block">
               <span class="order-id-label">ORDER #</span>
               <span class="order-id-num">${orderId}</span>
             </div>
-            <span class="order-status-pill ${isConfirmed ? 'done' : 'pending'}">
-              <i class="fa-solid ${isConfirmed ? 'fa-circle-check' : 'fa-clock'}"></i>
-              ${isConfirmed ? 'Confirmed' : 'Pending Approval'}
+            <span class="order-status-pill ${isConfirmed ? 'done' : isRejected ? 'rejected' : 'pending'}" style="${isRejected ? 'background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid rgba(239,68,68,0.3);' : ''}">
+              <i class="fa-solid ${isConfirmed ? 'fa-circle-check' : isRejected ? 'fa-circle-xmark' : 'fa-clock'}"></i>
+              ${isConfirmed ? 'Confirmed' : isRejected ? 'Rejected' : 'Pending Approval'}
             </span>
           </div>
 
@@ -4467,12 +4471,24 @@
             </div>
           </div>
 
-          <div class="user-order-note ${isConfirmed ? 'confirmed' : 'pending'}" style="font-size:11.5px;padding:6px 10px;border-radius:8px;display:flex;align-items:center;gap:6px;${isConfirmed ? 'background:rgba(16,185,129,0.12);color:#34d399;border:1px solid rgba(16,185,129,0.3);' : 'background:rgba(245,158,11,0.1);color:#fbbf24;border:1px solid rgba(245,158,11,0.25);'}">
-            <i class="fa-solid ${isConfirmed ? 'fa-circle-check' : 'fa-hourglass-half'}"></i>
-            <span>${isConfirmed 
-              ? (accessLink ? 'Order Approved! Your Telegram VIP link is ready.' : 'Order Approved! Telegram VIP link syncing...') 
-              : 'Admin verification in progress. Access link will unlock automatically upon approval.'}</span>
-          </div>
+          ${isRejected ? `
+            <div class="user-order-note rejected" style="font-size:11.5px;padding:8px 10px;border-radius:8px;display:flex;flex-direction:column;gap:3px;background:rgba(239,68,68,0.1);color:#fca5a5;border:1px solid rgba(239,68,68,0.3);">
+              <div style="display:flex;align-items:center;gap:6px;font-weight:700;color:#ef4444;">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+                <span>Order Rejected by Admin</span>
+              </div>
+              <div style="font-size:11px;color:#fecaca;line-height:1.35;">
+                <strong>Reason:</strong> ${esc(rejectionReason)}
+              </div>
+            </div>
+          ` : `
+            <div class="user-order-note ${isConfirmed ? 'confirmed' : 'pending'}" style="font-size:11.5px;padding:6px 10px;border-radius:8px;display:flex;align-items:center;gap:6px;${isConfirmed ? 'background:rgba(16,185,129,0.12);color:#34d399;border:1px solid rgba(16,185,129,0.3);' : 'background:rgba(245,158,11,0.1);color:#fbbf24;border:1px solid rgba(245,158,11,0.25);'}">
+              <i class="fa-solid ${isConfirmed ? 'fa-circle-check' : 'fa-hourglass-half'}"></i>
+              <span>${isConfirmed 
+                ? (accessLink ? 'Order Approved! Your Telegram VIP link is ready.' : 'Order Approved! Telegram VIP link syncing...') 
+                : 'Admin verification in progress. Access link will unlock automatically upon approval.'}</span>
+            </div>
+          `}
 
           <div class="order-card-footer" style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;padding-top:8px;border-top:1px solid rgba(255,255,255,0.06);">
             <span class="order-paid-amount">${esc(ord.amountDisplay || '₹399')}</span>
@@ -4491,7 +4507,10 @@
                   </a>
                 `}
               </div>
-
+            ` : isRejected ? `
+              <a href="${rejectTgUrl}" target="_blank" rel="noopener" class="order-track-btn rejected" style="background:linear-gradient(135deg, #ef4444, #dc2626);color:#fff;border-color:#ef4444;box-shadow:0 3px 10px rgba(239,68,68,0.35);display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border-radius:8px;text-decoration:none;font-size:12px;font-weight:700;">
+                <i class="fa-brands fa-telegram"></i> Resolve on TG
+              </a>
             ` : `
               <a href="${tgUrl}" target="_blank" rel="noopener" class="order-track-btn">
                 <i class="fa-brands fa-telegram"></i> Order Pending · TG
@@ -4571,12 +4590,13 @@
     }
   };
   window.addEventListener('storage', (e) => {
-    if (e.key === 'linkadda_user_orders' || e.key === 'linkadda_order_placed_event' || e.key === 'linkadda_order_approved_event' || (e.key && e.key.startsWith('linkadda_notifs_'))) {
+    if (e.key === 'linkadda_user_orders' || e.key === 'linkadda_order_placed_event' || e.key === 'linkadda_order_approved_event' || e.key === 'linkadda_order_rejected_event' || (e.key && e.key.startsWith('linkadda_notifs_'))) {
       handleOrderNotificationSync();
     }
   });
   window.addEventListener('linkadda:order_placed', handleOrderNotificationSync);
   window.addEventListener('linkadda:order_approved', handleOrderNotificationSync);
+  window.addEventListener('linkadda:order_rejected', handleOrderNotificationSync);
 
   // Check #orders hash on load and hashchange
   function checkOrdersHash() {

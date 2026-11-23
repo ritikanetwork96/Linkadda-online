@@ -2632,6 +2632,17 @@ img, video {
   color: #f43f5e;
 }
 
+.notif-page-card-icon.rejected {
+  background: rgba(239, 68, 68, 0.16) !important;
+  color: #ef4444 !important;
+}
+
+.notif-detail-icon-wrap.rejected {
+  background: rgba(239, 68, 68, 0.18) !important;
+  color: #ef4444 !important;
+  border: 1px solid rgba(239, 68, 68, 0.35) !important;
+}
+
 .notif-page-card-icon.default {
   background: rgba(245, 158, 11, 0.16);
   color: #f59e0b;

@@ -10687,6 +10687,210 @@ function renderOrderDetailsModal(item = {}) {
   `;
 }
 
+function renderRejectOrderModal(orderId) {
+  const allOrders = listCollection('orders') || [];
+  const item = allOrders.find(o => String(o.id) === String(orderId) || String(o.orderId) === String(orderId)) || {};
+  const orderTitle = orderProductName(item) || item.product_title || item.productName || item.title || 'VIP Content Pack';
+  const amountFormatted = formatOrderAmount(item);
+  const customerName = orderCustomerLabel(item);
+
+  openModal(`
+    <div class="modal glass" style="max-width: 520px; width: 100%; border-radius: 18px; border: 1px solid rgba(239, 68, 68, 0.35); box-shadow: 0 20px 50px rgba(0,0,0,0.6); overflow: hidden; background: #0f111a; margin: auto;">
+      <div class="panel-head" style="padding: 18px 24px; border-bottom: 1px solid rgba(255,255,255,0.08); display: flex; align-items: center; justify-content: space-between;">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <div style="width: 40px; height: 40px; border-radius: 12px; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.35); display: flex; align-items: center; justify-content: center; color: #ef4444; font-size: 20px;">
+            <i data-lucide="x-circle" style="width: 22px; height: 22px;"></i>
+          </div>
+          <div>
+            <h2 class="section-title" style="font-size: 18px; font-weight: 800; color: #ffffff; margin: 0;">Reject Order</h2>
+            <p class="section-subtitle" style="font-size: 12.5px; color: #94a3b8; margin: 2px 0 0 0;">Specify reason for customer transparency</p>
+          </div>
+        </div>
+        <button class="btn btn-ghost" data-close-modal type="button" onclick="closeModal()" style="padding: 6px; border-radius: 50%;"><i data-lucide="x"></i></button>
+      </div>
+
+      <div style="padding: 22px 24px;">
+        <!-- Order Summary Pill -->
+        <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 12px 16px; margin-bottom: 18px; display: flex; justify-content: space-between; align-items: center; gap: 12px;">
+          <div style="min-width: 0;">
+            <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: #818cf8; font-weight: 700;">Order #${escapeHtml(String(orderId).slice(-10).toUpperCase())}</div>
+            <div style="font-size: 14px; font-weight: 750; color: #ffffff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px;">${escapeHtml(orderTitle)}</div>
+            <div style="font-size: 12px; color: #64748b; margin-top: 2px;">Buyer: ${escapeHtml(customerName)}</div>
+          </div>
+          <div style="text-align: right; white-space: nowrap;">
+            <div style="font-size: 16px; font-weight: 850; color: #f87171;">${escapeHtml(amountFormatted)}</div>
+            <span style="font-size: 10px; font-weight: 700; color: #fbbf24; background: rgba(245,158,11,0.14); padding: 2px 7px; border-radius: 5px;">Needs Review</span>
+          </div>
+        </div>
+
+        <!-- Preset Reason Buttons -->
+        <div style="margin-bottom: 16px;">
+          <label style="font-size: 11px; font-weight: 700; color: #cbd5e1; display: block; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.05em;">
+            Select Quick Preset Reason:
+          </label>
+          <div style="display: flex; flex-direction: column; gap: 6px;" id="rejectPresetButtons">
+            <button type="button" class="preset-reason-btn" data-reason="Payment screenshot is blur, cropped, or invalid. Please upload clear full screenshot." style="text-align: left; padding: 8px 12px; font-size: 12px; border-radius: 8px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); color: #e2e8f0; cursor: pointer; transition: all 0.15s ease;">
+              📸 <strong>Blur / Invalid Screenshot:</strong> Screenshot clear nahi hai
+            </button>
+            <button type="button" class="preset-reason-btn" data-reason="UTR / Transaction Reference number does not match bank records." style="text-align: left; padding: 8px 12px; font-size: 12px; border-radius: 8px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); color: #e2e8f0; cursor: pointer; transition: all 0.15s ease;">
+              🔢 <strong>UTR Mismatch:</strong> Reference / UTR number match nahi hua
+            </button>
+            <button type="button" class="preset-reason-btn" data-reason="Incorrect amount received. Full payment required to unlock access." style="text-align: left; padding: 8px 12px; font-size: 12px; border-radius: 8px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); color: #e2e8f0; cursor: pointer; transition: all 0.15s ease;">
+              ⚠️ <strong>Short Payment:</strong> Pura amount pay nahi kiya gaya
+            </button>
+            <button type="button" class="preset-reason-btn" data-reason="Payment not credited to bank account yet. Please check with your bank." style="text-align: left; padding: 8px 12px; font-size: 12px; border-radius: 8px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); color: #e2e8f0; cursor: pointer; transition: all 0.15s ease;">
+              🏦 <strong>Bank Credit Pending:</strong> Hamare bank me amount credit nahi hua
+            </button>
+            <button type="button" class="preset-reason-btn" data-reason="Duplicate payment proof or already verified on another order." style="text-align: left; padding: 8px 12px; font-size: 12px; border-radius: 8px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); color: #e2e8f0; cursor: pointer; transition: all 0.15s ease;">
+              ⏱️ <strong>Duplicate Proof:</strong> Ye proof pehle se use ho chuka hai
+            </button>
+          </div>
+        </div>
+
+        <!-- Custom Reason Input -->
+        <div class="field" style="margin-bottom: 20px;">
+          <label for="rejectOrderReasonInput" style="font-size: 11px; font-weight: 700; color: #cbd5e1; display: block; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.05em;">
+            Rejection Reason (Visible to Customer):
+          </label>
+          <textarea id="rejectOrderReasonInput" class="input" rows="3" placeholder="Enter reason explaining why order was rejected..." style="width: 100%; min-height: 75px; padding: 10px 12px; border-radius: 10px; font-size: 13px; line-height: 1.5; resize: vertical; border-color: rgba(239,68,68,0.3); background: rgba(0,0,0,0.35); color: #ffffff; box-sizing: border-box;"></textarea>
+          <span style="font-size: 11px; color: #94a3b8; margin-top: 4px; display: block;">This exact reason will appear in the customer's "My Orders" tab and Notifications.</span>
+        </div>
+
+        <!-- Action Footer -->
+        <div style="display: flex; gap: 10px; justify-content: flex-end;">
+          <button type="button" class="btn btn-ghost" data-close-modal onclick="closeModal()" style="font-weight: 600; padding: 9px 18px;">Cancel</button>
+          <button type="button" class="btn btn-danger" id="btnConfirmOrderReject" data-id="${escapeHtml(orderId)}" style="background: linear-gradient(135deg, #ef4444, #dc2626); border: none; font-weight: 750; padding: 9px 20px; border-radius: 10px; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 4px 14px rgba(239,68,68,0.4);">
+            <i data-lucide="x-circle" style="width: 15px; height: 15px;"></i> Confirm Rejection
+          </button>
+        </div>
+      </div>
+    </div>
+  `);
+
+  setTimeout(() => {
+    const textarea = document.getElementById('rejectOrderReasonInput');
+    const presetBtns = document.querySelectorAll('#rejectPresetButtons .preset-reason-btn');
+    presetBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        presetBtns.forEach(b => {
+          b.style.borderColor = 'rgba(255,255,255,0.08)';
+          b.style.background = 'rgba(255,255,255,0.04)';
+        });
+        btn.style.borderColor = '#ef4444';
+        btn.style.background = 'rgba(239, 68, 68, 0.15)';
+        if (textarea) {
+          textarea.value = btn.dataset.reason || '';
+          textarea.focus();
+        }
+      });
+    });
+
+    const confirmBtn = document.getElementById('btnConfirmOrderReject');
+    if (confirmBtn) {
+      confirmBtn.addEventListener('click', async () => {
+        const reason = (textarea ? textarea.value.trim() : '') || 'Payment verification failed. Please contact Telegram support.';
+        confirmBtn.disabled = true;
+        confirmBtn.innerHTML = '<i data-lucide="loader-2" class="spin" style="width: 15px; height: 15px;"></i> Rejecting...';
+        if (window.lucide) lucide.createIcons();
+        await executeRejectOrder(orderId, reason);
+      });
+    }
+  }, 40);
+}
+
+async function executeRejectOrder(targetOrderId, reason) {
+  try {
+    const adminEmail = userEmail?.textContent || userName?.textContent || APP_CONFIG.appName;
+    const rejectPayload = {
+      status: 'rejected',
+      orderStatus: 'rejected',
+      paymentStatus: 'rejected',
+      rejectionReason: reason,
+      rejection_reason: reason,
+      reviewedAt: Date.now(),
+      reviewedBy: adminEmail,
+      rejectedAt: Date.now(),
+      rejectedBy: adminEmail
+    };
+
+    await updateRecord('orders', targetOrderId, rejectPayload);
+
+    // Direct Supabase update with service role key
+    try {
+      const supaUrl = 'https://xazhsjotzoentrkminol.supabase.co';
+      const serviceKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhhemhzam90em9lbnRya21pbm9sIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5NDU2MTM2NCwiZXhwIjoyMTEwMTM3MzY0fQ.sO_ZTRbmS7XInvK8YE6XEGz37URqzVmxxtsRABCGfHw';
+      await fetch(`${supaUrl}/rest/v1/orders?or=(id.eq.${encodeURIComponent(targetOrderId)},order_id.eq.${encodeURIComponent(targetOrderId)})`, {
+        method: 'PATCH',
+        headers: {
+          'apikey': serviceKey,
+          'Authorization': `Bearer ${serviceKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          status: 'rejected',
+          updated_at: new Date().toISOString(),
+          data: {
+            ...rejectPayload,
+            rejectionReason: reason,
+            rejection_reason: reason
+          }
+        })
+      });
+    } catch (_) {}
+
+    // Notify customer on Telegram Bot if customer ordered via Telegram
+    try {
+      telegramApiFetch('/api/telegram/bot?action=reject-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...getAdminAuthHeaders() },
+        body: JSON.stringify({
+          orderId: targetOrderId,
+          reason: reason,
+          adminUser: {
+            first_name: 'Admin Panel',
+            username: adminEmail
+          }
+        })
+      }).catch(e => console.warn('Telegram bot notify on reject warning:', e));
+    } catch (_) {}
+
+    // Also broadcast order rejection event and update client orders for instant sync across tabs
+    try {
+      localStorage.setItem('linkadda_order_rejected_event', JSON.stringify({
+        orderId: targetOrderId,
+        rejectionReason: reason,
+        timestamp: Date.now()
+      }));
+
+      const rawUserOrders = localStorage.getItem('linkadda_user_orders');
+      if (rawUserOrders) {
+        const parsed = JSON.parse(rawUserOrders);
+        if (Array.isArray(parsed)) {
+          let updated = false;
+          parsed.forEach(o => {
+            if (String(o.orderId || o.id) === String(targetOrderId)) {
+              o.status = 'rejected';
+              o.rejectionReason = reason;
+              o.rejection_reason = reason;
+              updated = true;
+            }
+          });
+          if (updated) {
+            localStorage.setItem('linkadda_user_orders', JSON.stringify(parsed));
+          }
+        }
+      }
+    } catch (_) {}
+
+    showToast(`Order #${String(targetOrderId).slice(-8)} rejected with reason.`, 'info');
+  } catch (err) {
+    showToast('Failed to reject order: ' + (err?.message || err), 'danger');
+  } finally {
+    closeModal();
+    renderView(ui.data || {});
+  }
+}
+
 function renderOrdersManagementView(data = {}, fullData = {}) {
   const allOrders = listCollection('orders');
   const items = sortManagementList(filterManagementList(allOrders, 'orders'));
@@ -15315,38 +15519,7 @@ function attachGlobalHandlers() {
         showToast('Order ID not found', 'warning');
         return;
       }
-      actionBtn.disabled = true;
-      try {
-        await updateRecord('orders', targetOrderId, {
-          status: 'rejected',
-          orderStatus: 'rejected',
-          paymentStatus: 'rejected',
-          reviewedAt: Date.now(),
-          reviewedBy: userEmail?.textContent || userName?.textContent || APP_CONFIG.appName,
-        });
-
-        // Notify customer on Telegram Bot if customer ordered via Telegram
-        try {
-          telegramApiFetch('/api/telegram/bot?action=reject-order', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', ...getAdminAuthHeaders() },
-            body: JSON.stringify({
-              orderId: targetOrderId,
-              adminUser: {
-                first_name: 'Admin Panel',
-                username: userEmail?.textContent || userName?.textContent || 'admin'
-              }
-            })
-          }).catch(e => console.warn('Telegram bot notify on reject warning:', e));
-        } catch (_) {}
-
-        showToast('Order marked as rejected', 'info');
-      } catch (err) {
-        showToast('Failed to reject order: ' + (err?.message || err), 'danger');
-      } finally {
-        closeModal();
-        renderView(ui.data || {});
-      }
+      renderRejectOrderModal(targetOrderId);
       return;
     }
     if (action === 'delete-order') {

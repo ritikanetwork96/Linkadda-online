@@ -948,19 +948,23 @@ function getLiveSupportTg() {
 
 export function formatOrderCardHtml(ord) {
   if (!ord) return '';
-  const isConfirmed = ord.status === 'confirmed' || ord.status === 'completed' || ord.status === 'paid' || ord.status === 'approved';
+  const isRejected = ord.status === 'rejected' || ord.status === 'failed';
+  const isConfirmed = !isRejected && (ord.status === 'confirmed' || ord.status === 'completed' || ord.status === 'paid' || ord.status === 'approved');
   const orderId = String(ord.orderId || 'LA-ORDER').slice(-10).toUpperCase();
   const safeTitle = escapeHtml(ord.productName || 'Exclusive Creator Collection');
   const safePrice = escapeHtml(ord.amountDisplay || (ord.amount ? `₹${ord.amount}` : '₹399'));
   const safeDate = escapeHtml(ord.date || (ord.createdAt ? new Date(ord.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : 'Recent'));
   const specificLink = (ord.channelLink || ord.downloadLink || ord.fileUrl || '').trim();
   const hasSpecificLink = specificLink && (!specificLink.includes('VIP_KINK') && !specificLink.includes('TRUSTED_BROTHER'));
+  const rejectionReason = (ord.rejectionReason || ord.rejection_reason || 'Payment verification failed / Screenshot mismatch.').trim();
 
   const supTg = getLiveSupportTg();
   const tgMsg = `Hi Admin, I have placed order #${orderId} (${ord.productName || 'VIP Content Pack'}). Please verify and approve my payment.`;
   const tgUrl = `${supTg.url}?text=${encodeURIComponent(tgMsg)}`;
   const claimMsg = `Hi Admin, my order #${orderId} (${ord.productName || 'VIP Content Pack'}) is approved! Please provide my VIP Telegram access link.`;
   const claimUrl = `${supTg.url}?text=${encodeURIComponent(claimMsg)}`;
+  const rejectMsg = `Hi Admin, my order #${orderId} (${ord.productName || 'VIP Content Pack'}) was rejected with reason: "${rejectionReason}". Please help me resolve it.`;
+  const rejectUrl = `${supTg.url}?text=${encodeURIComponent(rejectMsg)}`;
 
   // Product Image Resolution
   let thumbImg = ord.image || ord.img || ord.productImage || '';
@@ -1009,6 +1013,24 @@ export function formatOrderCardHtml(ord) {
         </div>
       `;
     }
+  } else if (isRejected) {
+    noteHtml = `
+      <div class="user-order-note rejected" style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.28); color: #fca5a5; border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 4px; font-size: 12px; margin-top: 6px;">
+        <div style="display: flex; align-items: center; gap: 6px; font-weight: 700; color: #ef4444;">
+          <i class="fa-solid fa-triangle-exclamation"></i>
+          <span>Order Rejected by Admin</span>
+        </div>
+        <div style="font-size: 12px; color: #fecaca; line-height: 1.4;">
+          <strong>Reason:</strong> ${escapeHtml(rejectionReason)}
+        </div>
+      </div>
+    `;
+    actionHtml = `
+      <a href="${rejectUrl}" target="_blank" rel="noopener" class="btn-order-access rejected" style="display: flex; align-items: center; justify-content: center; gap: 8px; padding: 11px 16px; border-radius: 12px; text-decoration: none; font-weight: 700; margin-top: 8px; background: linear-gradient(135deg, #ef4444, #dc2626); color: #ffffff; box-shadow: 0 4px 14px rgba(239, 68, 68, 0.35);">
+        <i class="fa-brands fa-telegram"></i>
+        <span>Chat with Admin on TG to Resolve</span>
+      </a>
+    `;
   } else {
     noteHtml = `
       <div class="user-order-note pending" style="background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.28); color: #fbbf24; border-radius: 10px; padding: 8px 12px; display: flex; align-items: center; gap: 8px; font-size: 12px; margin-top: 6px;">
@@ -1025,15 +1047,15 @@ export function formatOrderCardHtml(ord) {
   }
 
   return `
-    <div class="user-order-item ${isConfirmed ? 'is-confirmed' : 'is-pending'}" id="user-order-${escapeHtml(ord.orderId || orderId)}">
+    <div class="user-order-item ${isConfirmed ? 'is-confirmed' : isRejected ? 'is-rejected' : 'is-pending'}" id="user-order-${escapeHtml(ord.orderId || orderId)}">
       <div class="user-order-top" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px;">
         <div style="display: flex; align-items: center; gap: 8px;">
           <span class="user-order-id">#${escapeHtml(orderId)}</span>
           <span style="font-size: 11px; color: #94a3b8;"><i class="fa-regular fa-clock"></i> ${safeDate}</span>
         </div>
-        <span class="user-order-status ${isConfirmed ? 'confirmed' : 'pending'}">
-          <i class="fa-solid ${isConfirmed ? 'fa-circle-check' : 'fa-clock'}"></i>
-          ${isConfirmed ? 'Confirmed' : 'Pending Approval'}
+        <span class="user-order-status ${isConfirmed ? 'confirmed' : isRejected ? 'rejected' : 'pending'}" style="${isRejected ? 'background: rgba(239, 68, 68, 0.12); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3);' : ''}">
+          <i class="fa-solid ${isConfirmed ? 'fa-circle-check' : isRejected ? 'fa-circle-xmark' : 'fa-clock'}"></i>
+          ${isConfirmed ? 'Confirmed' : isRejected ? 'Rejected' : 'Pending Approval'}
         </span>
       </div>
 
@@ -1097,6 +1119,8 @@ export async function syncUserOrdersWithFirebase() {
 
       try {
         let isApproved = false;
+        let isRejected = false;
+        let rejectionReason = '';
         let link = '';
         let resolved = false;
 
@@ -1108,6 +1132,8 @@ export async function syncUserOrdersWithFirebase() {
             if (body && body.success && body.order) {
               const remoteOrder = body.order;
               isApproved = remoteOrder.status === 'approved' || remoteOrder.status === 'completed' || remoteOrder.status === 'confirmed';
+              isRejected = remoteOrder.status === 'rejected' || remoteOrder.status === 'failed';
+              rejectionReason = remoteOrder.rejectionReason || remoteOrder.rejection_reason || '';
               link = remoteOrder.channelLink || remoteOrder.downloadLink || '';
               if (remoteOrder.productName && !ord.productName) ord.productName = remoteOrder.productName;
               if (remoteOrder.amount && !ord.amount) ord.amount = remoteOrder.amount;
@@ -1127,6 +1153,8 @@ export async function syncUserOrdersWithFirebase() {
             if (rows && rows.length) {
               const r = rows[0].data || rows[0];
               isApproved = rows[0].status === 'approved' || rows[0].status === 'paid' || r.status === 'paid' || r.status === 'approved' || r.status === 'confirmed';
+              isRejected = rows[0].status === 'rejected' || r.status === 'rejected';
+              rejectionReason = rows[0].rejection_reason || r.rejectionReason || r.rejection_reason || r.rejectReason || '';
               link = rows[0].channel_link || r.channelLink || r.downloadLink || r.fileUrl || '';
               if (rows[0].product_title && !ord.productName) ord.productName = rows[0].product_title;
               if (rows[0].amount && !ord.amount) ord.amount = rows[0].amount;
@@ -1148,6 +1176,14 @@ export async function syncUserOrdersWithFirebase() {
             if (typeof showAppToast === 'function') {
               showAppToast(`🎉 Great news! Order #${String(ord.orderId).slice(-6)} Approved! VIP access is ready.`);
             }
+          }
+        } else if (isRejected) {
+          const wasNotRejected = ord.status !== 'rejected';
+          ord.status = 'rejected';
+          if (rejectionReason) ord.rejectionReason = rejectionReason;
+          hasUpdates = true;
+          if (wasNotRejected) {
+            addOrderRejectedNotification(ord, rejectionReason);
           }
         }
       } catch (e) {
@@ -1303,6 +1339,63 @@ export function addOrderConfirmedNotification(ord) {
     showAppToast(`🎉 Order #${orderId} approved! Message Admin on Telegram for instant access: @${supTg.username}`);
   } catch (err) {
     console.warn('Order confirmed notification notice:', err);
+  }
+}
+
+export function addOrderRejectedNotification(ord, reason) {
+  try {
+    const user = getCustomerSession();
+    const uid = user ? user.uid : 'guest';
+    const notifsKey = `linkadda_notifs_${uid}`;
+    let list = [];
+    try {
+      const raw = localStorage.getItem(notifsKey);
+      if (raw) list = JSON.parse(raw);
+    } catch (_) {}
+
+    const rawId = String(ord.orderId || ord.id || '');
+    const orderId = rawId.slice(-10).toUpperCase();
+    const notifId = `notif_order_${rawId}_rejected`;
+
+    // Deduplicate
+    if (list.some(n => n.id === notifId)) return;
+
+    const supTg = getLiveSupportTg();
+    const productName = ord.productName || ord.name || ord.title || 'VIP Content Pack';
+    const eventTime = ord.rejectedAt || ord.timestamp || Date.now();
+    const safeReason = (reason || ord.rejectionReason || ord.rejection_reason || 'Payment verification failed / Screenshot mismatch.').trim();
+    const tgMsg = `Hi Admin, my order #${orderId} (${productName}) was rejected with reason: "${safeReason}". Please help me resolve it.`;
+    const tgUrl = `${supTg.url}?text=${encodeURIComponent(tgMsg)}`;
+
+    const notifItem = {
+      id: notifId,
+      type: 'order_rejected',
+      orderId: rawId,
+      productName: productName,
+      rejectionReason: safeReason,
+      title: `Order #${orderId} Issue ❌`,
+      desc: `Your order was rejected by admin: "${safeReason}". Please contact support to correct payment proof or verify transaction.`,
+      timestamp: eventTime,
+      time: formatRelativeTime(eventTime),
+      actionUrl: tgUrl,
+      actionText: `Contact Admin to Resolve (@${supTg.username})`,
+      unread: true,
+      icon: 'fa-circle-xmark',
+      theme: 'rejected'
+    };
+
+    list.unshift(notifItem);
+    localStorage.setItem(notifsKey, JSON.stringify(list));
+    localStorage.removeItem(NOTIFS_READ_KEY); // Re-trigger unread badge indicator
+
+    updateNotificationsUI();
+    renderNotificationsPage();
+
+    if (typeof showAppToast === 'function') {
+      showAppToast(`⚠️ Order #${orderId} was rejected: ${safeReason.slice(0, 50)}`);
+    }
+  } catch (err) {
+    console.warn('Order rejected notification notice:', err);
   }
 }
 
@@ -1526,15 +1619,16 @@ export function getUserNotifications() {
     });
   }
 
-  // Ensure order notifications exist for all placed / confirmed orders
+  // Ensure order notifications exist for all placed / confirmed / rejected orders
   try {
     const userOrders = getUserOrders();
     if (Array.isArray(userOrders) && userOrders.length > 0) {
       userOrders.forEach(ord => {
         if (!ord || !ord.orderId) return;
-        const isApproved = ord.status === 'confirmed' || ord.status === 'completed' || ord.status === 'paid';
-        const notifId = isApproved ? `notif_order_${ord.orderId}_confirmed` : `notif_order_${ord.orderId}_placed`;
-        const alreadyHas = list.some(n => n.id === notifId || (n.orderId === ord.orderId && (isApproved ? n.type === 'order_confirmed' : n.type === 'order_placed')));
+        const isRejected = ord.status === 'rejected' || ord.status === 'failed';
+        const isApproved = !isRejected && (ord.status === 'confirmed' || ord.status === 'completed' || ord.status === 'paid');
+        const notifId = isApproved ? `notif_order_${ord.orderId}_confirmed` : (isRejected ? `notif_order_${ord.orderId}_rejected` : `notif_order_${ord.orderId}_placed`);
+        const alreadyHas = list.some(n => n.id === notifId || (n.orderId === ord.orderId && (isApproved ? n.type === 'order_confirmed' : isRejected ? n.type === 'order_rejected' : n.type === 'order_placed')));
         if (!alreadyHas) {
           const pName = ord.productName || ord.productTitle || 'VIP Content Pack';
           if (isApproved) {
@@ -1551,6 +1645,26 @@ export function getUserNotifications() {
               unread: true,
               icon: 'fa-circle-check',
               theme: 'confirmed'
+            });
+          } else if (isRejected) {
+            const reason = (ord.rejectionReason || ord.rejection_reason || 'Payment verification failed. Screenshot or UTR mismatch.').trim();
+            const supTg = getLiveSupportTg();
+            const rejectMsg = `Hi Admin, my order #${String(ord.orderId).slice(-10).toUpperCase()} (${pName}) was rejected with reason: "${reason}". Please help me resolve it.`;
+            list.unshift({
+              id: notifId,
+              type: 'order_rejected',
+              orderId: ord.orderId,
+              productName: pName,
+              rejectionReason: reason,
+              title: `Order #${String(ord.orderId).slice(-10).toUpperCase()} Issue ❌`,
+              desc: `Order rejected by admin: "${reason}". Please tap to message admin with proper payment proof.`,
+              timestamp: ord.rejectedAt || ord.timestamp || Date.now(),
+              time: 'Recently',
+              actionUrl: `${supTg.url}?text=${encodeURIComponent(rejectMsg)}`,
+              actionText: `Chat with Admin on Telegram (@${supTg.username})`,
+              unread: true,
+              icon: 'fa-circle-xmark',
+              theme: 'rejected'
             });
           } else {
             list.unshift({
@@ -1649,8 +1763,8 @@ export function renderNotificationsPage() {
           <p class="notif-page-card-desc">${escapeHtml(n.desc)}</p>
           <div class="notif-card-footer">
             <span class="notif-tap-hint">
-              <i class="fa-solid ${n.type === 'order_confirmed' ? 'fa-brands fa-telegram' : 'fa-envelope-open-text'}"></i>
-              ${n.type === 'order_confirmed' ? 'VIP Channel Link Inside • Tap to Read' : 'Tap to Read Message'}
+              <i class="fa-solid ${n.type === 'order_confirmed' ? 'fa-brands fa-telegram' : n.type === 'order_rejected' ? 'fa-triangle-exclamation' : 'fa-envelope-open-text'}"></i>
+              ${n.type === 'order_confirmed' ? 'VIP Channel Link Inside • Tap to Read' : n.type === 'order_rejected' ? 'Rejection Reason Inside • Tap to Resolve' : 'Tap to Read Message'}
             </span>
             <span class="notif-chevron"><i class="fa-solid fa-angle-right"></i></span>
           </div>
@@ -1726,7 +1840,12 @@ export function openNotificationDetailModal(notif) {
   }
 
   if (notif.type === 'order_confirmed') {
-    if (statusPill) statusPill.style.display = 'inline-flex';
+    if (statusPill) {
+      statusPill.style.display = 'inline-flex';
+      statusPill.style.background = 'rgba(16, 185, 129, 0.15)';
+      statusPill.style.color = '#10b981';
+      statusPill.style.borderColor = 'rgba(16, 185, 129, 0.3)';
+    }
     if (statusText) statusText.textContent = 'Order Verified & Approved';
     if (orderBox) orderBox.style.display = 'flex';
     if (itemNameEl) itemNameEl.textContent = notif.productName || 'VIP Content Pack';
@@ -1738,9 +1857,33 @@ export function openNotificationDetailModal(notif) {
     if (ctaBtn) {
       ctaBtn.href = link;
       ctaBtn.dataset.url = link;
+      ctaBtn.style.background = 'linear-gradient(135deg, #10b981, #059669)';
     }
     if (ctaBtnLabel) {
       ctaBtnLabel.textContent = `Contact Admin on Telegram (@${supTg.username})`;
+    }
+  } else if (notif.type === 'order_rejected') {
+    if (statusPill) {
+      statusPill.style.display = 'inline-flex';
+      statusPill.style.background = 'rgba(239, 68, 68, 0.15)';
+      statusPill.style.color = '#ef4444';
+      statusPill.style.borderColor = 'rgba(239, 68, 68, 0.3)';
+    }
+    if (statusText) statusText.textContent = 'Order Rejected / Verification Issue';
+    if (orderBox) orderBox.style.display = 'flex';
+    if (itemNameEl) itemNameEl.textContent = notif.productName || 'VIP Content Pack';
+    if (orderIdEl) orderIdEl.textContent = '#' + String(notif.orderId || '').slice(-10).toUpperCase();
+
+    const supTg = getLiveSupportTg();
+    const link = notif.actionUrl || supTg.url;
+    if (actionWrap) actionWrap.style.display = 'flex';
+    if (ctaBtn) {
+      ctaBtn.href = link;
+      ctaBtn.dataset.url = link;
+      ctaBtn.style.background = 'linear-gradient(135deg, #ef4444, #dc2626)';
+    }
+    if (ctaBtnLabel) {
+      ctaBtnLabel.textContent = notif.actionText || `Chat with Admin on Telegram (@${supTg.username})`;
     }
   } else if (notif.actionUrl) {
     if (statusPill) statusPill.style.display = 'none';
@@ -1749,6 +1892,7 @@ export function openNotificationDetailModal(notif) {
     if (ctaBtn) {
       ctaBtn.href = notif.actionUrl;
       ctaBtn.dataset.url = notif.actionUrl;
+      ctaBtn.style.background = '';
     }
     if (ctaBtnLabel) {
       ctaBtnLabel.textContent = notif.actionText || 'Open Telegram Link';
@@ -2090,6 +2234,7 @@ window.getUserOrders = getUserOrders;
 window.formatOrderCardHtml = formatOrderCardHtml;
 window.syncUserOrdersWithFirebase = syncUserOrdersWithFirebase;
 window.addOrderConfirmedNotification = addOrderConfirmedNotification;
+window.addOrderRejectedNotification = addOrderRejectedNotification;
 window.checkAndResumePendingCheckout = checkAndResumePendingCheckout;
 window.renderAccountOrders = renderAccountOrders;
 window.showAppToast = showAppToast;
