@@ -6134,6 +6134,34 @@ async function saveOrderToFirebase(amountText, methodName) {
       filtered.unshift(userOrderSummary);
       localStorage.setItem('linkadda_user_orders', JSON.stringify(filtered.slice(0, 30)));
 
+      // Add immediate order placed notification in localStorage
+      try {
+        const notifKeys = ['linkadda_notifs_guest'];
+        const custSess = JSON.parse(localStorage.getItem('linkadda_customer_session') || '{}');
+        if (custSess && custSess.uid) notifKeys.push(`linkadda_notifs_${custSess.uid}`);
+        notifKeys.forEach(k => {
+          let nList = [];
+          try { nList = JSON.parse(localStorage.getItem(k) || '[]'); } catch (_) {}
+          const notifId = `notif_order_${orderId}_placed`;
+          if (!nList.some(x => x.id === notifId)) {
+            nList.unshift({
+              id: notifId,
+              type: 'order_placed',
+              orderId: orderId,
+              productName: payload.productName || 'VIP Content Pack',
+              title: `Order #${String(orderId).slice(-10).toUpperCase()} Placed! ⏳`,
+              desc: `Your payment for "${payload.productName || 'VIP Pack'}" is under verification. VIP link will unlock upon approval.`,
+              timestamp: Date.now(),
+              time: 'Just now',
+              unread: true,
+              icon: 'fa-clock',
+              theme: 'pending'
+            });
+            localStorage.setItem(k, JSON.stringify(nList));
+          }
+        });
+      } catch (_) {}
+
       // Broadcast order placed event across open storefront tabs
       try {
         localStorage.setItem('linkadda_order_placed_event', JSON.stringify({
@@ -6270,6 +6298,35 @@ function startLiveOrderStatusWatcher(orderId) {
               found.channelLink = link;
               localStorage.setItem('linkadda_user_orders', JSON.stringify(list));
               localStorage.setItem('linkadda_order_approved_event', JSON.stringify({ orderId, link, timestamp: Date.now() }));
+
+              // Also add confirmed notification
+              try {
+                const notifKeys = ['linkadda_notifs_guest'];
+                const custSess = JSON.parse(localStorage.getItem('linkadda_customer_session') || '{}');
+                if (custSess && custSess.uid) notifKeys.push(`linkadda_notifs_${custSess.uid}`);
+                notifKeys.forEach(k => {
+                  let nList = [];
+                  try { nList = JSON.parse(localStorage.getItem(k) || '[]'); } catch (_) {}
+                  const confId = `notif_order_${orderId}_confirmed`;
+                  if (!nList.some(x => x.id === confId)) {
+                    nList.unshift({
+                      id: confId,
+                      type: 'order_confirmed',
+                      orderId: orderId,
+                      productName: found.productName || 'VIP Content Pack',
+                      title: `Order #${String(orderId).slice(-10).toUpperCase()} Approved! 🎉`,
+                      desc: `Your order has been verified and approved! VIP Telegram channel access is ready.`,
+                      timestamp: Date.now(),
+                      time: 'Just now',
+                      actionUrl: link || 'https://t.me/TRUSTED_BROTHER1234',
+                      unread: true,
+                      icon: 'fa-circle-check',
+                      theme: 'success'
+                    });
+                    localStorage.setItem(k, JSON.stringify(nList));
+                  }
+                });
+              } catch (_) {}
             }
           }
         } catch (_) {}

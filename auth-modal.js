@@ -438,6 +438,17 @@ export function showProfilePage() {
     window.updateCartBadges();
   }
 
+  // Update Hidden Packs Count Pill
+  const hiddenPill = document.getElementById('settingsHiddenPill');
+  if (hiddenPill) {
+    try {
+      const hList = typeof window.getHiddenProducts === 'function' ? window.getHiddenProducts() : JSON.parse(localStorage.getItem('linkadda_hidden_products_v1') || '[]');
+      hiddenPill.textContent = `${hList.length} Hidden`;
+    } catch (_) {
+      hiddenPill.textContent = '0 Hidden';
+    }
+  }
+
   // 5. Sync Theme Switch state
   const themeSwitch = document.getElementById('profileThemeSwitch');
   if (themeSwitch) {
@@ -940,8 +951,8 @@ export function formatOrderCardHtml(ord) {
   const isConfirmed = ord.status === 'confirmed' || ord.status === 'completed' || ord.status === 'paid' || ord.status === 'approved';
   const orderId = String(ord.orderId || 'LA-ORDER').slice(-10).toUpperCase();
   const safeTitle = escapeHtml(ord.productName || 'Exclusive Creator Collection');
-  const safePrice = escapeHtml(ord.amountDisplay || '₹399');
-  const safeDate = escapeHtml(ord.date || 'Recent');
+  const safePrice = escapeHtml(ord.amountDisplay || (ord.amount ? `₹${ord.amount}` : '₹399'));
+  const safeDate = escapeHtml(ord.date || (ord.createdAt ? new Date(ord.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : 'Recent'));
   const specificLink = (ord.channelLink || ord.downloadLink || ord.fileUrl || '').trim();
   const hasSpecificLink = specificLink && (!specificLink.includes('VIP_KINK') && !specificLink.includes('TRUSTED_BROTHER'));
 
@@ -951,20 +962,32 @@ export function formatOrderCardHtml(ord) {
   const claimMsg = `Hi Admin, my order #${orderId} (${ord.productName || 'VIP Content Pack'}) is approved! Please provide my VIP Telegram access link.`;
   const claimUrl = `${supTg.url}?text=${encodeURIComponent(claimMsg)}`;
 
+  // Product Image Resolution
+  let thumbImg = ord.image || ord.img || ord.productImage || '';
+  if (!thumbImg && typeof window !== 'undefined' && window.__preloadedCatalog?.products) {
+    try {
+      const p = Object.values(window.__preloadedCatalog.products).find(x => x && (x.id === ord.productId || x.title === ord.productName || x.name === ord.productName));
+      if (p) thumbImg = p.image || p.imageUrl || p.thumbnail || (Array.isArray(p.images) ? p.images[0] : '');
+    } catch (_) {}
+  }
+  const thumbHtml = thumbImg
+    ? `<img src="${escapeHtml(thumbImg)}" alt="${safeTitle}" style="width:100%;height:100%;object-fit:cover;border-radius:12px;" />`
+    : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:rgba(255,42,141,0.1);border-radius:12px;color:#ff2a8d;font-size:20px;"><i class="fa-solid fa-receipt"></i></div>`;
+
   let noteHtml = '';
   let actionHtml = '';
 
   if (isConfirmed) {
     if (hasSpecificLink) {
       noteHtml = `
-        <div class="user-order-note confirmed" style="background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.3); color: #34d399; border-radius: 8px; padding: 6px 10px; display: flex; align-items: center; gap: 6px; font-size: 12px; margin-top: 4px;">
+        <div class="user-order-note confirmed" style="background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.3); color: #34d399; border-radius: 10px; padding: 8px 12px; display: flex; align-items: center; gap: 8px; font-size: 12px; margin-top: 6px;">
           <i class="fa-solid fa-circle-check"></i>
           <span>Order Approved! Your VIP Access Link is unlocked below.</span>
         </div>
       `;
       actionHtml = `
         <div class="user-order-actions" style="display: flex; gap: 8px; margin-top: 8px; align-items: stretch;">
-          <a href="${escapeHtml(specificLink)}" target="_blank" rel="noopener" class="btn-order-access confirmed" style="flex: 1; text-align: center; text-decoration: none; justify-content: center; display: inline-flex; align-items: center; gap: 8px; font-weight: 700; padding: 10px 14px; border-radius: 12px; background: linear-gradient(135deg, #10b981, #059669); color: #ffffff;">
+          <a href="${escapeHtml(specificLink)}" target="_blank" rel="noopener" class="btn-order-access confirmed" style="flex: 1; text-align: center; text-decoration: none; justify-content: center; display: inline-flex; align-items: center; gap: 8px; font-weight: 700; padding: 11px 16px; border-radius: 12px; background: linear-gradient(135deg, #10b981, #059669); color: #ffffff; box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35);">
             <i class="fa-brands fa-telegram"></i>
             <span>Join VIP Channel / Access Link</span>
           </a>
@@ -972,14 +995,14 @@ export function formatOrderCardHtml(ord) {
       `;
     } else {
       noteHtml = `
-        <div class="user-order-note confirmed" style="background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.3); color: #34d399; border-radius: 8px; padding: 6px 10px; display: flex; align-items: center; gap: 6px; font-size: 12px; margin-top: 4px;">
+        <div class="user-order-note confirmed" style="background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.3); color: #34d399; border-radius: 10px; padding: 8px 12px; display: flex; align-items: center; gap: 8px; font-size: 12px; margin-top: 6px;">
           <i class="fa-solid fa-circle-check"></i>
           <span>Order Approved! Message Admin on Telegram (@${supTg.username}) to claim your link.</span>
         </div>
       `;
       actionHtml = `
         <div class="user-order-actions" style="display: flex; gap: 8px; margin-top: 8px; align-items: stretch;">
-          <a href="${claimUrl}" target="_blank" rel="noopener" class="btn-order-access confirmed" style="flex: 1; text-align: center; text-decoration: none; justify-content: center; display: inline-flex; align-items: center; gap: 8px; font-weight: 700; padding: 10px 14px; border-radius: 12px; background: linear-gradient(135deg, #0088cc, #0284c7); color: #ffffff;">
+          <a href="${claimUrl}" target="_blank" rel="noopener" class="btn-order-access confirmed" style="flex: 1; text-align: center; text-decoration: none; justify-content: center; display: inline-flex; align-items: center; gap: 8px; font-weight: 700; padding: 11px 16px; border-radius: 12px; background: linear-gradient(135deg, #0088cc, #0284c7); color: #ffffff; box-shadow: 0 4px 14px rgba(2, 132, 199, 0.35);">
             <i class="fa-brands fa-telegram"></i>
             <span>Get Link from Admin (@${supTg.username})</span>
           </a>
@@ -988,13 +1011,13 @@ export function formatOrderCardHtml(ord) {
     }
   } else {
     noteHtml = `
-      <div class="user-order-note pending">
+      <div class="user-order-note pending" style="background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.28); color: #fbbf24; border-radius: 10px; padding: 8px 12px; display: flex; align-items: center; gap: 8px; font-size: 12px; margin-top: 6px;">
         <i class="fa-solid fa-hourglass-half"></i>
         <span>Order pending verification. Content access link will unlock automatically upon admin approval.</span>
       </div>
     `;
     actionHtml = `
-      <a href="${tgUrl}" target="_blank" rel="noopener" class="btn-order-access pending">
+      <a href="${tgUrl}" target="_blank" rel="noopener" class="btn-order-access pending" style="display: flex; align-items: center; justify-content: center; gap: 8px; padding: 11px 16px; border-radius: 12px; text-decoration: none; font-weight: 700; margin-top: 8px; background: rgba(245, 158, 11, 0.14); border: 1px solid rgba(245, 158, 11, 0.35); color: #fbbf24;">
         <i class="fa-brands fa-telegram"></i>
         <span>Order Pending · Send Payment Proof</span>
       </a>
@@ -1003,18 +1026,30 @@ export function formatOrderCardHtml(ord) {
 
   return `
     <div class="user-order-item ${isConfirmed ? 'is-confirmed' : 'is-pending'}" id="user-order-${escapeHtml(ord.orderId || orderId)}">
-      <div class="user-order-top">
-        <span class="user-order-id">#${escapeHtml(orderId)}</span>
+      <div class="user-order-top" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span class="user-order-id">#${escapeHtml(orderId)}</span>
+          <span style="font-size: 11px; color: #94a3b8;"><i class="fa-regular fa-clock"></i> ${safeDate}</span>
+        </div>
         <span class="user-order-status ${isConfirmed ? 'confirmed' : 'pending'}">
           <i class="fa-solid ${isConfirmed ? 'fa-circle-check' : 'fa-clock'}"></i>
           ${isConfirmed ? 'Confirmed' : 'Pending Approval'}
         </span>
       </div>
-      <div class="user-order-title">${safeTitle}</div>
-      <div class="user-order-meta">
-        <span class="user-order-price">${safePrice}</span>
-        <span><i class="fa-regular fa-clock"></i> ${safeDate}</span>
+
+      <div style="display: flex; gap: 12px; align-items: center; margin: 4px 0;">
+        <div style="width: 58px; height: 58px; min-width: 58px; border-radius: 12px; overflow: hidden; background: #1a1528; border: 1px solid rgba(255, 255, 255, 0.08); position: relative;">
+          ${thumbHtml}
+        </div>
+        <div style="flex: 1; min-width: 0;">
+          <div class="user-order-title" title="${safeTitle}" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 0.94rem; font-weight: 750;">${safeTitle}</div>
+          <div class="user-order-meta" style="margin-top: 4px; display: flex; align-items: center; justify-content: space-between;">
+            <span class="user-order-price" style="font-weight: 800; font-size: 0.98rem;">${safePrice}</span>
+            <span style="font-size: 11.5px; color: #94a3b8;"><i class="fa-solid fa-wallet"></i> ${escapeHtml(ord.paymentMethod || 'UPI')}</span>
+          </div>
+        </div>
       </div>
+
       ${noteHtml}
       ${actionHtml}
     </div>
@@ -1037,71 +1072,49 @@ export async function syncUserOrdersWithFirebase() {
       if ((ord.status === 'confirmed' || ord.status === 'completed') && (ord.downloadLink || ord.fileUrl || ord.orderLink)) continue;
 
       try {
-        let remoteOrder = null;
         let isApproved = false;
         let link = '';
 
-        const supaUrl = 'https://xazhsjotzoentrkminol.supabase.co';
-        const supaKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhhemhzam90em9lbnRya21pbm9sIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQ1NjEzNjQsImV4cCI6MjExMDEzNzM2NH0.fcPhOQl-nLM5sLxl-elVgzEYmYG_C5-OkIy-rD_vn-0';
-        const supaHdrs = { 'apikey': supaKey, 'Authorization': `Bearer ${supaKey}` };
+        // Query server endpoint with service key bypass of Supabase RLS
+        const apiBase = (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.hostname.includes('onrender.com'))) ? '' : 'https://linkadda-online.onrender.com';
+        const res = await fetch(`${apiBase}/api/orders?orderId=${encodeURIComponent(ord.orderId)}`).catch(() => null);
 
-        const res = await fetch(`${supaUrl}/rest/v1/orders?id=eq.${encodeURIComponent(ord.orderId)}&select=*`, { headers: supaHdrs });
-        if (res.ok) {
-          const rows = await res.json();
-          if (rows && rows.length) {
-            remoteOrder = rows[0].data || rows[0];
+        if (res && res.ok) {
+          const body = await res.json().catch(() => null);
+          if (body && body.success && body.order) {
+            const remoteOrder = body.order;
+            isApproved = remoteOrder.status === 'approved' || remoteOrder.status === 'completed' || remoteOrder.status === 'confirmed';
+            link = remoteOrder.channelLink || remoteOrder.downloadLink || '';
+          }
+        } else {
+          // Direct Supabase fallback
+          const supaUrl = 'https://xazhsjotzoentrkminol.supabase.co';
+          const supaKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhhemhzam90em9lbnRya21pbm9sIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQ1NjEzNjQsImV4cCI6MjExMDEzNzM2NH0.fcPhOQl-nLM5sLxl-elVgzEYmYG_C5-OkIy-rD_vn-0';
+          const supaHdrs = { 'apikey': supaKey, 'Authorization': `Bearer ${supaKey}` };
+          const sRes = await fetch(`${supaUrl}/rest/v1/orders?id=eq.${encodeURIComponent(ord.orderId)}&select=*`, { headers: supaHdrs }).catch(() => null);
+          if (sRes && sRes.ok) {
+            const rows = await sRes.json().catch(() => []);
+            if (rows && rows.length) {
+              const r = rows[0].data || rows[0];
+              isApproved = r.status === 'paid' || r.status === 'approved' || r.status === 'confirmed' || r.status === 'completed';
+              link = r.channelLink || r.downloadLink || r.fileUrl || '';
+            }
           }
         }
 
-        if (remoteOrder) {
-          if (!isApproved) {
-            isApproved = 
-              remoteOrder.status === 'paid' || 
-              remoteOrder.status === 'approved' || 
-              remoteOrder.status === 'confirmed' || 
-              remoteOrder.status === 'completed' ||
-              remoteOrder.orderStatus === 'approved' ||
-              remoteOrder.orderStatus === 'completed' ||
-              remoteOrder.paymentStatus === 'paid' ||
-              remoteOrder.paymentStatus === 'approved';
-          }
+        if (isApproved) {
+          const wasPending = ord.status !== 'confirmed' && ord.status !== 'completed';
+          ord.status = 'confirmed';
+          ord.channelLink = link || '';
+          ord.downloadLink = link || '';
+          ord.fileUrl = link || '';
+          ord.orderLink = link || '';
 
-          if (isApproved) {
-            const wasPending = ord.status !== 'confirmed' && ord.status !== 'completed';
-            ord.status = 'confirmed';
-            if (!link) {
-              link = remoteOrder.channelLink || remoteOrder.downloadLink || remoteOrder.fileUrl || '';
-              if ((link.includes('VIP_KINK') || link.includes('TRUSTED_BROTHER'))) link = '';
-            }
-
-            // If order doesn't have link, fetch from original product in Supabase
-            if (!link && (remoteOrder.productId || ord.productId)) {
-              try {
-                const pId = remoteOrder.productId || ord.productId;
-                const pRes = await fetch(`${supaUrl}/rest/v1/products?id=eq.${encodeURIComponent(pId)}&select=*`, { headers: supaHdrs });
-                if (pRes.ok) {
-                  const pRows = await pRes.json();
-                  if (pRows && pRows.length) {
-                    const prodData = pRows[0].data || pRows[0];
-                    link = prodData.channelLink || prodData.deliveryLink || '';
-                    if ((link.includes('VIP_KINK') || link.includes('TRUSTED_BROTHER'))) link = '';
-                  }
-                }
-              } catch (_) {}
-            }
-
-            ord.channelLink = link || '';
-            ord.downloadLink = link || '';
-            ord.fileUrl = link || '';
-            ord.orderLink = link || '';
-
-
-            hasUpdates = true;
-            if (wasPending) {
-              addOrderConfirmedNotification(ord);
-              if (typeof showAppToast === 'function') {
-                showAppToast(`🎉 Great news! Order #${String(ord.orderId).slice(-6)} Approved! VIP access is ready.`);
-              }
+          hasUpdates = true;
+          if (wasPending) {
+            addOrderConfirmedNotification(ord);
+            if (typeof showAppToast === 'function') {
+              showAppToast(`🎉 Great news! Order #${String(ord.orderId).slice(-6)} Approved! VIP access is ready.`);
             }
           }
         }
@@ -1156,6 +1169,54 @@ if (typeof window !== 'undefined') {
       syncUserOrdersWithFirebase().catch(() => {});
     }
   });
+}
+
+export function addOrderPlacedNotification(ord) {
+  try {
+    if (!ord || !ord.orderId) return;
+    const user = getCustomerSession();
+    const uid = user ? user.uid : 'guest';
+    const notifsKey = `linkadda_notifs_${uid}`;
+    let list = [];
+    try {
+      const raw = localStorage.getItem(notifsKey);
+      if (raw) list = JSON.parse(raw);
+    } catch (_) {}
+
+    const rawId = String(ord.orderId || '');
+    const orderId = rawId.slice(-10).toUpperCase();
+    const notifId = `notif_order_${rawId}_placed`;
+
+    // Deduplicate
+    if (list.some(n => n.id === notifId)) return;
+
+    const supTg = getLiveSupportTg();
+    const productName = ord.productName || ord.name || ord.title || 'VIP Content Pack';
+    const eventTime = ord.timestamp || Date.now();
+
+    const notifItem = {
+      id: notifId,
+      type: 'order_placed',
+      orderId: rawId,
+      productName: productName,
+      title: `Order #${orderId} Placed! ⏳`,
+      desc: `Your payment for "${productName}" has been submitted. Admin verification is in progress. VIP link will unlock upon approval.`,
+      timestamp: eventTime,
+      time: formatRelativeTime(eventTime),
+      actionUrl: `${supTg.url}?text=${encodeURIComponent(`Hi Admin, I have placed order #${orderId} (${productName}). Please verify.`)}`,
+      actionText: `Message Admin on Telegram (@${supTg.username})`,
+      unread: true,
+      icon: 'fa-clock',
+      theme: 'pending'
+    };
+
+    list.unshift(notifItem);
+    localStorage.setItem(notifsKey, JSON.stringify(list));
+    updateNotificationsUI();
+    renderNotificationsPage();
+  } catch (err) {
+    console.warn('Order placed notification notice:', err);
+  }
 }
 
 export function addOrderConfirmedNotification(ord) {
@@ -1904,6 +1965,7 @@ window.markNotificationsAsRead = markNotificationsAsRead;
 window.renderNotificationsPage = renderNotificationsPage;
 window.getUserNotifications = getUserNotifications;
 window.addUserWelcomeNotification = addUserWelcomeNotification;
+window.addOrderPlacedNotification = addOrderPlacedNotification;
 window.updateNotificationsUI = updateNotificationsUI;
 window.saveCustomerName = saveCustomerName;
 window.getCustomerSession = getCustomerSession;

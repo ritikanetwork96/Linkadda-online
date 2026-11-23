@@ -1651,15 +1651,62 @@ img, video {
     color: #ffffff !important;
     font-size: 0.65rem !important;
     font-weight: 800 !important;
-    display: flex !important;
+    display: none;
     align-items: center !important;
     justify-content: center !important;
     border: 2px solid #0e0b18 !important;
     box-shadow: 0 2px 8px rgba(255, 42, 141, 0.4) !important;
   }
 
+  .fk-appbar-badge:empty,
+  .fk-appbar-badge.is-zero,
+  .fk-appbar-badge[data-count="0"] {
+    display: none !important;
+  }
+
   [data-theme="light"] .fk-appbar-badge {
     border-color: #ffffff !important;
+  }
+
+  /* Hide floating Telegram dock on fullscreen app pages to prevent overlapping content */
+  body:has(#appAccountView:not([style*="display: none"])) #floatingTgDock,
+  body:has(#appNotificationsView:not([style*="display: none"])) #floatingTgDock,
+  body:has(#appOrdersView:not([style*="display: none"])) #floatingTgDock {
+    display: none !important;
+  }
+
+  /* ── SETTINGS HERO CARD (ADAPTIVE LIGHT / DARK) ── */
+  .settings-hero-card {
+    padding: 22px 20px !important;
+    border-radius: 20px !important;
+    background: linear-gradient(135deg, rgba(28, 20, 48, 0.95), rgba(15, 11, 28, 0.95)) !important;
+    border: 1px solid rgba(255, 255, 255, 0.09) !important;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35) !important;
+    transition: all 0.25s ease !important;
+  }
+
+  [data-theme="light"] .settings-hero-card {
+    background: linear-gradient(135deg, #ffffff 0%, #fff1f7 100%) !important;
+    border: 1.5px solid rgba(255, 42, 141, 0.16) !important;
+    box-shadow: 0 6px 24px -4px rgba(255, 42, 141, 0.08), 0 2px 6px rgba(15, 23, 42, 0.04) !important;
+  }
+
+  [data-theme="light"] .settings-hero-card h2 {
+    color: #0f172a !important;
+  }
+
+  [data-theme="light"] .settings-hero-card p {
+    color: #64748b !important;
+  }
+
+  /* Notification themes */
+  .notif-page-card-icon.success {
+    background: rgba(16, 185, 129, 0.16) !important;
+    color: #10b981 !important;
+  }
+  .notif-page-card-icon.pending {
+    background: rgba(245, 158, 11, 0.16) !important;
+    color: #f59e0b !important;
   }
 
   .floating-cart-left {

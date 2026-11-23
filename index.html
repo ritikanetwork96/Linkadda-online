@@ -1363,7 +1363,7 @@
             <i class="fa-solid fa-gear"></i>
             <span class="fk-user-btn-text" id="headerUserBtnText">Settings</span>
           </button>
-          <button type="button" class="fk-orders-btn-wrap" id="headerOrdersBtn" title="My Orders" onclick="window.openOrdersDrawer ? window.openOrdersDrawer() : (window.location.hash = '#orders')">
+          <button type="button" class="fk-orders-btn-wrap" id="headerOrdersBtn" title="My Orders" onclick="(window.innerWidth <= 991 && window.showOrdersPage) ? window.showOrdersPage('store') : (window.openOrdersDrawer ? window.openOrdersDrawer() : (window.location.hash = '#orders'))">
             <i class="fa-solid fa-receipt"></i>
             <span class="fk-orders-btn-text">Orders</span>
             <span class="fk-cart-count-badge" id="ordersBadgeHeader" style="display:none;">0</span>
@@ -3630,7 +3630,14 @@
     const badgeAppbar = document.getElementById('fkAppbarWishlistBadge');
     if (badgeAppbar) {
       badgeAppbar.textContent = count;
-      badgeAppbar.style.display = count > 0 ? 'flex' : 'none';
+      badgeAppbar.setAttribute('data-count', count);
+      if (count > 0) {
+        badgeAppbar.style.setProperty('display', 'flex', 'important');
+        badgeAppbar.classList.remove('is-zero');
+      } else {
+        badgeAppbar.style.setProperty('display', 'none', 'important');
+        badgeAppbar.classList.add('is-zero');
+      }
     }
   }
 
@@ -4480,7 +4487,11 @@
   // Check #orders hash on load and hashchange
   function checkOrdersHash() {
     if (window.location.hash === '#orders') {
-      openOrdersDrawer();
+      if (window.innerWidth <= 991 && typeof window.showOrdersPage === 'function') {
+        window.showOrdersPage('store');
+      } else {
+        openOrdersDrawer();
+      }
     }
   }
   window.addEventListener('hashchange', checkOrdersHash);
@@ -6958,7 +6969,14 @@
     badges.forEach(b => {
       if (b) {
         b.textContent = totalCount;
-        b.style.display = totalCount > 0 ? 'inline-flex' : 'none';
+        b.setAttribute('data-count', totalCount);
+        if (totalCount > 0) {
+          b.style.setProperty('display', (b.id && b.id.includes('Appbar')) ? 'flex' : 'inline-flex', 'important');
+          b.classList.remove('is-zero');
+        } else {
+          b.style.setProperty('display', 'none', 'important');
+          b.classList.add('is-zero');
+        }
       }
     });
     
@@ -8862,14 +8880,14 @@
       
       <!-- ━━ COLUMN A: Store Settings & Quick Controls Sidebar ━━ -->
       <div class="profile-col-sidebar">
-        <div class="account-section-card" style="padding: 22px 20px; border-radius: 20px; background: rgba(18, 14, 28, 0.85); border: 1px solid rgba(255, 255, 255, 0.08); box-shadow: 0 10px 30px rgba(0,0,0,0.35);">
+        <div class="account-section-card settings-hero-card">
           <div style="display: flex; align-items: center; gap: 14px;">
-            <div style="width: 48px; height: 48px; border-radius: 14px; background: linear-gradient(135deg, rgba(255,42,141,0.2), rgba(139,92,246,0.25)); border: 1px solid rgba(255,42,141,0.4); display: flex; align-items: center; justify-content: center; font-size: 1.3rem; color: #ff2a8d; flex-shrink: 0;">
+            <div style="width: 48px; height: 48px; border-radius: 14px; background: linear-gradient(135deg, rgba(255,42,141,0.2), rgba(139,92,246,0.25)); border: 1.5px solid rgba(255,42,141,0.35); display: flex; align-items: center; justify-content: center; font-size: 1.3rem; color: #ff2a8d; flex-shrink: 0;">
               <i class="fa-solid fa-gear"></i>
             </div>
             <div>
-              <h2 style="font-size: 1.15rem; font-weight: 850; color: #ffffff; margin: 0; letter-spacing: -0.2px;">Settings & Preferences</h2>
-              <p style="font-size: 0.8rem; color: #94a3b8; margin: 3px 0 0;">Manage display theme, store currency & receipts</p>
+              <h2 style="font-size: 1.15rem; font-weight: 850; margin: 0; letter-spacing: -0.2px;">Settings & Preferences</h2>
+              <p style="font-size: 0.8rem; margin: 3px 0 0;">Manage display theme, store currency & receipts</p>
             </div>
           </div>
           <div style="display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap;">
@@ -8897,9 +8915,9 @@
       <!-- ━━ COLUMN B: Quick Hub Matrix & Orders Activity Center ━━ -->
       <div class="profile-col-main">
 
-        <!-- 1. Bento 4-Tile Quick Hub -->
+        <!-- 1. Bento 4-Tile Symmetrical Quick Hub (2x2 Grid) -->
         <div class="fk-hub-grid">
-          <div class="fk-hub-card orders-tile" id="profileOrdersCard" onclick="window.openOrdersDrawer ? window.openOrdersDrawer() : (window.showOrdersPage ? window.showOrdersPage('profile') : (window.location.hash = '#orders'))" role="button" tabindex="0">
+          <div class="fk-hub-card orders-tile" id="profileOrdersCard" onclick="(window.innerWidth <= 991 && window.showOrdersPage) ? window.showOrdersPage('profile') : (window.openOrdersDrawer ? window.openOrdersDrawer() : (window.location.hash = '#orders'))" role="button" tabindex="0">
             <div class="fk-hub-icon-wrap orders">
               <i class="fa-solid fa-bag-shopping"></i>
             </div>
@@ -8942,17 +8960,6 @@
             </div>
             <span class="fk-hub-arrow"><i class="fa-solid fa-arrow-up-right-from-square"></i></span>
           </a>
-
-          <div class="fk-hub-card hidden-tile" id="profileHiddenCard" onclick="window.openHiddenPacksDrawer && window.openHiddenPacksDrawer()" role="button" tabindex="0">
-            <div class="fk-hub-icon-wrap" style="background: rgba(148, 163, 184, 0.16); color: #94a3b8; border: 1px solid rgba(148, 163, 184, 0.25);">
-              <i class="fa-solid fa-eye-slash"></i>
-            </div>
-            <div class="fk-hub-content">
-              <div class="fk-hub-title">Hidden Packs</div>
-              <div class="fk-hub-badge" id="profileHiddenCount" style="color: #cbd5e1;">0 Hidden</div>
-            </div>
-            <span class="fk-hub-arrow"><i class="fa-solid fa-arrow-right"></i></span>
-          </div>
         </div>
 
 
@@ -9034,7 +9041,7 @@
                 </div>
               </div>
               <div class="profile-option-right">
-                <span class="profile-currency-pill" id="settingsHiddenPill" style="background: rgba(148, 163, 184, 0.16); color: #cbd5e1; border: 1px solid rgba(148, 163, 184, 0.25);">0 Hidden</span>
+                <span class="profile-hidden-pill" id="settingsHiddenPill" style="background: rgba(148, 163, 184, 0.16); color: #cbd5e1; border: 1px solid rgba(148, 163, 184, 0.25); font-size: 0.74rem; font-weight: 700; padding: 3px 8px; border-radius: 6px;">0 Hidden</span>
                 <i class="fa-solid fa-chevron-right opt-chevron"></i>
               </div>
             </div>
@@ -9126,13 +9133,13 @@
       <span>Categories</span>
     </button>
     <button type="button" class="fk-appbar-item" id="fkAppbarWishlistBtn" onclick="openWishlistDrawer()" aria-label="Liked Items">
-      <i class="fa-solid fa-heart" style="color:#f43f5e;"></i>
-      <span class="fk-appbar-badge" id="fkAppbarWishlistBadge" style="display:none;background:#e11d48;">0</span>
+      <i class="fa-solid fa-heart"></i>
+      <span class="fk-appbar-badge is-zero" id="fkAppbarWishlistBadge" data-count="0" style="display:none;">0</span>
       <span>Liked</span>
     </button>
     <button type="button" class="fk-appbar-item" id="fkAppbarCartBtn" onclick="openCartDrawer()" aria-label="Shopping Cart">
       <i class="fa-solid fa-cart-shopping"></i>
-      <span class="fk-appbar-badge" id="fkAppbarCartBadge" style="display:none;">0</span>
+      <span class="fk-appbar-badge is-zero" id="fkAppbarCartBadge" data-count="0" style="display:none;">0</span>
       <span>Cart</span>
     </button>
     <button type="button" class="fk-appbar-item" id="appbarAccountBtn" aria-label="Settings" onclick="window.showProfilePage ? window.showProfilePage() : (window.location.hash = '#settings')">

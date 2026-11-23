@@ -98,6 +98,14 @@ const server = http.createServer(async (req, res) => {
 
     try {
       const bust = `?bust=${Date.now()}`;
+      if (pathname === '/api/orders') {
+        const mod = await import(`./api/orders.js${bust}`);
+        return await mod.default(req, resEnhanced);
+      }
+      if (pathname === '/api/products') {
+        const mod = await import(`./api/products.js${bust}`);
+        return await mod.default(req, resEnhanced);
+      }
       if (pathname === '/api/upload') {
         const mod = await import(`./api/upload.js${bust}`);
         return await mod.default(req, resEnhanced);
