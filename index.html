@@ -210,10 +210,14 @@
   <script src="currency.js?v=20261111_v1" charset="UTF-8"></script>
   <style id="critical-hero-toast-fix">
     /* ── LUXURY UNIFIED HEADER ACTION BUTTONS ── */
+    .fk-user-btn-wrap,
+    #headerUserBtn {
+      display: none !important;
+    }
+
     .fk-notif-btn-wrap,
     .fk-orders-btn-wrap,
-    .fk-cart-btn-wrap,
-    .fk-user-btn-wrap {
+    .fk-cart-btn-wrap {
       width: 38px !important;
       height: 38px !important;
       border-radius: 50% !important;
@@ -228,8 +232,7 @@
 
     [data-theme="light"] .fk-notif-btn-wrap,
     [data-theme="light"] .fk-orders-btn-wrap,
-    [data-theme="light"] .fk-cart-btn-wrap,
-    [data-theme="light"] .fk-user-btn-wrap {
+    [data-theme="light"] .fk-cart-btn-wrap {
       background: #ffffff !important;
       border: 1.5px solid #e2e8f0 !important;
       color: #334155 !important;
@@ -237,8 +240,7 @@
     }
     [data-theme="light"] .fk-notif-btn-wrap i,
     [data-theme="light"] .fk-orders-btn-wrap i,
-    [data-theme="light"] .fk-cart-btn-wrap i,
-    [data-theme="light"] .fk-user-btn-wrap i {
+    [data-theme="light"] .fk-cart-btn-wrap i {
       color: #334155 !important;
       font-size: 15px !important;
       filter: none !important;
@@ -246,8 +248,7 @@
     }
     [data-theme="light"] .fk-notif-btn-wrap:hover,
     [data-theme="light"] .fk-orders-btn-wrap:hover,
-    [data-theme="light"] .fk-cart-btn-wrap:hover,
-    [data-theme="light"] .fk-user-btn-wrap:hover {
+    [data-theme="light"] .fk-cart-btn-wrap:hover {
       background: #fff0f7 !important;
       border-color: rgba(255, 42, 141, 0.35) !important;
       color: #ff2a8d !important;
@@ -256,14 +257,12 @@
     }
     [data-theme="light"] .fk-notif-btn-wrap:hover i,
     [data-theme="light"] .fk-orders-btn-wrap:hover i,
-    [data-theme="light"] .fk-cart-btn-wrap:hover i,
-    [data-theme="light"] .fk-user-btn-wrap:hover i {
+    [data-theme="light"] .fk-cart-btn-wrap:hover i {
       color: #ff2a8d !important;
     }
     [data-theme="light"] .fk-notif-btn-wrap:active,
     [data-theme="light"] .fk-orders-btn-wrap:active,
-    [data-theme="light"] .fk-cart-btn-wrap:active,
-    [data-theme="light"] .fk-user-btn-wrap:active {
+    [data-theme="light"] .fk-cart-btn-wrap:active {
       transform: scale(0.94) !important;
     }
 
@@ -296,12 +295,29 @@
       color: #ffffff !important;
       font-size: 10px !important;
       font-weight: 800 !important;
-      display: flex !important;
+      display: inline-flex;
       align-items: center !important;
       justify-content: center !important;
       border: 2px solid #ffffff !important;
       box-shadow: 0 2px 6px rgba(255, 42, 141, 0.4) !important;
       line-height: 1 !important;
+    }
+    .fk-cart-count-badge[style*="display: none"],
+    .fk-cart-count-badge[style*="display:none"],
+    .fk-cart-count-badge:empty,
+    .fk-cart-count-badge[data-count="0"],
+    .fk-cart-count-badge.is-zero,
+    #cartBadgeHeader[style*="display: none"],
+    #cartBadgeHeader[style*="display:none"],
+    #cartBadgeHeader:empty,
+    #cartBadgeHeader[data-count="0"],
+    #cartBadgeHeader.is-zero,
+    #ordersBadgeHeader[style*="display: none"],
+    #ordersBadgeHeader[style*="display:none"],
+    #ordersBadgeHeader:empty,
+    #ordersBadgeHeader[data-count="0"],
+    #ordersBadgeHeader.is-zero {
+      display: none !important;
     }
     [data-theme="dark"] .fk-cart-count-badge,
     [data-theme="dark"] #cartBadgeHeader,
@@ -1359,19 +1375,15 @@
             <i class="fa-solid fa-bell"></i>
             <span class="fk-notif-badge-dot" id="headerNotifDot"></span>
           </button>
-          <button type="button" class="fk-user-btn-wrap" id="headerUserBtn" title="Settings & Preferences" onclick="window.showProfilePage ? window.showProfilePage() : (window.location.hash = '#settings')">
-            <i class="fa-solid fa-gear"></i>
-            <span class="fk-user-btn-text" id="headerUserBtnText">Settings</span>
-          </button>
           <button type="button" class="fk-orders-btn-wrap" id="headerOrdersBtn" title="My Orders" onclick="(window.innerWidth <= 991 && window.showOrdersPage) ? window.showOrdersPage('store') : (window.openOrdersDrawer ? window.openOrdersDrawer() : (window.location.hash = '#orders'))">
             <i class="fa-solid fa-receipt"></i>
             <span class="fk-orders-btn-text">Orders</span>
-            <span class="fk-cart-count-badge" id="ordersBadgeHeader" style="display:none;">0</span>
+            <span class="fk-cart-count-badge" id="ordersBadgeHeader" style="display:none;" data-count="0">0</span>
           </button>
           <button type="button" class="fk-cart-btn-wrap" id="headerCartBtn" title="Shopping Cart">
             <i class="fa-solid fa-cart-shopping"></i>
             <span class="fk-cart-btn-text">Cart</span>
-            <span class="fk-cart-count-badge" id="cartBadgeHeader" style="display:none;">0</span>
+            <span class="fk-cart-count-badge" id="cartBadgeHeader" style="display:none;" data-count="0">0</span>
           </button>
         </div>
       </div>
@@ -4262,13 +4274,29 @@
     const headerBadge = document.getElementById('ordersBadgeHeader');
     if (headerBadge) {
       headerBadge.textContent = countText;
-      headerBadge.style.display = count > 0 ? 'inline-flex' : 'none';
+      headerBadge.setAttribute('data-count', countText);
+      if (count > 0) {
+        headerBadge.classList.remove('is-zero');
+        headerBadge.style.removeProperty('display');
+        headerBadge.style.display = 'inline-flex';
+      } else {
+        headerBadge.classList.add('is-zero');
+        headerBadge.style.setProperty('display', 'none', 'important');
+      }
     }
 
     const appbarBadge = document.getElementById('fkAppbarOrdersBadge');
     if (appbarBadge) {
       appbarBadge.textContent = countText;
-      appbarBadge.style.display = count > 0 ? 'inline-flex' : 'none';
+      appbarBadge.setAttribute('data-count', countText);
+      if (count > 0) {
+        appbarBadge.classList.remove('is-zero');
+        appbarBadge.style.removeProperty('display');
+        appbarBadge.style.display = 'inline-flex';
+      } else {
+        appbarBadge.classList.add('is-zero');
+        appbarBadge.style.setProperty('display', 'none', 'important');
+      }
     }
 
     const drawerCount = document.getElementById('ordersDrawerCount');
