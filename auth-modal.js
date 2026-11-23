@@ -247,7 +247,7 @@ export function updateHeaderUserUI() {
   // Mobile Bottom App Bar Settings Tab
   if (appbarBtn) {
     appbarBtn.innerHTML = `
-      <i class="fa-solid fa-gear" id="appbarAccountIcon" style="color: #ff2a8d;"></i>
+      <i class="fa-solid fa-gear" id="appbarAccountIcon"></i>
       <span id="appbarAccountLabel">Settings</span>
     `;
     appbarBtn.setAttribute('aria-label', 'Settings');

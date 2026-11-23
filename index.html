@@ -325,6 +325,58 @@
       border-color: #0b1120 !important;
     }
 
+    /* ── NATIVE MOBILE APP BOTTOM BAR POLISH ── */
+    #fkAppbarWishlistBtn i,
+    .fk-appbar-item#fkAppbarWishlistBtn i {
+      color: #ef4444 !important;
+      filter: drop-shadow(0 2px 5px rgba(239, 68, 68, 0.38)) !important;
+      transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), color 0.2s ease, filter 0.2s ease !important;
+    }
+    #fkAppbarWishlistBtn:hover i,
+    #fkAppbarWishlistBtn:active i,
+    #fkAppbarWishlistBtn.active i {
+      color: #dc2626 !important;
+      transform: translateY(-2px) scale(1.2) !important;
+      filter: drop-shadow(0 3px 10px rgba(220, 38, 38, 0.65)) !important;
+    }
+    #fkAppbarWishlistBtn.active span,
+    .fk-appbar-item#fkAppbarWishlistBtn.active span {
+      color: #ef4444 !important;
+      font-weight: 700 !important;
+    }
+    [data-theme="light"] #fkAppbarWishlistBtn i,
+    [data-theme="light"] .fk-appbar-item#fkAppbarWishlistBtn i {
+      color: #ef4444 !important;
+      filter: drop-shadow(0 2px 6px rgba(239, 68, 68, 0.35)) !important;
+    }
+    [data-theme="light"] #fkAppbarWishlistBtn.active span,
+    [data-theme="light"] .fk-appbar-item#fkAppbarWishlistBtn.active span {
+      color: #dc2626 !important;
+    }
+    .fk-appbar-item.active::before {
+      content: '' !important;
+      position: absolute !important;
+      top: -5px !important;
+      left: 50% !important;
+      transform: translateX(-50%) !important;
+      width: 20px !important;
+      height: 3px !important;
+      border-radius: 0 0 3px 3px !important;
+      background: linear-gradient(90deg, #ff2a8d, #f43f5e) !important;
+      box-shadow: 0 2px 8px rgba(255, 42, 141, 0.65) !important;
+    }
+    [data-theme="light"] .fk-appbar-item.active::before {
+      background: linear-gradient(90deg, #e11d48, #f43f5e) !important;
+      box-shadow: 0 2px 8px rgba(225, 29, 72, 0.55) !important;
+    }
+    #fkAppbarWishlistBtn.active::before {
+      background: linear-gradient(90deg, #dc2626, #ef4444) !important;
+      box-shadow: 0 2px 8px rgba(239, 68, 68, 0.6) !important;
+    }
+    #appbarAccountBtn.active i {
+      transform: translateY(-2px) rotate(45deg) scale(1.12) !important;
+    }
+
     /* ── SEARCH BAR & FILTER BUTTON POLISH ── */
     .fk-search-row {
       display: flex !important;
