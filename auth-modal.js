@@ -1059,13 +1059,37 @@ export function formatOrderCardHtml(ord) {
 let syncOrdersInProgress = false;
 export async function syncUserOrdersWithFirebase() {
   if (syncOrdersInProgress) return;
-  const orders = getUserOrders();
-  if (!orders || !orders.length) return;
-
   syncOrdersInProgress = true;
+  let orders = getUserOrders();
   let hasUpdates = false;
 
   try {
+    // If local orders list is empty, attempt to recover/fetch orders from server
+    if (!orders || !orders.length) {
+      try {
+        const sess = getCustomerSession();
+        const visitorId = (typeof localStorage !== 'undefined' && localStorage.getItem('linkadda_visitor_id')) || '';
+        const tgUserId = (typeof localStorage !== 'undefined' && localStorage.getItem('linkadda_tg_user_id')) || '';
+        const qParams = new URLSearchParams();
+        if (sess && sess.uid) qParams.set('customerUid', sess.uid);
+        if (visitorId) qParams.set('visitorId', visitorId);
+        if (tgUserId) qParams.set('tgUserId', tgUserId);
+
+        if (qParams.toString()) {
+          const res = await fetch(`/api/orders?${qParams.toString()}`).catch(() => null);
+          if (res && res.ok) {
+            const body = await res.json().catch(() => null);
+            if (body && body.success && Array.isArray(body.orders) && body.orders.length > 0) {
+              orders = body.orders;
+              hasUpdates = true;
+            }
+          }
+        }
+      } catch (_) {}
+    }
+
+    if (!orders || !orders.length) return;
+
     for (const ord of orders) {
       if (!ord || !ord.orderId) continue;
       // Skip only if already confirmed AND link is resolved
@@ -1074,30 +1098,38 @@ export async function syncUserOrdersWithFirebase() {
       try {
         let isApproved = false;
         let link = '';
+        let resolved = false;
 
-        // Query server endpoint with service key bypass of Supabase RLS
-        const apiBase = (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.hostname.includes('onrender.com'))) ? '' : 'https://linkadda-online.onrender.com';
-        const res = await fetch(`${apiBase}/api/orders?orderId=${encodeURIComponent(ord.orderId)}`).catch(() => null);
-
-        if (res && res.ok) {
-          const body = await res.json().catch(() => null);
-          if (body && body.success && body.order) {
-            const remoteOrder = body.order;
-            isApproved = remoteOrder.status === 'approved' || remoteOrder.status === 'completed' || remoteOrder.status === 'confirmed';
-            link = remoteOrder.channelLink || remoteOrder.downloadLink || '';
+        // 1. Query server endpoint first (relative path)
+        try {
+          const res = await fetch(`/api/orders?orderId=${encodeURIComponent(ord.orderId)}`);
+          if (res && res.ok) {
+            const body = await res.json().catch(() => null);
+            if (body && body.success && body.order) {
+              const remoteOrder = body.order;
+              isApproved = remoteOrder.status === 'approved' || remoteOrder.status === 'completed' || remoteOrder.status === 'confirmed';
+              link = remoteOrder.channelLink || remoteOrder.downloadLink || '';
+              if (remoteOrder.productName && !ord.productName) ord.productName = remoteOrder.productName;
+              if (remoteOrder.amount && !ord.amount) ord.amount = remoteOrder.amount;
+              resolved = true;
+            }
           }
-        } else {
-          // Direct Supabase fallback
+        } catch (_) {}
+
+        // 2. Fallback to direct Supabase query with service key bypass of RLS
+        if (!resolved) {
           const supaUrl = 'https://xazhsjotzoentrkminol.supabase.co';
-          const supaKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhhemhzam90em9lbnRya21pbm9sIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQ1NjEzNjQsImV4cCI6MjExMDEzNzM2NH0.fcPhOQl-nLM5sLxl-elVgzEYmYG_C5-OkIy-rD_vn-0';
-          const supaHdrs = { 'apikey': supaKey, 'Authorization': `Bearer ${supaKey}` };
+          const supaServiceKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhhemhzam90em9lbnRya21pbm9sIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5NDU2MTM2NCwiZXhwIjoyMTEwMTM3MzY0fQ.sO_ZTRbmS7XInvK8YE6XEGz37URqzVmxxtsRABCGfHw';
+          const supaHdrs = { 'apikey': supaServiceKey, 'Authorization': `Bearer ${supaServiceKey}` };
           const sRes = await fetch(`${supaUrl}/rest/v1/orders?id=eq.${encodeURIComponent(ord.orderId)}&select=*`, { headers: supaHdrs }).catch(() => null);
           if (sRes && sRes.ok) {
             const rows = await sRes.json().catch(() => []);
             if (rows && rows.length) {
               const r = rows[0].data || rows[0];
-              isApproved = r.status === 'paid' || r.status === 'approved' || r.status === 'confirmed' || r.status === 'completed';
-              link = r.channelLink || r.downloadLink || r.fileUrl || '';
+              isApproved = rows[0].status === 'approved' || rows[0].status === 'paid' || r.status === 'paid' || r.status === 'approved' || r.status === 'confirmed';
+              link = rows[0].channel_link || r.channelLink || r.downloadLink || r.fileUrl || '';
+              if (rows[0].product_title && !ord.productName) ord.productName = rows[0].product_title;
+              if (rows[0].amount && !ord.amount) ord.amount = rows[0].amount;
             }
           }
         }
@@ -1146,6 +1178,9 @@ export async function syncUserOrdersWithFirebase() {
       }
       if (typeof window.updateOrdersBadge === 'function') {
         window.updateOrdersBadge();
+      }
+      if (typeof updateNotificationsUI === 'function') {
+        updateNotificationsUI();
       }
     }
   } finally {
@@ -1490,6 +1525,52 @@ export function getUserNotifications() {
       theme: 'drop'
     });
   }
+
+  // Ensure order notifications exist for all placed / confirmed orders
+  try {
+    const userOrders = getUserOrders();
+    if (Array.isArray(userOrders) && userOrders.length > 0) {
+      userOrders.forEach(ord => {
+        if (!ord || !ord.orderId) return;
+        const isApproved = ord.status === 'confirmed' || ord.status === 'completed' || ord.status === 'paid';
+        const notifId = isApproved ? `notif_order_${ord.orderId}_confirmed` : `notif_order_${ord.orderId}_placed`;
+        const alreadyHas = list.some(n => n.id === notifId || (n.orderId === ord.orderId && (isApproved ? n.type === 'order_confirmed' : n.type === 'order_placed')));
+        if (!alreadyHas) {
+          const pName = ord.productName || ord.productTitle || 'VIP Content Pack';
+          if (isApproved) {
+            list.unshift({
+              id: notifId,
+              type: 'order_confirmed',
+              orderId: ord.orderId,
+              productName: pName,
+              title: `Order #${String(ord.orderId).slice(-10).toUpperCase()} Approved! 🎉`,
+              desc: `Your order for "${pName}" has been verified and approved! VIP Telegram channel access is unlocked.`,
+              timestamp: ord.timestamp || Date.now(),
+              time: 'Recently',
+              actionUrl: ord.channelLink || ord.downloadLink || ord.fileUrl || 'https://t.me/TRUSTED_BROTHER1234',
+              unread: true,
+              icon: 'fa-circle-check',
+              theme: 'confirmed'
+            });
+          } else {
+            list.unshift({
+              id: notifId,
+              type: 'order_placed',
+              orderId: ord.orderId,
+              productName: pName,
+              title: `Order #${String(ord.orderId).slice(-10).toUpperCase()} Placed! ⏳`,
+              desc: `Your payment for "${pName}" is under verification. VIP link will unlock upon approval.`,
+              timestamp: ord.timestamp || Date.now(),
+              time: 'Recently',
+              unread: true,
+              icon: 'fa-clock',
+              theme: 'pending'
+            });
+          }
+        }
+      });
+    }
+  } catch (_) {}
 
   return list;
 }

@@ -23,14 +23,18 @@ export default async function handler(req, res) {
     'Content-Type': 'application/json'
   };
 
-  // GET: Lookup order status by orderId or customerUid
+  // GET: Lookup order status by orderId, customerUid, visitorId, tgUserId, etc.
   if (req.method === 'GET') {
     const q = req.query || {};
     const orderId = String(q.orderId || q.order_id || q.id || '').trim();
     const customerUid = String(q.customerUid || q.customer_uid || '').trim();
+    const visitorId = String(q.visitorId || q.visitor_id || '').trim();
+    const tgUserId = String(q.tgUserId || q.telegramUserId || q.tg_user_id || '').trim();
+    const email = String(q.email || q.customerEmail || '').trim().toLowerCase();
+    const phone = String(q.phone || q.customerPhone || '').trim();
 
-    if (!orderId && !customerUid) {
-      return res.status(400).json({ success: false, error: 'orderId or customerUid is required' });
+    if (!orderId && !customerUid && !visitorId && !tgUserId && !email && !phone) {
+      return res.status(400).json({ success: false, error: 'Query parameter (orderId, customerUid, visitorId, etc.) required' });
     }
 
     try {
@@ -85,10 +89,15 @@ export default async function handler(req, res) {
           order: {
             orderId: orderRow.order_id || orderRow.id,
             productName: orderRow.product_title || data.productName || data.name || 'VIP Content Pack',
+            productTitle: orderRow.product_title || data.productName || data.name || 'VIP Content Pack',
             productId: productId || '',
+            image: data.image || data.imageUrl || data.img || '',
             amount: orderRow.amount || data.amountINR || data.amount || 0,
+            amountDisplay: data.amountDisplay || `₹${orderRow.amount || data.amountINR || data.amount || 0}`,
             currency: orderRow.currency || data.currency || 'INR',
             paymentMethod: orderRow.payment_method || data.paymentMethod || 'UPI',
+            paymentProof: orderRow.payment_proof || data.paymentProof || data.screenshotUrl || '',
+            utr: orderRow.utr || data.utr || '',
             status: isApproved ? 'approved' : (orderRow.status === 'rejected' || data.status === 'rejected' ? 'rejected' : 'pending'),
             channelLink: channelLink || '',
             downloadLink: channelLink || '',
@@ -98,34 +107,45 @@ export default async function handler(req, res) {
         });
       }
 
-      if (customerUid) {
-        // Query by customerUid in data
-        const supaRes = await fetch(`${url}/rest/v1/orders?select=*&limit=50`, {
-          headers
-        });
-        if (!supaRes.ok) {
-          return res.status(500).json({ success: false, error: 'Database query failed' });
-        }
-        const rows = await supaRes.json();
-        const customerOrders = (rows || []).filter(r => {
-          const d = r.data || {};
-          return d.customerUid === customerUid || d.telegramUserId === customerUid || r.customer_email === customerUid || r.customer_phone === customerUid;
-        }).map(r => {
-          const d = r.data || {};
-          const isApproved = r.status === 'approved' || d.status === 'approved' || d.approved === true;
-          return {
-            orderId: r.order_id || r.id,
-            productName: r.product_title || d.productName || 'VIP Content Pack',
-            amount: r.amount || d.amount || 0,
-            currency: r.currency || 'INR',
-            status: isApproved ? 'approved' : (r.status || 'pending'),
-            channelLink: isApproved ? (r.channel_link || d.channelLink || '') : '',
-            createdAt: r.created_at || d.createdAt || Date.now()
-          };
-        });
-
-        return res.status(200).json({ success: true, orders: customerOrders });
+      // Query collection of orders for user session
+      const supaRes = await fetch(`${url}/rest/v1/orders?select=*&order=created_at.desc&limit=100`, {
+        headers
+      });
+      if (!supaRes.ok) {
+        return res.status(500).json({ success: false, error: 'Database query failed' });
       }
+      const rows = await supaRes.json();
+      const customerOrders = (rows || []).filter(r => {
+        const d = r.data || {};
+        if (customerUid && (d.customerUid === customerUid || d.uid === customerUid)) return true;
+        if (visitorId && (d.visitorId === visitorId || d.visitor_id === visitorId)) return true;
+        if (tgUserId && (String(d.telegramUserId) === tgUserId || String(d.tgUserId) === tgUserId)) return true;
+        if (email && (String(r.customer_email).toLowerCase() === email || String(d.customerEmail).toLowerCase() === email)) return true;
+        if (phone && (String(r.customer_phone) === phone || String(d.customerPhone) === phone)) return true;
+        return false;
+      }).map(r => {
+        const d = r.data || {};
+        const isApproved = r.status === 'approved' || d.status === 'approved' || d.approved === true;
+        return {
+          orderId: r.order_id || r.id,
+          productId: r.product_id || d.productId || '',
+          productName: r.product_title || d.productName || 'VIP Content Pack',
+          productTitle: r.product_title || d.productName || 'VIP Content Pack',
+          image: d.image || d.imageUrl || d.img || '',
+          amount: r.amount || d.amount || 0,
+          amountDisplay: d.amountDisplay || `₹${r.amount || d.amount || 0}`,
+          currency: r.currency || 'INR',
+          paymentMethod: r.payment_method || d.paymentMethod || 'UPI',
+          paymentProof: r.payment_proof || d.paymentProof || '',
+          status: isApproved ? 'approved' : (r.status || 'pending'),
+          channelLink: isApproved ? (r.channel_link || d.channelLink || '') : '',
+          downloadLink: isApproved ? (r.channel_link || d.channelLink || '') : '',
+          createdAt: r.created_at || d.createdAt || Date.now(),
+          date: r.created_at ? new Date(r.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Recently'
+        };
+      });
+
+      return res.status(200).json({ success: true, orders: customerOrders });
     } catch (err) {
       return res.status(500).json({ success: false, error: err.message });
     }
@@ -144,6 +164,15 @@ export default async function handler(req, res) {
     }
 
     try {
+      // Strip base64 raw data from nested data to protect bandwidth & memory
+      const safeData = { ...(payload.data || payload) };
+      if (typeof safeData.screenshotRaw === 'string' && safeData.screenshotRaw.startsWith('data:')) {
+        delete safeData.screenshotRaw;
+      }
+      if (typeof safeData.paymentProof === 'string' && safeData.paymentProof.startsWith('data:')) {
+        safeData.paymentProof = '';
+      }
+
       const orderRow = {
         id: orderId,
         order_id: orderId,
@@ -158,7 +187,7 @@ export default async function handler(req, res) {
         payment_proof: payload.paymentProof || payload.screenshotUrl || '',
         utr: payload.utr || payload.transactionId || '',
         status: payload.status || 'pending',
-        data: payload.data || payload
+        data: safeData
       };
 
       const supaRes = await fetch(`${url}/rest/v1/orders`, {
@@ -175,7 +204,7 @@ export default async function handler(req, res) {
         return res.status(500).json({ success: false, error: errText });
       }
 
-      return res.status(200).json({ success: true, orderId });
+      return res.status(200).json({ success: true, orderId, order: orderRow });
     } catch (err) {
       return res.status(500).json({ success: false, error: err.message });
     }
@@ -183,4 +212,3 @@ export default async function handler(req, res) {
 
   return res.status(405).json({ success: false, error: 'Method Not Allowed' });
 }
-

@@ -4553,16 +4553,30 @@
   document.addEventListener('DOMContentLoaded', updateOrdersBadge);
   setTimeout(updateOrdersBadge, 1200);
 
-  // Instant storage & cross-tab sync for customer orders
+  // Instant storage & cross-tab sync for customer orders & notifications
+  const handleOrderNotificationSync = () => {
+    updateOrdersBadge();
+    const drawer = document.getElementById('ordersDrawer');
+    if (drawer && drawer.classList.contains('open')) {
+      renderOrdersDrawer();
+    }
+    if (typeof window.renderOrdersPage === 'function') {
+      window.renderOrdersPage();
+    }
+    if (typeof window.updateNotificationsUI === 'function') {
+      window.updateNotificationsUI();
+    }
+    if (typeof window.renderNotificationsPage === 'function') {
+      window.renderNotificationsPage();
+    }
+  };
   window.addEventListener('storage', (e) => {
-    if (e.key === 'linkadda_user_orders' || e.key === 'linkadda_order_placed_event') {
-      updateOrdersBadge();
-      const drawer = document.getElementById('ordersDrawer');
-      if (drawer && drawer.classList.contains('open')) {
-        renderOrdersDrawer();
-      }
+    if (e.key === 'linkadda_user_orders' || e.key === 'linkadda_order_placed_event' || e.key === 'linkadda_order_approved_event' || (e.key && e.key.startsWith('linkadda_notifs_'))) {
+      handleOrderNotificationSync();
     }
   });
+  window.addEventListener('linkadda:order_placed', handleOrderNotificationSync);
+  window.addEventListener('linkadda:order_approved', handleOrderNotificationSync);
 
   // Check #orders hash on load and hashchange
   function checkOrdersHash() {

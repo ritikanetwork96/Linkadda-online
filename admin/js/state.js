@@ -393,20 +393,19 @@ export function startRealtime(force = false) {
   attachNode('hero', 'singleton');
   attachNode('categories');
   attachNode('products');
-  attachNode('events');
+  // Dedicated high-speed Supabase streams for events, orders, and visitors
   attachNode('banner', 'singleton');
   attachNode('faq');
   attachNode('testimonials');
   attachNode('settings', 'singleton');
   attachNode('payment', 'singleton');
-  attachNode('orders');
   attachNode('analytics', 'singleton');
   attachNode('media');
-  attachNode('visitors');
   attachNode('reviews');
   attachNode('customers');
   // Proactively fetch complete fresh snapshot via REST as high-reliability fallback
   syncAllFromFirebase(force).catch(() => {});
+  syncOrdersEventsVisitors(true).catch(() => {});
 }
 
 let isSyncingFirebase = false;
@@ -420,12 +419,13 @@ export async function syncAllFromFirebase(force = false) {
   lastSyncFirebaseTime = now;
 
   try {
-    const targets = ['visitors', 'events', 'orders', 'products', 'categories', 'customers', 'payment', 'settings', 'media', 'hero', 'banner'];
+    const rtdbTargets = ['products', 'categories', 'customers', 'payment', 'settings', 'media', 'hero', 'banner'];
+    const targets = ['orders', 'visitors', 'events', 'products', 'categories', 'customers', 'payment', 'settings', 'media', 'hero', 'banner'];
 
-    // 1. Try Firebase SDK get() on active connection
+    // 1. Try Firebase SDK get() on active connection for RTDB nodes
     let hasSdkChange = false;
     const sdkResults = await Promise.allSettled(
-      targets.map(async (key) => {
+      rtdbTargets.map(async (key) => {
         const snap = await get(ref(db, key));
         if (snap.exists() && snap.val()) {
           return { key, data: snap.val() };
@@ -438,11 +438,7 @@ export async function syncAllFromFirebase(force = false) {
       if (outcome.status === 'fulfilled' && outcome.value && outcome.value.data) {
         const { key, data } = outcome.value;
         if (typeof data === 'object' && Object.keys(data).length > 0) {
-          if (['orders', 'visitors', 'events'].includes(key)) {
-            if (!STORE[key] || typeof STORE[key] !== 'object') STORE[key] = {};
-            STORE[key] = { ...data };
-            hasSdkChange = true;
-          } else if (key === 'products' || key === 'categories') {
+          if (key === 'products' || key === 'categories') {
             if (!STORE[key] || typeof STORE[key] !== 'object') STORE[key] = {};
             Object.entries(data).forEach(([itemId, itemData]) => {
               if (itemData && typeof itemData === 'object') {
@@ -459,8 +455,7 @@ export async function syncAllFromFirebase(force = false) {
     });
 
     if (hasSdkChange) {
-      emitImmediate();
-      return;
+      emit();
     }
 
     // 2. Direct REST Fallback
@@ -1140,8 +1135,143 @@ export function recentActivity(limit = 12) {
     .slice(0, limit);
 }
 
-// ── INSTANT CROSS-TAB & REALTIME SYNC FOR ORDERS ──
+// ── 2. HIGH-SPEED ORDERS, EVENTS & VISITORS SYNCHRONIZATION ENGINE (SUPABASE) ──
+let isSyncingOrdersStream = false;
+export async function syncOrdersEventsVisitors(isFull = false) {
+  if (isSyncingOrdersStream && !isFull) return;
+  isSyncingOrdersStream = true;
+  try {
+    const supaUrl = 'https://xazhsjotzoentrkminol.supabase.co';
+    const serviceKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhhemhzam90em9lbnRya21pbm9sIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5NDU2MTM2NCwiZXhwIjoyMTEwMTM3MzY0fQ.sO_ZTRbmS7XInvK8YE6XEGz37URqzVmxxtsRABCGfHw';
+    const headers = { 'apikey': serviceKey, 'Authorization': `Bearer ${serviceKey}` };
+
+    const ordersLimit = isFull ? 500 : 100;
+    const eventsLimit = isFull ? 1000 : 250;
+    const visitorsLimit = isFull ? 1000 : 250;
+
+    const [ordersRes, intEventsRes, viewEventsRes, visitorsRes] = await Promise.allSettled([
+      fetch(`${supaUrl}/rest/v1/orders?select=id,order_id,customer_name,customer_email,customer_phone,product_id,product_title,amount,currency,payment_method,payment_proof,utr,status,created_at,updated_at,data&order=created_at.desc&limit=${ordersLimit}`, { headers, cache: 'no-store', signal: AbortSignal.timeout(6000) }),
+      fetch(`${supaUrl}/rest/v1/events?select=id,event_type,product_id,product_title,visitor_id,created_at,data&event_type=neq.product_view&order=created_at.desc&limit=${eventsLimit}`, { headers, cache: 'no-store', signal: AbortSignal.timeout(6000) }),
+      fetch(`${supaUrl}/rest/v1/events?select=id,event_type,product_id,product_title,visitor_id,created_at,data&event_type=eq.product_view&order=created_at.desc&limit=${Math.min(eventsLimit, 500)}`, { headers, cache: 'no-store', signal: AbortSignal.timeout(6000) }),
+      fetch(`${supaUrl}/rest/v1/visitors?select=id,visitor_id,page,referrer,created_at,data&order=created_at.desc&limit=${visitorsLimit}`, { headers, cache: 'no-store', signal: AbortSignal.timeout(6000) })
+    ]);
+
+    let hasStateChange = false;
+
+    // Realtime Orders
+    if (ordersRes.status === 'fulfilled' && ordersRes.value.ok) {
+      const rows = await ordersRes.value.json().catch(() => []);
+      if (Array.isArray(rows) && rows.length > 0) {
+        if (!STORE.orders || typeof STORE.orders !== 'object') STORE.orders = {};
+        const deletedIds = getDeletedOrderIds();
+        rows.forEach(r => {
+          const orderIdStr = String(r.id || '');
+          const rawOrderId = String(r.order_id || (r.data && (r.data.orderId || r.data.id)) || '');
+          if (deletedIds.has(orderIdStr) || (rawOrderId && deletedIds.has(rawOrderId))) {
+            if (STORE.orders[r.id]) {
+              delete STORE.orders[r.id];
+              hasStateChange = true;
+            }
+            return;
+          }
+          const d = { ...(r.data || {}) };
+          if (r.status === 'approved' || r.status === 'rejected' || r.status === 'paid' || r.status === 'completed') {
+            d.status = r.status;
+            d.orderStatus = r.status;
+            d.paymentStatus = r.status;
+            d.verified = r.status === 'approved' || r.status === 'paid';
+            d.isPaid = r.status === 'approved' || r.status === 'paid';
+          }
+          const existing = STORE.orders[r.id];
+          if (!existing || existing.status !== r.status || existing.updated_at !== r.updated_at) {
+            hasStateChange = true;
+          }
+          const parsedTime = d.timestamp || (r.created_at ? new Date(r.created_at).getTime() : Date.now());
+          STORE.orders[r.id] = { ...d, ...r, id: r.id, timestamp: parsedTime };
+        });
+      }
+    }
+
+    // Realtime Events (order clicks, product likes, views, shares, etc.)
+    const intRows = (intEventsRes.status === 'fulfilled' && intEventsRes.value.ok) ? await intEventsRes.value.json().catch(() => []) : [];
+    const viewRows = (viewEventsRes.status === 'fulfilled' && viewEventsRes.value.ok) ? await viewEventsRes.value.json().catch(() => []) : [];
+    const allEventRows = [...(Array.isArray(intRows) ? intRows : []), ...(Array.isArray(viewRows) ? viewRows : [])];
+    if (allEventRows.length > 0) {
+      if (!STORE.events || typeof STORE.events !== 'object') STORE.events = {};
+      allEventRows.forEach(r => {
+        const p = (r.data && typeof r.data === 'object') ? r.data : {};
+        const existing = STORE.events[r.id];
+        if (!existing) {
+          hasStateChange = true;
+        }
+        STORE.events[r.id] = {
+          ...p,
+          ...r,
+          id: r.id,
+          type: r.event_type || p.type || p.event_type || 'order_click',
+          eventType: r.event_type || p.eventType || p.event_type || 'order_click',
+          productId: r.product_id || p.productId || p.product_id || null,
+          productTitle: r.product_title || p.productTitle || p.product_title || p.title || null,
+          visitorId: r.visitor_id || p.visitorId || p.visitor_id || null,
+          source: p.source || (p.isTg ? 'mini_app' : 'website'),
+          name: p.name || p.tgName || '',
+          username: p.username || p.tgUsername || '',
+          botId: p.botId || null,
+          botUsername: p.botUsername || null,
+          priceINR: p.priceINR ?? p.price_inr ?? r.price_inr ?? null,
+          priceUSD: p.priceUSD ?? p.price_usd ?? r.price_usd ?? null,
+          isLiked: p.isLiked !== undefined ? p.isLiked : (r.data?.isLiked !== undefined ? r.data.isLiked : true),
+          timestamp: p.timestamp || (r.created_at ? new Date(r.created_at).getTime() : Date.now()),
+          date: r.created_at ? r.created_at.slice(0, 10) : new Date().toISOString().slice(0, 10),
+          page: p.page || 'index'
+        };
+      });
+    }
+
+    // Realtime Visitors
+    if (visitorsRes.status === 'fulfilled' && visitorsRes.value.ok) {
+      const rows = await visitorsRes.value.json().catch(() => []);
+      if (Array.isArray(rows) && rows.length > 0) {
+        if (!STORE.visitors || typeof STORE.visitors !== 'object') STORE.visitors = {};
+        rows.forEach(r => {
+          const p = (r.data && typeof r.data === 'object') ? r.data : {};
+          const existing = STORE.visitors[r.id];
+          if (!existing) {
+            hasStateChange = true;
+          }
+          STORE.visitors[r.id] = {
+            ...p,
+            ...r,
+            id: r.id,
+            visitorId: p.visitorId || r.visitor_id || p.visitor_id || r.id,
+            source: p.source || (p.isTg ? 'mini_app' : 'website'),
+            name: p.name || p.tgName || '',
+            username: p.username || p.tgUsername || '',
+            tgUserId: p.tgUserId || null,
+            botId: p.botId || null,
+            botUsername: p.botUsername || null,
+            timestamp: p.timestamp || (r.created_at ? new Date(r.created_at).getTime() : Date.now()),
+            date: r.created_at ? r.created_at.slice(0, 10) : new Date().toISOString().slice(0, 10),
+            page: p.page || r.page || 'index',
+            referrer: p.referrer || r.referrer || 'direct'
+          };
+        });
+      }
+    }
+
+    if (hasStateChange || isFull) {
+      emitImmediate();
+    }
+  } catch (err) {
+    console.warn('syncOrdersEventsVisitors note:', err);
+  } finally {
+    isSyncingOrdersStream = false;
+  }
+}
+
 if (typeof window !== 'undefined') {
+  window.syncOrdersEventsVisitors = syncOrdersEventsVisitors;
+
   // 1. Instant 0ms cross-tab broadcast: when customer buys in any tab on same browser
   window.addEventListener('storage', (e) => {
     if (e.key === 'linkadda_new_order_event' && e.newValue) {
@@ -1160,129 +1290,11 @@ if (typeof window !== 'undefined') {
     }
   });
 
-  // 2. High-speed bandwidth-optimized lightweight orders, events & visitors sync (paused when tab hidden)
-  setInterval(async () => {
+  // Fast background auto-poll (every 6 seconds, paused when tab hidden)
+  setInterval(() => {
     if (typeof document !== 'undefined' && document.hidden) return;
-    try {
-      const supaUrl = 'https://xazhsjotzoentrkminol.supabase.co';
-      const serviceKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhhemhzam90em9lbnRya21pbm9sIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5NDU2MTM2NCwiZXhwIjoyMTEwMTM3MzY0fQ.sO_ZTRbmS7XInvK8YE6XEGz37URqzVmxxtsRABCGfHw';
-      const headers = { 'apikey': serviceKey, 'Authorization': `Bearer ${serviceKey}` };
-
-      const [ordersRes, eventsRes, visitorsRes] = await Promise.allSettled([
-        fetch(`${supaUrl}/rest/v1/orders?select=id,order_id,customer_name,customer_email,customer_phone,product_id,product_title,amount,currency,payment_method,payment_proof,utr,status,created_at,updated_at,data&order=created_at.desc&limit=50`, { headers, cache: 'no-store', signal: AbortSignal.timeout(4000) }),
-        fetch(`${supaUrl}/rest/v1/events?select=id,event_type,product_id,product_title,visitor_id,created_at,data&event_type=neq.product_view&order=created_at.desc&limit=50`, { headers, cache: 'no-store', signal: AbortSignal.timeout(4000) }),
-        fetch(`${supaUrl}/rest/v1/visitors?select=id,visitor_id,page,referrer,created_at,data&order=created_at.desc&limit=50`, { headers, cache: 'no-store', signal: AbortSignal.timeout(4000) })
-      ]);
-
-      let hasStateChange = false;
-
-      // Realtime Orders
-      if (ordersRes.status === 'fulfilled' && ordersRes.value.ok) {
-        const rows = await ordersRes.value.json().catch(() => []);
-        if (Array.isArray(rows) && rows.length) {
-          if (!STORE.orders || typeof STORE.orders !== 'object') STORE.orders = {};
-          const deletedIds = getDeletedOrderIds();
-          rows.forEach(r => {
-            const orderIdStr = String(r.id || '');
-            const rawOrderId = String(r.order_id || (r.data && (r.data.orderId || r.data.id)) || '');
-            // Filter out locally or previously deleted orders immediately
-            if (deletedIds.has(orderIdStr) || (rawOrderId && deletedIds.has(rawOrderId))) {
-              if (STORE.orders[r.id]) {
-                delete STORE.orders[r.id];
-                hasStateChange = true;
-              }
-              return;
-            }
-            const d = { ...(r.data || {}) };
-            if (r.status === 'approved' || r.status === 'rejected' || r.status === 'paid' || r.status === 'completed') {
-              d.status = r.status;
-              d.orderStatus = r.status;
-              d.paymentStatus = r.status;
-              d.verified = r.status === 'approved' || r.status === 'paid';
-              d.isPaid = r.status === 'approved' || r.status === 'paid';
-            }
-            const existing = STORE.orders[r.id];
-            if (!existing || existing.status !== r.status || existing.updated_at !== r.updated_at) {
-              hasStateChange = true;
-            }
-            const parsedTime = d.timestamp || (r.created_at ? new Date(r.created_at).getTime() : Date.now());
-            STORE.orders[r.id] = { ...d, ...r, id: r.id, timestamp: parsedTime };
-          });
-        }
-      }
-
-      // Realtime Order Clicks & Events
-      if (eventsRes.status === 'fulfilled' && eventsRes.value.ok) {
-        const rows = await eventsRes.value.json().catch(() => []);
-        if (Array.isArray(rows) && rows.length) {
-          if (!STORE.events || typeof STORE.events !== 'object') STORE.events = {};
-          rows.forEach(r => {
-            const p = (r.data && typeof r.data === 'object') ? r.data : {};
-            const existing = STORE.events[r.id];
-            if (!existing) {
-              hasStateChange = true;
-            }
-            STORE.events[r.id] = {
-              ...p,
-              ...r,
-              id: r.id,
-              type: r.event_type || p.type || p.event_type || 'order_click',
-              eventType: r.event_type || p.eventType || p.event_type || 'order_click',
-              productId: r.product_id || p.productId || p.product_id || null,
-              productTitle: r.product_title || p.productTitle || p.product_title || p.title || null,
-              visitorId: r.visitor_id || p.visitorId || p.visitor_id || null,
-              source: p.source || (p.isTg ? 'mini_app' : 'website'),
-              name: p.name || p.tgName || '',
-              username: p.username || p.tgUsername || '',
-              botId: p.botId || null,
-              botUsername: p.botUsername || null,
-              priceINR: p.priceINR ?? p.price_inr ?? r.price_inr ?? null,
-              priceUSD: p.priceUSD ?? p.price_usd ?? r.price_usd ?? null,
-              isLiked: p.isLiked !== undefined ? p.isLiked : (r.data?.isLiked !== undefined ? r.data.isLiked : true),
-              timestamp: p.timestamp || (r.created_at ? new Date(r.created_at).getTime() : Date.now()),
-              date: r.created_at ? r.created_at.slice(0, 10) : new Date().toISOString().slice(0, 10),
-              page: p.page || 'index'
-            };
-          });
-        }
-      }
-
-      // Realtime Visitors
-      if (visitorsRes.status === 'fulfilled' && visitorsRes.value.ok) {
-        const rows = await visitorsRes.value.json().catch(() => []);
-        if (Array.isArray(rows) && rows.length) {
-          if (!STORE.visitors || typeof STORE.visitors !== 'object') STORE.visitors = {};
-          rows.forEach(r => {
-            const p = (r.data && typeof r.data === 'object') ? r.data : {};
-            const existing = STORE.visitors[r.id];
-            if (!existing) {
-              hasStateChange = true;
-            }
-            STORE.visitors[r.id] = {
-              ...p,
-              ...r,
-              id: r.id,
-              visitorId: p.visitorId || r.visitor_id || p.visitor_id || r.id,
-              source: p.source || (p.isTg ? 'mini_app' : 'website'),
-              name: p.name || p.tgName || '',
-              username: p.username || p.tgUsername || '',
-              tgUserId: p.tgUserId || null,
-              botId: p.botId || null,
-              botUsername: p.botUsername || null,
-              timestamp: p.timestamp || (r.created_at ? new Date(r.created_at).getTime() : Date.now()),
-              date: r.created_at ? r.created_at.slice(0, 10) : new Date().toISOString().slice(0, 10),
-              page: p.page || r.page || 'index',
-              referrer: p.referrer || r.referrer || 'direct'
-            };
-          });
-        }
-      }
-
-      if (hasStateChange) {
-        emitImmediate();
-      }
-    } catch (_) {}
-  }, 10000);
+    syncOrdersEventsVisitors(false).catch(() => {});
+  }, 6000);
 
   // 3. Calm 3-minute background sync for full catalog & site settings (paused when tab hidden)
   setInterval(async () => {
@@ -1290,13 +1302,14 @@ if (typeof window !== 'undefined') {
     syncAllFromFirebase().catch(() => {});
   }, 180000);
 
-  // 4. Throttled sync when admin focuses the browser window or changes tab
+  // 4. Instant sync when admin focuses the browser window or changes tab
   let lastFocusSyncTime = 0;
   const throttledFocusSync = () => {
     if (typeof document !== 'undefined' && document.hidden) return;
     const now = Date.now();
-    if (now - lastFocusSyncTime < 10000) return; // Responsive 10-second sync on focus
+    if (now - lastFocusSyncTime < 4000) return;
     lastFocusSyncTime = now;
+    syncOrdersEventsVisitors(false).catch(() => {});
     syncAllFromFirebase(false).catch(() => {});
   };
   window.addEventListener('focus', throttledFocusSync);

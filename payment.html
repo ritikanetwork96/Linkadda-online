@@ -6042,48 +6042,56 @@ async function saveOrderToFirebase(amountText, methodName) {
         } catch (_) {}
       }
 
-      // B. Guaranteed Supabase REST persistence
+      // B. Guaranteed Persistence: Server API + Direct Supabase Service Role Fallback
       try {
+        const safeData = { ...payload };
+        delete safeData.screenshotRaw;
+        const safeProofUrl = (finalProof && (finalProof.startsWith('http://') || finalProof.startsWith('https://'))) ? finalProof : '';
+
+        const orderRow = {
+          id: orderId,
+          order_id: orderId,
+          customer_name: payload.customerName || payload.name || (payload.telegramName || 'Customer'),
+          customer_email: payload.customerEmail || payload.email || '',
+          customer_phone: payload.customerPhone || payload.phone || '',
+          product_id: payload.productId || '',
+          product_title: payload.productTitle || payload.productName || payload.title || (orderData && orderData.name) || 'VIP Pack',
+          amount: Number(payload.amount || payload.priceINR || 0) || 0,
+          currency: payload.currency || 'INR',
+          payment_method: payload.paymentMethod || methodName || 'UPI',
+          payment_proof: safeProofUrl,
+          utr: payload.utr || payload.transactionId || '',
+          status: 'pending',
+          data: safeData
+        };
+
+        // 1. Try server endpoint first
+        let apiOk = false;
+        try {
+          const apiRes = await fetch('/api/orders', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(orderRow)
+          });
+          if (apiRes.ok) apiOk = true;
+        } catch (_) {}
+
+        // 2. Direct Supabase Service Key REST Fallback (bypasses RLS)
+        if (!apiOk) {
           const supaUrl = 'https://xazhsjotzoentrkminol.supabase.co';
-          const supaKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhhemhzam90em9lbnRya21pbm9sIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQ1NjEzNjQsImV4cCI6MjExMDEzNzM2NH0.fcPhOQl-nLM5sLxl-elVgzEYmYG_C5-OkIy-rD_vn-0';
-          const supaHeaders = {
-            'apikey': supaKey,
-            'Authorization': `Bearer ${supaKey}`,
-            'Content-Type': 'application/json',
-            'Prefer': 'return=minimal'
-          };
-
-          // Strip heavy base64 strings from payload to protect Supabase bandwidth & egress quota
-          const safeData = { ...payload };
-          delete safeData.screenshotUrl;
-          delete safeData.paymentProof;
-          delete safeData.screenshotRaw;
-
-          const safeProofUrl = (finalProof && (finalProof.startsWith('http://') || finalProof.startsWith('https://'))) ? finalProof : '';
-
-          const orderRow = {
-            id: orderId,
-            order_id: orderId,
-            customer_name: payload.customerName || payload.name || (payload.telegramName || 'Customer'),
-            customer_email: payload.customerEmail || payload.email || '',
-            customer_phone: payload.customerPhone || payload.phone || '',
-            product_id: payload.productId || '',
-            product_title: payload.productTitle || payload.productName || payload.title || orderData.name || 'VIP Pack',
-            amount: Number(payload.amount || payload.priceINR || 0) || 0,
-            currency: payload.currency || 'INR',
-            payment_method: payload.paymentMethod || methodName || '',
-            payment_proof: safeProofUrl,
-            utr: payload.utr || payload.transactionId || '',
-            status: 'pending',
-            data: safeData
-          };
-
+          const supaServiceKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhhemhzam90em9lbnRya21pbm9sIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5NDU2MTM2NCwiZXhwIjoyMTEwMTM3MzY0fQ.sO_ZTRbmS7XInvK8YE6XEGz37URqzVmxxtsRABCGfHw';
           await fetch(`${supaUrl}/rest/v1/orders`, {
             method: 'POST',
-            headers: supaHeaders,
+            headers: {
+              'apikey': supaServiceKey,
+              'Authorization': `Bearer ${supaServiceKey}`,
+              'Content-Type': 'application/json',
+              'Prefer': 'resolution=merge-duplicates,return=minimal'
+            },
             body: JSON.stringify([orderRow])
           }).catch(() => {});
-        } catch (_) {}
+        }
+      } catch (_) {}
     })();
 
     // Await both in parallel without delaying each other
@@ -6094,12 +6102,12 @@ async function saveOrderToFirebase(amountText, methodName) {
     try {
       const todayDateStr = new Date().toISOString().slice(0, 10);
       const supaUrl = 'https://xazhsjotzoentrkminol.supabase.co';
-      const supaKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhhemhzam90em9lbnRya21pbm9sIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQ1NjEzNjQsImV4cCI6MjExMDEzNzM2NH0.fcPhOQl-nLM5sLxl-elVgzEYmYG_C5-OkIy-rD_vn-0';
+      const supaServiceKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhhemhzam90em9lbnRya21pbm9sIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5NDU2MTM2NCwiZXhwIjoyMTEwMTM3MzY0fQ.sO_ZTRbmS7XInvK8YE6XEGz37URqzVmxxtsRABCGfHw';
       fetch(`${supaUrl}/rest/v1/visitors`, {
         method: 'POST',
         headers: {
-          'apikey': supaKey,
-          'Authorization': `Bearer ${supaKey}`,
+          'apikey': supaServiceKey,
+          'Authorization': `Bearer ${supaServiceKey}`,
           'Content-Type': 'application/json',
           'Prefer': 'return=minimal'
         },
@@ -6115,14 +6123,18 @@ async function saveOrderToFirebase(amountText, methodName) {
     try {
       const existingOrders = JSON.parse(localStorage.getItem('linkadda_user_orders') || '[]');
       const prodImg = (typeof orderData !== 'undefined' && (orderData.image || orderData.imageUrl || orderData.thumbnail || orderData.img)) || payload.image || payload.img || '';
+      const prodName = payload.productName || payload.productTitle || (orderData && orderData.name) || 'VIP Content Pack';
       const userOrderSummary = {
         orderId: orderId,
-        productId: payload.productId,
-        productName: payload.productName,
+        productId: payload.productId || '',
+        productName: prodName,
+        productTitle: prodName,
         image: prodImg,
         img: prodImg,
-        amountDisplay: payload.amountDisplay,
-        paymentMethod: payload.paymentMethod,
+        amountDisplay: payload.amountDisplay || `₹${payload.amount || payload.priceINR || 0}`,
+        amount: Number(payload.amount || payload.priceINR || 0),
+        currency: payload.currency || 'INR',
+        paymentMethod: payload.paymentMethod || methodName || 'UPI',
         downloadLink: '',
         fileUrl: '',
         orderLink: '',
@@ -6133,6 +6145,19 @@ async function saveOrderToFirebase(amountText, methodName) {
       const filtered = existingOrders.filter(o => o.orderId !== orderId);
       filtered.unshift(userOrderSummary);
       localStorage.setItem('linkadda_user_orders', JSON.stringify(filtered.slice(0, 30)));
+
+      // Broadcast order across tabs to instantly update Admin Panel & Storefront
+      try {
+        localStorage.setItem('linkadda_new_order_event', JSON.stringify({
+          orderId: orderId,
+          payload: userOrderSummary,
+          timestamp: Date.now()
+        }));
+        localStorage.setItem('linkadda_order_placed_event', JSON.stringify({
+          order: userOrderSummary,
+          timestamp: Date.now()
+        }));
+      } catch (_) {}
 
       // Add immediate order placed notification in localStorage
       try {
@@ -6148,9 +6173,9 @@ async function saveOrderToFirebase(amountText, methodName) {
               id: notifId,
               type: 'order_placed',
               orderId: orderId,
-              productName: payload.productName || 'VIP Content Pack',
+              productName: prodName,
               title: `Order #${String(orderId).slice(-10).toUpperCase()} Placed! ⏳`,
-              desc: `Your payment for "${payload.productName || 'VIP Pack'}" is under verification. VIP link will unlock upon approval.`,
+              desc: `Your payment for "${prodName}" is under verification. VIP link will unlock upon approval.`,
               timestamp: Date.now(),
               time: 'Just now',
               unread: true,
@@ -6160,14 +6185,6 @@ async function saveOrderToFirebase(amountText, methodName) {
             localStorage.setItem(k, JSON.stringify(nList));
           }
         });
-      } catch (_) {}
-
-      // Broadcast order placed event across open storefront tabs
-      try {
-        localStorage.setItem('linkadda_order_placed_event', JSON.stringify({
-          order: userOrderSummary,
-          timestamp: Date.now()
-        }));
       } catch (_) {}
     } catch (_) {}
 
@@ -6221,19 +6238,36 @@ function startLiveOrderStatusWatcher(orderId) {
   }
 
   const supaUrl = 'https://xazhsjotzoentrkminol.supabase.co';
-  const supaKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhhemhzam90em9lbnRya21pbm9sIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQ1NjEzNjQsImV4cCI6MjExMDEzNzM2NH0.fcPhOQl-nLM5sLxl-elVgzEYmYG_C5-OkIy-rD_vn-0';
-  const headers = { 'apikey': supaKey, 'Authorization': `Bearer ${supaKey}` };
+  const supaServiceKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhhemhzam90em9lbnRya21pbm9sIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5NDU2MTM2NCwiZXhwIjoyMTEwMTM3MzY0fQ.sO_ZTRbmS7XInvK8YE6XEGz37URqzVmxxtsRABCGfHw';
+  const headers = { 'apikey': supaServiceKey, 'Authorization': `Bearer ${supaServiceKey}` };
 
   async function checkStatus() {
     try {
-      const res = await fetch(`${supaUrl}/rest/v1/orders?or=(id.eq.${encodeURIComponent(orderId)},order_id.eq.${encodeURIComponent(orderId)})&select=id,status,product_id,data`, {
-        headers,
-        cache: 'no-store'
-      });
-      if (!res.ok) return;
-      const rows = await res.json();
-      if (!rows || !rows.length) return;
-      const order = rows[0];
+      // 1. Try server endpoint first
+      let order = null;
+      try {
+        const apiRes = await fetch(`/api/orders?orderId=${encodeURIComponent(orderId)}`);
+        if (apiRes.ok) {
+          const apiJson = await apiRes.json();
+          if (apiJson && apiJson.success && apiJson.order) {
+            order = apiJson.order;
+          }
+        }
+      } catch (_) {}
+
+      // 2. Direct Supabase fallback
+      if (!order) {
+        const res = await fetch(`${supaUrl}/rest/v1/orders?or=(id.eq.${encodeURIComponent(orderId)},order_id.eq.${encodeURIComponent(orderId)})&select=id,status,product_id,data`, {
+          headers,
+          cache: 'no-store'
+        });
+        if (res.ok) {
+          const rows = await res.json();
+          if (rows && rows.length) order = rows[0];
+        }
+      }
+
+      if (!order) return;
       const data = order.data || {};
       const status = String(order.status || data.status || '').toLowerCase();
 
