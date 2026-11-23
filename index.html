@@ -209,92 +209,191 @@
   <script src="preload.js?v=20261115_v9" charset="UTF-8"></script>
   <script src="currency.js?v=20261111_v1" charset="UTF-8"></script>
   <style id="critical-hero-toast-fix">
-    /* ── LIGHT MODE LUXURY HEADER ACTION BUTTONS ── */
-    [data-theme="light"] .fk-notif-btn-wrap {
-      background: rgba(245, 158, 11, 0.12) !important;
-      border: 1.5px solid rgba(217, 119, 6, 0.35) !important;
-      color: #92400e !important;
-      box-shadow: 0 2px 8px rgba(217, 119, 6, 0.08) !important;
+    /* ── LUXURY UNIFIED HEADER ACTION BUTTONS ── */
+    .fk-notif-btn-wrap,
+    .fk-orders-btn-wrap,
+    .fk-cart-btn-wrap,
+    .fk-user-btn-wrap {
+      width: 38px !important;
+      height: 38px !important;
+      border-radius: 50% !important;
+      display: inline-flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      position: relative !important;
+      padding: 0 !important;
+      cursor: pointer !important;
+      transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1) !important;
     }
-    [data-theme="light"] .fk-notif-btn-wrap i {
-      color: #d97706 !important;
-      filter: drop-shadow(0 1px 2px rgba(217, 119, 6, 0.25)) !important;
-    }
-    [data-theme="light"] .fk-notif-btn-wrap:hover {
-      background: rgba(245, 158, 11, 0.22) !important;
-      border-color: rgba(217, 119, 6, 0.6) !important;
-      color: #78350f !important;
-    }
+
+    [data-theme="light"] .fk-notif-btn-wrap,
+    [data-theme="light"] .fk-orders-btn-wrap,
+    [data-theme="light"] .fk-cart-btn-wrap,
     [data-theme="light"] .fk-user-btn-wrap {
-      background: rgba(244, 63, 94, 0.09) !important;
-      border: 1.5px solid rgba(225, 29, 72, 0.35) !important;
-      color: #9f1239 !important;
-      box-shadow: 0 2px 8px rgba(225, 29, 72, 0.08) !important;
+      background: #ffffff !important;
+      border: 1.5px solid #e2e8f0 !important;
+      color: #334155 !important;
+      box-shadow: 0 2px 6px -1px rgba(15, 23, 42, 0.07) !important;
     }
-    [data-theme="light"] .fk-user-btn-wrap i,
-    [data-theme="light"] .fk-user-btn-wrap i.fa-gear {
-      color: #e11d48 !important;
-      filter: drop-shadow(0 1px 2px rgba(225, 29, 72, 0.25)) !important;
-    }
-    [data-theme="light"] .fk-user-btn-wrap .fk-user-btn-text,
-    [data-theme="light"] #headerUserBtnText {
-      color: #9f1239 !important;
-      font-weight: 750 !important;
-      letter-spacing: 0.2px !important;
-    }
-    [data-theme="light"] .fk-user-btn-wrap:hover {
-      background: rgba(244, 63, 94, 0.18) !important;
-      border-color: rgba(225, 29, 72, 0.65) !important;
-      color: #881337 !important;
-    }
-    [data-theme="light"] .fk-orders-btn-wrap {
-      background: rgba(16, 185, 129, 0.1) !important;
-      border: 1.5px solid rgba(5, 150, 105, 0.35) !important;
-      color: #065f46 !important;
-      box-shadow: 0 2px 8px rgba(5, 150, 105, 0.08) !important;
-    }
+    [data-theme="light"] .fk-notif-btn-wrap i,
     [data-theme="light"] .fk-orders-btn-wrap i,
-    [data-theme="light"] .fk-orders-btn-wrap i.fa-receipt {
-      color: #059669 !important;
-      filter: drop-shadow(0 1px 2px rgba(5, 150, 105, 0.25)) !important;
+    [data-theme="light"] .fk-cart-btn-wrap i,
+    [data-theme="light"] .fk-user-btn-wrap i {
+      color: #334155 !important;
+      font-size: 15px !important;
+      filter: none !important;
+      transition: color 0.2s ease !important;
     }
-    [data-theme="light"] .fk-orders-btn-wrap .fk-orders-btn-text {
-      color: #065f46 !important;
-      font-weight: 750 !important;
-      letter-spacing: 0.2px !important;
+    [data-theme="light"] .fk-notif-btn-wrap:hover,
+    [data-theme="light"] .fk-orders-btn-wrap:hover,
+    [data-theme="light"] .fk-cart-btn-wrap:hover,
+    [data-theme="light"] .fk-user-btn-wrap:hover {
+      background: #fff0f7 !important;
+      border-color: rgba(255, 42, 141, 0.35) !important;
+      color: #ff2a8d !important;
+      transform: translateY(-1px) scale(1.03) !important;
+      box-shadow: 0 4px 12px -2px rgba(255, 42, 141, 0.15) !important;
     }
-    [data-theme="light"] .fk-orders-btn-wrap:hover {
-      background: rgba(16, 185, 129, 0.2) !important;
-      border-color: rgba(5, 150, 105, 0.65) !important;
-      color: #044e3b !important;
+    [data-theme="light"] .fk-notif-btn-wrap:hover i,
+    [data-theme="light"] .fk-orders-btn-wrap:hover i,
+    [data-theme="light"] .fk-cart-btn-wrap:hover i,
+    [data-theme="light"] .fk-user-btn-wrap:hover i {
+      color: #ff2a8d !important;
     }
-    [data-theme="light"] #ordersBadgeHeader {
-      background: #059669 !important;
+    [data-theme="light"] .fk-notif-btn-wrap:active,
+    [data-theme="light"] .fk-orders-btn-wrap:active,
+    [data-theme="light"] .fk-cart-btn-wrap:active,
+    [data-theme="light"] .fk-user-btn-wrap:active {
+      transform: scale(0.94) !important;
+    }
+
+    /* Unified Badges */
+    .fk-notif-badge-dot {
+      position: absolute !important;
+      top: 5px !important;
+      right: 6px !important;
+      width: 8px !important;
+      height: 8px !important;
+      border-radius: 50% !important;
+      background: #ff2a8d !important;
+      box-shadow: 0 0 6px rgba(255, 42, 141, 0.8) !important;
+      border: 1.5px solid #ffffff !important;
+    }
+    [data-theme="dark"] .fk-notif-badge-dot {
+      border-color: #0b1120 !important;
+    }
+    .fk-cart-count-badge,
+    #cartBadgeHeader,
+    #ordersBadgeHeader {
+      position: absolute !important;
+      top: -3px !important;
+      right: -3px !important;
+      min-width: 17px !important;
+      height: 17px !important;
+      padding: 0 4px !important;
+      border-radius: 9999px !important;
+      background: linear-gradient(135deg, #ff2a8d, #f43f5e) !important;
       color: #ffffff !important;
+      font-size: 10px !important;
+      font-weight: 800 !important;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      border: 2px solid #ffffff !important;
+      box-shadow: 0 2px 6px rgba(255, 42, 141, 0.4) !important;
+      line-height: 1 !important;
     }
-    [data-theme="light"] .fk-cart-btn-wrap {
-      background: linear-gradient(135deg, rgba(244, 63, 94, 0.12), rgba(168, 85, 247, 0.12)) !important;
-      border: 1.5px solid rgba(225, 29, 72, 0.38) !important;
-      color: #9f1239 !important;
-      box-shadow: 0 2px 10px rgba(225, 29, 72, 0.1) !important;
+    [data-theme="dark"] .fk-cart-count-badge,
+    [data-theme="dark"] #cartBadgeHeader,
+    [data-theme="dark"] #ordersBadgeHeader {
+      border-color: #0b1120 !important;
     }
-    [data-theme="light"] .fk-cart-btn-wrap i {
-      color: #e11d48 !important;
-      filter: drop-shadow(0 1px 2px rgba(225, 29, 72, 0.25)) !important;
+
+    /* ── SEARCH BAR & FILTER BUTTON POLISH ── */
+    .fk-search-row {
+      display: flex !important;
+      align-items: center !important;
+      gap: 10px !important;
+      width: 100% !important;
+      margin-top: 6px !important;
     }
-    [data-theme="light"] .fk-cart-btn-wrap .fk-cart-btn-text {
-      color: #9f1239 !important;
-      font-weight: 750 !important;
-      letter-spacing: 0.2px !important;
+    .fk-search-box {
+      flex: 1 !important;
+      position: relative !important;
+      display: flex !important;
+      align-items: center !important;
+      height: 42px !important;
+      border-radius: 9999px !important;
+      padding: 0 !important;
+      cursor: pointer !important;
+      transition: all 0.22s ease !important;
     }
-    [data-theme="light"] .fk-cart-btn-wrap:hover {
-      background: linear-gradient(135deg, rgba(244, 63, 94, 0.2), rgba(168, 85, 247, 0.2)) !important;
-      border-color: rgba(225, 29, 72, 0.65) !important;
-      color: #881337 !important;
+    [data-theme="light"] .fk-search-box {
+      background: #ffffff !important;
+      border: 1.5px solid #e2e8f0 !important;
+      box-shadow: 0 2px 6px -1px rgba(15, 23, 42, 0.06) !important;
     }
-    [data-theme="light"] #cartBadgeHeader {
-      background: #e11d48 !important;
-      color: #ffffff !important;
+    [data-theme="light"] .fk-search-box:hover,
+    [data-theme="light"] .fk-search-box:focus-within {
+      background: #ffffff !important;
+      border-color: #ff2a8d !important;
+      box-shadow: 0 0 0 3px rgba(255, 42, 141, 0.12) !important;
+    }
+    .fk-search-icon-left {
+      position: absolute !important;
+      left: 14px !important;
+      top: 50% !important;
+      transform: translateY(-50%) !important;
+      font-size: 14px !important;
+      color: #94a3b8 !important;
+      pointer-events: none !important;
+      z-index: 2 !important;
+    }
+    [data-theme="dark"] .fk-search-icon-left {
+      color: rgba(255, 255, 255, 0.45) !important;
+    }
+    .fk-search-input {
+      width: 100% !important;
+      height: 100% !important;
+      border: none !important;
+      outline: none !important;
+      background: transparent !important;
+      padding: 0 16px 0 38px !important;
+      cursor: pointer !important;
+    }
+    [data-theme="light"] .fk-search-input {
+      color: #0f172a !important;
+      font-size: 13.5px !important;
+      font-weight: 500 !important;
+    }
+    [data-theme="light"] .fk-search-input::placeholder {
+      color: #94a3b8 !important;
+      font-weight: 450 !important;
+    }
+    .fk-filter-btn {
+      width: 42px !important;
+      height: 42px !important;
+      border-radius: 50% !important;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      flex-shrink: 0 !important;
+      cursor: pointer !important;
+      transition: all 0.2s ease !important;
+    }
+    [data-theme="light"] .fk-filter-btn {
+      background: #ffffff !important;
+      border: 1.5px solid #e2e8f0 !important;
+      color: #ff2a8d !important;
+      box-shadow: 0 2px 6px -1px rgba(15, 23, 42, 0.06) !important;
+    }
+    [data-theme="light"] .fk-filter-btn:hover {
+      background: #fff0f7 !important;
+      border-color: rgba(255, 42, 141, 0.35) !important;
+      transform: translateY(-1px) scale(1.03) !important;
+    }
+    [data-theme="light"] .fk-filter-btn:active {
+      transform: scale(0.94) !important;
     }
     [data-theme="light"] .fk-quick-pill {
       background: #ffffff !important;
@@ -1261,13 +1360,13 @@
             <span class="fk-notif-badge-dot" id="headerNotifDot"></span>
           </button>
           <button type="button" class="fk-user-btn-wrap" id="headerUserBtn" title="Settings & Preferences" onclick="window.showProfilePage ? window.showProfilePage() : (window.location.hash = '#settings')">
-            <i class="fa-solid fa-gear" style="color: #ff2a8d; font-size: 1.05rem;"></i>
+            <i class="fa-solid fa-gear"></i>
             <span class="fk-user-btn-text" id="headerUserBtnText">Settings</span>
           </button>
           <button type="button" class="fk-orders-btn-wrap" id="headerOrdersBtn" title="My Orders" onclick="window.openOrdersDrawer ? window.openOrdersDrawer() : (window.location.hash = '#orders')">
-            <i class="fa-solid fa-receipt" style="color:#10b981;"></i>
+            <i class="fa-solid fa-receipt"></i>
             <span class="fk-orders-btn-text">Orders</span>
-            <span class="fk-cart-count-badge" id="ordersBadgeHeader" style="display:none;background:#10b981;">0</span>
+            <span class="fk-cart-count-badge" id="ordersBadgeHeader" style="display:none;">0</span>
           </button>
           <button type="button" class="fk-cart-btn-wrap" id="headerCartBtn" title="Shopping Cart">
             <i class="fa-solid fa-cart-shopping"></i>
@@ -1281,7 +1380,6 @@
         <div class="fk-search-box" onclick="window.openUniversalSearch && window.openUniversalSearch()" style="cursor: pointer;">
           <i class="fa-solid fa-magnifying-glass fk-search-icon-left"></i>
           <input type="search" class="fk-search-input" id="fkSearchInput" placeholder="Search videos, creators, categories..." readonly style="cursor: pointer;" />
-          <button type="button" class="fk-search-btn" id="fkSearchBtn" aria-label="Search"><i class="fa-solid fa-magnifying-glass"></i></button>
         </div>
         <button type="button" class="fk-filter-btn" id="fkFilterBtn" onclick="window.showCategoriesHub ? window.showCategoriesHub('store') : window.scrollToCategories()" title="All Categories" aria-label="All Categories">
           <i class="fa-solid fa-sliders"></i>

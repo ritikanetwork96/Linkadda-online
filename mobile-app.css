@@ -1404,9 +1404,9 @@ img, video {
     outline: none !important;
     background: transparent !important;
     color: #ffffff !important;
-    font-size: 13px !important;
+    font-size: 13.5px !important;
     font-weight: 500 !important;
-    padding: 0 44px 0 38px !important;
+    padding: 0 16px 0 38px !important;
     text-overflow: ellipsis !important;
     white-space: nowrap !important;
     overflow: hidden !important;
@@ -1418,27 +1418,7 @@ img, video {
   }
 
   .fk-search-btn {
-    position: absolute !important;
-    right: 5px !important;
-    top: 50% !important;
-    transform: translateY(-50%) !important;
-    width: 32px !important;
-    height: 32px !important;
-    border-radius: 50% !important;
-    border: none !important;
-    background: linear-gradient(135deg, #ff2a8d 0%, #f43f5e 100%) !important;
-    color: #ffffff !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    font-size: 12px !important;
-    box-shadow: 0 2px 8px rgba(255, 42, 141, 0.35) !important;
-    cursor: pointer !important;
-    transition: transform 0.2s ease !important;
-  }
-
-  .fk-search-btn:active {
-    transform: translateY(-50%) scale(0.92) !important;
+    display: none !important;
   }
 
   .fk-filter-btn {
@@ -5331,14 +5311,16 @@ body.in-search-view #fkMobileAppbar,
 
   /* Right top icons on mobile */
   .fk-header-actions {
+    display: flex !important;
+    align-items: center !important;
     gap: 8px !important;
   }
 
   .fk-notif-btn-wrap,
   .fk-orders-btn-wrap,
   .fk-cart-btn-wrap {
-    width: 36px !important;
-    height: 36px !important;
+    width: 38px !important;
+    height: 38px !important;
     border-radius: 50% !important;
     background: rgba(255, 255, 255, 0.08) !important;
     border: 1px solid rgba(255, 255, 255, 0.12) !important;
@@ -5348,15 +5330,30 @@ body.in-search-view #fkMobileAppbar,
     justify-content: center !important;
     position: relative !important;
     padding: 0 !important;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
   }
 
   [data-theme="light"] .fk-notif-btn-wrap,
   [data-theme="light"] .fk-orders-btn-wrap,
   [data-theme="light"] .fk-cart-btn-wrap {
-    background: #f1f5f9 !important;
-    border-color: #cbd5e1 !important;
-    color: #0f172a !important;
-    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08) !important;
+    background: #ffffff !important;
+    border: 1.5px solid #e2e8f0 !important;
+    color: #334155 !important;
+    box-shadow: 0 2px 6px -1px rgba(15, 23, 42, 0.07) !important;
+  }
+
+  [data-theme="light"] .fk-notif-btn-wrap i,
+  [data-theme="light"] .fk-orders-btn-wrap i,
+  [data-theme="light"] .fk-cart-btn-wrap i {
+    color: #334155 !important;
+    font-size: 15px !important;
+    transition: color 0.2s ease !important;
+  }
+
+  .fk-notif-btn-wrap:active,
+  .fk-orders-btn-wrap:active,
+  .fk-cart-btn-wrap:active {
+    transform: scale(0.93) !important;
   }
 
   .fk-user-btn-wrap {
@@ -5368,61 +5365,106 @@ body.in-search-view #fkMobileAppbar,
     display: none !important;
   }
 
-  /* App Search Bar Pill */
+  /* App Search Bar & Filter */
   .fk-search-row {
-    margin-top: 4px !important;
+    margin-top: 6px !important;
     gap: 8px !important;
+    display: flex !important;
+    align-items: center !important;
+    width: 100% !important;
   }
 
   .fk-search-box {
     background: rgba(255, 255, 255, 0.06) !important;
-    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+    border: 1.5px solid rgba(255, 255, 255, 0.12) !important;
     border-radius: 9999px !important;
-    height: 40px !important;
+    height: 42px !important;
+    flex: 1 !important;
+    position: relative !important;
     display: flex !important;
     align-items: center !important;
-    padding: 0 12px 0 14px !important;
-    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.25) !important;
+    padding: 0 !important;
+    box-shadow: 0 2px 8px -2px rgba(0, 0, 0, 0.2) !important;
     transition: all 0.2s ease !important;
   }
 
   [data-theme="light"] .fk-search-box {
-    background: #f1f5f9 !important;
-    border-color: #cbd5e1 !important;
-    box-shadow: inset 0 1px 3px rgba(15, 23, 42, 0.06) !important;
+    background: #ffffff !important;
+    border: 1.5px solid #e2e8f0 !important;
+    box-shadow: 0 2px 6px -1px rgba(15, 23, 42, 0.06) !important;
   }
 
   .fk-search-box:active {
     border-color: #ff2a8d !important;
-    background: rgba(255, 42, 141, 0.08) !important;
+    background: rgba(255, 42, 141, 0.05) !important;
+  }
+
+  .fk-search-icon-left {
+    position: absolute !important;
+    left: 14px !important;
+    top: 50% !important;
+    transform: translateY(-50%) !important;
+    font-size: 14px !important;
+    color: rgba(255, 255, 255, 0.45) !important;
+    pointer-events: none !important;
+    z-index: 2 !important;
+  }
+
+  [data-theme="light"] .fk-search-icon-left {
+    color: #94a3b8 !important;
   }
 
   .fk-search-input {
-    font-size: 0.84rem !important;
+    width: 100% !important;
+    height: 100% !important;
+    font-size: 13.5px !important;
     color: #ffffff !important;
     background: transparent !important;
     border: none !important;
-    padding: 0 8px !important;
+    outline: none !important;
+    padding: 0 14px 0 38px !important;
+    cursor: pointer !important;
   }
 
   [data-theme="light"] .fk-search-input {
     color: #0f172a !important;
+    font-weight: 500 !important;
+  }
+
+  [data-theme="light"] .fk-search-input::placeholder {
+    color: #94a3b8 !important;
+    font-weight: 450 !important;
+  }
+
+  .fk-search-btn {
+    display: none !important;
   }
 
   .fk-filter-btn {
-    width: 40px !important;
-    height: 40px !important;
+    width: 42px !important;
+    height: 42px !important;
     border-radius: 50% !important;
     background: rgba(255, 255, 255, 0.08) !important;
-    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+    border: 1.5px solid rgba(255, 255, 255, 0.12) !important;
     color: #ff2a8d !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
     flex-shrink: 0 !important;
+    box-shadow: 0 2px 8px -2px rgba(0, 0, 0, 0.2) !important;
+    transition: all 0.2s ease !important;
   }
 
   [data-theme="light"] .fk-filter-btn {
-    background: #f1f5f9 !important;
-    border-color: #cbd5e1 !important;
-    color: #e11d48 !important;
+    background: #ffffff !important;
+    border: 1.5px solid #e2e8f0 !important;
+    color: #ff2a8d !important;
+    box-shadow: 0 2px 6px -1px rgba(15, 23, 42, 0.06) !important;
+  }
+
+  .fk-filter-btn:active {
+    transform: scale(0.93) !important;
+  }
   }
 
   /* ── 3. STORY-STYLE HORIZONTAL CATEGORY REEL ── */
