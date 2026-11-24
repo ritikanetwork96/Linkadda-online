@@ -10207,10 +10207,10 @@ function getStandardPaymentMethods(payment = {}) {
       type: 'paypal',
       iconClass: 'icon-paypal',
       icon: 'credit-card',
-      logo: payment.paypalLogo || 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b5/PayPal.svg/320px-PayPal.svg.png',
-      qrImage: payment.paypalQr || '',
+      logo: payment.paypalLogo || '/images/paypal.svg',
+      qrImage: payment.paypalQr || '/images/paypal.jpg',
       identifierLabel: 'PayPal Link',
-      identifier: payment.paypalLink || '',
+      identifier: payment.paypalLink || 'https://paypal.me/Jayagupta601',
       tag: payment.paypalTag || 'GLOBAL',
       instructions: payment.paypalInstructions || 'Click PayPal link and send exact USD amount as Friends & Family or Goods.',
       status: disabled.includes('paypal') ? 'disabled' : 'active',
@@ -10269,7 +10269,7 @@ function renderPaymentManagementView(data = {}, fullData = {}) {
     ethAddress: '0x7186b11f8fD49fe472Af49Cda490f168e09Fef0a',
     binanceId: '969887942',
     binanceGiftCardUrl: 'https://www.g2a.com/binance-gift-card-205-usdt-key-i10000337768061',
-    paypalLink: '',
+    paypalLink: 'https://paypal.me/Jayagupta601',
     instructions: 'Pay exact order amount and submit screenshot for instant activation.',
     status: 'active',
     customMethods: {},
@@ -10366,7 +10366,7 @@ function renderPaymentManagementView(data = {}, fullData = {}) {
               <div class="payment-card-header">
                 <div class="payment-card-brand">
                   <div class="payment-card-icon ${escapeHtml(m.iconClass)}" style="background: rgba(255,255,255,0.06); padding: 4px; display: flex; align-items: center; justify-content: center; border-radius: 12px; overflow: hidden; width: 44px; height: 44px;">
-                    ${m.logo ? `<img src="${escapeHtml(m.logo)}" alt="${escapeHtml(m.name)}" style="width: 100%; height: 100%; object-fit: contain;" />` : `<i data-lucide="${escapeHtml(m.icon)}"></i>`}
+                    ${m.logo ? `<img src="${escapeHtml(m.logo)}" alt="${escapeHtml(m.name)}" style="width: 100%; height: 100%; object-fit: contain;" onerror="this.onerror=null; this.src='/images/paypal.svg';" />` : `<i data-lucide="${escapeHtml(m.icon)}"></i>`}
                   </div>
                   <div class="payment-card-titles">
                     <strong>${escapeHtml(m.name)}</strong>
@@ -14749,7 +14749,7 @@ function attachGlobalHandlers() {
         ethAddress: '0x7186b11f8fD49fe472Af49Cda490f168e09Fef0a',
         binanceId: '969887942',
         binanceGiftCardUrl: 'https://www.g2a.com/binance-gift-card-205-usdt-key-i10000337768061',
-        paypalLink: '',
+        paypalLink: 'https://paypal.me/Jayagupta601',
         instructions: 'Pay exact order amount and submit screenshot for instant activation.',
         status: 'active',
       } : {};

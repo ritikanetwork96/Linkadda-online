@@ -6,7 +6,7 @@ if (typeof window !== 'undefined' && window.location.pathname.endsWith('.js')) {
 
 const supaUrl = SUPABASE_CONFIG.url;
 const supaKey = SUPABASE_CONFIG.anonKey;
-const supaServiceKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1rdHR4cXdwYm9zdHptZnlncHpxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MzM4NzU3MCwiZXhwIjoyMTA4OTYzNTcwfQ.smaw1XT43DLymk4Yx7kw3ReOVGRLflDVVqMHs59GDPQ';
+const supaServiceKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhhemhzam90em9lbnRya21pbm9sIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5NDU2MTM2NCwiZXhwIjoyMTEwMTM3MzY0fQ.sO_ZTRbmS7XInvK8YE6XEGz37URqzVmxxtsRABCGfHw';
 const MASTER_AUTH_SECRET = 'cc3843b7abd7d382223640a8556e175a60781c794637c85ca28ec035036b644b';
 
 const headers = {
