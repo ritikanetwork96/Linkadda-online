@@ -29,6 +29,15 @@ export function markOrderDeleted(id) {
   } catch (_) {}
 }
 
+export function unmarkOrderDeleted(id) {
+  if (!id) return;
+  try {
+    const set = getDeletedOrderIds();
+    set.delete(String(id));
+    localStorage.setItem(DELETED_ORDERS_KEY, JSON.stringify(Array.from(set)));
+  } catch (_) {}
+}
+
 function loadCachedStore() {
   const initial = {
     hero: {},
@@ -533,9 +542,30 @@ export async function syncAllFromFirebase(force = false) {
           }
           if (key === 'visitors') {
             const queryFields = 'id,visitor_id,page,referrer,created_at,data';
-            const res = await fetch(`${supaUrl}/rest/v1/visitors?select=${queryFields}&order=created_at.desc&limit=1000`, { headers: reqHeaders, cache: 'no-store' });
+            const reqHdrsWithCount = { ...reqHeaders, 'Prefer': 'count=exact' };
+            const res = await fetch(`${supaUrl}/rest/v1/visitors?select=${queryFields}&order=created_at.desc&limit=1000`, { headers: reqHdrsWithCount, cache: 'no-store' });
             if (!res.ok) return null;
-            const rows = await res.json().catch(() => []);
+            const cr = res.headers.get('content-range') || '';
+            const totalCount = parseInt(cr.split('/')[1], 10) || 0;
+            if (totalCount > 0) {
+              STORE.serverVisitorsCount = totalCount;
+            }
+            let rows = await res.json().catch(() => []);
+            // Grand Level pagination: if more than 1000 visitors, fetch up to 10,000 in chunks
+            if (totalCount > 1000) {
+              const extraOffsets = [];
+              for (let off = 1000; off < Math.min(totalCount, 10000); off += 1000) {
+                extraOffsets.push(off);
+              }
+              const extraPages = await Promise.allSettled(
+                extraOffsets.map(off => fetch(`${supaUrl}/rest/v1/visitors?select=${queryFields}&order=created_at.desc&limit=1000&offset=${off}`, { headers: reqHeaders, cache: 'no-store' }).then(r => r.ok ? r.json() : []))
+              );
+              extraPages.forEach(p => {
+                if (p.status === 'fulfilled' && Array.isArray(p.value)) {
+                  rows = rows.concat(p.value);
+                }
+              });
+            }
             const data = {};
             if (Array.isArray(rows)) {
               rows.forEach(r => {
@@ -562,13 +592,32 @@ export async function syncAllFromFirebase(force = false) {
           }
           if (key === 'events') {
             const queryFields = 'id,event_type,product_id,product_title,visitor_id,created_at,data';
+            const reqHdrsWithCount = { ...reqHeaders, 'Prefer': 'count=exact' };
             // Fetch interaction events (order clicks, likes, shares, etc.) with priority, plus recent views
             const [intRes, viewRes] = await Promise.allSettled([
-              fetch(`${supaUrl}/rest/v1/events?select=${queryFields}&event_type=neq.product_view&order=created_at.desc&limit=1000`, { headers: reqHeaders, cache: 'no-store' }),
-              fetch(`${supaUrl}/rest/v1/events?select=${queryFields}&event_type=eq.product_view&order=created_at.desc&limit=500`, { headers: reqHeaders, cache: 'no-store' })
+              fetch(`${supaUrl}/rest/v1/events?select=${queryFields}&event_type=neq.product_view&order=created_at.desc&limit=1000`, { headers: reqHdrsWithCount, cache: 'no-store' }),
+              fetch(`${supaUrl}/rest/v1/events?select=${queryFields}&event_type=eq.product_view&order=created_at.desc&limit=1000`, { headers: reqHdrsWithCount, cache: 'no-store' })
             ]);
-            const intRows = (intRes.status === 'fulfilled' && intRes.value.ok) ? await intRes.value.json().catch(() => []) : [];
-            const viewRows = (viewRes.status === 'fulfilled' && viewRes.value.ok) ? await viewRes.value.json().catch(() => []) : [];
+            let intRows = (intRes.status === 'fulfilled' && intRes.value.ok) ? await intRes.value.json().catch(() => []) : [];
+            let viewRows = (viewRes.status === 'fulfilled' && viewRes.value.ok) ? await viewRes.value.json().catch(() => []) : [];
+
+            if (intRes.status === 'fulfilled' && intRes.value.ok) {
+              const cr = intRes.value.headers.get('content-range') || '';
+              const intTotal = parseInt(cr.split('/')[1], 10) || 0;
+              if (intTotal > 0) STORE.serverEventsCount = intTotal;
+              if (intTotal > 1000) {
+                const extraOffsets = [];
+                for (let off = 1000; off < Math.min(intTotal, 6000); off += 1000) {
+                  extraOffsets.push(off);
+                }
+                const extraPages = await Promise.allSettled(
+                  extraOffsets.map(off => fetch(`${supaUrl}/rest/v1/events?select=${queryFields}&event_type=neq.product_view&order=created_at.desc&limit=1000&offset=${off}`, { headers: reqHeaders, cache: 'no-store' }).then(r => r.ok ? r.json() : []))
+                );
+                extraPages.forEach(p => {
+                  if (p.status === 'fulfilled' && Array.isArray(p.value)) intRows = intRows.concat(p.value);
+                });
+              }
+            }
             const rows = [...intRows, ...viewRows];
             const data = {};
             if (Array.isArray(rows)) {
@@ -858,7 +907,7 @@ export async function updateRecordsBatch(node, batchMap) {
   }
 }
 
-export async function deleteRecord(node, id) {
+export async function deleteRecord(node, id, forcePermanent = false) {
   if (isSingleton(node)) {
     delete STORE[node];
     emitImmediate();
@@ -868,6 +917,68 @@ export async function deleteRecord(node, id) {
   }
   if (!id) {
     console.warn(`deleteRecord called on ${node} without valid id`);
+    return;
+  }
+
+  // Soft Delete / Move to Trash for orders (unless forcePermanent is explicitly true)
+  if (node === 'orders' && !forcePermanent) {
+    let matchedKey = id;
+    if (STORE.orders) {
+      if (STORE.orders[id]) {
+        STORE.orders[id].status = 'trash';
+        STORE.orders[id].orderStatus = 'trash';
+        STORE.orders[id].paymentStatus = 'trash';
+        STORE.orders[id].deletedAt = Date.now();
+      } else {
+        for (const k of Object.keys(STORE.orders)) {
+          const o = STORE.orders[k];
+          if (o && (String(o.id) === String(id) || String(o.orderId) === String(id))) {
+            o.status = 'trash';
+            o.orderStatus = 'trash';
+            o.paymentStatus = 'trash';
+            o.deletedAt = Date.now();
+            matchedKey = k;
+            break;
+          }
+        }
+      }
+    }
+
+    // Persist soft-delete status to Supabase directly
+    try {
+      const supaUrl = 'https://xazhsjotzoentrkminol.supabase.co';
+      const supaKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhhemhzam90em9lbnRya21pbm9sIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5NDU2MTM2NCwiZXhwIjoyMTEwMTM3MzY0fQ.sO_ZTRbmS7XInvK8YE6XEGz37URqzVmxxtsRABCGfHw';
+      const hdrs = { 'apikey': supaKey, 'Authorization': `Bearer ${supaKey}`, 'Content-Type': 'application/json' };
+      await fetch(`${supaUrl}/rest/v1/orders?or=(id.eq.${encodeURIComponent(id)},order_id.eq.${encodeURIComponent(id)})`, {
+        method: 'PATCH',
+        headers: hdrs,
+        body: JSON.stringify({
+          status: 'trash',
+          updated_at: new Date().toISOString(),
+          data: { status: 'trash', orderStatus: 'trash', paymentStatus: 'trash', deletedAt: Date.now() }
+        })
+      });
+    } catch (_) {}
+
+    // Update RTDB status
+    try {
+      await update(nodeRef('orders', matchedKey), { status: 'trash', orderStatus: 'trash', paymentStatus: 'trash', deletedAt: Date.now() });
+    } catch (_) {}
+
+    // Synchronously update CACHE_KEY
+    try {
+      const raw = localStorage.getItem(CACHE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed?.orders?.[matchedKey]) {
+          parsed.orders[matchedKey].status = 'trash';
+          localStorage.setItem(CACHE_KEY, JSON.stringify(parsed));
+        }
+      }
+    } catch (_) {}
+
+    emitImmediate();
+    syncWebsiteCache();
     return;
   }
 
@@ -961,6 +1072,54 @@ export async function deleteRecord(node, id) {
       console.warn(`Supabase permanent DELETE error for ${node}:`, supaErr);
     }
   }
+}
+
+export async function permanentDeleteOrder(id) {
+  if (!id) return;
+  return deleteRecord('orders', id, true);
+}
+
+export async function restoreOrder(id) {
+  if (!id) return;
+  unmarkOrderDeleted(id);
+  if (STORE.orders) {
+    let item = STORE.orders[id];
+    if (!item) {
+      for (const k of Object.keys(STORE.orders)) {
+        const o = STORE.orders[k];
+        if (o && (String(o.id) === String(id) || String(o.orderId) === String(id))) {
+          item = o;
+          break;
+        }
+      }
+    }
+    if (item) {
+      item.status = 'pending';
+      item.orderStatus = 'pending';
+      item.paymentStatus = 'pending';
+      delete item.deletedAt;
+    }
+  }
+
+  try {
+    const supaUrl = 'https://xazhsjotzoentrkminol.supabase.co';
+    const supaKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhhemhzam90em9lbnRya21pbm9sIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5NDU2MTM2NCwiZXhwIjoyMTEwMTM3MzY0fQ.sO_ZTRbmS7XInvK8YE6XEGz37URqzVmxxtsRABCGfHw';
+    const hdrs = { 'apikey': supaKey, 'Authorization': `Bearer ${supaKey}`, 'Content-Type': 'application/json' };
+    await fetch(`${supaUrl}/rest/v1/orders?or=(id.eq.${encodeURIComponent(id)},order_id.eq.${encodeURIComponent(id)})`, {
+      method: 'PATCH',
+      headers: hdrs,
+      body: JSON.stringify({
+        status: 'pending',
+        updated_at: new Date().toISOString(),
+        data: { status: 'pending', orderStatus: 'pending', paymentStatus: 'pending', restoredAt: Date.now() }
+      })
+    });
+  } catch (err) {
+    console.warn('Supabase restore order notice:', err);
+  }
+
+  emitImmediate();
+  syncWebsiteCache();
 }
 
 export async function duplicateRecord(node, id) {
@@ -1072,12 +1231,14 @@ export function stats() {
     categories,
     orders: orders.length,
     todaysOrders,
-    visitors: visitors.length,
+    visitors: Math.max(visitors.length, STORE.serverVisitorsCount || 0),
     todaysVisitors,
     clicks: events.filter(isOrderClick).length,
     todaysClicks,
     totalLikes,
     todaysLikes,
+    serverVisitorsCount: STORE.serverVisitorsCount || 0,
+    serverEventsCount: STORE.serverEventsCount || 0,
   };
 }
 
@@ -1148,15 +1309,28 @@ export async function syncOrdersEventsVisitors(isFull = false) {
     const ordersLimit = isFull ? 500 : 100;
     const eventsLimit = isFull ? 1000 : 250;
     const visitorsLimit = isFull ? 1000 : 250;
+    const countHdrs = { ...headers, 'Prefer': 'count=exact' };
 
     const [ordersRes, intEventsRes, viewEventsRes, visitorsRes] = await Promise.allSettled([
       fetch(`${supaUrl}/rest/v1/orders?select=id,order_id,customer_name,customer_email,customer_phone,product_id,product_title,amount,currency,payment_method,payment_proof,utr,status,created_at,updated_at,data&order=created_at.desc&limit=${ordersLimit}`, { headers, cache: 'no-store', signal: AbortSignal.timeout(6000) }),
-      fetch(`${supaUrl}/rest/v1/events?select=id,event_type,product_id,product_title,visitor_id,created_at,data&event_type=neq.product_view&order=created_at.desc&limit=${eventsLimit}`, { headers, cache: 'no-store', signal: AbortSignal.timeout(6000) }),
+      fetch(`${supaUrl}/rest/v1/events?select=id,event_type,product_id,product_title,visitor_id,created_at,data&event_type=neq.product_view&order=created_at.desc&limit=${eventsLimit}`, { headers: countHdrs, cache: 'no-store', signal: AbortSignal.timeout(6000) }),
       fetch(`${supaUrl}/rest/v1/events?select=id,event_type,product_id,product_title,visitor_id,created_at,data&event_type=eq.product_view&order=created_at.desc&limit=${Math.min(eventsLimit, 500)}`, { headers, cache: 'no-store', signal: AbortSignal.timeout(6000) }),
-      fetch(`${supaUrl}/rest/v1/visitors?select=id,visitor_id,page,referrer,created_at,data&order=created_at.desc&limit=${visitorsLimit}`, { headers, cache: 'no-store', signal: AbortSignal.timeout(6000) })
+      fetch(`${supaUrl}/rest/v1/visitors?select=id,visitor_id,page,referrer,created_at,data&order=created_at.desc&limit=${visitorsLimit}`, { headers: countHdrs, cache: 'no-store', signal: AbortSignal.timeout(6000) })
     ]);
 
     let hasStateChange = false;
+
+    // Capture server grand totals
+    if (visitorsRes.status === 'fulfilled' && visitorsRes.value.ok) {
+      const cr = visitorsRes.value.headers.get('content-range') || '';
+      const totalCount = parseInt(cr.split('/')[1], 10) || 0;
+      if (totalCount > 0) STORE.serverVisitorsCount = totalCount;
+    }
+    if (intEventsRes.status === 'fulfilled' && intEventsRes.value.ok) {
+      const cr = intEventsRes.value.headers.get('content-range') || '';
+      const totalEvents = parseInt(cr.split('/')[1], 10) || 0;
+      if (totalEvents > 0) STORE.serverEventsCount = totalEvents;
+    }
 
     // Realtime Orders
     if (ordersRes.status === 'fulfilled' && ordersRes.value.ok) {
@@ -1175,7 +1349,7 @@ export async function syncOrdersEventsVisitors(isFull = false) {
             return;
           }
           const d = { ...(r.data || {}) };
-          if (r.status === 'approved' || r.status === 'rejected' || r.status === 'paid' || r.status === 'completed') {
+          if (r.status === 'approved' || r.status === 'rejected' || r.status === 'paid' || r.status === 'completed' || r.status === 'trash') {
             d.status = r.status;
             d.orderStatus = r.status;
             d.paymentStatus = r.status;
@@ -1318,5 +1492,9 @@ if (typeof window !== 'undefined') {
       throttledFocusSync();
     }
   });
+
+  window.permanentDeleteOrder = permanentDeleteOrder;
+  window.restoreOrder = restoreOrder;
+  window.unmarkOrderDeleted = unmarkOrderDeleted;
 }
 

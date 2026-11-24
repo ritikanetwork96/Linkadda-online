@@ -70,6 +70,9 @@ import {
   updateRecord,
   updateRecordsBatch,
   deleteRecord,
+  permanentDeleteOrder,
+  restoreOrder,
+  unmarkOrderDeleted,
   duplicateRecord,
   getSnapshot,
   syncAllFromFirebase,
@@ -3674,7 +3677,8 @@ function summarizeDashboard(range = ui.dashboardRange) {
     return type === 'order_click' || type.includes('order') || type.includes('click') || type.includes('buy');
   };
   const isAllRange = range === 'all';
-  const allVisitorsCount = Math.max(visitors.length, stats().visitors || 0);
+  const serverVisitors = (typeof STORE !== 'undefined' && STORE.serverVisitorsCount) ? STORE.serverVisitorsCount : 0;
+  const allVisitorsCount = Math.max(visitors.length, stats().visitors || 0, serverVisitors);
   const allClicksCount = Math.max(events.filter(clickPredicate).length, stats().clicks || 0);
   const allOrdersCount = Math.max(orders.length, stats().orders || 0);
 
@@ -7252,10 +7256,18 @@ function managementCounts(list = [], predicate = () => true) {
   return list.filter(predicate).length;
 }
 
+function isTrashOrder(item) {
+  if (!item) return false;
+  const s = String(item.status || item.orderStatus || (item.data && (item.data.status || item.data.orderStatus)) || '').toLowerCase();
+  return s === 'trash' || s === 'deleted' || Boolean(item.deletedAt || (item.data && item.data.deletedAt));
+}
+
 function managementTotals(list = []) {
   const today = new Date().toISOString().slice(0, 10);
   const monthKey = today.slice(0, 7);
-  const paidList = list.filter(isPaidOrder);
+  const trashList = list.filter(isTrashOrder);
+  const activeList = list.filter((item) => !isTrashOrder(item));
+  const paidList = activeList.filter(isPaidOrder);
   let totalReceivedINR = 0;
   let totalReceivedUSDT = 0;
   for (const item of paidList) {
@@ -7266,19 +7278,20 @@ function managementTotals(list = []) {
       totalReceivedINR += info.amount;
     }
   }
-  const pending = managementCounts(list, isPendingOrder);
-  const failed = managementCounts(list, isFailedOrder);
-  const todayCount = list.filter((item) => String(item.date || '').slice(0, 10) === today || new Date(orderDateValue(item)).toISOString().slice(0, 10) === today).length;
-  const monthCount = list.filter((item) => String(item.date || '').slice(0, 7) === monthKey || new Date(orderDateValue(item)).toISOString().slice(0, 7) === monthKey).length;
+  const pending = managementCounts(activeList, isPendingOrder);
+  const failed = managementCounts(activeList, isFailedOrder);
+  const todayCount = activeList.filter((item) => String(item.date || '').slice(0, 10) === today || new Date(orderDateValue(item)).toISOString().slice(0, 10) === today).length;
+  const monthCount = activeList.filter((item) => String(item.date || '').slice(0, 7) === monthKey || new Date(orderDateValue(item)).toISOString().slice(0, 7) === monthKey).length;
   return {
     totalReceived: Math.round(totalReceivedINR * 100) / 100,
     totalReceivedINR: Math.round(totalReceivedINR * 100) / 100,
     totalReceivedUSDT: Math.round(totalReceivedUSDT * 100) / 100,
     pending,
     failed,
+    trash: trashList.length,
     today: todayCount,
     month: monthCount,
-    total: list.length,
+    total: activeList.length,
     paid: paidList.length,
   };
 }
@@ -7290,6 +7303,12 @@ function filterManagementList(items = [], type = 'orders') {
   const date = String(ui.management.date || 'all');
   const botFilter = String(ui.management.botFilter || 'all');
   return items.filter((item) => {
+    const isTrash = isTrashOrder(item);
+    if (status === 'trash') {
+      if (!isTrash) return false;
+    } else {
+      if (isTrash) return false;
+    }
     if (type === 'payment' && !orderPaymentProof(item)) return false;
     const searchable = JSON.stringify(item).toLowerCase();
     const itemStatus = orderStatusValue(item);
@@ -7297,7 +7316,7 @@ function filterManagementList(items = [], type = 'orders') {
     const orderDate = orderDateValue(item);
     const day = String(item.date || '').slice(0, 10) || (orderDate ? new Date(orderDate).toISOString().slice(0, 10) : '');
     if (search && !searchable.includes(search)) return false;
-    if (status !== 'all') {
+    if (status !== 'all' && status !== 'trash') {
       if (status === 'paid' && !isPaidOrder(item)) return false;
       if (status === 'pending' && !isPendingOrder(item)) return false;
       if (status === 'failed' && !isFailedOrder(item)) return false;
@@ -10675,7 +10694,7 @@ function renderOrderDetailsModal(item = {}) {
           <button class="btn btn-ghost" type="button" data-close-modal onclick="closeModal()" style="font-size: 13px; padding: 8px 16px;">
             Close
           </button>
-          <button class="btn btn-ghost" type="button" data-action="reject-order" data-id="${escapeHtml(item.id || item.orderId || '')}" style="font-size: 13px; padding: 8px 16px; color: #f87171; border-color: rgba(239, 68, 68, 0.3);">
+          <button class="btn btn-ghost" type="button" data-action="reject-order" data-id="${escapeHtml(item.id || item.orderId || '')}" onclick="event.stopPropagation(); window.renderRejectOrderModal && window.renderRejectOrderModal('${escapeHtml(item.id || item.orderId || '')}')" style="font-size: 13px; padding: 8px 16px; color: #f87171; border-color: rgba(239, 68, 68, 0.3);">
             <i data-lucide="x-circle" style="width: 15px; height: 15px;"></i> Reject Payment
           </button>
           <button class="btn btn-primary" type="button" data-action="approve-order" data-id="${escapeHtml(item.id || item.orderId || '')}" style="font-size: 13px; padding: 8px 20px; font-weight: 700; background: linear-gradient(135deg, #10b981, #059669) !important; border: none !important; color: white !important; box-shadow: 0 4px 14px rgba(16, 185, 129, 0.4);">
@@ -10695,7 +10714,7 @@ function renderRejectOrderModal(orderId) {
   const customerName = orderCustomerLabel(item);
 
   openModal(`
-    <div class="modal glass" style="max-width: 520px; width: 100%; border-radius: 18px; border: 1px solid rgba(239, 68, 68, 0.35); box-shadow: 0 20px 50px rgba(0,0,0,0.6); overflow: hidden; background: #0f111a; margin: auto;">
+    <div class="modal-reject-dialog" style="max-width: 520px; width: 100%; border-radius: 18px; border: 1px solid rgba(239, 68, 68, 0.4); box-shadow: 0 20px 50px rgba(0,0,0,0.6); overflow: hidden; background: #0f111a; margin: 0 auto; box-sizing: border-box;">
       <div class="panel-head" style="padding: 18px 24px; border-bottom: 1px solid rgba(255,255,255,0.08); display: flex; align-items: center; justify-content: space-between;">
         <div style="display: flex; align-items: center; gap: 12px;">
           <div style="width: 40px; height: 40px; border-radius: 12px; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.35); display: flex; align-items: center; justify-content: center; color: #ef4444; font-size: 20px;">
@@ -10729,7 +10748,7 @@ function renderRejectOrderModal(orderId) {
             Select Quick Preset Reason:
           </label>
           <div style="display: flex; flex-direction: column; gap: 6px;" id="rejectPresetButtons">
-            <button type="button" class="preset-reason-btn" data-reason="Payment screenshot is blur, cropped, or invalid. Please upload clear full screenshot." style="text-align: left; padding: 8px 12px; font-size: 12px; border-radius: 8px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); color: #e2e8f0; cursor: pointer; transition: all 0.15s ease;">
+            <button type="button" class="preset-reason-btn" data-reason="Payment screenshot is blur, cropped, or invalid. Please upload clear full screenshot." style="text-align: left; padding: 8px 12px; font-size: 12px; border-radius: 8px; background: rgba(239, 68, 68, 0.15); border: 1px solid #ef4444; color: #e2e8f0; cursor: pointer; transition: all 0.15s ease;">
               📸 <strong>Blur / Invalid Screenshot:</strong> Screenshot clear nahi hai
             </button>
             <button type="button" class="preset-reason-btn" data-reason="UTR / Transaction Reference number does not match bank records." style="text-align: left; padding: 8px 12px; font-size: 12px; border-radius: 8px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); color: #e2e8f0; cursor: pointer; transition: all 0.15s ease;">
@@ -10752,14 +10771,14 @@ function renderRejectOrderModal(orderId) {
           <label for="rejectOrderReasonInput" style="font-size: 11px; font-weight: 700; color: #cbd5e1; display: block; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.05em;">
             Rejection Reason (Visible to Customer):
           </label>
-          <textarea id="rejectOrderReasonInput" class="input" rows="3" placeholder="Enter reason explaining why order was rejected..." style="width: 100%; min-height: 75px; padding: 10px 12px; border-radius: 10px; font-size: 13px; line-height: 1.5; resize: vertical; border-color: rgba(239,68,68,0.3); background: rgba(0,0,0,0.35); color: #ffffff; box-sizing: border-box;"></textarea>
+          <textarea id="rejectOrderReasonInput" class="input" rows="3" placeholder="Enter reason explaining why order was rejected..." style="width: 100%; min-height: 75px; padding: 10px 12px; border-radius: 10px; font-size: 13px; line-height: 1.5; resize: vertical; border-color: rgba(239,68,68,0.3); background: rgba(0,0,0,0.35); color: #ffffff; box-sizing: border-box;">Payment screenshot is blur, cropped, or invalid. Please upload clear full screenshot.</textarea>
           <span style="font-size: 11px; color: #94a3b8; margin-top: 4px; display: block;">This exact reason will appear in the customer's "My Orders" tab and Notifications.</span>
         </div>
 
         <!-- Action Footer -->
         <div style="display: flex; gap: 10px; justify-content: flex-end;">
           <button type="button" class="btn btn-ghost" data-close-modal onclick="closeModal()" style="font-weight: 600; padding: 9px 18px;">Cancel</button>
-          <button type="button" class="btn btn-danger" id="btnConfirmOrderReject" data-id="${escapeHtml(orderId)}" style="background: linear-gradient(135deg, #ef4444, #dc2626); border: none; font-weight: 750; padding: 9px 20px; border-radius: 10px; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 4px 14px rgba(239,68,68,0.4);">
+          <button type="button" class="btn btn-danger" id="btnConfirmOrderReject" data-id="${escapeHtml(orderId)}" style="background: linear-gradient(135deg, #ef4444, #dc2626); border: none; font-weight: 750; padding: 9px 20px; border-radius: 10px; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 4px 14px rgba(239,68,68,0.4); cursor: pointer;">
             <i data-lucide="x-circle" style="width: 15px; height: 15px;"></i> Confirm Rejection
           </button>
         </div>
@@ -10796,6 +10815,11 @@ function renderRejectOrderModal(orderId) {
       });
     }
   }, 40);
+}
+
+if (typeof window !== 'undefined') {
+  window.renderRejectOrderModal = renderRejectOrderModal;
+  window.openRejectOrderModal = renderRejectOrderModal;
 }
 
 async function executeRejectOrder(targetOrderId, reason) {
@@ -10968,7 +10992,30 @@ function renderOrdersManagementView(data = {}, fullData = {}) {
         <button type="button" class="order-tab-btn ${activeTab === 'failed' ? 'active' : ''}" data-action="set-orders-tab" data-status="failed">
           ❌ Rejected <span>${totals.failed}</span>
         </button>
+        <button type="button" class="order-tab-btn ${activeTab === 'trash' ? 'active' : ''}" data-action="set-orders-tab" data-status="trash" style="${activeTab === 'trash' ? 'background: rgba(239, 68, 68, 0.2); border-color: rgba(239, 68, 68, 0.4); color: #f87171;' : ''}">
+          🗑️ Trash / Deleted <span>${totals.trash || 0}</span>
+        </button>
       </div>
+
+      ${activeTab === 'trash' ? `
+        <div style="background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.28); border-radius: 14px; padding: 14px 18px; margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <div style="width: 36px; height: 36px; border-radius: 10px; background: rgba(239, 68, 68, 0.15); display: flex; align-items: center; justify-content: center; font-size: 18px;">
+              🗑️
+            </div>
+            <div>
+              <div style="font-weight: 750; color: #f87171; font-size: 14px;">Trash / Deleted Orders (${items.length} items)</div>
+              <div style="font-size: 12px; color: var(--muted); margin-top: 2px;">Orders deleted from active tabs are held here. You can restore them back or permanently wipe them from the database.</div>
+            </div>
+          </div>
+          ${items.length ? `
+            <button class="btn btn-danger" type="button" data-action="empty-orders-trash" style="font-size: 12.5px; padding: 8px 16px; background: linear-gradient(135deg, #ef4444, #dc2626); border: none; font-weight: 750; border-radius: 8px; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 4px 14px rgba(239, 68, 68, 0.35); cursor: pointer;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+              <span>Empty Trash (Permanent Wipe)</span>
+            </button>
+          ` : ''}
+        </div>
+      ` : ''}
 
       <!-- Search & Filters Toolbar -->
       <div class="panel glass" style="padding: 16px 20px; border-radius: 14px; margin-bottom: 20px; border: 1px solid var(--border);">
@@ -11022,6 +11069,7 @@ function renderOrdersManagementView(data = {}, fullData = {}) {
               const proof = orderPaymentProof(item);
               const isPaid = isPaidOrder(item);
               const isFailed = isFailedOrder(item);
+              const isTrash = isTrashOrder(item);
               const orderId = item.id || item.orderId || '-';
               const shortId = orderId.length > 10 ? `${orderId.substring(0, 8)}...` : orderId;
               const prodTitle = orderProductName(item);
@@ -11033,7 +11081,7 @@ function renderOrdersManagementView(data = {}, fullData = {}) {
               const isBotOrder = Boolean(orderBotName);
 
               return `
-                <tr>
+                <tr class="${isTrash ? 'order-trash-row' : ''}">
                   <!-- Col 1: Order & Proof -->
                   <td>
                     <div class="order-product-cell">
@@ -11093,9 +11141,15 @@ function renderOrdersManagementView(data = {}, fullData = {}) {
 
                   <!-- Col 5: Status -->
                   <td>
-                    <span class="order-status-pill ${isPaid ? 'approved' : isFailed ? 'rejected' : 'pending'}">
-                      ${isPaid ? '🟢 Approved' : isFailed ? '🔴 Rejected' : '🟡 Pending'}
-                    </span>
+                    ${isTrash ? `
+                      <span class="order-status-pill danger" style="background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3);">
+                        🗑️ In Trash
+                      </span>
+                    ` : `
+                      <span class="order-status-pill ${isPaid ? 'approved' : isFailed ? 'rejected' : 'pending'}">
+                        ${isPaid ? '🟢 Approved' : isFailed ? '🔴 Rejected' : '🟡 Pending'}
+                      </span>
+                    `}
                   </td>
 
                   <!-- Col 6: Date -->
@@ -11111,22 +11165,33 @@ function renderOrdersManagementView(data = {}, fullData = {}) {
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
                         <span>View</span>
                       </button>
-                      ${!isPaid ? `
-                        <button class="order-quick-btn approve" type="button" data-action="approve-order" data-id="${escapeHtml(item.id)}" title="Verify Payment & Approve Order" style="display: inline-flex; align-items: center; gap: 4px; padding: 6px 12px; border-radius: 8px; font-weight: 700; font-size: 12px; background: rgba(16,185,129,0.18); color: #34d399; border: 1px solid rgba(16,185,129,0.4); cursor: pointer; white-space: nowrap;">
-                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><polyline points="20 6 9 17 4 12"/></svg>
-                          <span>Approve</span>
+                      ${isTrash ? `
+                        <button class="order-quick-btn restore" type="button" data-action="restore-order" data-id="${escapeHtml(item.id)}" title="Restore Order to Active Queue" style="display: inline-flex; align-items: center; gap: 4px; padding: 6px 12px; border-radius: 8px; font-weight: 700; font-size: 12px; background: rgba(16,185,129,0.18); color: #34d399; border: 1px solid rgba(16,185,129,0.4); cursor: pointer; white-space: nowrap;">
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+                          <span>Restore</span>
                         </button>
-                      ` : ''}
-                      ${!isFailed ? `
-                        <button class="order-quick-btn reject" type="button" data-action="reject-order" data-id="${escapeHtml(item.id)}" title="Reject Order" style="display: inline-flex; align-items: center; gap: 4px; padding: 6px 10px; border-radius: 8px; font-weight: 700; font-size: 12px; background: rgba(239,68,68,0.12); color: #f87171; border: 1px solid rgba(239,68,68,0.3); cursor: pointer; white-space: nowrap;">
-                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
-                          <span>Reject</span>
+                        <button class="order-quick-btn permanent-delete" type="button" data-action="permanent-delete-order" data-id="${escapeHtml(item.id)}" title="Permanently Delete From Database" style="display: inline-flex; align-items: center; gap: 4px; padding: 6px 10px; border-radius: 8px; font-weight: 700; font-size: 12px; background: rgba(239,68,68,0.15); color: #f87171; border: 1px solid rgba(239,68,68,0.4); cursor: pointer; white-space: nowrap;">
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
+                          <span>Perm Delete</span>
                         </button>
-                      ` : ''}
-                      <button class="order-quick-btn delete" type="button" data-action="delete-order" data-id="${escapeHtml(item.id)}" title="Delete Order" style="display: inline-flex; align-items: center; gap: 4px; padding: 6px 10px; border-radius: 8px; font-weight: 700; font-size: 12px; background: rgba(255,255,255,0.04); color: #94a3b8; border: 1px solid rgba(255,255,255,0.1); cursor: pointer; white-space: nowrap;">
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
-                        <span>Delete</span>
-                      </button>
+                      ` : `
+                        ${!isPaid ? `
+                          <button class="order-quick-btn approve" type="button" data-action="approve-order" data-id="${escapeHtml(item.id)}" title="Verify Payment & Approve Order" style="display: inline-flex; align-items: center; gap: 4px; padding: 6px 12px; border-radius: 8px; font-weight: 700; font-size: 12px; background: rgba(16,185,129,0.18); color: #34d399; border: 1px solid rgba(16,185,129,0.4); cursor: pointer; white-space: nowrap;">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><polyline points="20 6 9 17 4 12"/></svg>
+                            <span>Approve</span>
+                          </button>
+                        ` : ''}
+                        ${!isFailed ? `
+                          <button class="order-quick-btn reject" type="button" data-action="reject-order" data-id="${escapeHtml(item.id)}" onclick="event.stopPropagation(); window.renderRejectOrderModal && window.renderRejectOrderModal('${escapeHtml(item.id)}')" title="Reject Order" style="display: inline-flex; align-items: center; gap: 4px; padding: 6px 10px; border-radius: 8px; font-weight: 700; font-size: 12px; background: rgba(239,68,68,0.12); color: #f87171; border: 1px solid rgba(239,68,68,0.3); cursor: pointer; white-space: nowrap;">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                            <span>Reject</span>
+                          </button>
+                        ` : ''}
+                        <button class="order-quick-btn delete" type="button" data-action="delete-order" data-id="${escapeHtml(item.id)}" title="Move to Trash" style="display: inline-flex; align-items: center; gap: 4px; padding: 6px 10px; border-radius: 8px; font-weight: 700; font-size: 12px; background: rgba(255,255,255,0.04); color: #94a3b8; border: 1px solid rgba(255,255,255,0.1); cursor: pointer; white-space: nowrap;">
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
+                          <span>Delete</span>
+                        </button>
+                      `}
                     </div>
                   </td>
                 </tr>
@@ -15531,7 +15596,89 @@ function attachGlobalHandlers() {
         }
       }
 
-      if (!confirm('Are you sure you want to permanently delete this order?\n\nThis record will be removed from database and live queue.')) {
+      if (!confirm('Move this order to Trash?\n\nYou can view and restore it anytime from the "Trash / Deleted" tab.')) {
+        return;
+      }
+
+      actionBtn.disabled = true;
+      const origHtml = actionBtn.innerHTML;
+      actionBtn.innerHTML = '<i data-lucide="loader-2" class="spin" style="width: 14px; height: 14px;"></i> Moving...';
+      if (window.lucide) lucide.createIcons();
+
+      try {
+        if (targetOrderId) {
+          // Soft delete in state manager, Supabase and RTDB
+          await deleteRecord('orders', targetOrderId, false);
+
+          // Update memory state
+          if (ui.data?.orders) {
+            if (ui.data.orders[targetOrderId]) {
+              ui.data.orders[targetOrderId].status = 'trash';
+              ui.data.orders[targetOrderId].orderStatus = 'trash';
+            }
+            for (const k of Object.keys(ui.data.orders)) {
+              const o = ui.data.orders[k];
+              if (o && (String(o.id) === String(targetOrderId) || String(o.orderId) === String(targetOrderId))) {
+                o.status = 'trash';
+                o.orderStatus = 'trash';
+              }
+            }
+          }
+        }
+
+        showToast('Order moved to Trash. You can restore it anytime.', 'info');
+      } catch (err) {
+        console.error('Move to trash error:', err);
+        showToast('Failed to move order to trash: ' + (err?.message || err), 'danger');
+      } finally {
+        closeModal();
+        renderView(ui.data || {});
+      }
+      return;
+    }
+    if (action === 'restore-order') {
+      let targetOrderId = id || actionBtn.dataset.id;
+      if (!targetOrderId) return;
+
+      actionBtn.disabled = true;
+      const origHtml = actionBtn.innerHTML;
+      actionBtn.innerHTML = '<i data-lucide="loader-2" class="spin" style="width: 14px; height: 14px;"></i> Restoring...';
+      if (window.lucide) lucide.createIcons();
+
+      try {
+        if (typeof restoreOrder === 'function') {
+          await restoreOrder(targetOrderId);
+        } else if (typeof window.restoreOrder === 'function') {
+          await window.restoreOrder(targetOrderId);
+        }
+        if (ui.data?.orders) {
+          if (ui.data.orders[targetOrderId]) {
+            ui.data.orders[targetOrderId].status = 'pending';
+            delete ui.data.orders[targetOrderId].deletedAt;
+          }
+          for (const k of Object.keys(ui.data.orders)) {
+            const o = ui.data.orders[k];
+            if (o && (String(o.id) === String(targetOrderId) || String(o.orderId) === String(targetOrderId))) {
+              o.status = 'pending';
+              delete o.deletedAt;
+            }
+          }
+        }
+        showToast(`Order #${String(targetOrderId).slice(-8)} restored to active queue!`, 'success');
+      } catch (err) {
+        console.error('Restore order error:', err);
+        showToast('Failed to restore order: ' + (err?.message || err), 'danger');
+      } finally {
+        closeModal();
+        renderView(ui.data || {});
+      }
+      return;
+    }
+    if (action === 'permanent-delete-order') {
+      let targetOrderId = id || actionBtn.dataset.id;
+      if (!targetOrderId) return;
+
+      if (!confirm('⚠️ PERMANENT DELETE WARNING:\n\nAre you sure you want to permanently delete this order from the database?\n\nThis will completely erase it from Supabase and Firebase. This action cannot be undone!')) {
         return;
       }
 
@@ -15541,59 +15688,95 @@ function attachGlobalHandlers() {
       if (window.lucide) lucide.createIcons();
 
       try {
-        if (targetOrderId) {
-          // 1. Delete from orders collection in state manager & RTDB
-          await deleteRecord('orders', targetOrderId);
+        if (typeof permanentDeleteOrder === 'function') {
+          await permanentDeleteOrder(targetOrderId);
+        } else if (typeof window.permanentDeleteOrder === 'function') {
+          await window.permanentDeleteOrder(targetOrderId);
+        } else {
+          await deleteRecord('orders', targetOrderId, true);
+        }
 
-          // 2. Direct companion node cleanup in RTDB
-          try {
-            await remove(ref(db, `orders/${targetOrderId}`));
-          } catch (_) {}
-          try {
-            await remove(ref(db, `order_approvals/${targetOrderId}`));
-          } catch (_) {}
-          try {
-            const rawUserOrders = localStorage.getItem('linkadda_user_orders');
-            if (rawUserOrders) {
-              const parsed = JSON.parse(rawUserOrders);
-              if (Array.isArray(parsed)) {
-                localStorage.setItem('linkadda_user_orders', JSON.stringify(parsed.filter(x => String(x.id || x.orderId) !== String(targetOrderId))));
-              }
+        // Direct Companion node cleanup in Supabase
+        try {
+          const supaUrl = 'https://xazhsjotzoentrkminol.supabase.co';
+          const supaKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhhemhzam90em9lbnRya21pbm9sIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5NDU2MTM2NCwiZXhwIjoyMTEwMTM3MzY0fQ.sO_ZTRbmS7XInvK8YE6XEGz37URqzVmxxtsRABCGfHw';
+          const hdrs = { 'apikey': supaKey, 'Authorization': `Bearer ${supaKey}` };
+          await fetch(`${supaUrl}/rest/v1/orders?or=(id.eq.${encodeURIComponent(targetOrderId)},order_id.eq.${encodeURIComponent(targetOrderId)})`, {
+            method: 'DELETE',
+            headers: hdrs
+          });
+        } catch (_) {}
+
+        // Direct Companion node cleanup in RTDB
+        try {
+          await remove(ref(db, `orders/${targetOrderId}`));
+        } catch (_) {}
+        try {
+          await remove(ref(db, `order_approvals/${targetOrderId}`));
+        } catch (_) {}
+        try {
+          const rawUserOrders = localStorage.getItem('linkadda_user_orders');
+          if (rawUserOrders) {
+            const parsed = JSON.parse(rawUserOrders);
+            if (Array.isArray(parsed)) {
+              localStorage.setItem('linkadda_user_orders', JSON.stringify(parsed.filter(x => String(x.id || x.orderId) !== String(targetOrderId))));
             }
-          } catch (_) {}
+          }
+        } catch (_) {}
 
-          // 3. Purge from settings.recentApproved pool if present
-          try {
-            const currentSettings = ui.data?.settings || {};
-            if (Array.isArray(currentSettings.recentApproved)) {
-              const filteredApproved = currentSettings.recentApproved.filter(
-                (o) => String(o.id) !== String(targetOrderId) && String(o.orderId) !== String(targetOrderId)
-              );
-              if (filteredApproved.length !== currentSettings.recentApproved.length) {
-                await updateRecord('settings', null, {
-                  ...currentSettings,
-                  recentApproved: filteredApproved,
-                });
-              }
-            }
-          } catch (_) {}
-
-          // 4. Force-purge from ui.data reactive state in memory
-          if (ui.data?.orders) {
-            delete ui.data.orders[targetOrderId];
-            for (const k of Object.keys(ui.data.orders)) {
-              const o = ui.data.orders[k];
-              if (o && (String(o.id) === String(targetOrderId) || String(o.orderId) === String(targetOrderId))) {
-                delete ui.data.orders[k];
-              }
+        // Memory purge
+        if (ui.data?.orders) {
+          delete ui.data.orders[targetOrderId];
+          for (const k of Object.keys(ui.data.orders)) {
+            const o = ui.data.orders[k];
+            if (o && (String(o.id) === String(targetOrderId) || String(o.orderId) === String(targetOrderId))) {
+              delete ui.data.orders[k];
             }
           }
         }
 
-        showToast('Order deleted permanently.', 'success');
+        showToast('Order permanently wiped from database.', 'success');
       } catch (err) {
-        console.error('Delete order error:', err);
-        showToast('Failed to delete order: ' + (err?.message || err), 'danger');
+        console.error('Permanent delete order error:', err);
+        showToast('Failed to permanently delete order: ' + (err?.message || err), 'danger');
+      } finally {
+        closeModal();
+        renderView(ui.data || {});
+      }
+      return;
+    }
+    if (action === 'empty-orders-trash') {
+      const allOrders = listCollection('orders') || [];
+      const trashOrders = allOrders.filter(isTrashOrder);
+      if (!trashOrders.length) {
+        showToast('Trash is already empty!', 'info');
+        return;
+      }
+
+      if (!confirm(`⚠️ PERMANENT EMPTY TRASH:\n\nAre you sure you want to permanently delete ALL ${trashOrders.length} order(s) in trash from the database?\n\nThis will completely erase them from Supabase and Firebase. This cannot be undone!`)) {
+        return;
+      }
+
+      actionBtn.disabled = true;
+      actionBtn.innerHTML = '<i data-lucide="loader-2" class="spin" style="width: 14px; height: 14px;"></i> Emptying Trash...';
+      if (window.lucide) lucide.createIcons();
+
+      try {
+        for (const o of trashOrders) {
+          const tid = o.id || o.orderId;
+          if (tid) {
+            if (typeof permanentDeleteOrder === 'function') {
+              await permanentDeleteOrder(tid);
+            } else if (typeof window.permanentDeleteOrder === 'function') {
+              await window.permanentDeleteOrder(tid);
+            } else {
+              await deleteRecord('orders', tid, true);
+            }
+          }
+        }
+        showToast(`Trash emptied! ${trashOrders.length} orders permanently deleted.`, 'success');
+      } catch (err) {
+        showToast('Failed to empty trash: ' + (err?.message || err), 'danger');
       } finally {
         closeModal();
         renderView(ui.data || {});

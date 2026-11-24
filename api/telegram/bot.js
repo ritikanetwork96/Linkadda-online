@@ -2492,7 +2492,7 @@ async function processOrderApproval(orderId, adminUser, triggerMessage = null) {
 /**
  * Handle Order Rejection: Update DB, Update Telegram Admin Messages, and Notify Customer
  */
-async function processOrderRejection(orderId, adminUser, triggerMessage = null) {
+async function processOrderRejection(orderId, adminUser, triggerMessage = null, customReason = null) {
   const store = readBotStore();
   const { url, key } = getSupabaseConfig();
   const headers = { 'apikey': key, 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' };
@@ -2513,12 +2513,15 @@ async function processOrderRejection(orderId, adminUser, triggerMessage = null) 
   }
 
   const adminName = adminUser?.first_name || (adminUser?.username ? `@${adminUser.username}` : String(adminUser?.id || 'Admin'));
+  const rejectionReason = (customReason || order?.rejection_reason || order?.data?.rejectionReason || 'Payment verification failed. Screenshot or UTR mismatch.').trim();
 
   const rejectedData = {
     ...(order?.data || {}),
     status: 'rejected',
     orderStatus: 'rejected',
     paymentStatus: 'rejected',
+    rejectionReason: rejectionReason,
+    rejection_reason: rejectionReason,
     verified: false,
     approved: false,
     rejectedAt: Date.now(),
@@ -2576,7 +2579,7 @@ async function processOrderRejection(orderId, adminUser, triggerMessage = null) 
 
     const rawScreenshot = order?.payment_proof || order?.data?.paymentProof || order?.screenshotUrl || order?.data?.screenshotUrl || '';
     const viewScreenshotUrl = String(rawScreenshot).startsWith('http') ? rawScreenshot : '';
-    const rejectedTag = `\n\n━━━━━━━━━━━━━━━━━━━━━━\n❌ <b>REJECTED by ${escapeTelegramHtml(adminName)}</b>\n⚡ Payment verification failed`;
+    const rejectedTag = `\n\n━━━━━━━━━━━━━━━━━━━━━━\n❌ <b>REJECTED by ${escapeTelegramHtml(adminName)}</b>\n⚡ <b>Reason:</b> ${escapeTelegramHtml(rejectionReason)}`;
     const rejectedKeyboard = {
       inline_keyboard: [
         ...(viewScreenshotUrl ? [[{ text: '🔍 View Full Screenshot', url: viewScreenshotUrl }]] : []),
@@ -2601,13 +2604,13 @@ async function processOrderRejection(orderId, adminUser, triggerMessage = null) 
   if (customerTgId) {
     const sup = getSupportContact(deliveryBot);
     const rejSupportUrl = sup.url.startsWith('https://t.me/')
-      ? `${sup.url}?text=${encodeURIComponent(`Hi Admin, my order #${orderId} was rejected. Here is my payment receipt.`)}`
+      ? `${sup.url}?text=${encodeURIComponent(`Hi Admin, my order #${orderId} was rejected (${rejectionReason}). Here is my payment receipt.`)}`
       : sup.url;
     await callTelegram('sendMessage', {
       chat_id: String(customerTgId),
       text: 
         `❌ <b>Order #${orderId} Verification Unsuccessful</b>\n\n` +
-        `The payment screenshot or UTR transaction reference could not be validated.\n\n` +
+        `<b>Reason:</b> ${escapeTelegramHtml(rejectionReason)}\n\n` +
         `If you have completed the payment, please contact Support with your payment proof:`,
       parse_mode: 'HTML',
       reply_markup: {
@@ -4241,9 +4244,9 @@ export default async function handler(req, res) {
       return res.status(401).json({ ok: false, error: 'Unauthorized: Admin authentication required.' });
     }
     try {
-      const { orderId, adminUser } = req.body || {};
+      const { orderId, adminUser, reason } = req.body || {};
       if (!orderId) return res.status(400).json({ error: 'Missing orderId' });
-      const result = await processOrderRejection(orderId, adminUser || { first_name: 'Admin Panel', username: 'admin' });
+      const result = await processOrderRejection(orderId, adminUser || { first_name: 'Admin Panel', username: 'admin' }, null, reason);
       return res.status(200).json(result);
     } catch (e) {
       return res.status(500).json({ error: e.message });
