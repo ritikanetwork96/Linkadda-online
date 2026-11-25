@@ -1007,8 +1007,11 @@
     const prod = window.__fkActiveProduct;
     if (!prod) return;
 
-    let baseINR = String(prod.priceINR || '399').replace(/[^\d]/g, '');
-    let baseUSD = String(prod.priceUSD || '14').replace(/[^\d]/g, '');
+    const resolvedPair = (typeof window.resolveProductPrice === 'function')
+      ? window.resolveProductPrice(prod)
+      : { inr: String(prod.priceINR || '399').replace(/[^\d.]/g, ''), usd: String(prod.priceUSD || '14').replace(/[^\d.]/g, '') };
+    let baseINR = resolvedPair.inr || '399';
+    let baseUSD = resolvedPair.usd || '14';
     let currentINR = baseINR;
     let currentUSD = baseUSD;
     let currentTitle = prod.title || 'Product';

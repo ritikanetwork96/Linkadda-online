@@ -5527,7 +5527,6 @@ body.in-search-view #fkMobileAppbar,
   .fk-filter-btn:active {
     transform: scale(0.93) !important;
   }
-  }
 
   /* ── 3. STORY-STYLE HORIZONTAL CATEGORY REEL ── */
   .fk-quick-pills-bar {

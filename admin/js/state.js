@@ -727,15 +727,20 @@ async function upsertToSupabase(node, record) {
     };
     let payload = null;
     if (node === 'products') {
+      const cleanNum = (val) => {
+        if (val === undefined || val === null || val === '') return 0;
+        const n = Number(String(val).replace(/[^\d.]/g, ''));
+        return isNaN(n) ? 0 : n;
+      };
       payload = {
         id: String(record.id),
         slug: record.slug || String(record.id),
         title: record.title || record.name || 'Product',
         category: record.category || 'all',
-        price_inr: Number(record.priceINR ?? record.price_inr ?? 0),
-        price_usd: Number(record.priceUSD ?? record.price_usd ?? 0),
-        original_price_inr: Number(record.originalPriceINR ?? record.original_price_inr ?? 0) || null,
-        original_price_usd: Number(record.originalPriceUSD ?? record.original_price_usd ?? 0) || null,
+        price_inr: cleanNum(record.priceINR ?? record.price_inr ?? record.inr),
+        price_usd: cleanNum(record.priceUSD ?? record.price_usd ?? record.usd),
+        original_price_inr: cleanNum(record.originalPriceINR ?? record.original_price_inr) || null,
+        original_price_usd: cleanNum(record.originalPriceUSD ?? record.original_price_usd) || null,
         rating: Number(record.rating || 5.0),
         reviews_count: Number(record.reviewsCount || record.reviews_count || 0),
         badge: record.badge || '',
