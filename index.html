@@ -5364,25 +5364,50 @@
     
     // 1. "All" Pill
     const isAllActive = activeCategoryFilter === 'all';
-    pillsHtml += `<button class="category-pill${isAllActive ? ' active' : ''}" data-cat-id="all">All</button>`;
+    pillsHtml += `<button type="button" class="category-pill${isAllActive ? ' active' : ''}" data-cat-id="all">All</button>`;
     
-    // 2. "All Categories" Hub Launcher
-    pillsHtml += `<button type="button" class="category-pill pill-all-categories-hub" onclick="window.showCategoriesHub && window.showCategoriesHub('store')" style="background: rgba(255, 42, 141, 0.12); border-color: rgba(255, 42, 141, 0.35); color: #ff65a3; font-weight: 750;"><i class="fa-solid fa-layer-group" style="margin-right: 5px;"></i> All Categories ⊞</button>`;
+    // 2. "All Categories" Hub Launcher (Ultra-premium frosted chip)
+    pillsHtml += `<button type="button" class="category-pill pill-all-categories-hub" onclick="window.showCategoriesHub && window.showCategoriesHub('store')" aria-label="Explore All Categories"><i class="fa-solid fa-shapes"></i><span>Categories</span><i class="fa-solid fa-angle-right hub-pill-arrow"></i></button>`;
 
     // 3. "Hidden" Pill (Dynamic: Shown ONLY if user has hidden items)
     const hiddenList = typeof getHiddenProducts === 'function' ? getHiddenProducts() : [];
     if (hiddenList.length > 0) {
       const isHiddenPillActive = activeCategoryFilter === 'hidden';
-      pillsHtml += `<button class="category-pill pill-hidden-count${isHiddenPillActive ? ' active' : ''}" data-cat-id="hidden" style="${isHiddenPillActive ? 'background:linear-gradient(135deg,#64748b,#475569);border-color:#cbd5e1;color:#fff;' : ''}"><i class="fa-solid fa-eye-slash" style="color:${isHiddenPillActive ? '#fff' : '#94a3b8'};margin-right:4px;"></i> Hidden (<span id="hiddenCountBadge">${hiddenList.length}</span>)</button>`;
+      pillsHtml += `<button type="button" class="category-pill pill-hidden-count${isHiddenPillActive ? ' active' : ''}" data-cat-id="hidden"><i class="fa-solid fa-eye-slash"></i><span>Hidden</span><span id="hiddenCountBadge" class="pill-badge">${hiddenList.length}</span></button>`;
     }
     
-    // 4. Pure Content Category Pills (Zero duplication with top highlights!)
+    // 4. Pure Content Category Pills
     visibleCats.forEach(cat => {
       const isActive = activeCategoryFilter === cat.id;
-      pillsHtml += `<button class="category-pill${isActive ? ' active' : ''}" data-cat-id="${esc(cat.id)}">${esc(cat.title)}</button>`;
+      pillsHtml += `<button type="button" class="category-pill${isActive ? ' active' : ''}" data-cat-id="${esc(cat.id)}">${esc(cat.title)}</button>`;
     });
 
+    // 5. "More" Dropdown Select Pill (seamlessly inside the fluid scroll track)
+    if (hiddenCats.length > 0) {
+      const isHiddenActive = hiddenCats.some(cat => cat.id === activeCategoryFilter);
+      const activeCat = hiddenCats.find(cat => cat.id === activeCategoryFilter);
+      const selectLabel = isHiddenActive ? activeCat.title : 'More';
+      
+      pillsHtml += `
+        <div class="category-select-wrapper${isHiddenActive ? ' is-active' : ''}">
+          <select class="category-pill category-select-element${isHiddenActive ? ' active' : ''}" aria-label="More categories">
+            <option value="" disabled ${!isHiddenActive ? 'selected' : ''}>${esc(selectLabel)}</option>
+            ${hiddenCats.map(cat => `
+              <option value="${esc(cat.id)}" ${activeCategoryFilter === cat.id ? 'selected' : ''}>${esc(cat.title)}</option>
+            `).join('')}
+          </select>
+          <i class="fa-solid fa-chevron-down category-select-icon"></i>
+        </div>
+      `;
+    }
+
     pillsWrapper.innerHTML = pillsHtml;
+
+    // Clean up any legacy external "More" element if present
+    const legacySelect = parentWrapper.querySelector(':scope > .category-select-wrapper');
+    if (legacySelect) {
+      legacySelect.remove();
+    }
 
     // Sync Top Header Quick Pills active state with activeCategoryFilter
     document.querySelectorAll('.fk-quick-pill').forEach(p => {
@@ -5393,43 +5418,16 @@
       }
     });
 
-    // Remove any existing "More" element first
-    let moreWrapper = parentWrapper.querySelector('.category-select-wrapper');
-    if (moreWrapper) {
-      moreWrapper.remove();
-    }
-
-    // 3. "More" Dropdown Select Pill (compact, perfectly sized)
-    if (hiddenCats.length > 0) {
-      const isHiddenActive = hiddenCats.some(cat => cat.id === activeCategoryFilter);
-      const activeCat = hiddenCats.find(cat => cat.id === activeCategoryFilter);
-      const selectLabel = isHiddenActive ? activeCat.title : 'More';
-      
-      const selectHtml = `
-        <div class="category-select-wrapper">
-          <select class="category-pill category-select-element${isHiddenActive ? ' active' : ''}" aria-label="More categories">
-            <option value="" disabled ${!isHiddenActive ? 'selected' : ''}>${esc(selectLabel)}</option>
-            ${hiddenCats.map(cat => `
-              <option value="${esc(cat.id)}" ${activeCategoryFilter === cat.id ? 'selected' : ''}>${esc(cat.title)}</option>
-            `).join('')}
-          </select>
-          <i class="fa-solid fa-chevron-down category-select-icon" style="color: ${isHiddenActive ? 'white' : 'var(--muted)'};"></i>
-        </div>
-      `;
-      
-      pillsWrapper.insertAdjacentHTML('afterend', selectHtml);
-
-      // Attach change listener to "More" select
-      const select = parentWrapper.querySelector('.category-select-element');
-      if (select) {
-        select.addEventListener('change', (e) => {
-          const rect = select.getBoundingClientRect();
-          createParticleBurstAt(rect.left + rect.width / 2, rect.top + rect.height / 2);
-          activeCategoryFilter = e.target.value;
-          renderCategoryFilters();
-          renderLiveGrid();
-        });
-      }
+    // Attach change listener to "More" select
+    const select = pillsWrapper.querySelector('.category-select-element');
+    if (select) {
+      select.addEventListener('change', (e) => {
+        const rect = select.getBoundingClientRect();
+        createParticleBurstAt(rect.left + rect.width / 2, rect.top + rect.height / 2);
+        activeCategoryFilter = e.target.value;
+        renderCategoryFilters();
+        renderLiveGrid();
+      });
     }
 
     // Attach click listeners to visible pills
