@@ -205,7 +205,7 @@
   <link rel="stylesheet" href="style.css?v=20261011_v9" />
   <link rel="stylesheet" href="linkadda-store.css?v=20261114_shield_v3" />
   <link rel="stylesheet" href="auth-modal.css?v=20261011_v9" />
-  <link rel="stylesheet" href="mobile-app.css?v=20261114_shield_v3" />
+  <link rel="stylesheet" href="mobile-app.css?v=20261125_recently_viewed_v1" />
   <script src="preload.js?v=20261115_v9" charset="UTF-8"></script>
   <script src="currency.js?v=20261111_v1" charset="UTF-8"></script>
   <style id="critical-hero-toast-fix">
@@ -1876,11 +1876,38 @@
     </div>
   </section>
 
-
-
-
-
-  <!-- Contact / Get In Touch -->
+  <!-- ================================================================ -->
+  <!-- RECENTLY VIEWED SHELF (Flipkart & Amazon Inspired Browsing History) -->
+  <!-- ================================================================ -->
+  <section class="recently-viewed-section" id="recentlyViewedSection" style="display: none;">
+    <div class="container">
+      <div class="recently-viewed-header">
+        <div class="recently-viewed-title-wrap">
+          <div class="recently-viewed-kicker">
+            <i class="fa-solid fa-clock-rotate-left"></i> Your Activity
+          </div>
+          <h2 class="recently-viewed-title">Recently Viewed <span class="gradient-text">Packs</span></h2>
+          <p class="recently-viewed-sub">Inspired by your browsing history &#8212; pick up right where you left off</p>
+        </div>
+        <div class="recently-viewed-actions">
+          <button type="button" class="rv-nav-btn rv-nav-prev" id="rvNavPrev" aria-label="Previous products" onclick="window.scrollRecentlyViewed(-1)">
+            <i class="fa-solid fa-chevron-left"></i>
+          </button>
+          <button type="button" class="rv-nav-btn rv-nav-next" id="rvNavNext" aria-label="Next products" onclick="window.scrollRecentlyViewed(1)">
+            <i class="fa-solid fa-chevron-right"></i>
+          </button>
+          <button type="button" class="rv-clear-btn" onclick="window.clearRecentlyViewed()" title="Clear your viewed history">
+            <i class="fa-solid fa-trash-can"></i> Clear
+          </button>
+        </div>
+      </div>
+      <div class="recently-viewed-track-wrapper">
+        <div class="recently-viewed-track" id="recentlyViewedTrack">
+          <!-- Injected dynamically via renderRecentlyViewedShelf() -->
+        </div>
+      </div>
+    </div>
+  </section>
   <section class="contact" id="contact">
     <div class="container">
       <div class="section-head">
@@ -2435,7 +2462,7 @@
     },
   };
 
-  // --- POPULAR & TRENDING RANKING & SMART CATALOG ENGINE ---
+  // --- FLIPKART & AMAZON SMART CATALOG & RANKING ENGINE ---
   window.__productOrdersCount = window.__productOrdersCount || {};
   window.__productMetrics = window.__productMetrics || {};
 
@@ -2445,8 +2472,9 @@
     if (!ts) return false;
     const createdTime = new Date(ts).getTime();
     if (isNaN(createdTime) || createdTime <= 0) return false;
-    const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
-    return (Date.now() - createdTime) <= SEVEN_DAYS_MS;
+    // Strict 15-day auto-rotation window (Zero expiration text anywhere on UI)
+    const FIFTEEN_DAYS_MS = 15 * 24 * 60 * 60 * 1000;
+    return (Date.now() - createdTime) <= FIFTEEN_DAYS_MS;
   }
   window.isProductNew = isProductNew;
 
@@ -2468,8 +2496,16 @@
 
   function isProductBestseller(item) {
     if (!item) return false;
-    // Bestseller classification: 2 or more verified purchases
-    return getProductOrderCount(item) >= 2;
+    // Verified Purchases or High-Intent Conversion
+    const orders = getProductOrderCount(item);
+    if (orders >= 1) return true;
+    const idExact = String(item.id || '');
+    const idLower = idExact.toLowerCase();
+    const slug = String(item.slug || '').toLowerCase();
+    const metrics = (window.__productMetrics && (window.__productMetrics[idExact] || window.__productMetrics[idLower] || window.__productMetrics[slug])) || {};
+    const buyClicks = Number(metrics.buyClicks || metrics.orderClicks || 0);
+    const cartAdds = Number(metrics.cartAdds || metrics.carts || 0);
+    return (buyClicks + cartAdds) >= 4;
   }
   window.isProductBestseller = isProductBestseller;
 
@@ -2481,10 +2517,11 @@
     const metrics = (window.__productMetrics && (window.__productMetrics[idExact] || window.__productMetrics[idLower] || window.__productMetrics[slug])) || {};
 
     const purchases = getProductOrderCount(item);
-    const orderClicks = Number(metrics.orderClicks || item.clicks || item.clickCount || 0);
-    const shares = Number(metrics.shares || item.shares || item.sharesCount || 0);
+    const buyClicks = Number(metrics.buyClicks || metrics.orderClicks || item.clicks || item.clickCount || 0);
+    const cartAdds = Number(metrics.cartAdds || metrics.carts || 0);
     const likes = Math.max(Number(metrics.likes || 0), Number(item.likes || item.likesCount || 0));
     const views = Math.max(Number(metrics.views || 0), Number(item.views || item.viewsCount || 0));
+    const shares = Number(metrics.shares || item.shares || item.sharesCount || 0);
 
     let seed = 0;
     const str = String(item.id || item.slug || '');
@@ -2492,9 +2529,11 @@
       seed = ((seed << 5) - seed) + str.charCodeAt(i);
       seed |= 0;
     }
-    const organicSeed = Math.abs(seed % 35);
-    // Formula: (Purchases * 15) + (Order Clicks * 6) + (Shares * 4) + (Likes * 3) + (Views * 1) + Organic Seed
-    return (purchases * 15) + (orderClicks * 6) + (shares * 4) + (likes * 3) + (views * 1) + organicSeed;
+    const organicSeed = Math.abs(seed % 25);
+
+    // Flipkart & Amazon Multi-Signal Momentum Formula:
+    // Orders (20) + Buy Clicks (10) + Cart Adds (6) + Likes (4) + Views (1) + Shares (3) + Organic Seed
+    return (purchases * 20) + (buyClicks * 10) + (cartAdds * 6) + (likes * 4) + (views * 1) + (shares * 3) + organicSeed;
   }
   window.getTrendingScore = getTrendingScore;
 
@@ -2518,7 +2557,7 @@
     const rankB = getCatalogItemRank(b);
     if (rankA !== rankB) return rankA - rankB;
 
-    // Smart Catalog Ordering: Verified Bestsellers (>= 2 purchases) rise to top
+    // Smart Catalog Ordering: Verified Bestsellers rise to top
     const bestA = isProductBestseller(a) ? 1 : 0;
     const bestB = isProductBestseller(b) ? 1 : 0;
     if (bestA !== bestB) return bestB - bestA;
@@ -4309,6 +4348,151 @@
     openCartDrawer();
   };
 
+  // --- RECENTLY VIEWED PRODUCTS SYSTEM (FLIPKART & AMAZON INSPIRED) ---
+  const RECENTLY_VIEWED_KEY = 'linkadda_recently_viewed';
+
+  function getRecentlyViewed() {
+    try {
+      const raw = localStorage.getItem(RECENTLY_VIEWED_KEY);
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (_) {
+      return [];
+    }
+  }
+  window.getRecentlyViewed = getRecentlyViewed;
+
+  function trackRecentlyViewed(productId) {
+    if (!productId) return;
+    const pid = String(productId).trim();
+    if (!pid) return;
+
+    try {
+      const list = getRecentlyViewed().filter(id => String(id).trim() !== pid);
+      list.unshift(pid);
+      const capped = list.slice(0, 15);
+      localStorage.setItem(RECENTLY_VIEWED_KEY, JSON.stringify(capped));
+      renderRecentlyViewedShelf();
+      window.dispatchEvent(new CustomEvent('recently_viewed_updated', { detail: { productId: pid, list: capped } }));
+    } catch (e) {
+      console.warn('Recently viewed track notice:', e);
+    }
+  }
+  window.trackRecentlyViewed = trackRecentlyViewed;
+
+  function clearRecentlyViewed() {
+    try {
+      localStorage.removeItem(RECENTLY_VIEWED_KEY);
+      renderRecentlyViewedShelf();
+      if (typeof showStoreToast === 'function') {
+        showStoreToast('Browsing history cleared', 'fa-solid fa-trash-can');
+      }
+    } catch (_) {}
+  }
+  window.clearRecentlyViewed = clearRecentlyViewed;
+
+  function scrollRecentlyViewed(direction) {
+    const track = document.getElementById('recentlyViewedTrack');
+    if (track) {
+      const amount = (track.clientWidth || 300) * 0.75 * direction;
+      track.scrollBy({ left: amount, behavior: 'smooth' });
+    }
+  }
+  window.scrollRecentlyViewed = scrollRecentlyViewed;
+
+  function renderRecentlyViewedShelf() {
+    const section = document.getElementById('recentlyViewedSection');
+    const track = document.getElementById('recentlyViewedTrack');
+    if (!section || !track) return;
+
+    const list = getRecentlyViewed();
+    if (!list || list.length === 0) {
+      section.style.display = 'none';
+      return;
+    }
+
+    const allRecords = (typeof getLiveRecords === 'function' ? getLiveRecords() : []) || [];
+    const productsMap = {};
+    allRecords.forEach(p => {
+      if (p && p.id) {
+        productsMap[String(p.id)] = p;
+        productsMap[String(p.id).toLowerCase()] = p;
+        if (p.slug) productsMap[String(p.slug).toLowerCase()] = p;
+      }
+    });
+
+    const rawProds = window.liveCollections?.products || {};
+    Object.entries(rawProds).forEach(([id, p]) => {
+      if (p && !productsMap[id]) {
+        productsMap[id] = { id, ...p };
+        productsMap[id.toLowerCase()] = { id, ...p };
+      }
+    });
+
+    const hiddenList = typeof getHiddenProducts === 'function' ? getHiddenProducts() : [];
+    const matchedProducts = [];
+
+    list.forEach(id => {
+      const pid = String(id).trim();
+      if (hiddenList.includes(pid)) return;
+      const prod = productsMap[pid] || productsMap[pid.toLowerCase()];
+      if (prod && !matchedProducts.some(m => String(m.id) === String(prod.id))) {
+        matchedProducts.push(prod);
+      }
+    });
+
+    if (matchedProducts.length === 0) {
+      section.style.display = 'none';
+      return;
+    }
+
+    section.style.display = 'block';
+
+    track.innerHTML = matchedProducts.map(p => {
+      const media = (typeof resolveMediaList === 'function') ? resolveMediaList(p) : { images: [] };
+      const images = (media && media.images) || [];
+      const imgUrl = images[0] || p.image || p.thumbnail || '';
+      const rawInrVal = p.priceINR ?? p.price_inr ?? p.inr ?? '399';
+      const rawUsdVal = p.priceUSD ?? p.price_usd ?? p.usd ?? '14';
+      const cleanINR = String(rawInrVal).replace(/[^\d.]/g, '') || '399';
+      const cleanUSD = String(rawUsdVal).replace(/[^\d.]/g, '') || '14';
+      const title = p.title || p.name || 'Exclusive Pack';
+      const orderLink = (typeof normalizeCheckoutUrl === 'function')
+        ? normalizeCheckoutUrl('payment.html', { id: p.id, title, inr: cleanINR, usd: cleanUSD })
+        : `payment.html?productId=${encodeURIComponent(p.id)}&name=${encodeURIComponent(title)}&inr=${cleanINR}&usd=${cleanUSD}`;
+
+      const imgHtml = imgUrl
+        ? `<img src="${esc(imgUrl)}" alt="${esc(title)}" loading="lazy" onerror="this.onerror=null;this.src='images/category1.jpg';" />`
+        : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle,#1e1b4b,#0f172a);color:#ff2a8d;font-size:24px;"><i class="fa-solid fa-gem"></i></div>`;
+
+      return `
+        <div class="rv-card" onclick="window.openFkProductPage && window.openFkProductPage('${esc(p.id)}')">
+          <div class="rv-card-media">
+            ${imgHtml}
+            <span class="rv-card-badge"><i class="fa-solid fa-eye"></i> Viewed</span>
+          </div>
+          <div class="rv-card-body">
+            <h4 class="rv-card-title">${esc(title)}</h4>
+            <div class="rv-card-prices">
+              <span class="rv-price-inr">&#8377;${cleanINR}</span>
+              <span class="rv-price-usd">$${cleanUSD} USDT</span>
+            </div>
+            <div class="rv-card-actions" onclick="event.stopPropagation();">
+              <button type="button" class="rv-btn-view" onclick="window.openFkProductPage && window.openFkProductPage('${esc(p.id)}')">
+                <i class="fa-solid fa-expand"></i> View
+              </button>
+              <a href="${esc(orderLink)}" class="rv-btn-buy" onclick="window.handleCardBuyNow(event, this, '${esc(orderLink)}');" data-product-id="${esc(p.id)}">
+                <i class="fa-solid fa-bolt"></i> Buy
+              </a>
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+  window.renderRecentlyViewedShelf = renderRecentlyViewedShelf;
+
   // --- USER ORDERS HISTORY DRAWER SYSTEM ---
   function getStoredUserOrders() {
     try {
@@ -4568,9 +4752,19 @@
   window.renderOrdersDrawer = renderOrdersDrawer;
   window.updateOrdersBadge = updateOrdersBadge;
 
-  // Initialize badges
-  document.addEventListener('DOMContentLoaded', updateOrdersBadge);
-  setTimeout(updateOrdersBadge, 1200);
+  // Initialize badges & recently viewed shelf
+  document.addEventListener('DOMContentLoaded', () => {
+    updateOrdersBadge();
+    if (typeof renderRecentlyViewedShelf === 'function') {
+      renderRecentlyViewedShelf();
+    }
+  });
+  setTimeout(() => {
+    updateOrdersBadge();
+    if (typeof renderRecentlyViewedShelf === 'function') {
+      renderRecentlyViewedShelf();
+    }
+  }, 1200);
 
   // Instant storage & cross-tab sync for customer orders & notifications
   const handleOrderNotificationSync = () => {
@@ -4683,6 +4877,21 @@
     }
     if (!btn) return;
 
+    // Record cart add metric locally and in backend (Flipkart / Amazon conversion tracking)
+    try {
+      const pid = btn.getAttribute('data-product-id');
+      if (pid) {
+        if (!window.__productMetrics) window.__productMetrics = {};
+        if (!window.__productMetrics[pid]) window.__productMetrics[pid] = { views: 0, likes: 0, shares: 0, orderClicks: 0, buyClicks: 0, cartAdds: 0 };
+        window.__productMetrics[pid].cartAdds = (window.__productMetrics[pid].cartAdds || 0) + 1;
+        fetch('/api/track/event', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: 'cart_add', event_type: 'cart_add', productId: pid, product_id: pid }),
+        }).catch(() => {});
+      }
+    } catch (_) {}
+
     // If item is already added / in-cart: directly open cart drawer!
     if (btn.classList.contains('in-cart') || btn.classList.contains('added')) {
       if (typeof window.openCartDrawer === 'function') {
@@ -4727,6 +4936,20 @@
       e.stopPropagation();
       e.preventDefault();
     }
+    try {
+      const pid = btn.getAttribute('data-product-id');
+      if (pid) {
+        if (!window.__productMetrics) window.__productMetrics = {};
+        if (!window.__productMetrics[pid]) window.__productMetrics[pid] = { views: 0, likes: 0, shares: 0, orderClicks: 0, buyClicks: 0, cartAdds: 0 };
+        window.__productMetrics[pid].buyClicks = (window.__productMetrics[pid].buyClicks || 0) + 1;
+        window.__productMetrics[pid].orderClicks = (window.__productMetrics[pid].orderClicks || 0) + 1;
+        fetch('/api/track/event', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: 'order_click', event_type: 'order_click', productId: pid, product_id: pid }),
+        }).catch(() => {});
+      }
+    } catch (_) {}
     const targetUrl = link || btn.getAttribute('href') || 'payment.html';
     if (typeof window.__triggerCheckoutTracking === 'function') {
       window.__triggerCheckoutTracking(btn, targetUrl);
@@ -4832,7 +5055,7 @@
       bestsellerBadgeHtml = `<span class="fk-card-badge-vip" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%) !important; border: 1px solid rgba(255, 255, 255, 0.4) !important; color: #ffffff !important; box-shadow: 0 3px 10px rgba(245, 158, 11, 0.45) !important;"><i class="fa-solid fa-crown" style="color: #ffffff !important;"></i> BESTSELLER</span>`;
     }
 
-    // Automated 7-Day New badge (<= 7 days old or flagged in New Arrivals tab)
+    // Automated 15-Day New badge (<= 15 days old or flagged in New Arrivals tab - zero expiration text)
     const isNew = (typeof isProductNew === 'function' ? isProductNew(cat) : false) || Boolean(cat._isNewArrival);
     let newBadgeHtml = '';
     if (isNew) {
@@ -5852,6 +6075,9 @@
     if (!grid) return;
     
     try {
+      if (typeof renderRecentlyViewedShelf === 'function') {
+        renderRecentlyViewedShelf();
+      }
       let records = getLiveRecords();
       const hiddenList = typeof getHiddenProducts === 'function' ? getHiddenProducts() : [];
       let isBestsellersFallback = false;
@@ -5875,14 +6101,27 @@
         const verifiedBestsellers = records.filter(item => isProductBestseller(item));
         if (verifiedBestsellers.length > 0) {
           records = verifiedBestsellers;
-          records.sort((a, b) => (getProductOrderCount(b) - getProductOrderCount(a)) || (getTrendingScore(b) - getTrendingScore(a)));
+          records.sort((a, b) => {
+            const oDiff = getProductOrderCount(b) - getProductOrderCount(a);
+            if (oDiff !== 0) return oDiff;
+            const idA = String(a.id || '').toLowerCase();
+            const idB = String(b.id || '').toLowerCase();
+            const intentA = (Number(window.__productMetrics?.[idA]?.buyClicks || window.__productMetrics?.[idA]?.orderClicks || 0) * 2) + (Number(window.__productMetrics?.[idA]?.cartAdds || 0) * 2);
+            const intentB = (Number(window.__productMetrics?.[idB]?.buyClicks || window.__productMetrics?.[idB]?.orderClicks || 0) * 2) + (Number(window.__productMetrics?.[idB]?.cartAdds || 0) * 2);
+            if (intentB !== intentA) return intentB - intentA;
+            return getTrendingScore(b) - getTrendingScore(a);
+          });
         } else {
           isBestsellersFallback = true;
-          records.forEach(item => {
-            item._trendingScore = getTrendingScore(item);
+          records.sort((a, b) => {
+            const idA = String(a.id || '').toLowerCase();
+            const idB = String(b.id || '').toLowerCase();
+            const intentA = (Number(window.__productMetrics?.[idA]?.buyClicks || window.__productMetrics?.[idA]?.orderClicks || 0) * 2) + (Number(window.__productMetrics?.[idA]?.cartAdds || 0) * 2);
+            const intentB = (Number(window.__productMetrics?.[idB]?.buyClicks || window.__productMetrics?.[idB]?.orderClicks || 0) * 2) + (Number(window.__productMetrics?.[idB]?.cartAdds || 0) * 2);
+            if (intentB !== intentA) return intentB - intentA;
+            return getTrendingScore(b) - getTrendingScore(a);
           });
-          records.sort((a, b) => b._trendingScore - a._trendingScore);
-          records.forEach((item, idx) => {
+          records.slice(0, 3).forEach((item, idx) => {
             item._trendingRank = idx + 1;
           });
         }
@@ -5891,10 +6130,18 @@
         const newProducts = records.filter(item => isProductNew(item));
         if (newProducts.length > 0) {
           records = newProducts;
-          records.sort((a, b) => new Date(b.created_at || b.createdAt || 0).getTime() - new Date(a.created_at || a.createdAt || 0).getTime());
+          records.sort((a, b) => {
+            const tA = new Date(a.created_at || a.createdAt || (a.data && (a.data.createdAt || a.data.created_at)) || 0).getTime() || 0;
+            const tB = new Date(b.created_at || b.createdAt || (b.data && (b.data.createdAt || b.data.created_at)) || 0).getTime() || 0;
+            return tB - tA;
+          });
         } else {
           isNewArrivalsFallback = true;
-          records.sort((a, b) => new Date(b.created_at || b.createdAt || 0).getTime() - new Date(a.created_at || a.createdAt || 0).getTime());
+          records.sort((a, b) => {
+            const tA = new Date(a.created_at || a.createdAt || (a.data && (a.data.createdAt || a.data.created_at)) || 0).getTime() || 0;
+            const tB = new Date(b.created_at || b.createdAt || (b.data && (b.data.createdAt || b.data.created_at)) || 0).getTime() || 0;
+            return tB - tA;
+          });
           records.slice(0, 8).forEach(item => {
             item._isNewArrival = true;
           });
@@ -8232,11 +8479,26 @@
       }
       if (catId === 'bestsellers') {
         const best = visibleProds.filter(p => typeof window.isProductBestseller === 'function' && window.isProductBestseller(p));
-        if (best.length) return best.sort((a, b) => (typeof window.getProductOrderCount === 'function' ? (window.getProductOrderCount(b) - window.getProductOrderCount(a)) : 0));
-        return [...visibleProds].slice(0, 16);
+        const listToSort = best.length ? best : [...visibleProds];
+        return listToSort.sort((a, b) => {
+          const oDiff = (typeof window.getProductOrderCount === 'function' ? (window.getProductOrderCount(b) - window.getProductOrderCount(a)) : 0);
+          if (oDiff !== 0) return oDiff;
+          const idA = String(a.id || '').toLowerCase();
+          const idB = String(b.id || '').toLowerCase();
+          const intentA = (Number(window.__productMetrics?.[idA]?.buyClicks || window.__productMetrics?.[idA]?.orderClicks || 0) * 2) + (Number(window.__productMetrics?.[idA]?.cartAdds || 0) * 2);
+          const intentB = (Number(window.__productMetrics?.[idB]?.buyClicks || window.__productMetrics?.[idB]?.orderClicks || 0) * 2) + (Number(window.__productMetrics?.[idB]?.cartAdds || 0) * 2);
+          if (intentB !== intentA) return intentB - intentA;
+          return (typeof window.getTrendingScore === 'function') ? (window.getTrendingScore(b) - window.getTrendingScore(a)) : 0;
+        });
       }
       if (catId === 'new') {
-        return [...visibleProds].sort((a, b) => new Date(b.created_at || b.createdAt || 0).getTime() - new Date(a.created_at || a.createdAt || 0).getTime());
+        const fresh = visibleProds.filter(p => typeof window.isProductNew === 'function' && window.isProductNew(p));
+        const listToSort = fresh.length ? fresh : [...visibleProds];
+        return listToSort.sort((a, b) => {
+          const tA = new Date(a.created_at || a.createdAt || (a.data && (a.data.createdAt || a.data.created_at)) || 0).getTime() || 0;
+          const tB = new Date(b.created_at || b.createdAt || (b.data && (b.data.createdAt || b.data.created_at)) || 0).getTime() || 0;
+          return tB - tA;
+        });
       }
       if (catId === 'liked') {
         const wishlist = typeof window.getWishlist === 'function' ? window.getWishlist() : [];
@@ -8671,10 +8933,20 @@
         products.sort((a, b) => {
           const oA = (typeof window.getProductOrderCount === 'function') ? window.getProductOrderCount(a) : 0;
           const oB = (typeof window.getProductOrderCount === 'function') ? window.getProductOrderCount(b) : 0;
-          return oB - oA;
+          if (oB !== oA) return oB - oA;
+          const idA = String(a.id || '').toLowerCase();
+          const idB = String(b.id || '').toLowerCase();
+          const intentA = (Number(window.__productMetrics?.[idA]?.buyClicks || window.__productMetrics?.[idA]?.orderClicks || 0) * 2) + (Number(window.__productMetrics?.[idA]?.cartAdds || 0) * 2);
+          const intentB = (Number(window.__productMetrics?.[idB]?.buyClicks || window.__productMetrics?.[idB]?.orderClicks || 0) * 2) + (Number(window.__productMetrics?.[idB]?.cartAdds || 0) * 2);
+          if (intentB !== intentA) return intentB - intentA;
+          return (typeof window.getTrendingScore === 'function') ? (window.getTrendingScore(b) - window.getTrendingScore(a)) : 0;
         });
       } else if (activeSortType === 'newest') {
-        products.sort((a, b) => new Date(b.created_at || b.createdAt || 0).getTime() - new Date(a.created_at || a.createdAt || 0).getTime());
+        products.sort((a, b) => {
+          const tA = new Date(a.created_at || a.createdAt || (a.data && (a.data.createdAt || a.data.created_at)) || 0).getTime() || 0;
+          const tB = new Date(b.created_at || b.createdAt || (b.data && (b.data.createdAt || b.data.created_at)) || 0).getTime() || 0;
+          return tB - tA;
+        });
       } else {
         // Popular (Trending score)
         products.sort((a, b) => {
@@ -9538,7 +9810,7 @@
 
   <script type="module" src="media-resolver.js?v=20261013_v1"></script>
   <script src="live-ticker.js?v=20261013_v1"></script>
-  <script src="linkadda-store.js?v=20261115_v4"></script>
+  <script src="linkadda-store.js?v=20261125_recently_viewed_v1"></script>
   <script type="module" src="auth-modal.js?v=20261104_dynamic_tg_v2"></script>
 </body>
 </html>

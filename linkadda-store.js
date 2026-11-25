@@ -390,6 +390,11 @@
     // Track product impression / view in database
     trackProductView(prod.id || id);
 
+    // Track in Recently Viewed (Flipkart & Amazon inspired browsing history)
+    if (typeof window.trackRecentlyViewed === 'function') {
+      window.trackRecentlyViewed(prod.id || id);
+    }
+
     window.__fkActiveProduct = prod;
     window.__fkActiveVariantIdx = 0;
 
