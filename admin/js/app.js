@@ -10272,7 +10272,21 @@ function renderPaymentManagementView(data = {}, fullData = {}) {
     paypalLink: 'https://paypal.me/Jayagupta601',
     instructions: 'Pay exact order amount and submit screenshot for instant activation.',
     status: 'active',
-    customMethods: {},
+    customMethods: {
+      gram: {
+        id: 'gram',
+        name: 'GRAM (TON Network)',
+        sub: 'Fast & Secure Payments via TON Network',
+        type: 'crypto',
+        identifier: 'UQATDe3g7hIN6gL4hZuM9hWLIsvCGnnqYjqEUhWPqs2bG6TS',
+        identifierLabel: 'TON Wallet Address',
+        tag: 'GRAM • FAST',
+        instructions: 'Send the exact GRAM amount using the TON Network only. Scan the QR code or copy the wallet address to complete your payment. Upload your payment screenshot and Transaction ID (TxID) for verification. Your order will be activated after payment confirmation.',
+        logo: '/images/gram-logo.jpg',
+        qrImage: '/images/gram-qr.jpg',
+        status: 'active',
+      },
+    },
     disabledMethods: [],
   };
 
@@ -10284,6 +10298,10 @@ function renderPaymentManagementView(data = {}, fullData = {}) {
     ...(rawSettings.upiId ? { upiId: rawSettings.upiId } : {}),
     ...(rawSettings.telegram ? { telegramUrl: rawSettings.telegram } : {}),
     ...rawPayment,
+    customMethods: {
+      ...DEFAULT_PAYMENT_CONFIG.customMethods,
+      ...(rawPayment.customMethods || {}),
+    },
   };
 
   const methodsList = getStandardPaymentMethods(payment);
@@ -10366,7 +10384,7 @@ function renderPaymentManagementView(data = {}, fullData = {}) {
               <div class="payment-card-header">
                 <div class="payment-card-brand">
                   <div class="payment-card-icon ${escapeHtml(m.iconClass)}" style="background: rgba(255,255,255,0.06); padding: 4px; display: flex; align-items: center; justify-content: center; border-radius: 12px; overflow: hidden; width: 44px; height: 44px;">
-                    ${m.logo ? `<img src="${escapeHtml(m.logo)}" alt="${escapeHtml(m.name)}" style="width: 100%; height: 100%; object-fit: contain;" onerror="this.onerror=null; this.src='/images/paypal.svg';" />` : `<i data-lucide="${escapeHtml(m.icon)}"></i>`}
+                    ${m.logo ? `<img src="${escapeHtml(m.logo.startsWith('images/') ? '/' + m.logo : m.logo)}" alt="${escapeHtml(m.name)}" style="width: 100%; height: 100%; object-fit: contain;" onerror="this.onerror=null; this.src='/images/paypal.svg';" />` : `<i data-lucide="${escapeHtml(m.icon)}"></i>`}
                   </div>
                   <div class="payment-card-titles">
                     <strong>${escapeHtml(m.name)}</strong>

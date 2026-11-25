@@ -2562,6 +2562,21 @@ const CONFIG = {
   binanceId: '1197561104',
   binanceGiftCardUrl: 'https://www.g2a.com/binance-gift-card-205-usdt-key-i10000337768061',
   paypalLink: 'https://paypal.me/Jayagupta601',
+  customMethods: {
+    gram: {
+      id: 'gram',
+      name: 'GRAM (TON Network)',
+      sub: 'Fast & Secure Payments via TON Network',
+      type: 'crypto',
+      identifier: 'UQATDe3g7hIN6gL4hZuM9hWLIsvCGnnqYjqEUhWPqs2bG6TS',
+      identifierLabel: 'TON Wallet Address',
+      tag: 'GRAM • FAST',
+      instructions: 'Send the exact GRAM amount using the TON Network only. Scan the QR code or copy the wallet address to complete your payment. Upload your payment screenshot and Transaction ID (TxID) for verification. Your order will be activated after payment confirmation.',
+      logo: 'images/gram-logo.jpg',
+      qrImage: 'images/gram-qr.jpg',
+      status: 'active',
+    },
+  },
 };
 
 // Immediate cached payment config application (0ms instant render)
@@ -2574,6 +2589,18 @@ try {
     if (window.__paymentPayment?.paypalLink?.includes('Johnguzman456')) {
       window.__paymentPayment.paypalLink = '';
     }
+  }
+
+  if (!window.__paymentPayment) {
+    window.__paymentPayment = {
+      paypalLink: CONFIG.paypalLink,
+      customMethods: { ...CONFIG.customMethods },
+    };
+  } else {
+    window.__paymentPayment.customMethods = {
+      ...CONFIG.customMethods,
+      ...(window.__paymentPayment.customMethods || {}),
+    };
   }
 
   const cachedConfig = localStorage.getItem('linkadda_payment_config');
@@ -2845,9 +2872,12 @@ function renderDynamicPaymentMethods() {
     id,
     name: item.name || 'Custom Payment',
     sub: item.sub || item.description || 'Fast Transfer',
+    type: item.type || 'crypto',
     tag: item.tag || (item.type === 'upi' ? '₹ INR' : item.type === 'crypto' ? 'USDT' : 'INTL'),
     tagClass: item.type === 'upi' ? 'tag-inr' : item.type === 'crypto' ? 'tag-usdt' : 'tag-intl',
-    iconStyle: 'background:linear-gradient(135deg,#059669,#10b981);overflow:hidden;padding:0;display:flex;align-items:center;justify-content:center;',
+    iconStyle: item.iconStyle || (id === 'gram' || (item.name && item.name.includes('TON'))
+      ? 'background:linear-gradient(135deg,#0088cc,#0098ea);overflow:hidden;padding:0;display:flex;align-items:center;justify-content:center;'
+      : 'background:linear-gradient(135deg,#059669,#10b981);overflow:hidden;padding:0;display:flex;align-items:center;justify-content:center;'),
     logo: item.logo || '',
     iconFallback: '<i class="fa-solid fa-credit-card" style="color:#fff;font-size:22px"></i>',
     alt: item.name || 'Payment',
@@ -4196,6 +4226,9 @@ function paymentAmountForMethod(method) {
   const cryptoVal = Number.isFinite(orderData.amountUSDValue)
     ? String(orderData.amountUSDValue).replace(/\.00$/, '')
     : (extractMoneyNumber(orderData.rawUSD || orderData.usd).toString().replace(/\.00$/, '') || '0.00');
+  if (method === 'gram' || (isCustom && customMethod?.id === 'gram')) {
+    return `${cryptoVal} USDT / USD`;
+  }
   return `${cryptoVal} USDT`;
 }
 
@@ -4210,6 +4243,9 @@ function paymentCurrencyLabel(method) {
   if (method === 'paypal' || (isCustom && customMethod.type === 'paypal')) {
     const inrEq = formatCurrencyValue(orderData.amountINRValue ?? orderData.rawINR ?? orderData.inr, 'INR');
     return inrEq ? `(${inrEq} INR equivalent)` : 'via PayPal International';
+  }
+  if (method === 'gram' || (isCustom && customMethod?.id === 'gram')) {
+    return 'via GRAM · TON Network (Send exact amount)';
   }
   return `${formatCurrencyValue(orderData.amountUSDValue ?? orderData.rawUSD ?? orderData.usd, 'USD') || orderData.usd || '—'} USD equivalent`;
 }
@@ -5153,6 +5189,8 @@ async function gotoPayScreen() {
       if (detailBadgeEl) {
         if (selectedMethod === 'upi') {
           detailBadgeEl.innerHTML = `<img src="images/upi.svg" alt="UPI" style="height:15px;width:auto;vertical-align:middle;display:inline-block;" /> <span id="detailBadgeText">${badgeText}</span>`;
+        } else if (selectedMethod === 'gram' || (isCustom && (customMethod?.id === 'gram' || (customMethod?.name && customMethod.name.includes('TON'))))) {
+          detailBadgeEl.innerHTML = `<img src="${customMethod?.logo || 'images/gram-logo.jpg'}" alt="TON" style="height:16px;width:16px;border-radius:50%;vertical-align:middle;display:inline-block;margin-right:4px;" /> <span id="detailBadgeText">${badgeText}</span>`;
         } else if (selectedMethod === 'binancepay' || selectedMethod === 'binance' || selectedMethod === 'giftcard') {
           detailBadgeEl.innerHTML = `<i class="fa-solid fa-coins"></i> <span id="detailBadgeText">${badgeText}</span>`;
         } else if (selectedMethod === 'paypal') {
@@ -5179,6 +5217,20 @@ async function gotoPayScreen() {
           customSec.style.display = 'block';
           setText('customAddr', customMethod.identifier || 'Not configured');
           setText('customNetworkName', customMethod.name || 'Custom Payment');
+          const badgeEl = document.getElementById('customNetworkBadge');
+          if (badgeEl) {
+            if (customMethod.id === 'gram' || (customMethod.name && customMethod.name.includes('TON'))) {
+              badgeEl.className = 'network-badge';
+              badgeEl.style.cssText = 'background:rgba(0,152,234,0.15);color:#0098ea;border:1px solid rgba(0,152,234,0.3);';
+              badgeEl.innerHTML = `<img src="${customMethod.logo || 'images/gram-logo.jpg'}" alt="TON" style="height:14px;width:14px;border-radius:50%;vertical-align:middle;display:inline-block;margin-right:4px;" /> <span id="customNetworkName">${customMethod.tag || customMethod.name || 'GRAM (TON)'}</span>`;
+            }
+          }
+          const divEl = document.getElementById('customDivider');
+          if (divEl) {
+            divEl.textContent = (customMethod.id === 'gram' || (customMethod.name && customMethod.name.includes('TON')))
+              ? 'or copy TON wallet address'
+              : 'or copy address / ID / link';
+          }
           const noteEl = document.getElementById('customPayNote');
           if (noteEl) {
             if (customMethod.instructions) {
