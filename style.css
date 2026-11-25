@@ -3126,18 +3126,12 @@ body {
 }
 
 /* ========================================================
-   ===== ULTRA-PREMIUM STORE CATEGORY FILTERS =====
+   ===== STORE CATEGORY FILTERS (Hidden from home feed, managed via dedicated Categories Hub) =====
    ======================================================== */
 .category-filter-wrapper {
-  margin: 0 auto 24px;
+  display: none !important;
+  margin: 0 auto;
   width: 100%;
-  max-width: 1200px;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: 0 16px;
-  box-sizing: border-box;
-  position: relative;
 }
 
 .category-filter-pills {

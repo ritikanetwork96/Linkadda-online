@@ -1850,11 +1850,44 @@
       <a href="#contact" class="mob-link">Contact</a>
     </div>
 
+    <!-- ================================================================ -->
+    <!-- RECENTLY VIEWED SHELF (Flipkart & Amazon Inspired Browsing History - Pinned to Top) -->
+    <!-- ================================================================ -->
+    <section class="recently-viewed-section" id="recentlyViewedSection" style="display: none;">
+      <div class="container">
+        <div class="recently-viewed-header">
+          <div class="recently-viewed-title-wrap">
+            <div class="recently-viewed-kicker">
+              <i class="fa-solid fa-clock-rotate-left"></i> Your Activity
+            </div>
+            <h2 class="recently-viewed-title">Recently Viewed <span class="gradient-text">Packs</span></h2>
+            <p class="recently-viewed-sub">Inspired by your browsing history &#8212; pick up right where you left off</p>
+          </div>
+          <div class="recently-viewed-actions">
+            <button type="button" class="rv-nav-btn rv-nav-prev" id="rvNavPrev" aria-label="Previous products" onclick="window.scrollRecentlyViewed(-1)">
+              <i class="fa-solid fa-chevron-left"></i>
+            </button>
+            <button type="button" class="rv-nav-btn rv-nav-next" id="rvNavNext" aria-label="Next products" onclick="window.scrollRecentlyViewed(1)">
+              <i class="fa-solid fa-chevron-right"></i>
+            </button>
+            <button type="button" class="rv-clear-btn" onclick="window.clearRecentlyViewed()" title="Clear your viewed history">
+              <i class="fa-solid fa-trash-can"></i> Clear
+            </button>
+          </div>
+        </div>
+        <div class="recently-viewed-track-wrapper">
+          <div class="recently-viewed-track" id="recentlyViewedTrack">
+            <!-- Injected dynamically via renderRecentlyViewedShelf() -->
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- Storefront Catalog / Packs -->
     <section class="services" id="services">
     <div class="container">
-      <!-- Responsive Category Filters -->
-      <div class="category-filter-wrapper">
+      <!-- Responsive Category Filters (Silently preserved for legacy listeners, hidden from feed) -->
+      <div class="category-filter-wrapper" style="display: none !important;">
         <div class="category-filter-pills" id="categoryFilterPills">
           <!-- Category pills dynamically injected -->
         </div>
@@ -1873,39 +1906,6 @@
         </div>
       </div>
       <script>if (typeof window.renderInstantCatalog === 'function') window.renderInstantCatalog();</script>
-    </div>
-  </section>
-
-  <!-- ================================================================ -->
-  <!-- RECENTLY VIEWED SHELF (Flipkart & Amazon Inspired Browsing History) -->
-  <!-- ================================================================ -->
-  <section class="recently-viewed-section" id="recentlyViewedSection" style="display: none;">
-    <div class="container">
-      <div class="recently-viewed-header">
-        <div class="recently-viewed-title-wrap">
-          <div class="recently-viewed-kicker">
-            <i class="fa-solid fa-clock-rotate-left"></i> Your Activity
-          </div>
-          <h2 class="recently-viewed-title">Recently Viewed <span class="gradient-text">Packs</span></h2>
-          <p class="recently-viewed-sub">Inspired by your browsing history &#8212; pick up right where you left off</p>
-        </div>
-        <div class="recently-viewed-actions">
-          <button type="button" class="rv-nav-btn rv-nav-prev" id="rvNavPrev" aria-label="Previous products" onclick="window.scrollRecentlyViewed(-1)">
-            <i class="fa-solid fa-chevron-left"></i>
-          </button>
-          <button type="button" class="rv-nav-btn rv-nav-next" id="rvNavNext" aria-label="Next products" onclick="window.scrollRecentlyViewed(1)">
-            <i class="fa-solid fa-chevron-right"></i>
-          </button>
-          <button type="button" class="rv-clear-btn" onclick="window.clearRecentlyViewed()" title="Clear your viewed history">
-            <i class="fa-solid fa-trash-can"></i> Clear
-          </button>
-        </div>
-      </div>
-      <div class="recently-viewed-track-wrapper">
-        <div class="recently-viewed-track" id="recentlyViewedTrack">
-          <!-- Injected dynamically via renderRecentlyViewedShelf() -->
-        </div>
-      </div>
     </div>
   </section>
   <section class="contact" id="contact">
@@ -6147,54 +6147,11 @@
       } else if (activeCategoryFilter === 'hidden') {
         records = records.filter(item => hiddenList.includes(String(item.id)));
       } else if (activeCategoryFilter !== 'all') {
-        records = records.filter(item => !hiddenList.includes(String(item.id)));
-        const selectedCat = (liveCollections.categories && liveCollections.categories[activeCategoryFilter]) || {};
-        const catTitleLower = String(selectedCat.title || activeCategoryFilter).trim().toLowerCase();
-        const catSlugLower = String(selectedCat.slug || activeCategoryFilter).trim().toLowerCase();
-        const catIdLower = String(activeCategoryFilter).trim().toLowerCase();
-        const catRefLower = String(selectedCat.productRef || '').trim().toLowerCase();
-        const catDescLower = String(selectedCat.description || '').trim().toLowerCase();
-
-        let filtered = records.filter(item => {
-          if (String(item.id) === String(activeCategoryFilter)) return true;
-          if (catRefLower && (
-            String(item.id).toLowerCase() === catRefLower ||
-            String(item.slug || '').toLowerCase() === catRefLower ||
-            String(item.category || '').toLowerCase() === catRefLower
-          )) return true;
-
-          const itemCatLower = String(item.category || '').trim().toLowerCase();
-          const itemTitleLower = String(item.title || '').trim().toLowerCase();
-          const itemSlugLower = String(item.slug || '').trim().toLowerCase();
-
-          if (itemCatLower && (
-            itemCatLower === catTitleLower || 
-            itemCatLower === catSlugLower || 
-            itemCatLower === catIdLower ||
-            (catRefLower && itemCatLower === catRefLower) ||
-            (catDescLower && (itemCatLower === catDescLower || catDescLower.includes(itemCatLower) || itemCatLower.includes(catDescLower))) ||
-            itemCatLower.includes(catTitleLower) ||
-            catTitleLower.includes(itemCatLower)
-          )) return true;
-
-          if (itemSlugLower && (
-            itemSlugLower === catSlugLower ||
-            itemSlugLower === catIdLower ||
-            (catRefLower && itemSlugLower === catRefLower)
-          )) return true;
-
-          if (catTitleLower && itemTitleLower.includes(catTitleLower)) return true;
-          if (catDescLower && itemTitleLower.includes(catDescLower)) return true;
-
-          return false;
-        });
-
-        // Fail-safe: If no sub-products exist, display the category pack card itself!
-        if (!filtered.length && (selectedCat.title || selectedCat.id)) {
-          filtered = [Object.assign({ id: activeCategoryFilter }, selectedCat)];
+        if (typeof window.getCategoryProductsList === 'function') {
+          records = window.getCategoryProductsList(activeCategoryFilter);
+        } else {
+          records = records.filter(item => !hiddenList.includes(String(item.id)));
         }
-
-        records = filtered;
       } else {
         records = records.filter(item => !hiddenList.includes(String(item.id)));
       }
@@ -8448,18 +8405,19 @@
       'shemale': ['shemale', 'trans', 'ladyboy'],
       'mallu': ['mallu', 'tamil', 'south'],
       'tamil': ['tamil', 'mallu', 'south'],
-      'bhabhi': ['bhabhi', 'aunty', 'aunties', 'housewife', 'incest'],
+      'bhabhi': ['bhabhi', 'aunty', 'aunties', 'housewife'],
       'desi': ['desi', 'indian', 'mujra', 'punjabi', 'marathi', 'bengali'],
       'indian': ['desi', 'indian', 'punjabi', 'marathi'],
       'snap': ['snap', 'snapchat', 'insta', 'instagram'],
       'insta': ['snap', 'snapchat', 'insta', 'instagram'],
-      'teen': ['teen', 'schoolgirl', 'campus', 'college'],
+      'teen': ['teen', 'schoolgirl', 'campus'],
       'college': ['college', 'campus', 'hostel', 'student', 'freshers'],
       'bsdm': ['bsdm', 'bdsm', 'torture', 'blackmail', 'drugged'],
       'english': ['english', 'foreign', 'western', 'blacked', 'white'],
-      'animal': ['animal', 'zoo', 'dog', 'horse'],
+      'animal': ['animal', 'zoo'],
       'mom': ['mom', 'mother', 'santoor'],
-      'gay': ['gay', 'homo', 'boy']
+      'gay': ['gay', 'homo', 'boy'],
+      'cp': ['cp', 'spx']
     };
 
     // Helper: Get matching products for a category
@@ -8506,14 +8464,14 @@
       const categories = window.liveCollections?.categories || {};
       const cat = categories[catId] || Object.values(categories).find(c => String(c?.id) === String(catId) || String(c?.slug) === String(catId)) || {};
 
-      const catIdStr = String(catId || '').toLowerCase();
+      const catIdStr = String(catId || '').toLowerCase().trim();
       const catIdClean = catIdStr.replace(/-\d+$/, '');
-      const catSlugClean = String(cat.slug || '').toLowerCase().replace(/-\d+$/, '');
-      const catRefClean = String(cat.productRef || cat.data?.productRef || '').toLowerCase().replace(/-\d+$/, '');
+      const catSlugClean = String(cat.slug || '').toLowerCase().replace(/-\d+$/, '').trim();
+      const catRefClean = String(cat.productRef || cat.data?.productRef || '').toLowerCase().replace(/-\d+$/, '').trim();
       const catTitleClean = cleanTokenStr(cat.title || cat.name || catId);
 
       const catTokens = new Set([
-        ...getCleanTokens(cat.title),
+        ...getCleanTokens(cat.title || cat.name),
         ...getCleanTokens(cat.slug),
         ...getCleanTokens(cat.productRef)
       ]);
@@ -8525,32 +8483,47 @@
         }
       });
 
+      const isCpCat = catIdClean === 'cp' || catTitleClean === 'cp';
+
       let matches = visibleProds.filter(item => {
-        const pId = String(item.id || '').toLowerCase();
-        const pCat = String(item.category || '').toLowerCase();
+        const pId = String(item.id || '').toLowerCase().trim();
+        const pCat = String(item.category || '').toLowerCase().trim();
         const pCatClean = cleanTokenStr(pCat);
         const pSlugClean = cleanTokenStr(item.slug || '');
         const pTitleClean = cleanTokenStr(item.title || '');
 
         // 1. Direct ID / Category / Ref match
-        if (pId === catIdStr || pId === catIdClean || pId === catSlugClean) return true;
+        if (pId === catIdStr || pId === catIdClean || (catSlugClean && pId === catSlugClean)) return true;
         if (catRefClean && (pId === catRefClean || pCat === catRefClean || pCatClean === cleanTokenStr(catRefClean))) return true;
 
-        if (pCatClean && (
-          pCatClean === catTitleClean ||
-          pCatClean === catSlugClean ||
-          pCatClean === catIdClean ||
-          pCatClean.includes(catTitleClean) ||
-          catTitleClean.includes(pCatClean)
-        )) return true;
+        // Special CP category isolation: only CP products
+        if (isCpCat) {
+          if (pCat === 'cp' || pCat === 'cp-pack') return true;
+          if (/\b(cp|©p|spx)\b/i.test(item.title || '') || pSlugClean.includes('cp')) return true;
+          return false;
+        }
 
-        // 2. Token overlap between category keywords & product category/slug/title
+        // If viewing another category, prevent CP products from leaking in
+        if (!isCpCat && (pCat === 'cp' || pCat === 'cp-pack')) {
+          return false;
+        }
+
+        // Direct category field match (ONLY if pCat is NOT 'all' or 'default')
+        if (pCatClean && pCatClean !== 'all' && pCatClean !== 'default') {
+          if (pCatClean === catTitleClean || pCatClean === catSlugClean || pCatClean === catIdClean) return true;
+          if (catTitleClean && pCatClean.length >= 4 && (pCatClean.includes(catTitleClean) || catTitleClean.includes(pCatClean))) return true;
+        }
+
+        // Token overlap between category keywords & product category/slug/title
         for (const token of expandedTokens) {
           if (token.length >= 3) {
-            if (pCatClean && (pCatClean === token || pCatClean.includes(token))) return true;
+            if (pCatClean && pCatClean !== 'all' && pCatClean !== 'default') {
+              if (pCatClean === token || (token.length >= 4 && pCatClean.includes(token))) return true;
+            }
             const titleWords = pTitleClean.split(' ');
             if (titleWords.includes(token) || (token.includes(' ') && pTitleClean.includes(token))) return true;
-            if (pSlugClean && pSlugClean.includes(token)) return true;
+            const slugWords = pSlugClean.split(' ');
+            if (slugWords.includes(token) || (token.includes(' ') && pSlugClean.includes(token))) return true;
           }
         }
 
