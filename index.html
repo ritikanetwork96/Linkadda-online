@@ -1855,29 +1855,18 @@
     <!-- ================================================================ -->
     <section class="recently-viewed-section" id="recentlyViewedSection" style="display: none;">
       <div class="container">
-        <div class="recently-viewed-header">
-          <div class="recently-viewed-title-wrap">
-            <div class="recently-viewed-kicker">
-              <i class="fa-solid fa-clock-rotate-left"></i> Your Activity
-            </div>
-            <h2 class="recently-viewed-title">Recently Viewed <span class="gradient-text">Packs</span></h2>
-            <p class="recently-viewed-sub">Inspired by your browsing history &#8212; pick up right where you left off</p>
+        <div class="recently-viewed-header-compact">
+          <div class="rv-header-left">
+            <span class="rv-header-icon"><i class="fa-solid fa-clock-rotate-left"></i></span>
+            <h3 class="rv-header-title">Recently Viewed</h3>
           </div>
-          <div class="recently-viewed-actions">
-            <button type="button" class="rv-nav-btn rv-nav-prev" id="rvNavPrev" aria-label="Previous products" onclick="window.scrollRecentlyViewed(-1)">
-              <i class="fa-solid fa-chevron-left"></i>
-            </button>
-            <button type="button" class="rv-nav-btn rv-nav-next" id="rvNavNext" aria-label="Next products" onclick="window.scrollRecentlyViewed(1)">
-              <i class="fa-solid fa-chevron-right"></i>
-            </button>
-            <button type="button" class="rv-clear-btn" onclick="window.clearRecentlyViewed()" title="Clear your viewed history">
-              <i class="fa-solid fa-trash-can"></i> Clear
-            </button>
-          </div>
+          <button type="button" class="rv-more-link-btn" onclick="window.showRecentlyViewedPage && window.showRecentlyViewedPage()" aria-label="View all recently viewed packs">
+            <span>More</span> <i class="fa-solid fa-chevron-right"></i>
+          </button>
         </div>
         <div class="recently-viewed-track-wrapper">
           <div class="recently-viewed-track" id="recentlyViewedTrack">
-            <!-- Injected dynamically via renderRecentlyViewedShelf() -->
+            <!-- Injected dynamically via renderRecentlyViewedShelf() (4 to 5 products) -->
           </div>
         </div>
       </div>
@@ -4385,6 +4374,9 @@
     try {
       localStorage.removeItem(RECENTLY_VIEWED_KEY);
       renderRecentlyViewedShelf();
+      if (document.getElementById('appRecentlyViewedView')?.style.display === 'block') {
+        renderRecentlyViewedPage();
+      }
       if (typeof showStoreToast === 'function') {
         showStoreToast('Browsing history cleared', 'fa-solid fa-trash-can');
       }
@@ -4400,6 +4392,52 @@
     }
   }
   window.scrollRecentlyViewed = scrollRecentlyViewed;
+
+  function renderRvCardHtml(p, isRecom = false) {
+    const media = (typeof resolveMediaList === 'function') ? resolveMediaList(p) : { images: [] };
+    const images = (media && media.images) || [];
+    const imgUrl = images[0] || p.image || p.thumbnail || '';
+    const rawInrVal = p.priceINR ?? p.price_inr ?? p.inr ?? '399';
+    const rawUsdVal = p.priceUSD ?? p.price_usd ?? p.usd ?? '14';
+    const cleanINR = String(rawInrVal).replace(/[^\d.]/g, '') || '399';
+    const cleanUSD = String(rawUsdVal).replace(/[^\d.]/g, '') || '14';
+    const title = p.title || p.name || 'Exclusive Pack';
+    const orderLink = (typeof normalizeCheckoutUrl === 'function')
+      ? normalizeCheckoutUrl('payment.html', { id: p.id, title, inr: cleanINR, usd: cleanUSD })
+      : `payment.html?productId=${encodeURIComponent(p.id)}&name=${encodeURIComponent(title)}&inr=${cleanINR}&usd=${cleanUSD}`;
+
+    const imgHtml = imgUrl
+      ? `<img src="${esc(imgUrl)}" alt="${esc(title)}" loading="lazy" onerror="this.onerror=null;this.src='images/category1.jpg';" />`
+      : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle,#1e1b4b,#0f172a);color:#ff2a8d;font-size:24px;"><i class="fa-solid fa-gem"></i></div>`;
+
+    const badgeHtml = isRecom
+      ? `<span class="rv-card-badge recom-badge"><i class="fa-solid fa-fire"></i> Hot Pick</span>`
+      : `<span class="rv-card-badge"><i class="fa-solid fa-eye"></i> Viewed</span>`;
+
+    return `
+      <div class="rv-card" onclick="window.openFkProductPage && window.openFkProductPage('${esc(p.id)}')">
+        <div class="rv-card-media">
+          ${imgHtml}
+          ${badgeHtml}
+        </div>
+        <div class="rv-card-body">
+          <h4 class="rv-card-title">${esc(title)}</h4>
+          <div class="rv-card-prices">
+            <span class="rv-price-inr">&#8377;${cleanINR}</span>
+            <span class="rv-price-usd">$${cleanUSD} USDT</span>
+          </div>
+          <div class="rv-card-actions" onclick="event.stopPropagation();">
+            <button type="button" class="rv-btn-view" onclick="window.openFkProductPage && window.openFkProductPage('${esc(p.id)}')">
+              <i class="fa-solid fa-expand"></i> View
+            </button>
+            <a href="${esc(orderLink)}" class="rv-btn-buy" onclick="window.handleCardBuyNow(event, this, '${esc(orderLink)}');" data-product-id="${esc(p.id)}">
+              <i class="fa-solid fa-bolt"></i> Buy
+            </a>
+          </div>
+        </div>
+      </div>
+    `;
+  }
 
   function renderRecentlyViewedShelf() {
     const section = document.getElementById('recentlyViewedSection');
@@ -4422,14 +4460,6 @@
       }
     });
 
-    const rawProds = window.liveCollections?.products || {};
-    Object.entries(rawProds).forEach(([id, p]) => {
-      if (p && !productsMap[id]) {
-        productsMap[id] = { id, ...p };
-        productsMap[id.toLowerCase()] = { id, ...p };
-      }
-    });
-
     const hiddenList = typeof getHiddenProducts === 'function' ? getHiddenProducts() : [];
     const matchedProducts = [];
 
@@ -4449,49 +4479,138 @@
 
     section.style.display = 'block';
 
-    track.innerHTML = matchedProducts.map(p => {
-      const media = (typeof resolveMediaList === 'function') ? resolveMediaList(p) : { images: [] };
-      const images = (media && media.images) || [];
-      const imgUrl = images[0] || p.image || p.thumbnail || '';
-      const rawInrVal = p.priceINR ?? p.price_inr ?? p.inr ?? '399';
-      const rawUsdVal = p.priceUSD ?? p.price_usd ?? p.usd ?? '14';
-      const cleanINR = String(rawInrVal).replace(/[^\d.]/g, '') || '399';
-      const cleanUSD = String(rawUsdVal).replace(/[^\d.]/g, '') || '14';
-      const title = p.title || p.name || 'Exclusive Pack';
-      const orderLink = (typeof normalizeCheckoutUrl === 'function')
-        ? normalizeCheckoutUrl('payment.html', { id: p.id, title, inr: cleanINR, usd: cleanUSD })
-        : `payment.html?productId=${encodeURIComponent(p.id)}&name=${encodeURIComponent(title)}&inr=${cleanINR}&usd=${cleanUSD}`;
-
-      const imgHtml = imgUrl
-        ? `<img src="${esc(imgUrl)}" alt="${esc(title)}" loading="lazy" onerror="this.onerror=null;this.src='images/category1.jpg';" />`
-        : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle,#1e1b4b,#0f172a);color:#ff2a8d;font-size:24px;"><i class="fa-solid fa-gem"></i></div>`;
-
-      return `
-        <div class="rv-card" onclick="window.openFkProductPage && window.openFkProductPage('${esc(p.id)}')">
-          <div class="rv-card-media">
-            ${imgHtml}
-            <span class="rv-card-badge"><i class="fa-solid fa-eye"></i> Viewed</span>
-          </div>
-          <div class="rv-card-body">
-            <h4 class="rv-card-title">${esc(title)}</h4>
-            <div class="rv-card-prices">
-              <span class="rv-price-inr">&#8377;${cleanINR}</span>
-              <span class="rv-price-usd">$${cleanUSD} USDT</span>
-            </div>
-            <div class="rv-card-actions" onclick="event.stopPropagation();">
-              <button type="button" class="rv-btn-view" onclick="window.openFkProductPage && window.openFkProductPage('${esc(p.id)}')">
-                <i class="fa-solid fa-expand"></i> View
-              </button>
-              <a href="${esc(orderLink)}" class="rv-btn-buy" onclick="window.handleCardBuyNow(event, this, '${esc(orderLink)}');" data-product-id="${esc(p.id)}">
-                <i class="fa-solid fa-bolt"></i> Buy
-              </a>
-            </div>
-          </div>
-        </div>
-      `;
-    }).join('');
+    // Home Shelf: show only 4 to 5 products as requested!
+    const displayProducts = matchedProducts.slice(0, 5);
+    track.innerHTML = displayProducts.map(p => renderRvCardHtml(p, false)).join('');
   }
   window.renderRecentlyViewedShelf = renderRecentlyViewedShelf;
+
+  let rvPreviousScreen = 'store';
+
+  function showRecentlyViewedPage(fromScreen = 'store') {
+    rvPreviousScreen = fromScreen;
+    const storefrontView = document.getElementById('appStorefrontView');
+    const rvView = document.getElementById('appRecentlyViewedView');
+    const accountView = document.getElementById('appAccountView');
+    const notifsView = document.getElementById('appNotificationsView');
+    const ordersView = document.getElementById('appOrdersView');
+    const searchView = document.getElementById('appSearchView');
+    const catHubView = document.getElementById('appCategoriesHubView');
+    const catDetailView = document.getElementById('appCategoryDetailView');
+    if (!rvView) return;
+
+    if (storefrontView) storefrontView.style.display = 'none';
+    if (accountView) accountView.style.display = 'none';
+    if (notifsView) notifsView.style.display = 'none';
+    if (ordersView) ordersView.style.display = 'none';
+    if (searchView) searchView.style.display = 'none';
+    if (catHubView) catHubView.style.display = 'none';
+    if (catDetailView) catDetailView.style.display = 'none';
+    rvView.style.display = 'block';
+
+    renderRecentlyViewedPage();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+  window.showRecentlyViewedPage = showRecentlyViewedPage;
+
+  function hideRecentlyViewedPage() {
+    const rvView = document.getElementById('appRecentlyViewedView');
+    if (rvView) rvView.style.display = 'none';
+
+    if (rvPreviousScreen === 'profile' && window.showProfilePage) {
+      window.showProfilePage();
+    } else {
+      const storefrontView = document.getElementById('appStorefrontView');
+      if (storefrontView) storefrontView.style.display = 'block';
+    }
+    renderRecentlyViewedShelf();
+  }
+  window.hideRecentlyViewedPage = hideRecentlyViewedPage;
+
+  function renderRecentlyViewedPage() {
+    const pageGrid = document.getElementById('rvPageGrid');
+    const recomGrid = document.getElementById('rvRecomGrid');
+    const countBadge = document.getElementById('rvPageCountBadge');
+    if (!pageGrid) return;
+
+    const list = getRecentlyViewed();
+    const allRecords = (typeof getLiveRecords === 'function' ? getLiveRecords() : []) || [];
+    const productsMap = {};
+    allRecords.forEach(p => {
+      if (p && p.id) {
+        productsMap[String(p.id)] = p;
+        productsMap[String(p.id).toLowerCase()] = p;
+        if (p.slug) productsMap[String(p.slug).toLowerCase()] = p;
+      }
+    });
+
+    const hiddenList = typeof getHiddenProducts === 'function' ? getHiddenProducts() : [];
+    const matchedProducts = [];
+
+    list.forEach(id => {
+      const pid = String(id).trim();
+      if (hiddenList.includes(pid)) return;
+      const prod = productsMap[pid] || productsMap[pid.toLowerCase()];
+      if (prod && !matchedProducts.some(m => String(m.id) === String(prod.id))) {
+        matchedProducts.push(prod);
+      }
+    });
+
+    // 1. Up to 10 recently viewed products on dedicated page
+    const pageItems = matchedProducts.slice(0, 10);
+    if (countBadge) {
+      countBadge.textContent = `${pageItems.length} Items`;
+    }
+
+    if (pageItems.length === 0) {
+      pageGrid.innerHTML = `
+        <div class="rv-empty-state" style="grid-column: 1 / -1;">
+          <i class="fa-solid fa-clock-rotate-left"></i>
+          <h4>No Recently Viewed Packs</h4>
+          <p>Products you click or view will appear here so you can easily find them.</p>
+          <button type="button" class="btn-primary" onclick="window.hideRecentlyViewedPage && window.hideRecentlyViewedPage()" style="margin: 0 auto; display: inline-flex; align-items: center; gap: 8px; padding: 10px 22px; border-radius: 9999px;">
+            <i class="fa-solid fa-layer-group"></i> Browse Store Catalog
+          </button>
+        </div>
+      `;
+    } else {
+      pageGrid.innerHTML = pageItems.map(p => renderRvCardHtml(p, false)).join('');
+    }
+
+    // 2. 2 to 4 Trending & Bestsellers Recommendations directly below
+    if (recomGrid) {
+      const trending = (typeof window.getCategoryProductsList === 'function') ? window.getCategoryProductsList('trending') : [];
+      const bestsellers = (typeof window.getCategoryProductsList === 'function') ? window.getCategoryProductsList('bestsellers') : [];
+      
+      const viewedIds = new Set(pageItems.map(p => String(p.id)));
+      const recomList = [];
+
+      trending.forEach(p => {
+        if (p && !viewedIds.has(String(p.id)) && !recomList.some(r => String(r.id) === String(p.id)) && recomList.length < 2) {
+          recomList.push(p);
+          viewedIds.add(String(p.id));
+        }
+      });
+
+      bestsellers.forEach(p => {
+        if (p && !viewedIds.has(String(p.id)) && !recomList.some(r => String(r.id) === String(p.id)) && recomList.length < 4) {
+          recomList.push(p);
+          viewedIds.add(String(p.id));
+        }
+      });
+
+      if (recomList.length < 2) {
+        allRecords.forEach(p => {
+          if (p && !hiddenList.includes(String(p.id)) && !recomList.some(r => String(r.id) === String(p.id)) && recomList.length < 4) {
+            recomList.push(p);
+          }
+        });
+      }
+
+      recomGrid.innerHTML = recomList.map(p => renderRvCardHtml(p, true)).join('');
+    }
+  }
+  window.renderRecentlyViewedPage = renderRecentlyViewedPage;
 
   // --- USER ORDERS HISTORY DRAWER SYSTEM ---
   function getStoredUserOrders() {
@@ -9538,6 +9657,55 @@
       <!-- Live Dynamic Notifications Feed -->
       <div class="notif-page-list" id="notifPageList">
         <!-- Injected dynamically via auth-modal.js with order notifications -->
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== FULL-PAGE NATIVE RECENTLY VIEWED SCREEN ===== -->
+  <div id="appRecentlyViewedView" style="display: none;">
+    <div class="app-screen-topbar">
+      <button type="button" class="btn-app-screen-back" onclick="window.hideRecentlyViewedPage && window.hideRecentlyViewedPage()">
+        <i class="fa-solid fa-arrow-left"></i>
+        <span>Store</span>
+      </button>
+      <div class="app-screen-title-group">
+        <h1 class="app-screen-title">Recently Viewed</h1>
+      </div>
+      <div class="app-screen-top-actions">
+        <button type="button" class="btn-rv-clear-page" onclick="window.clearRecentlyViewed && window.clearRecentlyViewed()" title="Clear browsing history">
+          <i class="fa-solid fa-trash-can"></i>
+          <span>Clear</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="app-rv-page-container">
+      <!-- Section 1: Recently Viewed Grid (Up to 10 products) -->
+      <div class="rv-page-section">
+        <div class="rv-page-section-head">
+          <div class="rv-page-section-title">
+            <i class="fa-solid fa-clock-rotate-left"></i>
+            <span>Your Browsing History</span>
+          </div>
+          <span class="rv-page-count-badge" id="rvPageCountBadge">0 Items</span>
+        </div>
+        <div class="rv-page-grid" id="rvPageGrid">
+          <!-- Injected dynamically with up to 10 recently viewed products -->
+        </div>
+      </div>
+
+      <!-- Section 2: Trending & Bestsellers Recommendations (2 to 4 products) -->
+      <div class="rv-page-section rv-recom-section">
+        <div class="rv-page-section-head">
+          <div class="rv-page-section-title">
+            <i class="fa-solid fa-fire" style="color: #f97316;"></i>
+            <span>Trending & Bestsellers</span>
+          </div>
+          <span class="rv-recom-tag">Recommended For You</span>
+        </div>
+        <div class="rv-recom-grid" id="rvRecomGrid">
+          <!-- Injected dynamically with 2-4 trending & bestseller products -->
+        </div>
       </div>
     </div>
   </div>
