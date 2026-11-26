@@ -6077,7 +6077,7 @@ function renderLikedHiddenCatalogSection() {
         </div>
         <div class="catalog-results ${ui.catalogView}" id="catalogLikedGrid">
           ${likedItems.length
-            ? likedItems.map((entry, idx) => renderCatalogCard(entry.item, 'products', categoryMap, mediaCounts, idx, likedItems.length)).join('')
+            ? likedItems.map((entry, idx) => renderCatalogProductCard(entry.item, 'products', categoryMap, idx)).join('')
             : '<div class="empty-state glass" style="grid-column: 1 / -1; padding: 28px; text-align: center;">No liked products recorded yet.</div>'}
         </div>
       </div>
@@ -6088,7 +6088,7 @@ function renderLikedHiddenCatalogSection() {
         </div>
         <div class="catalog-results ${ui.catalogView}" id="catalogHiddenGrid">
           ${hiddenItems.length
-            ? hiddenItems.map((entry, idx) => renderCatalogCard(entry.item, 'products', categoryMap, mediaCounts, idx, hiddenItems.length)).join('')
+            ? hiddenItems.map((entry, idx) => renderCatalogProductCard(entry.item, 'products', categoryMap, idx)).join('')
             : '<div class="empty-state glass" style="grid-column: 1 / -1; padding: 28px; text-align: center;">No hidden products found.</div>'}
         </div>
       </div>
