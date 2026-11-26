@@ -4487,7 +4487,7 @@ function renderAnalyticsKpis(summary) {
 
   return `
     <div class="analytics-kpi-grid-6">
-      <div class="kpi-card glass kpi-card-dynamic">
+      <div class="kpi-card glass kpi-card-dynamic" onclick="window.openLikedHiddenPage && window.openLikedHiddenPage('liked')" style="cursor: pointer;" title="Click to view Liked Packs">
         <div class="kpi-card-top">
           <span class="kpi-label">Store Visitors</span>
           <span class="kpi-icon primary"><i data-lucide="users"></i></span>
@@ -4500,7 +4500,7 @@ function renderAnalyticsKpis(summary) {
         <div class="kpi-sparkline">${renderSparkline(summary.visitorSeries, 'primary')}</div>
       </div>
 
-      <div class="kpi-card glass kpi-card-dynamic">
+      <div class="kpi-card glass kpi-card-dynamic" onclick="window.openLikedHiddenPage && window.openLikedHiddenPage('liked')" style="cursor: pointer;" title="Click to view Liked Packs">
         <div class="kpi-card-top">
           <span class="kpi-label">Order Clicks</span>
           <span class="kpi-icon secondary"><i data-lucide="mouse-pointer-click"></i></span>
@@ -4513,7 +4513,7 @@ function renderAnalyticsKpis(summary) {
         <div class="kpi-sparkline">${renderSparkline(summary.clickSeries, 'secondary')}</div>
       </div>
 
-      <div class="kpi-card glass kpi-card-dynamic">
+      <div class="kpi-card glass kpi-card-dynamic" onclick="window.openLikedHiddenPage && window.openLikedHiddenPage('liked')" style="cursor: pointer;" title="Click to view Liked Packs">
         <div class="kpi-card-top">
           <span class="kpi-label">Customer Orders</span>
           <span class="kpi-icon success"><i data-lucide="shopping-bag"></i></span>
@@ -4526,7 +4526,7 @@ function renderAnalyticsKpis(summary) {
         <div class="kpi-sparkline">${renderSparkline(summary.orderSeries, 'success')}</div>
       </div>
 
-      <div class="kpi-card glass kpi-card-dynamic">
+      <div class="kpi-card glass kpi-card-dynamic" onclick="window.openLikedHiddenPage && window.openLikedHiddenPage('liked')" style="cursor: pointer;" title="Click to view Liked Packs">
         <div class="kpi-card-top">
           <span class="kpi-label">Total Likes</span>
           <span class="kpi-icon accent" style="background: rgba(244, 63, 94, 0.15); color: #f43f5e;"><i data-lucide="heart"></i></span>
@@ -4539,7 +4539,7 @@ function renderAnalyticsKpis(summary) {
         <div class="kpi-sparkline">${renderSparkline(summary.likeSeries, 'accent')}</div>
       </div>
 
-      <div class="kpi-card glass kpi-card-dynamic">
+      <div class="kpi-card glass kpi-card-dynamic" onclick="window.openLikedHiddenPage && window.openLikedHiddenPage('liked')" style="cursor: pointer;" title="Click to view Liked Packs">
         <div class="kpi-card-top">
           <span class="kpi-label">Verified Revenue</span>
           <span class="kpi-icon accent"><i data-lucide="banknote"></i></span>
@@ -4561,7 +4561,7 @@ function renderAnalyticsKpis(summary) {
         <div class="kpi-sparkline">${renderSparkline(summary.revenueSeries, 'accent')}</div>
       </div>
 
-      <div class="kpi-card glass kpi-card-dynamic">
+      <div class="kpi-card glass kpi-card-dynamic" onclick="window.openLikedHiddenPage && window.openLikedHiddenPage('liked')" style="cursor: pointer;" title="Click to view Liked Packs">
         <div class="kpi-card-top">
           <span class="kpi-label">Conversion Rate</span>
           <span class="kpi-icon purple"><i data-lucide="activity"></i></span>
@@ -4574,7 +4574,7 @@ function renderAnalyticsKpis(summary) {
         <div class="kpi-sparkline">${renderSparkline(summary.orderSeries, 'purple')}</div>
       </div>
 
-      <div class="kpi-card glass kpi-card-dynamic">
+      <div class="kpi-card glass kpi-card-dynamic" onclick="window.openLikedHiddenPage && window.openLikedHiddenPage('liked')" style="cursor: pointer;" title="Click to view Liked Packs">
         <div class="kpi-card-top">
           <span class="kpi-label">Avg Order Value (AOV)</span>
           <span class="kpi-icon primary"><i data-lucide="credit-card"></i></span>
@@ -6305,9 +6305,9 @@ function renderDashboard(data) {
             ${renderCompactStatCard('Products', summary.totals.products, 'Live product records', 'package', 'primary')}
             ${renderCompactStatCard('Categories', summary.totals.categories, 'Live category records', 'layers-3', 'secondary')}
             ${renderCompactStatCard('Product Views', summary.totalViews, 'Catalog views 👁️', 'eye', 'purple')}
-            ${renderCompactStatCard('Total Likes', summary.totalLikes, `❤️ ${summary.todaysLikes || (typeof stats === 'function' ? stats().todaysLikes : 0) || 0} today · Live likes`, 'heart', 'accent')}
+            <div onclick="window.openLikedHiddenPage && window.openLikedHiddenPage('liked')" style="cursor: pointer;" title="Click to view Liked Packs">${renderCompactStatCard('Total Likes', summary.totalLikes, `❤️ ${summary.todaysLikes || (typeof stats === 'function' ? stats().todaysLikes : 0) || 0} today · Live likes`, 'heart', 'accent')}</div>
             ${renderCompactStatCard('Affiliate Clicks', summary.affiliateClicks, 'External & Bot clicks', 'send', 'success')}
-            ${renderCompactStatCard('Hidden Products', summary.hiddenProductsCount, `${summary.visitorHiddenCount} visitor hides`, 'eye-off', 'secondary')}
+            <div onclick="window.openLikedHiddenPage && window.openLikedHiddenPage('hidden')" style="cursor: pointer;" title="Click to view Hidden Packs">${renderCompactStatCard('Hidden Products', summary.hiddenProductsCount, `${summary.visitorHiddenCount} visitor hides`, 'eye-off', 'secondary')}</div>
           </div>
         </div>
 
@@ -9776,13 +9776,6 @@ function renderTelegramBotPageView(data = {}) {
             </div>
             <div>
               <strong style="color: var(--text); font-size: 14px;">Connect New Administrator Chat ID</strong>
-              <small style="color: var(--muted); display: block; font-size: 11.5px;">Add real Telegram Chat IDs. An instant welcome ping alert will be dispatched to confirm connection.</small>
-            </div>
-          </div>
-
-          <form id="addNewAdminForm" class="tg-responsive-form" style="display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-start;">
-            <div style="flex: 1; min-width: 220px;">
-              <input type="text" id="newAdminChatIdInput" placeholder="Enter Telegram Numeric Chat ID (e.g. 8802192472)" class="input" style="width: 100%; padding: 11px 14px; font-family: monospace; font-size: 13px;" required />
               <div id="newAdminLookupLiveBadge" style="margin-top: 6px; font-size: 12px; display: none;"></div>
             </div>
             <div style="min-width: 210px;">
