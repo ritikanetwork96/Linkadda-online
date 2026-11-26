@@ -6023,7 +6023,7 @@ function renderLikedHiddenCatalogSection() {
   const products = listCollection('products').filter((item) => item.status !== 'deleted');
   const categories = listCollection('categories');
   const categoryMap = new Map(categories.map((c) => [c.id, c]));
-  const mediaCounts = getCatalogMediaCounts();
+  const mediaCounts = new Map();
   const engMap = getProductEngagementMap();
 
   const likedItems = [];
