@@ -6747,7 +6747,7 @@
         const checkRes = await fetch(`${supaUrl}/rest/v1/products?select=updated_at&order=updated_at.desc&limit=1`, { headers });
         const checkRows = await checkRes.json().catch(() => []);
         const latestProdTs = checkRows && checkRows[0] ? checkRows[0].updated_at : null;
-        const cachedProdTs = localStorage.getItem('linkadda_products_last_sync_v2');
+        const cachedProdTs = localStorage.getItem('linkadda_products_last_sync_v3');
         const hasExistingProds = liveCollections.products && Object.keys(liveCollections.products).length > 20;
 
         if (!hasExistingProds || !latestProdTs || latestProdTs !== cachedProdTs) {
@@ -6805,7 +6805,7 @@
             liveCollections.products = data;
             saveCachedLiveData();
             scheduleRenderLiveStore();
-            if (latestProdTs) localStorage.setItem('linkadda_products_last_sync_v2', String(latestProdTs));
+            if (latestProdTs) localStorage.setItem('linkadda_products_last_sync_v3', String(latestProdTs));
           }
         }
       } catch (err) {
