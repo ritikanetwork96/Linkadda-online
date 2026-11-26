@@ -3410,11 +3410,6 @@
     // Main cover image has absolute priority as slide #1
     let mainImg = String(cat.image || cat.imageUrl || cat.thumbnail || (cat.data && (cat.data.image || cat.data.imageUrl || cat.data.thumbnail)) || '').trim();
 
-    // Guard: Standard products must never display accidental/hardcoded category covers (category20.jpg, category11.jpg, etc.)
-    const isCatItem = String(cat.id || '').startsWith('cat_') || String(cat.type || '') === 'category';
-    if (!isCatItem && /(?:images\/|categories\/|^|\/)category\d+\.(?:jpg|png|webp|jpeg)/i.test(mainImg)) {
-      mainImg = '';
-    }
     let rawList = [];
     const seenBasenames = new Set();
 
@@ -3427,7 +3422,6 @@
     primary.forEach((u) => {
       const s = String(u || '').trim();
       const key = getMediaFileKey(s);
-      if (!isCatItem && /(?:images\/|categories\/|^|\/)category\d+\.(?:jpg|png|webp|jpeg)/i.test(s)) return;
       if (s && key && !seenBasenames.has(key)) {
         seenBasenames.add(key);
         rawList.push(s);
@@ -3438,7 +3432,6 @@
     gallery.forEach((u) => {
       const s = String(u || '').trim();
       const key = getMediaFileKey(s);
-      if (!isCatItem && /(?:images\/|categories\/|^|\/)category\d+\.(?:jpg|png|webp|jpeg)/i.test(s)) return;
       if (s && key && !seenBasenames.has(key)) {
         seenBasenames.add(key);
         rawList.push(s);
