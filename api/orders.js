@@ -174,6 +174,16 @@ export default async function handler(req, res) {
       if (typeof safeData.paymentProof === 'string' && safeData.paymentProof.startsWith('data:')) {
         safeData.paymentProof = '';
       }
+      // Security: Never allow client-supplied approval or delivery links on order creation
+      delete safeData.approved;
+      delete safeData.status;
+      delete safeData.orderStatus;
+      delete safeData.paymentStatus;
+      delete safeData.channelLink;
+      delete safeData.downloadLink;
+      delete safeData.deliveryLink;
+      delete safeData.fileUrl;
+      delete safeData.approvedAt;
 
       const orderRow = {
         id: orderId,
@@ -188,8 +198,8 @@ export default async function handler(req, res) {
         payment_method: payload.paymentMethod || 'UPI',
         payment_proof: payload.paymentProof || payload.screenshotUrl || '',
         utr: payload.utr || payload.transactionId || '',
-        status: payload.status || 'pending',
-        data: safeData
+        status: 'pending',
+        data: { ...safeData, status: 'pending', approved: false }
       };
 
       const supaRes = await fetch(`${url}/rest/v1/orders`, {

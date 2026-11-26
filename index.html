@@ -1621,9 +1621,6 @@
       </button>
       <div class="fk-pv-title-bar" id="fkPvTitleBar">Product Details</div>
       <div class="fk-pv-top-actions">
-        <button type="button" class="fk-pv-action-btn" id="fkPvShareBtn" onclick="window.shareCurrentFkProduct(event)" title="Share this pack" aria-label="Share pack">
-          <i class="fa-solid fa-share-nodes"></i>
-        </button>
         <button type="button" class="fk-pv-action-btn" id="fkPvWishlistBtn" onclick="window.toggleFkWishlist(event, window.__fkActiveProduct ? window.__fkActiveProduct.id : '')" title="Like this pack">
           <i class="fa-solid fa-heart"></i>
         </button>
@@ -6765,6 +6762,20 @@
             rows.forEach(item => {
               const cleanTitle = item.title || item.name || '';
               const { inr, usd } = resolveProductPrice(item);
+              if (item.data && typeof item.data === 'object') {
+                delete item.data.channelLink;
+                delete item.data.orderLink;
+                delete item.data.deliveryLink;
+                delete item.data.fileUrl;
+                delete item.data.downloadLink;
+                if (item.data.data && typeof item.data.data === 'object') {
+                  delete item.data.data.channelLink;
+                  delete item.data.data.orderLink;
+                  delete item.data.data.deliveryLink;
+                  delete item.data.data.fileUrl;
+                  delete item.data.data.downloadLink;
+                }
+              }
               const mainImg = item.image || '';
               let imgs = Array.isArray(item.images) && item.images.length ? item.images : [];
               if (mainImg && (!imgs.length || imgs[0] !== mainImg)) {
