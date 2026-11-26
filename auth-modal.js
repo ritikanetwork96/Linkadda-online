@@ -1914,6 +1914,7 @@ export function closeNotificationDetailModal() {
     document.body.style.overflow = '';
   }
 }
+window.closeNotificationDetailModal = closeNotificationDetailModal;
 
 export async function copyNotifVipLink(btnEl) {
   const ctaBtn = document.getElementById('notifDetailVipLinkBtn');

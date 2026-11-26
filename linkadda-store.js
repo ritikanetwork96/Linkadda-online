@@ -520,14 +520,40 @@
           points.push({ icon: 'fa-comments', title: p4Title, desc: p4Desc });
         }
 
-        offersList.innerHTML = points.map(pt => `
-          <div class="fk-offer-row">
+        offersList.innerHTML = points.map((pt, idx) => `
+          <div class="fk-offer-row${idx >= 2 ? ' fk-pv-extra-item' : ''}"${idx >= 2 ? ' style="display:none;"' : ''}>
             <i class="fa-solid ${pt.icon} fk-offer-icon"></i>
             <div>
               <strong>${escapeHtml(pt.title)}:</strong> ${escapeHtml(pt.desc)}
             </div>
           </div>
         `).join('');
+
+        let offersMoreBtn = document.getElementById('fkPvOffersMoreBtn');
+        if (points.length > 2) {
+          if (!offersMoreBtn) {
+            offersMoreBtn = document.createElement('button');
+            offersMoreBtn.type = 'button';
+            offersMoreBtn.id = 'fkPvOffersMoreBtn';
+            offersMoreBtn.className = 'fk-pv-section-more-btn';
+            offersSection.appendChild(offersMoreBtn);
+          }
+          offersMoreBtn.style.display = 'inline-flex';
+          offersMoreBtn.dataset.expanded = '0';
+          offersMoreBtn.innerHTML = `<span>More (${points.length - 2})</span> <i class="fa-solid fa-chevron-down"></i>`;
+          offersMoreBtn.onclick = () => {
+            const expanded = offersMoreBtn.dataset.expanded === '1';
+            offersList.querySelectorAll('.fk-pv-extra-item').forEach(el => {
+              el.style.display = expanded ? 'none' : '';
+            });
+            offersMoreBtn.dataset.expanded = expanded ? '0' : '1';
+            offersMoreBtn.innerHTML = expanded
+              ? `<span>More (${points.length - 2})</span> <i class="fa-solid fa-chevron-down"></i>`
+              : `<span>Show Less</span> <i class="fa-solid fa-chevron-up"></i>`;
+          };
+        } else if (offersMoreBtn) {
+          offersMoreBtn.style.display = 'none';
+        }
       }
     }
 
@@ -562,12 +588,38 @@
           { key: 'VIP Helpdesk', val: prod.specSupport || '24/7 Instant Telegram Helpdesk' }
         ];
 
-        specsTbody.innerHTML = specRows.map(r => `
-          <tr>
+        specsTbody.innerHTML = specRows.map((r, idx) => `
+          <tr class="${idx >= 2 ? 'fk-pv-extra-item' : ''}"${idx >= 2 ? ' style="display:none;"' : ''}>
             <td class="fk-spec-key">${escapeHtml(r.key)}</td>
             <td class="fk-spec-val">${escapeHtml(r.val)}</td>
           </tr>
         `).join('');
+
+        let specsMoreBtn = document.getElementById('fkPvSpecsMoreBtn');
+        if (specRows.length > 2) {
+          if (!specsMoreBtn) {
+            specsMoreBtn = document.createElement('button');
+            specsMoreBtn.type = 'button';
+            specsMoreBtn.id = 'fkPvSpecsMoreBtn';
+            specsMoreBtn.className = 'fk-pv-section-more-btn';
+            specsSection.appendChild(specsMoreBtn);
+          }
+          specsMoreBtn.style.display = 'inline-flex';
+          specsMoreBtn.dataset.expanded = '0';
+          specsMoreBtn.innerHTML = `<span>More (${specRows.length - 2})</span> <i class="fa-solid fa-chevron-down"></i>`;
+          specsMoreBtn.onclick = () => {
+            const expanded = specsMoreBtn.dataset.expanded === '1';
+            specsTbody.querySelectorAll('.fk-pv-extra-item').forEach(el => {
+              el.style.display = expanded ? 'none' : '';
+            });
+            specsMoreBtn.dataset.expanded = expanded ? '0' : '1';
+            specsMoreBtn.innerHTML = expanded
+              ? `<span>More (${specRows.length - 2})</span> <i class="fa-solid fa-chevron-down"></i>`
+              : `<span>Show Less</span> <i class="fa-solid fa-chevron-up"></i>`;
+          };
+        } else if (specsMoreBtn) {
+          specsMoreBtn.style.display = 'none';
+        }
       }
     }
 
