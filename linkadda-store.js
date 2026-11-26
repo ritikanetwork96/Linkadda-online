@@ -614,6 +614,9 @@
     // 12. Verified Reviews (From Database Testimonials)
     renderReviews(id);
 
+    // 13. More from Same Category & Smart Recommendations (New / Trending / Bestsellers)
+    renderProductRecommendations(prod);
+
     // Open Overlay
     overlay.classList.add('active');
     const content = overlay.querySelector('.fk-pv-content');
@@ -1001,6 +1004,117 @@
     });
     updateProductPagePricing();
   };
+
+  function buildPvMiniCard(p, badgeText = '', badgeClass = '') {
+    if (!p) return '';
+    const pid = String(p.id || p.slug || '');
+    const title = p.title || p.name || 'Exclusive Pack';
+    const media = (typeof window.resolveMediaList === 'function') ? window.resolveMediaList(p) : { images: [] };
+    const imgUrl = (media && media.images && media.images[0]) || p.image || p.thumbnail || 'images/category1.jpg';
+    const pricePair = (typeof window.resolveProductPrice === 'function')
+      ? window.resolveProductPrice(p)
+      : { inr: String(p.priceINR || '399').replace(/[^\d.]/g, '') || '399', usd: String(p.priceUSD || '14').replace(/[^\d.]/g, '') || '14' };
+    const orderLink = (typeof window.normalizeCheckoutUrl === 'function')
+      ? window.normalizeCheckoutUrl('payment.html', { id: pid, title, inr: pricePair.inr, usd: pricePair.usd })
+      : `payment.html?productId=${encodeURIComponent(pid)}&name=${encodeURIComponent(title)}&inr=${pricePair.inr}&usd=${pricePair.usd}`;
+
+    const badgeHtml = badgeText
+      ? `<span class="rv-card-badge ${badgeClass}">${escapeHtml(badgeText)}</span>`
+      : '';
+
+    return `
+      <div class="rv-card" onclick="window.openFkProductPage && window.openFkProductPage('${escapeHtml(pid)}')">
+        <div class="rv-card-media">
+          <img src="${escapeHtml(imgUrl)}" alt="${escapeHtml(title)}" loading="lazy" onerror="this.onerror=null;this.src='images/category1.jpg';" />
+          ${badgeHtml}
+        </div>
+        <div class="rv-card-body">
+          <h4 class="rv-card-title">${escapeHtml(title)}</h4>
+          <div class="rv-card-prices">
+            <span class="rv-price-inr">&#8377;${escapeHtml(pricePair.inr)}</span>
+            <span class="rv-price-usd">$${escapeHtml(pricePair.usd)} USDT</span>
+          </div>
+          <div class="rv-card-actions" onclick="event.stopPropagation();">
+            <button type="button" class="rv-btn-view" onclick="window.openFkProductPage && window.openFkProductPage('${escapeHtml(pid)}')">
+              <i class="fa-solid fa-expand"></i> View
+            </button>
+            <a href="${escapeHtml(orderLink)}" class="rv-btn-buy" onclick="window.handleCardBuyNow && window.handleCardBuyNow(event, this, '${escapeHtml(orderLink)}');" data-product-id="${escapeHtml(pid)}">
+              <i class="fa-solid fa-bolt"></i> Buy
+            </a>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderProductRecommendations(prod) {
+    const relSection = document.getElementById('fkPvRelatedSection');
+    const relTitle = document.getElementById('fkPvRelatedTitle');
+    const relMoreBtn = document.getElementById('fkPvRelatedMoreBtn');
+    const relTrack = document.getElementById('fkPvRelatedTrack');
+    const sugSection = document.getElementById('fkPvSuggestedSection');
+    const sugTrack = document.getElementById('fkPvSuggestedTrack');
+    if (!prod || (!relSection && !sugSection)) return;
+
+    const currentId = String(prod.id || '').toLowerCase();
+    const shownIds = new Set([currentId]);
+    const rawCat = String(prod.category || '').trim();
+    const catKey = rawCat.toLowerCase();
+
+    // 1. More from Same Category (exclude 'all' or empty)
+    let relatedItems = [];
+    if (relSection && relTrack && catKey && catKey !== 'all' && typeof window.getCategoryProductsList === 'function') {
+      const catProds = window.getCategoryProductsList(rawCat) || [];
+      relatedItems = catProds.filter(p => p && String(p.id || '').toLowerCase() !== currentId).slice(0, 8);
+    }
+
+    if (relSection && relTrack && relatedItems.length > 0) {
+      relatedItems.forEach(p => shownIds.add(String(p.id || '').toLowerCase()));
+      const displayCat = rawCat.replace(/[-_]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+      if (relTitle) relTitle.textContent = `More from ${displayCat}`;
+      if (relMoreBtn) {
+        relMoreBtn.style.display = 'inline-flex';
+        relMoreBtn.onclick = () => {
+          if (typeof window.closeFkProductPage === 'function') window.closeFkProductPage();
+          if (typeof window.showCategoryProducts === 'function') window.showCategoryProducts(rawCat, 'store');
+        };
+      }
+      relTrack.innerHTML = relatedItems.map(p => buildPvMiniCard(p, '', '')).join('');
+      relSection.style.display = 'block';
+    } else if (relSection) {
+      relSection.style.display = 'none';
+    }
+
+    // 2. Suggested For You: New, Trending & Bestsellers (4 to 6 unique packs)
+    if (sugSection && sugTrack) {
+      const picks = [];
+      const addPicks = (list, label, cls, maxTake) => {
+        let taken = 0;
+        for (const p of (list || [])) {
+          if (!p) continue;
+          const pid = String(p.id || '').toLowerCase();
+          if (shownIds.has(pid)) continue;
+          shownIds.add(pid);
+          picks.push({ prod: p, label, cls });
+          taken++;
+          if (taken >= maxTake || picks.length >= 6) break;
+        }
+      };
+
+      if (typeof window.getCategoryProductsList === 'function') {
+        addPicks(window.getCategoryProductsList('new'), 'NEW', 'recom-badge', 2);
+        addPicks(window.getCategoryProductsList('trending'), 'TRENDING', 'recom-badge', 2);
+        addPicks(window.getCategoryProductsList('bestsellers'), 'BESTSELLER', 'recom-badge', 2);
+      }
+
+      if (picks.length > 0) {
+        sugTrack.innerHTML = picks.map(item => buildPvMiniCard(item.prod, item.label, item.cls)).join('');
+        sugSection.style.display = 'block';
+      } else {
+        sugSection.style.display = 'none';
+      }
+    }
+  }
 
   // --- SIMULTANEOUS DUAL PRICING (INR & USD TOGETHER) ---
   function updateProductPagePricing() {

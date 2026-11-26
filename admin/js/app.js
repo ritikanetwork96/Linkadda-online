@@ -1663,7 +1663,7 @@ function renderProductEditor(record = {}, schema = null) {
                     <span style="font-size: 11.5px; color: var(--muted);">Dispatches rich preview card with pack photo and Instant Buy buttons to all active bot users.</span>
                   </div>
                 </div>
-                <input type="checkbox" name="sendTelegramBroadcast" id="sendTelegramBroadcast" ${!isEdit ? 'checked' : ''} style="width: 22px; height: 22px; accent-color: #0284c7; cursor: pointer;" />
+                <input type="checkbox" name="sendTelegramBroadcast" id="sendTelegramBroadcast" style="width: 22px; height: 22px; accent-color: #0284c7; cursor: pointer;" onchange="const w = document.getElementById('editorBotSelectorWrap'); if(w){ w.style.opacity = this.checked ? '1' : '0.45'; w.style.pointerEvents = this.checked ? 'auto' : 'none'; }" />
               </label>
             </div>
 
@@ -1688,10 +1688,28 @@ function renderProductEditor(record = {}, schema = null) {
                 </small>
               </div>
 
-              <div class="field">
-                <label style="color: #94a3b8;">Target Bot Fleet</label>
-                <div style="padding: 10px 14px; border-radius: 10px; background: rgba(0,0,0,0.25); border: 1px solid var(--border); color: #cbd5e1; font-size: 12.5px; display: flex; align-items: center; gap: 8px;">
-                  <i data-lucide="bot" style="width: 16px; height: 16px; color: #38bdf8;"></i> All Active Fleet Bots (${(_tgBotData.bots && _tgBotData.bots.length) || 1} connected)
+              <div class="field" id="editorBotSelectorWrap" style="opacity: 0.45; pointer-events: none; transition: opacity 0.2s ease;">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+                  <label style="color: #38bdf8; font-weight: 700; margin: 0;">🤖 Select Target Bot(s)</label>
+                  <label style="display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 700; color: #94a3b8; cursor: pointer;">
+                    <input type="checkbox" id="editorBroadcastSelectAllBots" checked style="accent-color: #0284c7; width: 14px; height: 14px;" onchange="document.querySelectorAll('.editor-broadcast-bot-cb').forEach(cb => cb.checked = this.checked);"> All Bots
+                  </label>
+                </div>
+                <div id="editorBroadcastBotCheckboxesList" style="display: flex; flex-direction: column; gap: 6px; max-height: 130px; overflow-y: auto; padding: 8px 10px; border-radius: 10px; background: rgba(0,0,0,0.25); border: 1px solid var(--border);">
+                  ${((_tgBotData.bots && _tgBotData.bots.length) ? _tgBotData.bots : [_tgBotData.bot].filter(Boolean)).map(b => {
+                    const bIdStr = String(b.botId || b.id || '');
+                    const bUser = b.username || 'Bot';
+                    const isActive = b.status === 'active';
+                    return `
+                      <label style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; cursor: pointer; padding: 4px 6px; border-radius: 6px; background: rgba(255,255,255,0.03);">
+                        <span style="display: inline-flex; align-items: center; gap: 7px; font-weight: 600; color: ${isActive ? '#e0f2fe' : '#94a3b8'};">
+                          <input type="checkbox" class="editor-broadcast-bot-cb" value="${escapeHtml(bIdStr)}" checked style="accent-color: #0284c7; width: 14px; height: 14px;" onchange="const all = Array.from(document.querySelectorAll('.editor-broadcast-bot-cb')).every(c => c.checked); const sa = document.getElementById('editorBroadcastSelectAllBots'); if(sa) sa.checked = all;">
+                          @${escapeHtml(bUser)}
+                        </span>
+                        <span style="font-size: 10.5px; color: ${isActive ? '#10b981' : '#f59e0b'};">${isActive ? '● Online' : '○ Inactive'}</span>
+                      </label>
+                    `;
+                  }).join('') || '<span style="font-size: 12px; color: #94a3b8;">Loading connected bots...</span>'}
                 </div>
                 <small class="field-hint">Notification will be dispatched to subscribers across all active fleet bots.</small>
               </div>
@@ -16042,33 +16060,32 @@ function attachGlobalHandlers() {
         }
 
         try {
+          const dispatchEditorBroadcast = () => {
+            if (node !== 'products') return;
+            const shouldBroadcast = form.querySelector('[name="sendTelegramBroadcast"]')?.checked === true;
+            if (!shouldBroadcast) return;
+            const botCbs = Array.from(form.querySelectorAll('.editor-broadcast-bot-cb'));
+            const selectedBotIds = botCbs.filter(cb => cb.checked && cb.value).map(cb => cb.value);
+            if (botCbs.length > 0 && selectedBotIds.length === 0) return;
+            const selectAllCb = form.querySelector('#editorBroadcastSelectAllBots');
+            const targetBotIds = (selectAllCb && selectAllCb.checked) ? ['all'] : (selectedBotIds.length ? selectedBotIds : ['none']);
+            if (targetBotIds.includes('none')) return;
+            const autoDeleteSeconds = Number(form.querySelector('[name="tgMessageExpiry"]')?.value || 0);
+            try {
+              telegramApiFetch('/api/telegram/broadcast', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ product: next, targetBotIds, autoDeleteSeconds })
+              }).catch(() => {});
+            } catch (_) {}
+          };
+
           if (id) {
             await updateRecord(node, id, next);
-            if (node === 'products' && form.querySelector('[name="sendTelegramBroadcast"]')?.checked) {
-              const autoDeleteSeconds = Number(form.querySelector('[name="tgMessageExpiry"]')?.value || 0);
-              try {
-                telegramApiFetch('/api/telegram/broadcast', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ product: next, autoDeleteSeconds })
-                }).catch(() => {});
-              } catch (_) {}
-            }
+            dispatchEditorBroadcast();
           } else {
             await createRecord(node, next);
-            if (node === 'products') {
-              const shouldBroadcast = form.querySelector('[name="sendTelegramBroadcast"]')?.checked ?? true;
-              if (shouldBroadcast) {
-                const autoDeleteSeconds = Number(form.querySelector('[name="tgMessageExpiry"]')?.value || 0);
-                try {
-                  telegramApiFetch('/api/telegram/broadcast', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ product: next, autoDeleteSeconds })
-                  }).catch(() => {});
-                } catch (_) {}
-              }
-            }
+            dispatchEditorBroadcast();
           }
           const afterRefs = recordAssetRefs(next);
 

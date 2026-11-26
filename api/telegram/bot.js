@@ -2867,12 +2867,21 @@ export async function broadcastNewProduct(rawProduct, targetBotIds = ['all'], op
   };
 
   // 6. Multi-Bot Target Fleet Resolution
+  if (
+    targetBotIds === 'none' ||
+    (Array.isArray(targetBotIds) && (targetBotIds.length === 0 || targetBotIds.includes('none')))
+  ) {
+    return { ok: true, skipped: true, sentCount: 0, failCount: 0, message: 'Broadcast skipped (no target bot selected)' };
+  }
   const allActiveBots = getConnectedBots().filter(b => b.status === 'active');
-  const isAll = !targetBotIds || (Array.isArray(targetBotIds) && (targetBotIds.length === 0 || targetBotIds.includes('all')));
+  const isAll = !targetBotIds || (Array.isArray(targetBotIds) && targetBotIds.includes('all'));
   const targetList = Array.isArray(targetBotIds) ? targetBotIds : [targetBotIds];
   const selectedBots = isAll 
     ? allActiveBots 
     : allActiveBots.filter(b => targetList.includes(b.botId) || targetList.includes(b.id) || targetList.includes(b.username));
+  if (!isAll && selectedBots.length === 0) {
+    return { ok: true, skipped: true, sentCount: 0, failCount: 0, message: 'No matching active bot found for selected targetBotIds' };
+  }
   const fleet = selectedBots.length > 0 ? selectedBots : [getBotByIdOrToken()].filter(Boolean);
 
   const botUsers = await getAllBotUsers();
