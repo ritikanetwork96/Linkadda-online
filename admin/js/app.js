@@ -5509,11 +5509,33 @@ function renderCatalogProductCard(item, node, categoryMap = null, cardIndex = 0)
   const mediaCounts = itemMediaCounts(item, categoryMap);
   const mediaBadgeHtml = itemMediaCountBadgeHtml(item, mediaCounts);
 
+  const allEvents = listCollection('events') || [];
+  const itemIdLower = String(item.id || '').toLowerCase();
+  let eventLikes = 0;
+  let eventHides = 0;
+  allEvents.forEach((ev) => {
+    if (!ev) return;
+    const evPid = String(ev.product_id || ev.productId || ev.id || '').toLowerCase();
+    if (evPid !== itemIdLower) return;
+    const evType = String(ev.type || ev.event_type || ev.eventType || '').toLowerCase();
+    if (evType === 'product_like' || evType.includes('like')) eventLikes++;
+    else if (evType === 'product_hide' || evType.includes('hide')) eventHides++;
+  });
+  const totalLikes = Math.max(Number(item.likes || item.likesCount || 0), eventLikes);
+  const likedBadge = totalLikes > 0
+    ? `<span class="badge" style="background: rgba(244, 63, 94, 0.16); color: #fb7185; border: 1px solid rgba(244, 63, 94, 0.35);">❤️ ${totalLikes} Liked</span>`
+    : '';
+  const userHiddenBadge = eventHides > 0
+    ? `<span class="badge" style="background: rgba(148, 163, 184, 0.16); color: #cbd5e1; border: 1px solid rgba(148, 163, 184, 0.35);">🙈 ${eventHides} Hidden</span>`
+    : '';
+
   const badges = [
     posBadge,
     tierBadge,
     item.category ? `<span class="chip">${escapeHtml(item.category)}</span>` : '',
     catalogCardBadge(item.status),
+    likedBadge,
+    userHiddenBadge,
     mediaBadgeHtml,
   ].filter(Boolean).join('');
 
@@ -5534,6 +5556,12 @@ function renderCatalogProductCard(item, node, categoryMap = null, cardIndex = 0)
     { label: 'Sub-Plans', value: tierCount > 0 ? `${tierCount} options` : '—' },
     { label: 'Media', value: itemMediaCountLabel(item, mediaCounts) },
   ];
+  if (totalLikes > 0) {
+    metricsList.push({ label: 'Likes', value: `❤️ ${totalLikes}` });
+  }
+  if (eventHides > 0 || String(item.status || '').toLowerCase() === 'hidden') {
+    metricsList.push({ label: 'Hidden', value: String(item.status || '').toLowerCase() === 'hidden' ? `Admin (${eventHides} user)` : `${eventHides} user` });
+  }
   if (item.orderCount || item.orders) {
     metricsList.push({ label: 'Orders', value: itemOrderCountLabel(item) });
   }
