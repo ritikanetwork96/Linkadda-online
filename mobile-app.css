@@ -7503,6 +7503,10 @@ body.in-search-view #fkMobileAppbar,
   border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 
+.fk-pv-shelf-section:last-child {
+  margin-bottom: 84px;
+}
+
 [data-theme="light"] .fk-pv-shelf-section {
   border-top-color: rgba(0, 0, 0, 0.08);
 }
