@@ -7504,7 +7504,12 @@ body.in-search-view #fkMobileAppbar,
 }
 
 .fk-pv-shelf-section:last-child {
-  margin-bottom: 84px;
+  margin-bottom: 24px;
+}
+
+.fk-pv-content,
+.fk-pv-right-col {
+  padding-bottom: 110px !important;
 }
 
 [data-theme="light"] .fk-pv-shelf-section {
