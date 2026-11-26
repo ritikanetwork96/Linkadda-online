@@ -4502,6 +4502,11 @@
       ? `<span class="rv-card-badge recom-badge"><i class="fa-solid fa-fire"></i> Hot Pick</span>`
       : `<span class="rv-card-badge"><i class="fa-solid fa-eye"></i> Viewed</span>`;
 
+    const isUSD = (typeof window.getStoreCurrency === 'function' ? window.getStoreCurrency() : (localStorage.getItem('linkadda_store_currency') || 'INR')) === 'USD';
+    const priceHtml = isUSD
+      ? `<span class="rv-price-usd" style="font-size:14.5px;font-weight:800;color:#ffffff;">$${cleanUSD} USDT</span>`
+      : `<span class="rv-price-inr">&#8377;${cleanINR}</span>`;
+
     return `
       <div class="rv-card" onclick="window.openFkProductPage && window.openFkProductPage('${esc(p.id)}')">
         <div class="rv-card-media">
@@ -4511,8 +4516,7 @@
         <div class="rv-card-body">
           <h4 class="rv-card-title">${esc(title)}</h4>
           <div class="rv-card-prices">
-            <span class="rv-price-inr">&#8377;${cleanINR}</span>
-            <span class="rv-price-usd">$${cleanUSD} USDT</span>
+            ${priceHtml}
           </div>
           <div class="rv-card-actions" onclick="event.stopPropagation();">
             <button type="button" class="rv-btn-view" onclick="window.openFkProductPage && window.openFkProductPage('${esc(p.id)}')">
@@ -6588,7 +6592,7 @@
   // -- INSTANT 0ms CATALOG BOOTSTRAP (Zero Waiting, Zero Lag) --
   try {
     const preCatalog = window.__preloadedCatalog || {};
-    const rawV6 = localStorage.getItem('linkadda_cached_live_data_v6');
+    const rawV6 = localStorage.getItem('linkadda_cached_live_data_v7');
     let localData = null;
     try {
       const pV6 = rawV6 ? JSON.parse(rawV6) : null;
@@ -6650,6 +6654,7 @@
         banner: liveCollections.banner,
         timestamp: Date.now()
       });
+      localStorage.setItem('linkadda_cached_live_data_v7', payload);
       localStorage.setItem('linkadda_cached_live_data_v6', payload);
       localStorage.setItem('linkadda_cached_live_data_v5', payload);
       localStorage.setItem('linkadda_cached_live_data', payload);

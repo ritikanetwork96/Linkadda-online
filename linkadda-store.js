@@ -1074,6 +1074,11 @@
       ? `<span class="rv-card-badge ${badgeClass}">${escapeHtml(badgeText)}</span>`
       : '';
 
+    const isUSD = (typeof window.getStoreCurrency === 'function' ? window.getStoreCurrency() : (localStorage.getItem('linkadda_store_currency') || 'INR')) === 'USD';
+    const priceHtml = isUSD
+      ? `<span class="rv-price-usd" style="font-size:14.5px;font-weight:800;color:#ffffff;">$${escapeHtml(pricePair.usd)} USDT</span>`
+      : `<span class="rv-price-inr">&#8377;${escapeHtml(pricePair.inr)}</span>`;
+
     return `
       <div class="rv-card" onclick="window.openFkProductPage && window.openFkProductPage('${escapeHtml(pid)}')">
         <div class="rv-card-media">
@@ -1083,8 +1088,7 @@
         <div class="rv-card-body">
           <h4 class="rv-card-title">${escapeHtml(title)}</h4>
           <div class="rv-card-prices">
-            <span class="rv-price-inr">&#8377;${escapeHtml(pricePair.inr)}</span>
-            <span class="rv-price-usd">$${escapeHtml(pricePair.usd)} USDT</span>
+            ${priceHtml}
           </div>
           <div class="rv-card-actions" onclick="event.stopPropagation();">
             <button type="button" class="rv-btn-view" onclick="window.openFkProductPage && window.openFkProductPage('${escapeHtml(pid)}')">
