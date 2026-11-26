@@ -5513,6 +5513,7 @@ function renderCatalogProductCard(item, node, categoryMap = null, cardIndex = 0)
   const itemIdLower = String(item.id || '').toLowerCase();
   let eventLikes = 0;
   let eventHides = 0;
+  let eventBuyClicks = 0;
   allEvents.forEach((ev) => {
     if (!ev) return;
     const evPid = String(ev.product_id || ev.productId || ev.id || '').toLowerCase();
@@ -5520,8 +5521,10 @@ function renderCatalogProductCard(item, node, categoryMap = null, cardIndex = 0)
     const evType = String(ev.type || ev.event_type || ev.eventType || '').toLowerCase();
     if (evType === 'product_like' || evType.includes('like')) eventLikes++;
     else if (evType === 'product_hide' || evType.includes('hide')) eventHides++;
+    else if (evType === 'order_click' || evType === 'buy_click' || evType.includes('buy') || evType.includes('order')) eventBuyClicks++;
   });
   const totalLikes = Math.max(Number(item.likes || item.likesCount || 0), eventLikes);
+  const totalBuyClicks = Math.max(Number(item.buyClicks || item.orderClicks || 0), eventBuyClicks);
   const likedBadge = totalLikes > 0
     ? `<span class="badge" style="background: rgba(244, 63, 94, 0.16); color: #fb7185; border: 1px solid rgba(244, 63, 94, 0.35);">❤️ ${totalLikes} Liked</span>`
     : '';
@@ -5556,6 +5559,9 @@ function renderCatalogProductCard(item, node, categoryMap = null, cardIndex = 0)
     { label: 'Sub-Plans', value: tierCount > 0 ? `${tierCount} options` : '—' },
     { label: 'Media', value: itemMediaCountLabel(item, mediaCounts) },
   ];
+  if (totalBuyClicks > 0) {
+    metricsList.push({ label: 'Buy Clicks', value: `⚡ ${totalBuyClicks}` });
+  }
   if (totalLikes > 0) {
     metricsList.push({ label: 'Likes', value: `❤️ ${totalLikes}` });
   }
@@ -5993,37 +5999,46 @@ function getProductEngagementMap() {
     if (!ev) return;
     const pid = String(ev.product_id || ev.productId || ev.id || '').toLowerCase();
     if (!pid) return;
-    if (!map[pid]) map[pid] = { likes: 0, hides: 0 };
+    if (!map[pid]) map[pid] = { likes: 0, hides: 0, buyClicks: 0 };
     const evType = String(ev.type || ev.event_type || ev.eventType || '').toLowerCase();
     if (evType === 'product_like' || evType.includes('like')) map[pid].likes++;
     else if (evType === 'product_hide' || evType.includes('hide')) map[pid].hides++;
+    else if (evType === 'order_click' || evType === 'buy_click' || evType.includes('buy') || evType.includes('order')) map[pid].buyClicks++;
   });
   return map;
 }
 
 function renderCatalogTabs() {
-  const products = listCollection('products').filter((item) => item.status !== 'deleted');
+  const productsCount = listCollection('products').filter((item) => item.status !== 'deleted').length;
   const categoriesCount = listCollection('categories').filter((item) => item.status !== 'deleted').length;
-  const engMap = getProductEngagementMap();
-  const likedHiddenCount = products.filter((item) => {
-    const e = engMap[String(item.id || '').toLowerCase()] || { likes: 0, hides: 0 };
-    const totalLikes = Math.max(Number(item.likes || item.likesCount || 0), e.likes);
-    return totalLikes > 0 || e.hides > 0 || String(item.status || '').toLowerCase() === 'hidden';
-  }).length;
   return `
     <div class="catalog-tabs">
-      <button class="catalog-tab ${ui.catalogTab === 'products' ? 'active' : ''}" data-action="switch-catalog" data-tab="products">Products <span>${escapeHtml(String(products.length))}</span></button>
+      <button class="catalog-tab ${ui.catalogTab === 'products' ? 'active' : ''}" data-action="switch-catalog" data-tab="products">Products <span>${escapeHtml(String(productsCount))}</span></button>
       <button class="catalog-tab ${ui.catalogTab === 'categories' ? 'active' : ''}" data-action="switch-catalog" data-tab="categories">Categories <span>${escapeHtml(String(categoriesCount))}</span></button>
-      <button class="catalog-tab ${ui.catalogTab === 'liked-hidden' ? 'active' : ''}" data-action="switch-catalog" data-tab="liked-hidden">❤️ Liked & Hidden <span>${escapeHtml(String(likedHiddenCount))}</span></button>
     </div>
   `;
 }
 
-function renderLikedHiddenCatalogSection() {
+window.openLikedHiddenPage = function(tab = 'liked') {
+  ui.likedHiddenTab = tab === 'hidden' ? 'hidden' : 'liked';
+  ui.route = 'liked-hidden';
+  if (window.location.hash !== '#/liked-hidden') {
+    window.location.hash = '#/liked-hidden';
+  }
+  renderView(ui.data || {});
+  window.scrollTo({ top: 0, behavior: 'instant' });
+};
+
+window.switchLikedHiddenTab = function(tab = 'liked') {
+  ui.likedHiddenTab = tab === 'hidden' ? 'hidden' : 'liked';
+  renderView(ui.data || {});
+};
+
+function renderLikedHiddenPageView() {
+  const activeTab = ui.likedHiddenTab === 'hidden' ? 'hidden' : 'liked';
   const products = listCollection('products').filter((item) => item.status !== 'deleted');
   const categories = listCollection('categories');
   const categoryMap = new Map(categories.map((c) => [c.id, c]));
-  const mediaCounts = new Map();
   const engMap = getProductEngagementMap();
 
   const likedItems = [];
@@ -6033,7 +6048,7 @@ function renderLikedHiddenCatalogSection() {
   let userHiddenSum = 0;
 
   products.forEach((item) => {
-    const e = engMap[String(item.id || '').toLowerCase()] || { likes: 0, hides: 0 };
+    const e = engMap[String(item.id || '').toLowerCase()] || { likes: 0, hides: 0, buyClicks: 0 };
     const totalLikes = Math.max(Number(item.likes || item.likesCount || 0), e.likes);
     const isAdminHidden = String(item.status || '').toLowerCase() === 'hidden';
     if (totalLikes > 0) {
@@ -6050,48 +6065,51 @@ function renderLikedHiddenCatalogSection() {
   likedItems.sort((a, b) => b.totalLikes - a.totalLikes);
   hiddenItems.sort((a, b) => (b.isAdminHidden ? 1 : 0) - (a.isAdminHidden ? 1 : 0) || b.hides - a.hides);
 
+  const activeList = activeTab === 'hidden' ? hiddenItems : likedItems;
+
   return `
-    <div style="display: flex; flex-direction: column; gap: 24px; margin-top: 14px;">
-      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px;">
-        <div class="glass" style="padding: 14px 16px; border-radius: 14px; border: 1px solid rgba(244,63,94,0.28);">
-          <span style="font-size: 11.5px; color: var(--muted); display: block;">Total Product Likes</span>
-          <strong style="font-size: 20px; color: #fb7185;">❤️ ${totalLikesSum}</strong>
+    <div class="dashboard-stack">
+      <section class="panel glass" style="padding: 20px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 18px;">
+          <div>
+            <span class="eyebrow">Engagement & Visibility</span>
+            <h2 class="section-title" style="margin: 2px 0 0;">❤️ Liked & 🙈 Hidden Packs</h2>
+          </div>
+          <button type="button" class="btn btn-ghost" onclick="window.location.hash='#/dashboard';">
+            <i data-lucide="arrow-left"></i> Back to Dashboard
+          </button>
         </div>
-        <div class="glass" style="padding: 14px 16px; border-radius: 14px; border: 1px solid rgba(244,63,94,0.2);">
-          <span style="font-size: 11.5px; color: var(--muted); display: block;">Liked Packs</span>
-          <strong style="font-size: 20px; color: var(--text);">${likedItems.length}</strong>
-        </div>
-        <div class="glass" style="padding: 14px 16px; border-radius: 14px; border: 1px solid rgba(245,158,11,0.28);">
-          <span style="font-size: 11.5px; color: var(--muted); display: block;">Admin Hidden Packs</span>
-          <strong style="font-size: 20px; color: #fbbf24;">🟡 ${adminHiddenCount}</strong>
-        </div>
-        <div class="glass" style="padding: 14px 16px; border-radius: 14px; border: 1px solid rgba(148,163,184,0.28);">
-          <span style="font-size: 11.5px; color: var(--muted); display: block;">User Hide Events</span>
-          <strong style="font-size: 20px; color: #cbd5e1;">🙈 ${userHiddenSum}</strong>
-        </div>
-      </div>
 
-      <div>
-        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
-          <h4 style="margin: 0; font-size: 15px; font-weight: 800; color: #fb7185;">❤️ Most Liked Packs (${likedItems.length})</h4>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 18px;">
+          <div class="glass" style="padding: 12px 14px; border-radius: 12px; border: 1px solid rgba(244,63,94,0.28);">
+            <span style="font-size: 11px; color: var(--muted); display: block;">Total Likes</span>
+            <strong style="font-size: 19px; color: #fb7185;">❤️ ${totalLikesSum}</strong>
+          </div>
+          <div class="glass" style="padding: 12px 14px; border-radius: 12px; border: 1px solid rgba(244,63,94,0.2);">
+            <span style="font-size: 11px; color: var(--muted); display: block;">Liked Packs</span>
+            <strong style="font-size: 19px; color: var(--text);">${likedItems.length}</strong>
+          </div>
+          <div class="glass" style="padding: 12px 14px; border-radius: 12px; border: 1px solid rgba(245,158,11,0.28);">
+            <span style="font-size: 11px; color: var(--muted); display: block;">Admin Hidden</span>
+            <strong style="font-size: 19px; color: #fbbf24;">🟡 ${adminHiddenCount}</strong>
+          </div>
+          <div class="glass" style="padding: 12px 14px; border-radius: 12px; border: 1px solid rgba(148,163,184,0.28);">
+            <span style="font-size: 11px; color: var(--muted); display: block;">User Hides</span>
+            <strong style="font-size: 19px; color: #cbd5e1;">🙈 ${userHiddenSum}</strong>
+          </div>
         </div>
-        <div class="catalog-results ${ui.catalogView}" id="catalogLikedGrid">
-          ${likedItems.length
-            ? likedItems.map((entry, idx) => renderCatalogProductCard(entry.item, 'products', categoryMap, idx)).join('')
-            : '<div class="empty-state glass" style="grid-column: 1 / -1; padding: 28px; text-align: center;">No liked products recorded yet.</div>'}
-        </div>
-      </div>
 
-      <div>
-        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
-          <h4 style="margin: 0; font-size: 15px; font-weight: 800; color: #fbbf24;">🙈 Hidden Packs — Admin & User (${hiddenItems.length})</h4>
+        <div class="catalog-tabs" style="margin-bottom: 16px;">
+          <button type="button" class="catalog-tab ${activeTab === 'liked' ? 'active' : ''}" onclick="window.switchLikedHiddenTab('liked')">❤️ Liked Packs <span>${likedItems.length}</span></button>
+          <button type="button" class="catalog-tab ${activeTab === 'hidden' ? 'active' : ''}" onclick="window.switchLikedHiddenTab('hidden')">🙈 Hidden Packs <span>${hiddenItems.length}</span></button>
         </div>
-        <div class="catalog-results ${ui.catalogView}" id="catalogHiddenGrid">
-          ${hiddenItems.length
-            ? hiddenItems.map((entry, idx) => renderCatalogProductCard(entry.item, 'products', categoryMap, idx)).join('')
-            : '<div class="empty-state glass" style="grid-column: 1 / -1; padding: 28px; text-align: center;">No hidden products found.</div>'}
+
+        <div class="catalog-results ${ui.catalogView || 'grid'}">
+          ${activeList.length
+            ? activeList.map((entry, idx) => renderCatalogProductCard(entry.item, 'products', categoryMap, idx)).join('')
+            : `<div class="empty-state glass" style="grid-column: 1 / -1; padding: 32px; text-align: center;">No ${activeTab === 'hidden' ? 'hidden' : 'liked'} products found.</div>`}
         </div>
-      </div>
+      </section>
     </div>
   `;
 }
@@ -6579,7 +6597,7 @@ function renderCatalogView(data) {
           </div>
         </div>
         ${renderCatalogTabs()}
-        ${ui.catalogTab === 'liked-hidden' ? renderLikedHiddenCatalogSection() : renderCollectionInner(meta.node, meta.schema, nodeData)}
+        ${renderCollectionInner(meta.node, meta.schema, nodeData)}
       </section>
     </div>
   `;
@@ -13054,6 +13072,7 @@ function renderView(data) {
     else if (current === 'reviews') html = renderReviewsManagementView(data.reviews || {}, data || {});
     else if (current === 'screenshots') html = renderScreenshotsGalleryView(data.orders || {}, data || {});
     else if (current === 'analytics') html = renderAnalyticsView(data);
+    else if (current === 'liked-hidden') html = renderLikedHiddenPageView();
     else if (current === 'hero') html = renderSingleEditorPage('hero', singleEditors.hero, data.hero || {});
     else if (current === 'banner') html = renderSingleEditorPage('banner', singleEditors.banner, data.banner || {});
     else html = renderDashboard(data);
@@ -13282,7 +13301,7 @@ function computeRouteDigest(route, data) {
 }
 
 function applyRoute(path) {
-  const targetRoute = (path === 'products' || path === 'categories') ? 'catalog' : (NAV_ITEMS.some((item) => item.key === path) ? path : 'dashboard');
+  const targetRoute = (path === 'products' || path === 'categories') ? 'catalog' : (path === 'liked-hidden' ? 'liked-hidden' : (NAV_ITEMS.some((item) => item.key === path) ? path : 'dashboard'));
   if (path === 'products') {
     ui.catalogTab = 'products';
   } else if (path === 'categories') {
@@ -13328,7 +13347,7 @@ function initRouteHandling() {
       return;
     }
     const path = window.location.hash.replace(/^#\/?/, '') || 'dashboard';
-    const targetRoute = (path === 'products' || path === 'categories') ? 'catalog' : (NAV_ITEMS.some((item) => item.key === path) ? path : 'dashboard');
+    const targetRoute = (path === 'products' || path === 'categories') ? 'catalog' : (path === 'liked-hidden' ? 'liked-hidden' : (NAV_ITEMS.some((item) => item.key === path) ? path : 'dashboard'));
     if (ui.route === targetRoute) return;
     applyRoute(path);
     closeSidebar();
